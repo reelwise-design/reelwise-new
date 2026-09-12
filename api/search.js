@@ -7,6 +7,10 @@ export default async function handler(req, res) {
 
   const token = process.env.TMDB_READ_ACCESS_TOKEN;
 
+  if (!token) {
+    return res.status(500).json({ error: "TMDB token is not configured" });
+  }
+
   try {
     const response = await fetch(
       `https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(query)}&include_adult=false&language=en-US&page=1`,
