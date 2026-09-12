@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reelwise</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #111;
+      color: white;
+    }
+
+    header {
+      padding: 24px;
+      text-align: center;
+      background: #000;
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 42px;
+    }
+
+    .tagline {
+      color: #aaa;
+      margin-bottom: 24px;
+    }
+
+    .search {
+      display: flex;
+      max-width: 650px;
+      margin: auto;
+      gap: 10px;
+    }
+
+    input {
+      flex: 1;
+      padding: 15px;
+      font-size: 17px;
+      border-radius: 6px;
+      border: none;
+    }
+
+    button {
+      padding: 15px 22px;
+      font-size: 17px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+
+    #results {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 24px;
+    }
+
+    .card {
+      background: #1d1d1d;
+      border-radius: 10px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+
+    .card img {
+      width: 100%;
+      display: block;
+    }
+
+    .card-content {
+      padding: 15px;
+    }
+
+    .card h2 {
+      font-size: 19px;
+      margin: 0 0 8px;
+    }
+
+    .year {
+      color: #aaa;
+    }
+
+    .message {
+      color: #aaa;
+      text-align: center;
+      grid-column: 1 / -1;
+      padding: 30px;
+    }
+  </style>
+</head>
+
+<body>
+
+<header>
+  <h1>REELWISE</h1>
+  <div class="tagline">Movies. Stars. Quotes. Stories.</div>
+
+  <div class="search">
+    <input id="searchInput" type="text" placeholder="Search for a movie...">
+    <button onclick="searchMovies()">Search</button>
+  </div>
+</header>
+
+<main>
+  <div id="results">
+    <div class="message">Search for a movie to get started.</div>
+  </div>
+</main>
+
+<script>
+const API_TOKEN = "PASTE_YOUR_TMDB_TOKEN_HERE";
+
+async function searchMovies() {
+  const query = document.getElementById("searchInput").value.trim();
+  const results = document.getElementById("results");
+
+  if (!query) return;
+
+  results.innerHTML = '<div class="message">Searching...</div>';
+
+  try {
+    const response = await fetch(
+      "https://api.themoviedb.org/3/search/movie?query=" +
+      encodeURIComponent(query) +
+      "&include_adult=false&language=en-US&page=1",
+      {
+        headers: {
+          Authorization: "Bearer " + API_TOKEN,
+          accept: "application/json"
+        }
+      }
+    );
+
+    const data = await response.json();
+
+    if (!data.results || data.results.length === 0) {
+      results.innerHTML = '<div class="message">No movies found.</div>';
+      return;
+    }
+
+    results.innerHTML = data.results.map(movie => {
+      const poster = movie.poster_path
+        ? "https://image.tmdb.org/t/p/w500" + movie.poster_path
+        : "";
+
+      const year = movie.release_date
+        ? movie.release_date.substring(0, 4)
+        : "Unknown";
+
+      return `
+        <div class="card">
+          ${poster ? `<img src="${poster}" alt="${movie.title}">` : ""}
+          <div class="card-content">
+            <h2>${movie.title}</h2>
+            <div class="year">${year}</div>
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  } catch (error) {
+    results.innerHTML =
+      '<div class="message">Something went wrong. Please try again.</div>';
+  }
+}
+
+document.getElementById("searchInput").addEventListener("keydown", function(event) {
+  if (event.key === "Enter") {
+    searchMovies();
+  }
+});
+</script>
+
+</body>
+</html>
