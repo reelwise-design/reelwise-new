@@ -1,182 +1,334 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Reelwise</title>
-  <style>
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-    }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Reelwise — Movies. Stars. Stories.</title>
 
-    header {
-      padding: 24px;
-      text-align: center;
-      background: #000;
-    }
+<style>
+* {
+  box-sizing: border-box;
+}
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 42px;
-    }
+body {
+  margin: 0;
+  background: #0b0b0f;
+  color: #fff;
+  font-family: Arial, Helvetica, sans-serif;
+}
 
-    .tagline {
-      color: #aaa;
-      margin-bottom: 24px;
-    }
+header {
+  background: linear-gradient(180deg, #171722 0%, #0b0b0f 100%);
+  padding: 25px 20px 70px;
+}
 
-    .search {
-      display: flex;
-      max-width: 650px;
-      margin: auto;
-      gap: 10px;
-    }
+nav {
+  max-width: 1200px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 
-    input {
-      flex: 1;
-      padding: 15px;
-      font-size: 17px;
-      border-radius: 6px;
-      border: none;
-    }
+.logo {
+  font-size: 30px;
+  font-weight: 800;
+  letter-spacing: 1px;
+}
 
-    button {
-      padding: 15px 22px;
-      font-size: 17px;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-    }
+.logo span {
+  color: #e50914;
+}
 
-    main {
-      max-width: 1100px;
-      margin: 40px auto;
-      padding: 0 20px;
-    }
+nav a {
+  color: #aaa;
+  text-decoration: none;
+  margin-left: 22px;
+  font-size: 14px;
+}
 
-    #results {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 24px;
-    }
+.hero {
+  max-width: 900px;
+  margin: 75px auto 0;
+  text-align: center;
+}
 
-    .card {
-      background: #1d1d1d;
-      border-radius: 10px;
-      overflow: hidden;
-      cursor: pointer;
-    }
+.hero h1 {
+  font-size: clamp(42px, 8vw, 76px);
+  margin: 0;
+  line-height: 1;
+}
 
-    .card img {
-      width: 100%;
-      display: block;
-    }
+.hero h1 span {
+  color: #e50914;
+}
 
-    .card-content {
-      padding: 15px;
-    }
+.hero p {
+  color: #aaa;
+  font-size: 20px;
+  margin: 20px 0 32px;
+}
 
-    .card h2 {
-      font-size: 19px;
-      margin: 0 0 8px;
-    }
+.search {
+  max-width: 700px;
+  margin: auto;
+  display: flex;
+  gap: 10px;
+}
 
-    .year {
-      color: #aaa;
-    }
+.search input {
+  flex: 1;
+  padding: 18px;
+  border-radius: 8px;
+  border: 1px solid #333;
+  background: #18181f;
+  color: white;
+  font-size: 17px;
+  outline: none;
+}
 
-    .message {
-      color: #aaa;
-      text-align: center;
-      grid-column: 1 / -1;
-      padding: 30px;
-    }
-  </style>
+.search button {
+  padding: 18px 25px;
+  border: 0;
+  border-radius: 8px;
+  background: #e50914;
+  color: white;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+}
+
+main {
+  max-width: 1200px;
+  margin: auto;
+  padding: 45px 20px;
+}
+
+.section-title {
+  font-size: 25px;
+  margin-bottom: 20px;
+}
+
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+  margin-bottom: 55px;
+}
+
+.feature {
+  background: #15151c;
+  border: 1px solid #272731;
+  border-radius: 12px;
+  padding: 25px;
+}
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 12px;
+}
+
+.feature h3 {
+  margin: 0 0 8px;
+}
+
+.feature p {
+  margin: 0;
+  color: #999;
+  line-height: 1.5;
+}
+
+#results {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 22px;
+}
+
+.card {
+  background: #15151c;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid #25252d;
+}
+
+.card img {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  display: block;
+}
+
+.card-content {
+  padding: 13px;
+}
+
+.card h3 {
+  margin: 0 0 6px;
+  font-size: 16px;
+}
+
+.card-year {
+  color: #888;
+  font-size: 14px;
+}
+
+.message {
+  color: #888;
+  text-align: center;
+  grid-column: 1 / -1;
+  padding: 30px;
+}
+
+footer {
+  border-top: 1px solid #222;
+  text-align: center;
+  color: #666;
+  padding: 30px 20px;
+  margin-top: 40px;
+}
+
+@media (max-width: 700px) {
+  nav a {
+    display: none;
+  }
+
+  .features {
+    grid-template-columns: 1fr;
+  }
+
+  .search {
+    flex-direction: column;
+  }
+
+  .search button {
+    width: 100%;
+  }
+}
+</style>
 </head>
 
 <body>
 
 <header>
-  <h1>REELWISE</h1>
-  <div class="tagline">Movies. Stars. Quotes. Stories.</div>
+
+<nav>
+  <div class="logo">REEL<span>WISE</span></div>
+
+  <div>
+    <a href="#">Movies</a>
+    <a href="#">Stars</a>
+    <a href="#">Quotes</a>
+    <a href="#">Six Degrees</a>
+  </div>
+</nav>
+
+<div class="hero">
+
+  <h1>Movies <span>reimagined.</span></h1>
+
+  <p>
+    Discover movies, legendary stars, unforgettable quotes and the stories behind the scenes.
+  </p>
 
   <div class="search">
-    <input id="searchInput" type="text" placeholder="Search for a movie...">
+    <input
+      id="searchInput"
+      type="text"
+      placeholder="Search any movie..."
+    >
+
     <button onclick="searchMovies()">Search</button>
   </div>
+
+</div>
+
 </header>
 
 <main>
-  <div id="results">
-    <div class="message">Search for a movie to get started.</div>
+
+<h2 class="section-title">Explore Reelwise</h2>
+
+<div class="features">
+
+  <div class="feature">
+    <div class="feature-icon">🎬</div>
+    <h3>Movies</h3>
+    <p>
+      Explore movies from every era, from classics to today's biggest films.
+    </p>
   </div>
+
+  <div class="feature">
+    <div class="feature-icon">⭐</div>
+    <h3>Movie Stars</h3>
+    <p>
+      Discover the actors behind the characters and the stories behind their careers.
+    </p>
+  </div>
+
+  <div class="feature">
+    <div class="feature-icon">💬</div>
+    <h3>Famous Quotes</h3>
+    <p>
+      Relive the lines that made movie history.
+    </p>
+  </div>
+
+</div>
+
+<h2 class="section-title">Movie Search</h2>
+
+<div id="results">
+  <div class="message">
+    Search for a movie above to get started.
+  </div>
+</div>
+
 </main>
 
+<footer>
+  Reelwise — Movies. Stars. Stories.
+</footer>
+
 <script>
-const API_TOKEN = "PASTE_YOUR_TMDB_TOKEN_HERE";
 
 async function searchMovies() {
-  const query = document.getElementById("searchInput").value.trim();
-  const results = document.getElementById("results");
+
+  const query = document
+    .getElementById("searchInput")
+    .value
+    .trim();
+
+  const results =
+    document.getElementById("results");
 
   if (!query) return;
 
-  results.innerHTML = '<div class="message">Searching...</div>';
+  results.innerHTML =
+    '<div class="message">Searching...</div>';
 
-  try {
-    const response = await fetch(
-      "https://api.themoviedb.org/3/search/movie?query=" +
-      encodeURIComponent(query) +
-      "&include_adult=false&language=en-US&page=1",
-      {
-        headers: {
-          Authorization: "Bearer " + API_TOKEN,
-          accept: "application/json"
-        }
-      }
-    );
+  /*
+    TMDB will be connected securely through Vercel
+    after the homepage is in place.
+  */
 
-    const data = await response.json();
-
-    if (!data.results || data.results.length === 0) {
-      results.innerHTML = '<div class="message">No movies found.</div>';
-      return;
-    }
-
-    results.innerHTML = data.results.map(movie => {
-      const poster = movie.poster_path
-        ? "https://image.tmdb.org/t/p/w500" + movie.poster_path
-        : "";
-
-      const year = movie.release_date
-        ? movie.release_date.substring(0, 4)
-        : "Unknown";
-
-      return `
-        <div class="card">
-          ${poster ? `<img src="${poster}" alt="${movie.title}">` : ""}
-          <div class="card-content">
-            <h2>${movie.title}</h2>
-            <div class="year">${year}</div>
-          </div>
-        </div>
-      `;
-    }).join("");
-
-  } catch (error) {
-    results.innerHTML =
-      '<div class="message">Something went wrong. Please try again.</div>';
-  }
+  results.innerHTML = `
+    <div class="message">
+      Movie search is ready to be connected.
+    </div>
+  `;
 }
 
-document.getElementById("searchInput").addEventListener("keydown", function(event) {
-  if (event.key === "Enter") {
-    searchMovies();
-  }
-});
+document
+  .getElementById("searchInput")
+  .addEventListener("keydown", function(event) {
+
+    if (event.key === "Enter") {
+      searchMovies();
+    }
+
+  });
+
 </script>
 
 </body>
