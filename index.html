@@ -3,242 +3,208 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Reelwise — Movies. Stars. Stories.</title>
 
 <style>
-* {
-  box-sizing: border-box;
+*{box-sizing:border-box}
+
+body{
+  margin:0;
+  background:#08080c;
+  color:#fff;
+  font-family:Arial,Helvetica,sans-serif;
 }
 
-body {
-  margin: 0;
-  background: #0b0b0f;
-  color: white;
-  font-family: Arial, Helvetica, sans-serif;
+header{
+  background:linear-gradient(180deg,#191923 0%,#08080c 100%);
+  padding:22px 20px 70px;
 }
 
-header {
-  background: linear-gradient(180deg, #191923, #0b0b0f);
-  padding: 22px 20px 65px;
+nav{
+  max-width:1200px;
+  margin:auto;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:20px;
 }
 
-nav {
-  max-width: 1200px;
-  margin: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
+.logo{
+  font-size:30px;
+  font-weight:800;
+  letter-spacing:1px;
 }
 
-.logo {
-  font-size: 30px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  white-space: nowrap;
+.logo span{color:#e50914}
+
+.nav-links{
+  display:flex;
+  gap:22px;
+  flex-wrap:wrap;
+  justify-content:center;
 }
 
-.logo span {
-  color: #e50914;
+.nav-links a{
+  color:#aaa;
+  text-decoration:none;
+  font-size:14px;
 }
 
-.nav-links {
-  display: flex;
-  gap: 22px;
-  flex-wrap: wrap;
-  justify-content: center;
+.hero{
+  max-width:900px;
+  margin:75px auto 0;
+  text-align:center;
 }
 
-.nav-links a {
-  color: #aaa;
-  text-decoration: none;
-  font-size: 14px;
+.hero h1{
+  font-size:clamp(42px,8vw,76px);
+  margin:0;
+  line-height:1;
 }
 
-.nav-links a:hover {
-  color: white;
+.hero h1 span{color:#e50914}
+
+.hero p{
+  color:#aaa;
+  font-size:19px;
+  line-height:1.5;
+  margin:22px 0 32px;
 }
 
-.hero {
-  max-width: 900px;
-  margin: 75px auto 0;
-  text-align: center;
+.search{
+  max-width:700px;
+  margin:auto;
+  display:flex;
+  gap:10px;
 }
 
-.hero h1 {
-  font-size: clamp(42px, 8vw, 76px);
-  margin: 0;
-  line-height: 1;
+.search input{
+  flex:1;
+  padding:18px;
+  border-radius:8px;
+  border:1px solid #333;
+  background:#18181f;
+  color:#fff;
+  font-size:17px;
+  outline:none;
 }
 
-.hero h1 span {
-  color: #e50914;
+.search button{
+  padding:18px 26px;
+  border:0;
+  border-radius:8px;
+  background:#e50914;
+  color:#fff;
+  font-weight:bold;
+  font-size:16px;
 }
 
-.hero p {
-  color: #aaa;
-  font-size: 19px;
-  line-height: 1.5;
-  margin: 22px 0 32px;
+main{
+  max-width:1200px;
+  margin:auto;
+  padding:45px 20px;
 }
 
-.search {
-  max-width: 700px;
-  margin: auto;
-  display: flex;
-  gap: 10px;
+.section-title{
+  font-size:25px;
+  margin-bottom:20px;
 }
 
-.search input {
-  flex: 1;
-  padding: 18px;
-  border-radius: 8px;
-  border: 1px solid #333;
-  background: #18181f;
-  color: white;
-  font-size: 17px;
-  outline: none;
+.features{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:18px;
+  margin-bottom:55px;
 }
 
-.search input:focus {
-  border-color: #e50914;
+.feature{
+  background:#15151c;
+  border:1px solid #272731;
+  border-radius:12px;
+  padding:25px;
 }
 
-.search button {
-  padding: 18px 26px;
-  border: 0;
-  border-radius: 8px;
-  background: #e50914;
-  color: white;
-  font-weight: bold;
-  font-size: 16px;
-  cursor: pointer;
+.feature-icon{
+  font-size:32px;
+  margin-bottom:12px;
 }
 
-main {
-  max-width: 1200px;
-  margin: auto;
-  padding: 45px 20px;
+.feature h3{margin:0 0 8px}
+
+.feature p{
+  margin:0;
+  color:#999;
+  line-height:1.5;
 }
 
-.section-title {
-  font-size: 25px;
-  margin-bottom: 20px;
+#results{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  gap:22px;
 }
 
-.features {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 18px;
-  margin-bottom: 55px;
+.movie{
+  background:#15151c;
+  border:1px solid #272731;
+  border-radius:10px;
+  overflow:hidden;
 }
 
-.feature {
-  background: #15151c;
-  border: 1px solid #272731;
-  border-radius: 12px;
-  padding: 25px;
+.movie img{
+  width:100%;
+  display:block;
+  aspect-ratio:2/3;
+  object-fit:cover;
 }
 
-.feature-icon {
-  font-size: 32px;
-  margin-bottom: 12px;
+.movie-info{
+  padding:14px;
 }
 
-.feature h3 {
-  margin: 0 0 8px;
+.movie-title{
+  font-weight:bold;
+  margin-bottom:6px;
 }
 
-.feature p {
-  margin: 0;
-  color: #999;
-  line-height: 1.5;
+.movie-year{
+  color:#888;
 }
 
-#results {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-  gap: 22px;
+.message{
+  color:#888;
+  text-align:center;
+  grid-column:1/-1;
+  padding:30px;
 }
 
-.card {
-  background: #15151c;
-  border-radius: 10px;
-  overflow: hidden;
-  border: 1px solid #25252d;
-  transition: transform 0.2s;
+footer{
+  border-top:1px solid #222;
+  text-align:center;
+  color:#666;
+  padding:30px 20px;
+  margin-top:40px;
 }
 
-.card:hover {
-  transform: translateY(-4px);
-}
-
-.card img {
-  width: 100%;
-  aspect-ratio: 2 / 3;
-  object-fit: cover;
-  display: block;
-}
-
-.card-content {
-  padding: 13px;
-}
-
-.card h3 {
-  margin: 0 0 6px;
-  font-size: 16px;
-}
-
-.card-year {
-  color: #888;
-  font-size: 14px;
-}
-
-.message {
-  color: #888;
-  text-align: center;
-  grid-column: 1 / -1;
-  padding: 30px;
-}
-
-footer {
-  border-top: 1px solid #222;
-  text-align: center;
-  color: #666;
-  padding: 30px 20px;
-  margin-top: 40px;
-}
-
-@media (max-width: 700px) {
-
-  nav {
-    flex-direction: column;
-    gap: 18px;
+@media(max-width:700px){
+  nav{
+    flex-direction:column;
+    gap:18px;
   }
 
-  .nav-links {
-    gap: 12px;
+  .nav-links{
+    gap:12px;
   }
 
-  .nav-links a {
-    font-size: 13px;
+  .features{
+    grid-template-columns:1fr;
   }
 
-  .hero {
-    margin-top: 55px;
+  .search{
+    flex-direction:column;
   }
 
-  .features {
-    grid-template-columns: 1fr;
-  }
-
-  .search {
-    flex-direction: column;
-  }
-
-  .search button {
-    width: 100%;
+  .search button{
+    width:100%;
   }
 }
 </style>
@@ -249,10 +215,7 @@ footer {
 <header>
 
 <nav>
-
-  <div class="logo">
-    REEL<span>WISE</span>
-  </div>
+  <div class="logo">REEL<span>WISE</span></div>
 
   <div class="nav-links">
     <a href="#">Movies</a>
@@ -260,14 +223,11 @@ footer {
     <a href="#">Quotes</a>
     <a href="#">Six Degrees</a>
   </div>
-
 </nav>
 
 <div class="hero">
 
-  <h1>
-    Movies <span>reimagined.</span>
-  </h1>
+  <h1>Movies <span>reimagined.</span></h1>
 
   <p>
     Discover movies, legendary stars, unforgettable quotes
@@ -275,17 +235,8 @@ footer {
   </p>
 
   <div class="search">
-
-    <input
-      id="searchInput"
-      type="text"
-      placeholder="Search any movie..."
-    >
-
-    <button onclick="searchMovies()">
-      Search
-    </button>
-
+    <input id="searchInput" type="text" placeholder="Search any movie...">
+    <button onclick="searchMovies()">Search</button>
   </div>
 
 </div>
@@ -294,121 +245,99 @@ footer {
 
 <main>
 
-<h2 class="section-title">
-  Explore Reelwise
-</h2>
+<h2 class="section-title">Explore Reelwise</h2>
 
 <div class="features">
 
   <div class="feature">
     <div class="feature-icon">🎬</div>
-
     <h3>Movies</h3>
-
-    <p>
-      Explore movies from every era, from classics
-      to today's biggest films.
-    </p>
+    <p>Explore movies from every era, from classics to today's biggest films.</p>
   </div>
-
 
   <div class="feature">
     <div class="feature-icon">⭐</div>
-
     <h3>Movie Stars</h3>
-
-    <p>
-      Discover the actors behind the characters
-      and the stories behind their careers.
-    </p>
+    <p>Discover the actors behind the characters and the stories behind their careers.</p>
   </div>
-
 
   <div class="feature">
     <div class="feature-icon">💬</div>
-
     <h3>Famous Quotes</h3>
-
-    <p>
-      Relive the lines that made movie history.
-    </p>
+    <p>Relive the lines that made movie history.</p>
   </div>
 
 </div>
 
-
-<h2 class="section-title">
-  Movie Search
-</h2>
+<h2 class="section-title">Movie Search</h2>
 
 <div id="results">
-
-  <div class="message">
-    Search for a movie above to get started.
-  </div>
-
+  <div class="message">Search for a movie above to get started.</div>
 </div>
 
 </main>
 
-
 <footer>
-
   Reelwise — Movies. Stars. Stories.
-
 </footer>
 
-
 <script>
+async function searchMovies(){
 
-async function searchMovies() {
+  const query=document.getElementById("searchInput").value.trim();
+  const results=document.getElementById("results");
 
-  const query = document
-    .getElementById("searchInput")
-    .value
-    .trim();
-
-  const results =
-    document.getElementById("results");
-
-  if (!query) {
-    results.innerHTML =
-      '<div class="message">Enter a movie title to search.</div>';
+  if(!query){
+    results.innerHTML='<div class="message">Enter a movie title to search.</div>';
     return;
   }
 
-  results.innerHTML =
-    '<div class="message">Searching for "' +
-    query +
-    '"...</div>';
+  results.innerHTML='<div class="message">Searching Reelwise...</div>';
 
-  /*
-    TMDB movie search will be connected next.
-  */
+  try{
 
-  setTimeout(function() {
+    const response=await fetch(
+      "/api/search?query="+encodeURIComponent(query)
+    );
 
-    results.innerHTML = `
-      <div class="message">
-        Reelwise search is ready for the TMDB connection.
-      </div>
-    `;
+    const movies=await response.json();
 
-  }, 500);
-
-}
-
-
-document
-  .getElementById("searchInput")
-  .addEventListener("keydown", function(event) {
-
-    if (event.key === "Enter") {
-      searchMovies();
+    if(!movies.length){
+      results.innerHTML='<div class="message">No movies found.</div>';
+      return;
     }
 
-  });
+    results.innerHTML=movies.map(movie=>{
 
+      const poster=movie.poster_path
+        ? "https://image.tmdb.org/t/p/w500"+movie.poster_path
+        : "";
+
+      return `
+        <div class="movie">
+          ${poster
+            ? `<img src="${poster}" alt="${movie.title}">`
+            : `<div style="aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;color:#777;">No Poster</div>`
+          }
+
+          <div class="movie-info">
+            <div class="movie-title">${movie.title}</div>
+            <div class="movie-year">
+              ${movie.release_date ? movie.release_date.substring(0,4) : ""}
+            </div>
+          </div>
+        </div>
+      `;
+
+    }).join("");
+
+  }catch(error){
+
+    results.innerHTML=
+      '<div class="message">Something went wrong. We will fix the connection next.</div>';
+
+  }
+}
 </script>
 
 </body>
