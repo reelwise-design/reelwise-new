@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Reelwise — Movies. Stars. Stories.</title>
 
 <style>
@@ -13,13 +14,13 @@
 body {
   margin: 0;
   background: #0b0b0f;
-  color: #fff;
+  color: white;
   font-family: Arial, Helvetica, sans-serif;
 }
 
 header {
-  background: linear-gradient(180deg, #171722 0%, #0b0b0f 100%);
-  padding: 25px 20px 70px;
+  background: linear-gradient(180deg, #191923, #0b0b0f);
+  padding: 22px 20px 65px;
 }
 
 nav {
@@ -28,23 +29,35 @@ nav {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 20px;
 }
 
 .logo {
   font-size: 30px;
   font-weight: 800;
   letter-spacing: 1px;
+  white-space: nowrap;
 }
 
 .logo span {
   color: #e50914;
 }
 
-nav a {
+.nav-links {
+  display: flex;
+  gap: 22px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.nav-links a {
   color: #aaa;
   text-decoration: none;
-  margin-left: 22px;
   font-size: 14px;
+}
+
+.nav-links a:hover {
+  color: white;
 }
 
 .hero {
@@ -65,8 +78,9 @@ nav a {
 
 .hero p {
   color: #aaa;
-  font-size: 20px;
-  margin: 20px 0 32px;
+  font-size: 19px;
+  line-height: 1.5;
+  margin: 22px 0 32px;
 }
 
 .search {
@@ -87,8 +101,12 @@ nav a {
   outline: none;
 }
 
+.search input:focus {
+  border-color: #e50914;
+}
+
 .search button {
-  padding: 18px 25px;
+  padding: 18px 26px;
   border: 0;
   border-radius: 8px;
   background: #e50914;
@@ -149,6 +167,11 @@ main {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid #25252d;
+  transition: transform 0.2s;
+}
+
+.card:hover {
+  transform: translateY(-4px);
 }
 
 .card img {
@@ -188,8 +211,22 @@ footer {
 }
 
 @media (max-width: 700px) {
-  nav a {
-    display: none;
+
+  nav {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .nav-links {
+    gap: 12px;
+  }
+
+  .nav-links a {
+    font-size: 13px;
+  }
+
+  .hero {
+    margin-top: 55px;
   }
 
   .features {
@@ -212,32 +249,43 @@ footer {
 <header>
 
 <nav>
-  <div class="logo">REEL<span>WISE</span></div>
 
-  <div>
+  <div class="logo">
+    REEL<span>WISE</span>
+  </div>
+
+  <div class="nav-links">
     <a href="#">Movies</a>
     <a href="#">Stars</a>
     <a href="#">Quotes</a>
     <a href="#">Six Degrees</a>
   </div>
+
 </nav>
 
 <div class="hero">
 
-  <h1>Movies <span>reimagined.</span></h1>
+  <h1>
+    Movies <span>reimagined.</span>
+  </h1>
 
   <p>
-    Discover movies, legendary stars, unforgettable quotes and the stories behind the scenes.
+    Discover movies, legendary stars, unforgettable quotes
+    and the stories behind the scenes.
   </p>
 
   <div class="search">
+
     <input
       id="searchInput"
       type="text"
       placeholder="Search any movie..."
     >
 
-    <button onclick="searchMovies()">Search</button>
+    <button onclick="searchMovies()">
+      Search
+    </button>
+
   </div>
 
 </div>
@@ -246,29 +294,41 @@ footer {
 
 <main>
 
-<h2 class="section-title">Explore Reelwise</h2>
+<h2 class="section-title">
+  Explore Reelwise
+</h2>
 
 <div class="features">
 
   <div class="feature">
     <div class="feature-icon">🎬</div>
+
     <h3>Movies</h3>
+
     <p>
-      Explore movies from every era, from classics to today's biggest films.
+      Explore movies from every era, from classics
+      to today's biggest films.
     </p>
   </div>
+
 
   <div class="feature">
     <div class="feature-icon">⭐</div>
+
     <h3>Movie Stars</h3>
+
     <p>
-      Discover the actors behind the characters and the stories behind their careers.
+      Discover the actors behind the characters
+      and the stories behind their careers.
     </p>
   </div>
 
+
   <div class="feature">
     <div class="feature-icon">💬</div>
+
     <h3>Famous Quotes</h3>
+
     <p>
       Relive the lines that made movie history.
     </p>
@@ -276,19 +336,28 @@ footer {
 
 </div>
 
-<h2 class="section-title">Movie Search</h2>
+
+<h2 class="section-title">
+  Movie Search
+</h2>
 
 <div id="results">
+
   <div class="message">
     Search for a movie above to get started.
   </div>
+
 </div>
 
 </main>
 
+
 <footer>
+
   Reelwise — Movies. Stars. Stories.
+
 </footer>
+
 
 <script>
 
@@ -302,22 +371,33 @@ async function searchMovies() {
   const results =
     document.getElementById("results");
 
-  if (!query) return;
+  if (!query) {
+    results.innerHTML =
+      '<div class="message">Enter a movie title to search.</div>';
+    return;
+  }
 
   results.innerHTML =
-    '<div class="message">Searching...</div>';
+    '<div class="message">Searching for "' +
+    query +
+    '"...</div>';
 
   /*
-    TMDB will be connected securely through Vercel
-    after the homepage is in place.
+    TMDB movie search will be connected next.
   */
 
-  results.innerHTML = `
-    <div class="message">
-      Movie search is ready to be connected.
-    </div>
-  `;
+  setTimeout(function() {
+
+    results.innerHTML = `
+      <div class="message">
+        Reelwise search is ready for the TMDB connection.
+      </div>
+    `;
+
+  }, 500);
+
 }
+
 
 document
   .getElementById("searchInput")
