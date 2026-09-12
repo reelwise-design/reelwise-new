@@ -7,19 +7,16 @@
 
 <style>
 *{box-sizing:border-box}
-
 body{
   margin:0;
   background:#08080c;
   color:#fff;
   font-family:Arial,Helvetica,sans-serif;
 }
-
 header{
   background:linear-gradient(180deg,#191923 0%,#08080c 100%);
   padding:22px 20px 70px;
 }
-
 nav{
   max-width:1200px;
   margin:auto;
@@ -28,56 +25,46 @@ nav{
   align-items:center;
   gap:20px;
 }
-
 .logo{
   font-size:30px;
   font-weight:800;
   letter-spacing:1px;
 }
-
 .logo span{color:#e50914}
-
 .nav-links{
   display:flex;
   gap:22px;
   flex-wrap:wrap;
   justify-content:center;
 }
-
 .nav-links a{
   color:#aaa;
   text-decoration:none;
   font-size:14px;
 }
-
 .hero{
   max-width:900px;
   margin:75px auto 0;
   text-align:center;
 }
-
 .hero h1{
   font-size:clamp(42px,8vw,76px);
   margin:0;
   line-height:1;
 }
-
 .hero h1 span{color:#e50914}
-
 .hero p{
   color:#aaa;
   font-size:19px;
   line-height:1.5;
   margin:22px 0 32px;
 }
-
 .search{
   max-width:700px;
   margin:auto;
   display:flex;
   gap:10px;
 }
-
 .search input{
   flex:1;
   padding:18px;
@@ -88,8 +75,7 @@ nav{
   font-size:17px;
   outline:none;
 }
-
-.search button{
+.search button,.back-button{
   padding:18px 26px;
   border:0;
   border-radius:8px;
@@ -97,79 +83,63 @@ nav{
   color:#fff;
   font-weight:bold;
   font-size:16px;
+  cursor:pointer;
 }
-
 main{
   max-width:1200px;
   margin:auto;
   padding:45px 20px;
 }
-
 .section-title{
   font-size:25px;
   margin-bottom:20px;
 }
-
 .features{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:18px;
   margin-bottom:55px;
 }
-
 .feature{
   background:#15151c;
   border:1px solid #272731;
   border-radius:12px;
   padding:25px;
 }
-
 .feature-icon{
   font-size:32px;
   margin-bottom:12px;
 }
-
 .feature h3{margin:0 0 8px}
-
 .feature p{
   margin:0;
   color:#999;
   line-height:1.5;
 }
-
 #results{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
   gap:22px;
 }
-
 .movie{
   background:#15151c;
   border:1px solid #272731;
   border-radius:10px;
   overflow:hidden;
+  cursor:pointer;
 }
-
 .movie img{
   width:100%;
   display:block;
   aspect-ratio:2/3;
   object-fit:cover;
 }
-
-.movie-info{
-  padding:14px;
-}
-
+.movie-info{padding:14px}
 .movie-title{
   font-weight:bold;
   margin-bottom:6px;
 }
-
-.movie-year{
-  color:#888;
-}
-
+.movie-year{color:#888}
 .message{
   color:#888;
   text-align:center;
@@ -177,6 +147,77 @@ main{
   padding:30px;
 }
 
+/* ROCKY III PAGE */
+#moviePage{display:none}
+.rocky-top{
+  margin-bottom:35px;
+}
+.rocky-top h1{
+  font-size:clamp(48px,8vw,80px);
+  margin:20px 0 10px;
+}
+.movie-meta{
+  color:#999;
+  margin-bottom:20px;
+}
+.rocky-intro{
+  color:#bbb;
+  max-width:800px;
+  font-size:18px;
+  line-height:1.6;
+}
+.cast-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+  gap:18px;
+}
+.cast-card{
+  background:#15151c;
+  border:1px solid #272731;
+  border-radius:12px;
+  overflow:hidden;
+}
+.cast-card img{
+  width:100%;
+  aspect-ratio:4/5;
+  object-fit:cover;
+  object-position:center top;
+  display:block;
+  background:#222;
+}
+.cast-info{padding:14px}
+.cast-info strong{
+  display:block;
+  margin-bottom:5px;
+}
+.cast-info span{
+  color:#999;
+  font-size:13px;
+}
+.story-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:18px;
+}
+.story-card{
+  background:#15151c;
+  border:1px solid #272731;
+  border-radius:12px;
+  padding:22px;
+}
+.story-card h3{margin-top:0}
+.story-card p{
+  color:#aaa;
+  line-height:1.55;
+}
+.quote{
+  border-left:4px solid #e50914;
+  padding:18px 22px;
+  font-size:25px;
+  font-weight:bold;
+  background:#15151c;
+  border-radius:8px;
+}
 footer{
   border-top:1px solid #222;
   text-align:center;
@@ -184,28 +225,16 @@ footer{
   padding:30px 20px;
   margin-top:40px;
 }
-
 @media(max-width:700px){
   nav{
     flex-direction:column;
     gap:18px;
   }
-
-  .nav-links{
-    gap:12px;
-  }
-
-  .features{
-    grid-template-columns:1fr;
-  }
-
-  .search{
-    flex-direction:column;
-  }
-
-  .search button{
-    width:100%;
-  }
+  .nav-links{gap:12px}
+  .features{grid-template-columns:1fr}
+  .search{flex-direction:column}
+  .search button{width:100%}
+  .cast-grid{grid-template-columns:repeat(2,1fr)}
 }
 </style>
 </head>
@@ -213,20 +242,20 @@ footer{
 <body>
 
 <header>
-
 <nav>
-  <div class="logo">REEL<span>WISE</span></div>
+  <div class="logo" onclick="showHome()" style="cursor:pointer">
+    REEL<span>WISE</span>
+  </div>
 
   <div class="nav-links">
-    <a href="#">Movies</a>
+    <a href="#" onclick="showHome();return false;">Movies</a>
     <a href="#">Stars</a>
     <a href="#">Quotes</a>
     <a href="#">Six Degrees</a>
   </div>
 </nav>
 
-<div class="hero">
-
+<div class="hero" id="hero">
   <h1>Movies <span>reimagined.</span></h1>
 
   <p>
@@ -238,17 +267,16 @@ footer{
     <input id="searchInput" type="text" placeholder="Search any movie...">
     <button onclick="searchMovies()">Search</button>
   </div>
-
 </div>
-
 </header>
 
 <main>
 
+<div id="homePage">
+
 <h2 class="section-title">Explore Reelwise</h2>
 
 <div class="features">
-
   <div class="feature">
     <div class="feature-icon">🎬</div>
     <h3>Movies</h3>
@@ -266,7 +294,6 @@ footer{
     <h3>Famous Quotes</h3>
     <p>Relive the lines that made movie history.</p>
   </div>
-
 </div>
 
 <h2 class="section-title">Movie Search</h2>
@@ -275,13 +302,133 @@ footer{
   <div class="message">Search for a movie above to get started.</div>
 </div>
 
+</div>
+
+<div id="moviePage">
+
+<button class="back-button" onclick="showHome()">← Back to Movies</button>
+
+<div class="rocky-top">
+  <h1>Rocky III</h1>
+  <div class="movie-meta">1982 • PG • 1h 39m • Drama / Sports</div>
+
+  <p class="rocky-intro">
+    Rocky has reached the top. Clubber Lang is coming for him.
+    But Reelwise goes beyond the plot — into the stars, casting,
+    music and behind-the-scenes stories that made the movie memorable.
+  </p>
+</div>
+
+<h2 class="section-title">⭐ Cast</h2>
+
+<div class="cast-grid">
+
+  <div class="cast-card">
+    <img
+      src="https://image.tmdb.org/t/p/w500/gn3pDWthJqR0VDYGViGD3048og7.jpg"
+      alt="Sylvester Stallone">
+    <div class="cast-info">
+      <strong>Sylvester Stallone</strong>
+      <span>Rocky Balboa</span>
+    </div>
+  </div>
+
+  <div class="cast-card">
+    <img
+      src="https://upload.wikimedia.org/wikipedia/commons/7/73/Carl_Weathers_2017.jpg"
+      alt="Carl Weathers">
+    <div class="cast-info">
+      <strong>Carl Weathers</strong>
+      <span>Apollo Creed</span>
+    </div>
+  </div>
+
+  <div class="cast-card">
+    <img
+      src="https://upload.wikimedia.org/wikipedia/commons/8/89/Mr_T_1984.jpg"
+      alt="Mr. T">
+    <div class="cast-info">
+      <strong>Mr. T</strong>
+      <span>Clubber Lang</span>
+    </div>
+  </div>
+
+  <div class="cast-card">
+    <img
+      src="https://upload.wikimedia.org/wikipedia/commons/1/13/Talia_Shire_1977.jpg"
+      alt="Talia Shire">
+    <div class="cast-info">
+      <strong>Talia Shire</strong>
+      <span>Adrian Balboa</span>
+    </div>
+  </div>
+
+  <div class="cast-card">
+    <img
+      src="https://upload.wikimedia.org/wikipedia/commons/3/35/Burgess_Meredith_1954.JPG"
+      alt="Burgess Meredith">
+    <div class="cast-info">
+      <strong>Burgess Meredith</strong>
+      <span>Mickey Goldmill</span>
+    </div>
+  </div>
+
+  <div class="cast-card">
+    <img
+      src="https://upload.wikimedia.org/wikipedia/commons/a/a0/Hulk_Hogan_July_2010_%28cropped%29.jpg"
+      alt="Hulk Hogan">
+    <div class="cast-info">
+      <strong>Hulk Hogan</strong>
+      <span>Thunderlips</span>
+    </div>
+  </div>
+
+</div>
+
+<h2 class="section-title" style="margin-top:50px;">🔥 You Probably Didn't Know</h2>
+
+<div class="story-grid">
+  <div class="story-card">
+    <h3>Mr. T became Clubber Lang</h3>
+    <p>
+      Stallone noticed Mr. T before Rocky III and encouraged him
+      to bring his own personality and intimidating presence to the role.
+    </p>
+  </div>
+
+  <div class="story-card">
+    <h3>Thunderlips got physical</h3>
+    <p>
+      Stallone later described the filming of the Hulk Hogan sequence
+      as much rougher than a normal staged movie fight.
+    </p>
+  </div>
+
+  <div class="story-card">
+    <h3>Apollo becomes the teacher</h3>
+    <p>
+      One of the franchise's biggest reversals turns Rocky's former rival
+      into the man who rebuilds his speed, hunger and confidence.
+    </p>
+  </div>
+</div>
+
+<h2 class="section-title" style="margin-top:50px;">💬 Memorable Quote</h2>
+
+<div class="quote">
+  “There is no tomorrow!”
+</div>
+
+</div>
+
 </main>
 
 <footer>
-  Reelwise — Movies. Stars. Stories.
+Reelwise — Movies. Stars. Stories.
 </footer>
 
 <script>
+
 async function searchMovies(){
 
   const query=document.getElementById("searchInput").value.trim();
@@ -313,8 +460,13 @@ async function searchMovies(){
         ? "https://image.tmdb.org/t/p/w500"+movie.poster_path
         : "";
 
+      const isRocky3 =
+        movie.title.toLowerCase()==="rocky iii";
+
       return `
-        <div class="movie">
+        <div class="movie"
+          ${isRocky3 ? 'onclick="showRockyIII()"' : ''}>
+
           ${poster
             ? `<img src="${poster}" alt="${movie.title}">`
             : `<div style="aspect-ratio:2/3;display:flex;align-items:center;justify-content:center;color:#777;">No Poster</div>`
@@ -338,6 +490,27 @@ async function searchMovies(){
 
   }
 }
+
+function showRockyIII(){
+  document.getElementById("homePage").style.display="none";
+  document.getElementById("moviePage").style.display="block";
+  document.getElementById("hero").style.display="none";
+  window.scrollTo(0,0);
+}
+
+function showHome(){
+  document.getElementById("homePage").style.display="block";
+  document.getElementById("moviePage").style.display="none";
+  document.getElementById("hero").style.display="block";
+  window.scrollTo(0,0);
+}
+
+document.getElementById("searchInput").addEventListener("keydown",function(e){
+  if(e.key==="Enter"){
+    searchMovies();
+  }
+});
+
 </script>
 
 </body>
