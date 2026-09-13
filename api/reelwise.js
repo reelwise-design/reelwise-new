@@ -23,6 +23,34 @@ const reelwiseData = {
       "You can be my wingman any time.",
       "Talk to me, Goose."
     ]
+  },
+
+  1371: {
+    title: "Rocky III",
+
+    facts: [
+      "Rocky III changes the formula by making Rocky the champion at the beginning of the movie instead of the underdog.",
+      "Apollo Creed goes from Rocky's greatest rival to the man who helps rebuild his confidence and fighting style.",
+      "Clubber Lang became one of the Rocky series' most memorable opponents."
+    ],
+
+    casting: [
+      "Mr. T made his feature-film debut as Clubber Lang and became instantly recognizable from the role.",
+      "Professional wrestling star Hulk Hogan appears as Thunderlips in the exhibition match with Rocky.",
+      "Carl Weathers returned as Apollo Creed, but this time Apollo becomes Rocky's trainer and mentor."
+    ],
+
+    soundtrack: [
+      "Eye of the Tiger by Survivor became the signature song of Rocky III.",
+      "The song became a massive hit and remains closely associated with the Rocky franchise.",
+      "Rocky III's music reflects the movie's shift from Rocky's comfortable celebrity life back to hunger and determination."
+    ],
+
+    quotes: [
+      "There is no tomorrow!",
+      "I pity the fool.",
+      "You ain't so bad."
+    ]
   }
 };
 
