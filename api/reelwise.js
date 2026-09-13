@@ -31,32 +31,32 @@ const reelwiseData = {
 
 
   1366: {
-    title: "Rocky",
+  title: "Rocky",
 
-    facts: [
-      "Rocky is as much a love story and character drama as it is a boxing movie.",
-      "The story centers on Rocky Balboa getting an unlikely shot at heavyweight champion Apollo Creed.",
-      "The ending became unusual for a sports movie because Rocky's emotional victory matters more than the official result of the fight."
-    ],
+  facts: [
+    "Rocky is as much a love story and character drama as it is a boxing movie.",
+    "The story centers on Rocky Balboa getting an unlikely shot at heavyweight champion Apollo Creed.",
+    "Rocky does not win the championship fight. His real victory is proving to himself that he can go the distance with Apollo."
+  ],
 
-    casting: [
-      "Sylvester Stallone wrote Rocky and insisted on playing Rocky Balboa himself.",
-      "Carl Weathers played Apollo Creed, beginning one of the most important relationships in the Rocky series.",
-      "Burgess Meredith became unforgettable as Rocky's trainer Mickey Goldmill."
-    ],
+  casting: [
+    "Sylvester Stallone wrote Rocky and fought to play Rocky Balboa himself.",
+    "Carl Weathers played Apollo Creed, beginning one of the most important relationships in the Rocky series.",
+    "Burgess Meredith played Rocky's trainer Mickey Goldmill, while Talia Shire played Adrian."
+  ],
 
-    soundtrack: [
-      "Bill Conti composed the film's score.",
-      "Gonna Fly Now became one of the most recognizable training themes in movie history.",
-      "The music helped turn Rocky's Philadelphia training scenes into enduring pop-culture images."
-    ],
+  soundtrack: [
+    "Bill Conti composed the film's score.",
+    "Gonna Fly Now became one of the most recognizable themes in movie history.",
+    "The famous training sequence and Rocky's run up the Philadelphia Museum of Art steps became inseparable from Conti's music."
+  ],
 
-    quotes: [
-      "Yo, Adrian!",
-      "It ain't about how hard you hit.",
-      "I just wanna go the distance."
-    ]
-  },
+  quotes: [
+    "Yo, Adrian!",
+    "I just wanna go the distance.",
+    "Cut me, Mick."
+  ]
+},
 
 
   1367: {
