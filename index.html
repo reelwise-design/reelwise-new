@@ -3,30 +3,23 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <title>Reelwise — Movies. Stars. Stories.</title>
 
 <style>
-:root{
-  --bg:#08090c;
-  --panel:#13151a;
-  --panel2:#1a1d23;
-  --line:#2b2f38;
-  --text:#f5f5f2;
-  --muted:#9a9da5;
-  --orange:#ff5a36;
-  --orange2:#ff7a45;
-  --gold:#f2b84b;
-}
 *{box-sizing:border-box}
 
 body{
   margin:0;
-  background:radial-gradient(circle at top,#1b1c20 0%,#0b0c10 38%,#08090c 70%);
-  color:var(--text);
+  background:#08080c;
+  color:#fff;
   font-family:Arial,Helvetica,sans-serif;
 }
 
-header{padding:22px 20px 70px}
+header{
+  background:linear-gradient(180deg,#191923 0%,#08080c 100%);
+  padding:22px 20px 65px;
+}
 
 nav{
   max-width:1200px;
@@ -38,13 +31,15 @@ nav{
 }
 
 .logo{
-  font-size:31px;
+  font-size:30px;
   font-weight:900;
-  letter-spacing:1.5px;
+  letter-spacing:1px;
   cursor:pointer;
 }
 
-.logo span{color:var(--orange)}
+.logo span{
+  color:#e50914;
+}
 
 .nav-links{
   display:flex;
@@ -54,52 +49,35 @@ nav{
 }
 
 .nav-links a{
-  color:#aaaeb6;
+  color:#aaa;
   text-decoration:none;
   font-size:14px;
-  font-weight:700;
 }
 
-.nav-links a:hover{color:var(--orange)}
+.nav-links a:hover{
+  color:#fff;
+}
 
 .hero{
   max-width:900px;
-  margin:75px auto 0;
+  margin:70px auto 0;
   text-align:center;
 }
 
-.eyebrow{
-  color:var(--gold);
-  font-size:12px;
-  letter-spacing:2px;
-  font-weight:800;
-  margin-bottom:12px;
-}
-
-.hero h1,
-.stars-hero h1,
-.quotes-hero h1,
-.discovery-hero h1{
-  font-size:clamp(44px,8vw,78px);
-  line-height:1;
+.hero h1{
+  font-size:clamp(42px,8vw,76px);
   margin:0;
-  letter-spacing:-2px;
+  line-height:1;
 }
 
-.hero h1 span,
-.stars-hero h1 span,
-.quotes-hero h1 span,
-.discovery-hero h1 span{
-  color:var(--orange);
+.hero h1 span{
+  color:#e50914;
 }
 
-.hero p,
-.stars-hero p,
-.quotes-hero p,
-.discovery-hero p{
-  color:var(--muted);
+.hero p{
+  color:#aaa;
   font-size:19px;
-  line-height:1.55;
+  line-height:1.5;
   margin:22px 0 32px;
 }
 
@@ -110,34 +88,28 @@ nav{
   gap:10px;
 }
 
-.search input,
-.degrees-form input{
-  width:100%;
+.search input{
+  flex:1;
   padding:18px;
-  border-radius:10px;
-  border:1px solid var(--line);
-  background:#15171c;
+  border-radius:8px;
+  border:1px solid #333;
+  background:#18181f;
   color:#fff;
   font-size:17px;
   outline:none;
 }
 
-.search input:focus,
-.degrees-form input:focus{
-  border-color:var(--orange);
+.search input:focus{
+  border-color:#e50914;
 }
 
-button{font-family:inherit}
-
-.search button,
-.back-button,
-.primary-button{
-  padding:18px 26px;
+.search button{
+  padding:18px 28px;
   border:0;
-  border-radius:10px;
-  background:linear-gradient(135deg,var(--orange),var(--orange2));
-  color:white;
-  font-weight:800;
+  border-radius:8px;
+  background:#e50914;
+  color:#fff;
+  font-weight:bold;
   font-size:16px;
   cursor:pointer;
 }
@@ -161,17 +133,10 @@ main{
 }
 
 .feature{
-  background:linear-gradient(180deg,#17191f,#111319);
-  border:1px solid var(--line);
-  border-radius:14px;
+  background:#15151c;
+  border:1px solid #272731;
+  border-radius:12px;
   padding:25px;
-  cursor:pointer;
-  transition:.2s ease;
-}
-
-.feature:hover{
-  transform:translateY(-4px);
-  border-color:var(--orange);
 }
 
 .feature-icon{
@@ -179,549 +144,184 @@ main{
   margin-bottom:12px;
 }
 
-.feature p{
-  color:var(--muted);
-  line-height:1.5;
+.feature h3{
+  margin:0 0 8px;
 }
 
-.feature-action{
-  color:var(--gold);
-  font-size:13px;
-  font-weight:900;
-  margin-top:18px;
+.feature p{
+  margin:0;
+  color:#999;
+  line-height:1.5;
 }
 
 #results{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
+  grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
   gap:22px;
 }
 
-.movie{
-  background:var(--panel);
-  border:1px solid var(--line);
+.card{
+  background:#15151c;
+  border:1px solid #292933;
   border-radius:12px;
   overflow:hidden;
   cursor:pointer;
+  transition:.2s;
 }
 
-.movie img{
-  width:100%;
-  display:block;
-  aspect-ratio:2/3;
-  object-fit:cover;
+.card:hover{
+  transform:translateY(-4px);
+  border-color:#555;
 }
 
-.movie-info{padding:14px}
-.movie-title{font-weight:bold}
-
-.movie-year{
-  color:#878b93;
-  margin-top:6px;
-}
-
-.message{
-  color:var(--muted);
-  text-align:center;
-  padding:30px;
-}
-
-.search-section{margin-bottom:45px}
-
-.search-star-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
-  gap:22px;
-}
-
-.search-star-card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:12px;
-  overflow:hidden;
-  cursor:pointer;
-}
-
-.search-star-card img{
+.poster{
   width:100%;
   aspect-ratio:2/3;
   object-fit:cover;
-  object-position:center top;
+  background:#202028;
   display:block;
 }
 
-.search-star-info{padding:14px}
-.search-star-name{font-weight:900}
-
-.search-star-label{
-  color:var(--gold);
-  font-size:11px;
-  font-weight:900;
-  margin-bottom:5px;
-}
-
-#moviePage,
-#personPage,
-#degreesPage,
-#starsPage,
-#quotesPage,
-#discoveryPage{
-  display:none;
-}
-
-.movie-detail,
-.person-detail{
-  display:grid;
-  grid-template-columns:280px 1fr;
-  gap:38px;
-  margin-top:35px;
-}
-
-.detail-poster,
-.person-photo{
-  width:100%;
-  border-radius:14px;
-}
-
-.detail-copy h1,
-.person-copy h1{
-  font-size:clamp(40px,7vw,70px);
-  margin:0 0 10px;
-}
-
-.detail-meta,
-.person-meta{
-  color:var(--gold);
-  margin-bottom:22px;
-}
-
-.detail-overview,
-.person-bio{
-  color:#c0c2c7;
-  font-size:18px;
-  line-height:1.65;
-}
-
-.reelwise-label{
-  display:inline-block;
-  background:rgba(255,90,54,.12);
-  border:1px solid rgba(255,90,54,.35);
-  color:var(--orange);
-  padding:7px 11px;
-  border-radius:6px;
-  font-size:12px;
-  font-weight:900;
-  letter-spacing:.8px;
-  margin-bottom:14px;
-}
-
-.verified-badge{
-  display:inline-block;
-  margin-left:8px;
-  background:rgba(242,184,75,.12);
-  border:1px solid rgba(242,184,75,.45);
-  color:var(--gold);
-  padding:7px 11px;
-  border-radius:6px;
-  font-size:12px;
-  font-weight:900;
-}
-
-.cast-section,
-.credits-section{margin-top:55px}
-
-.cast-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(145px,1fr));
-  gap:18px;
-}
-
-.cast-card,
-.credit-card{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:12px;
-  overflow:hidden;
-  cursor:pointer;
-}
-
-.cast-card img,
-.credit-card img{
-  width:100%;
+.no-poster{
   aspect-ratio:2/3;
-  object-fit:cover;
-  object-position:center top;
-}
-
-.cast-info,
-.credit-info{padding:13px}
-
-.cast-name,
-.credit-title{font-weight:bold}
-
-.cast-character,
-.credit-year{
-  color:var(--muted);
-  font-size:13px;
-  margin-top:5px;
-}
-
-.no-photo{
-  width:100%;
-  aspect-ratio:2/3;
-  background:#20232a;
+  background:linear-gradient(145deg,#30303b,#111117);
   display:flex;
   align-items:center;
   justify-content:center;
-  color:#777b84;
+  font-size:44px;
 }
 
-.reelwise-section{margin-top:45px}
-
-.reelwise-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
-  gap:18px;
+.card-info{
+  padding:13px;
 }
 
-.story-card{
-  background:#17191f;
-  border:1px solid var(--line);
-  border-radius:12px;
-  padding:22px;
+.card-info strong{
+  display:block;
+  font-size:15px;
+  line-height:1.3;
+  margin-bottom:5px;
 }
 
-.story-card p{
-  color:#b6b9c0;
-  line-height:1.6;
-  margin:0;
+.card-info small{
+  color:#888;
 }
 
-.quote-card{
-  background:#17191f;
-  border-left:4px solid var(--orange);
-  border-radius:8px;
-  padding:20px;
-  font-size:20px;
+.type{
+  color:#e50914;
+  font-size:11px;
   font-weight:bold;
+  text-transform:uppercase;
+  margin-bottom:5px;
 }
 
-.placeholder{
-  margin-top:55px;
-  background:#15171c;
-  border:1px solid var(--line);
-  border-radius:12px;
+.message{
+  color:#888;
+  text-align:center;
+  grid-column:1/-1;
+  padding:35px;
+}
+
+.detail{
+  grid-column:1/-1;
+  background:#15151c;
+  border:1px solid #292933;
+  border-radius:14px;
   padding:25px;
 }
 
-.placeholder p{color:var(--muted)}
-
-.credit-grid{
+.detail-layout{
   display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(160px,1fr));
-  gap:18px;
+  grid-template-columns:220px 1fr;
+  gap:25px;
 }
 
-.known-for{
-  display:flex;
-  gap:10px;
-  flex-wrap:wrap;
-}
-
-.known-chip{
-  background:#1f2229;
-  border:1px solid #343842;
-  border-radius:20px;
-  padding:9px 14px;
-}
-
-.role-card{
-  background:#17191f;
-  border-left:4px solid var(--gold);
-  border-radius:8px;
-  padding:18px;
-  font-weight:bold;
-}
-
-/* STARS */
-
-.stars-hero,
-.quotes-hero,
-.discovery-hero{
-  text-align:center;
-  max-width:850px;
-  margin:10px auto 55px;
-}
-
-.stars-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(230px,300px));
-  justify-content:center;
-  gap:26px;
-}
-
-.star-card{
-  background:linear-gradient(180deg,#191b21,#111318);
-  border:1px solid var(--line);
-  border-radius:16px;
-  overflow:hidden;
-  cursor:pointer;
-  transition:.2s ease;
-}
-
-.star-card:hover{
-  transform:translateY(-5px);
-  border-color:var(--orange);
-}
-
-.star-card img{
+.detail-image{
   width:100%;
-  aspect-ratio:2/3;
-  object-fit:cover;
-  object-position:center top;
-  display:block;
+  border-radius:10px;
 }
 
-.star-card-info{padding:20px}
-
-.star-card-name{
-  font-size:22px;
-  font-weight:900;
-  margin-bottom:7px;
+.detail h1{
+  margin-top:0;
+  font-size:38px;
 }
 
-.star-card-label{
-  color:var(--gold);
-  font-size:12px;
-  font-weight:800;
-  letter-spacing:1px;
-}
-
-/* DISCOVERY */
-
-.discovery-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
-  gap:24px;
-}
-
-.discovery-card{
-  background:linear-gradient(180deg,#181a20,#111319);
-  border:1px solid var(--line);
-  border-radius:16px;
-  overflow:hidden;
-  cursor:pointer;
-  transition:.2s ease;
-}
-
-.discovery-card:hover{
-  transform:translateY(-4px);
-  border-color:var(--orange);
-}
-
-.discovery-card img{
-  width:100%;
-  aspect-ratio:16/10;
-  object-fit:cover;
-  display:block;
-}
-
-.discovery-copy{padding:22px}
-
-.discovery-title{
-  font-size:23px;
-  font-weight:900;
-  margin:8px 0 13px;
-}
-
-.discovery-fact{
-  color:#b9bcc3;
+.detail p{
+  color:#aaa;
   line-height:1.6;
 }
 
-.discovery-link{
-  color:var(--gold);
-  font-size:13px;
-  font-weight:900;
-  margin-top:18px;
-}
-
-.discovery-badge{
-  display:inline-block;
-  color:var(--orange);
-  font-size:11px;
-  font-weight:900;
-  letter-spacing:1px;
-}
-
-.discovery-verified{
-  color:var(--gold);
-  font-size:11px;
-  font-weight:900;
-  margin-top:8px;
-}
-
-/* QUOTES */
-
-.quotes-grid{
-  display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
-  gap:22px;
-}
-
-.big-quote-card{
-  background:linear-gradient(180deg,#181a20,#111319);
-  border:1px solid var(--line);
-  border-radius:16px;
-  padding:27px;
+.back-button{
+  background:#292933;
+  color:#fff;
+  border:0;
+  border-radius:8px;
+  padding:11px 16px;
+  margin-bottom:20px;
   cursor:pointer;
 }
 
-.quote-mark{
-  color:var(--orange);
-  font-size:44px;
-  font-weight:900;
-  line-height:.7;
+.cast{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:15px;
 }
 
-.big-quote-text{
-  font-size:24px;
-  font-weight:900;
-  line-height:1.35;
-  margin:15px 0 22px;
-}
-
-.quote-movie{
-  color:var(--gold);
-  font-size:14px;
-  font-weight:900;
-  letter-spacing:.7px;
-}
-
-.quote-hint{
-  color:var(--muted);
-  font-size:12px;
-  margin-top:8px;
-}
-
-/* SIX DEGREES */
-
-.degrees-wrap{
-  max-width:820px;
-  margin:20px auto;
-}
-
-.degrees-hero{text-align:center}
-
-.degrees-hero h1{font-size:60px}
-.degrees-hero h1 span{color:var(--orange)}
-.degrees-hero p{color:var(--muted)}
-
-.degrees-form{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-  margin:30px 0 15px;
-}
-
-.degrees-button-wrap{text-align:center}
-
-.degree-result{
-  margin-top:35px;
-  background:#15171c;
-  border:1px solid var(--line);
-  border-radius:18px;
-  padding:28px;
-}
-
-.degree-summary{
-  text-align:center;
-  margin-bottom:28px;
-}
-
-.degree-badge{
-  display:inline-block;
-  color:var(--gold);
-  border:1px solid var(--gold);
-  padding:8px 14px;
-  border-radius:30px;
-}
-
-.chain{
-  max-width:620px;
-  margin:auto;
-}
-
-.chain-actor,
-.chain-movie{
-  border-radius:14px;
-  padding:20px;
-  text-align:center;
-}
-
-.chain-actor{background:#20232a}
-
-.chain-actor-name{
-  font-size:22px;
-  font-weight:900;
+.cast button{
+  background:#23232c;
+  color:#fff;
+  border:1px solid #393944;
+  border-radius:20px;
+  padding:8px 12px;
   cursor:pointer;
 }
 
-.chain-movie{
-  background:rgba(255,90,54,.10);
-  border:1px solid rgba(255,90,54,.35);
-}
-
-.chain-movie-label{
-  color:var(--gold);
-  font-size:11px;
-  font-weight:900;
-}
-
-.chain-movie-title{
-  color:var(--orange);
-  font-size:20px;
-  font-weight:900;
-  cursor:pointer;
-  margin-top:6px;
-}
-
-.chain-arrow{
-  text-align:center;
-  color:var(--gold);
-  font-size:25px;
-  padding:7px;
+.cast button:hover{
+  border-color:#e50914;
 }
 
 footer{
-  border-top:1px solid #22252b;
+  border-top:1px solid #222;
   text-align:center;
-  color:#666a72;
-  padding:30px;
+  color:#666;
+  padding:30px 20px;
+  margin-top:40px;
 }
 
 @media(max-width:700px){
-  nav{flex-direction:column}
-  .features{grid-template-columns:1fr}
-  .search{flex-direction:column}
 
-  .movie-detail,
-  .person-detail{
+  nav{
+    flex-direction:column;
+    gap:18px;
+  }
+
+  .nav-links{
+    gap:12px;
+  }
+
+  .nav-links a{
+    font-size:13px;
+  }
+
+  .features{
     grid-template-columns:1fr;
   }
 
-  .detail-poster,
-  .person-photo{
-    max-width:320px;
-    margin:auto;
+  .search{
+    flex-direction:column;
   }
 
-  .cast-grid,
-  .credit-grid{
-    grid-template-columns:repeat(2,1fr);
+  .search button{
+    width:100%;
   }
 
-  .degrees-form{grid-template-columns:1fr}
+  .detail-layout{
+    grid-template-columns:1fr;
+  }
+
+  .detail-image{
+    max-width:250px;
+  }
 }
 </style>
 </head>
@@ -732,39 +332,44 @@ footer{
 
 <nav>
 
-<div class="logo" onclick="showHome()">
+<div class="logo" onclick="location.reload()">
 REEL<span>WISE</span>
 </div>
 
 <div class="nav-links">
-<a href="#" onclick="showHome();return false;">Movies</a>
-<a href="#" onclick="showStars();return false;">Stars</a>
-<a href="#" onclick="showQuotes();return false;">Quotes</a>
-<a href="#" onclick="showDegrees();return false;">Six Degrees</a>
+<a href="#">Movies</a>
+<a href="#">Stars</a>
+<a href="#">Quotes</a>
+<a href="#">Six Degrees</a>
 </div>
 
 </nav>
 
-<div class="hero" id="hero">
-
-<div class="eyebrow">
-MOVIES • STARS • STORIES • CONNECTIONS
-</div>
+<div class="hero">
 
 <h1>
-Know the movie.<br>
-<span>Know the story.</span>
+Movies <span>reimagined.</span>
 </h1>
 
 <p>
-Discover unforgettable movies, legendary stars,
-famous quotes and the stories behind them.
+Discover movies, legendary stars, unforgettable quotes
+and the stories behind the scenes.
 </p>
 
-<div class="search">
-<input id="searchInput" placeholder="Search movies or stars...">
-<button onclick="searchReelwise()">Search</button>
-</div>
+<form class="search" id="searchForm">
+
+<input
+id="searchInput"
+type="text"
+placeholder="Search any movie or actor..."
+autocomplete="off"
+>
+
+<button type="submit">
+Search
+</button>
+
+</form>
 
 </div>
 
@@ -772,248 +377,55 @@ famous quotes and the stories behind them.
 
 <main>
 
-<div id="homePage">
-
 <h2 class="section-title">
-What makes Reelwise different?
+Explore Reelwise
 </h2>
 
 <div class="features">
 
-<div class="feature" onclick="jumpToMovies()">
+<div class="feature">
 <div class="feature-icon">🎬</div>
+
 <h3>Movies</h3>
-<p>Explore movies, casts, stories and the details worth knowing.</p>
-<div class="feature-action">EXPLORE MOVIES →</div>
+
+<p>
+Search movies from every era — classics, cult favorites
+and today's biggest films.
+</p>
 </div>
 
-<div class="feature" onclick="showStars()">
+<div class="feature">
 <div class="feature-icon">⭐</div>
+
 <h3>Movie Stars</h3>
-<p>Go beyond filmographies and discover the people behind the roles.</p>
-<div class="feature-action">EXPLORE STARS →</div>
+
+<p>
+Search actors and discover their careers,
+movies and connections.
+</p>
 </div>
 
-<div class="feature" onclick="showDiscovery()">
-<div class="feature-icon">🔥</div>
-<h3>You Probably Didn’t Know</h3>
-<p>Discover casting stories, memorable facts and movie connections.</p>
-<div class="feature-action">DISCOVER STORIES →</div>
+<div class="feature">
+<div class="feature-icon">🔗</div>
+
+<h3>Six Degrees</h3>
+
+<p>
+Connect movie stars through the films
+they appeared in together.
+</p>
 </div>
 
 </div>
 
-<h2 class="section-title" id="movieSearchTitle">
-Popular Movies
+<h2 class="section-title" id="resultsTitle">
+Movie & Star Search
 </h2>
 
 <div id="results">
-<div class="message">Loading popular movies...</div>
-</div>
 
-</div>
-
-
-<div id="discoveryPage">
-
-<button class="back-button" onclick="showHome()">
-← Back to Reelwise
-</button>
-
-<div class="discovery-hero">
-
-<div class="eyebrow">
-REELWISE DISCOVERY
-</div>
-
-<h1>
-You probably<br>
-<span>didn’t know.</span>
-</h1>
-
-<p>
-The stories, casting decisions, music and memorable details
-that make great movies even more interesting.
-</p>
-
-</div>
-
-<h2 class="section-title">
-Discover Something New
-</h2>
-
-<div id="discoveryGrid" class="discovery-grid">
-<div class="message">Finding movie stories...</div>
-</div>
-
-</div>
-
-
-<div id="starsPage">
-
-<button class="back-button" onclick="showHome()">
-← Back to Reelwise
-</button>
-
-<div class="stars-hero">
-
-<div class="eyebrow">
-REELWISE MOVIE STARS
-</div>
-
-<h1>
-The stars behind<br>
-<span>the movies.</span>
-</h1>
-
-<p>
-Explore legendary actors, memorable roles,
-career highlights and the stories behind their movies.
-</p>
-
-</div>
-
-<h2 class="section-title">
-Popular Stars
-</h2>
-
-<div id="featuredStars" class="stars-grid">
-<div class="message">Loading movie stars...</div>
-</div>
-
-</div>
-
-
-<div id="quotesPage">
-
-<button class="back-button" onclick="showHome()">
-← Back to Reelwise
-</button>
-
-<div class="quotes-hero">
-
-<div class="eyebrow">
-REELWISE MOVIE QUOTES
-</div>
-
-<h1>
-The lines<br>
-<span>you never forget.</span>
-</h1>
-
-<p>
-Memorable movie lines from the films we love.
-Tap a quote to open its Reelwise movie page.
-</p>
-
-</div>
-
-<h2 class="section-title">
-Featured Quotes
-</h2>
-
-<div class="quotes-grid">
-
-<div class="big-quote-card" onclick="openMovie(1371,'quotes')">
-<div class="quote-mark">“</div>
-<div class="big-quote-text">There is no tomorrow!</div>
-<div class="quote-movie">ROCKY III</div>
-<div class="quote-hint">Open the Reelwise movie page →</div>
-</div>
-
-<div class="big-quote-card" onclick="openMovie(1371,'quotes')">
-<div class="quote-mark">“</div>
-<div class="big-quote-text">I pity the fool.</div>
-<div class="quote-movie">ROCKY III</div>
-<div class="quote-hint">Open the Reelwise movie page →</div>
-</div>
-
-<div class="big-quote-card" onclick="openMovie(744,'quotes')">
-<div class="quote-mark">“</div>
-<div class="big-quote-text">I feel the need... the need for speed.</div>
-<div class="quote-movie">TOP GUN</div>
-<div class="quote-hint">Open the Reelwise movie page →</div>
-</div>
-
-<div class="big-quote-card" onclick="openMovie(881,'quotes')">
-<div class="quote-mark">“</div>
-<div class="big-quote-text">You can't handle the truth!</div>
-<div class="quote-movie">A FEW GOOD MEN</div>
-<div class="quote-hint">Open the Reelwise movie page →</div>
-</div>
-
-</div>
-
-</div>
-
-
-<div id="moviePage">
-
-<button id="movieBackButton" class="back-button" onclick="goBackFromMovie()">
-← Back
-</button>
-
-<div id="movieContent"></div>
-
-</div>
-
-
-<div id="personPage">
-
-<button id="personBackButton" class="back-button" onclick="goBackFromPerson()">
-← Back
-</button>
-
-<div id="personContent"></div>
-
-</div>
-
-
-<div id="degreesPage">
-
-<button class="back-button" onclick="showHome()">
-← Back to Reelwise
-</button>
-
-<div class="degrees-wrap">
-
-<div class="degrees-hero">
-
-<div class="reelwise-label">
-REELWISE GAME
-</div>
-
-<h1>
-Six <span>Degrees</span>
-</h1>
-
-<p>
-Pick any two movie stars.
-Reelwise will connect them through movies and co-stars.
-</p>
-
-</div>
-
-<div class="degrees-form">
-
-<input id="actorOne"
-placeholder="First actor — e.g. Sylvester Stallone">
-
-<input id="actorTwo"
-placeholder="Second actor — e.g. Tom Cruise">
-
-</div>
-
-<div class="degrees-button-wrap">
-
-<button class="primary-button" onclick="findDegrees()">
-Find Connection
-</button>
-
-</div>
-
-<div id="degreesResult"></div>
-
+<div class="message">
+Search for any movie or actor above.
 </div>
 
 </div>
@@ -1021,1343 +433,492 @@ Find Connection
 </main>
 
 <footer>
-Reelwise — Movies. Stars. Quotes. Stories. Connections.
+Reelwise — Movies. Stars. Stories.
 </footer>
 
 <script>
 
-let currentMovieId=null;
-let movieBackTarget="home";
-let personBackTarget="movie";
+const results =
+document.getElementById("results");
 
-const discoveryMovieIds=[
-744,
-1366,
-1367,
-1371,
-1374,
-881,
-14534,
-11635,
-18785,
-274167
-];
+const searchForm =
+document.getElementById("searchForm");
+
+const searchInput =
+document.getElementById("searchInput");
+
+const resultsTitle =
+document.getElementById("resultsTitle");
 
 
-function renderMovies(movies){
+searchForm.addEventListener(
+"submit",
+function(event){
 
-const results=document.getElementById("results");
+event.preventDefault();
 
-if(!Array.isArray(movies)||!movies.length){
-results.innerHTML='<div class="message">No movies found.</div>';
-return;
-}
-
-results.innerHTML=
-movies.map(movie=>{
-
-const poster=
-movie.poster_path
-? "https://image.tmdb.org/t/p/w500"+movie.poster_path
-: "";
-
-const year=
-movie.release_date
-? movie.release_date.substring(0,4)
-: "";
-
-return `
-
-<div class="movie" onclick="openMovie(${movie.id},'home')">
-
-${poster
-? `<img src="${poster}">`
-: `<div class="no-photo">No Poster</div>`
-}
-
-<div class="movie-info">
-
-<div class="movie-title">
-${escapeHtml(movie.title)}
-</div>
-
-<div class="movie-year">
-${year}
-</div>
-
-</div>
-
-</div>
-
-`;
-
-}).join("");
+searchReelwise();
 
 }
-
-
-async function loadPopularMovies(){
-
-const results=document.getElementById("results");
-
-document.getElementById("movieSearchTitle").textContent=
-"Popular Movies";
-
-results.innerHTML=
-'<div class="message">Loading popular movies...</div>';
-
-try{
-
-const response=await fetch("/api/movies");
-const movies=await response.json();
-
-if(!response.ok){
-throw new Error();
-}
-
-renderMovies(movies);
-
-}catch(e){
-
-results.innerHTML=
-'<div class="message">We could not load popular movies right now.</div>';
-
-}
-
-}
+);
 
 
 async function searchReelwise(){
 
-const query=
-document.getElementById("searchInput").value.trim();
-
-const results=
-document.getElementById("results");
+const query =
+searchInput.value.trim();
 
 if(!query){
-loadPopularMovies();
-return;
-}
 
-document.getElementById("movieSearchTitle").textContent=
-`Search Results for "${query}"`;
-
-results.innerHTML=
-'<div class="message">Searching movies and stars...</div>';
-
-try{
-
-const responses=
-await Promise.all([
-fetch("/api/search?query="+encodeURIComponent(query)),
-fetch("/api/search-stars?query="+encodeURIComponent(query))
-]);
-
-const movies=await responses[0].json();
-const stars=await responses[1].json();
-
-if(!responses[0].ok && !responses[1].ok){
-throw new Error();
-}
-
-let html="";
-
-if(Array.isArray(stars) && stars.length){
-
-html+=`
-
-<div class="search-section" style="grid-column:1/-1">
-
-<h2 class="section-title">
-⭐ Stars
-</h2>
-
-<div class="search-star-grid">
-
-${stars.slice(0,10).map(person=>`
-
-<div class="search-star-card"
-onclick="openPerson(${person.id},'home')">
-
-<img src="https://image.tmdb.org/t/p/w500${person.profile_path}">
-
-<div class="search-star-info">
-
-<div class="search-star-label">
-MOVIE STAR
-</div>
-
-<div class="search-star-name">
-${escapeHtml(person.name)}
-</div>
-
-</div>
-
-</div>
-
-`).join("")}
-
-</div>
-
-</div>
-
-`;
-
-}
-
-if(Array.isArray(movies) && movies.length){
-
-html+=`
-
-<div style="grid-column:1/-1">
-
-<h2 class="section-title">
-🎬 Movies
-</h2>
-
-<div style="
-display:grid;
-grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
-gap:22px;
-">
-
-${movies.map(movie=>{
-
-const poster=
-movie.poster_path
-? "https://image.tmdb.org/t/p/w500"+movie.poster_path
-: "";
-
-const year=
-movie.release_date
-? movie.release_date.substring(0,4)
-: "";
-
-return `
-
-<div class="movie"
-onclick="openMovie(${movie.id},'home')">
-
-${poster
-? `<img src="${poster}">`
-: `<div class="no-photo">No Poster</div>`
-}
-
-<div class="movie-info">
-
-<div class="movie-title">
-${escapeHtml(movie.title)}
-</div>
-
-<div class="movie-year">
-${year}
-</div>
-
-</div>
-
-</div>
-
-`;
-
-}).join("")}
-
-</div>
-
-</div>
-
-`;
-
-}
-
-if(!html){
-
-html=
-'<div class="message" style="grid-column:1/-1">No movies or stars found.</div>';
-
-}
-
-results.innerHTML=html;
-
-document
-.getElementById("movieSearchTitle")
-.scrollIntoView({behavior:"smooth"});
-
-}catch(e){
-
-results.innerHTML=
-'<div class="message">Something went wrong with the search.</div>';
-
-}
-
-}
-
-
-function jumpToMovies(){
-
-document
-.getElementById("movieSearchTitle")
-.scrollIntoView({behavior:"smooth"});
-
-}
-
-
-async function showDiscovery(){
-
-hideAllPages();
-
-document.getElementById("discoveryPage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-window.scrollTo(0,0);
-
-const container=
-document.getElementById("discoveryGrid");
-
-container.innerHTML=
-'<div class="message">Finding movie stories...</div>';
-
-try{
-
-const shuffled=
-[...discoveryMovieIds].sort(()=>Math.random()-.5);
-
-const cards=
-await Promise.all(
-shuffled.map(async id=>{
-
-try{
-
-const responses=
-await Promise.all([
-fetch("/api/movie?id="+id),
-fetch("/api/reelwise?id="+id),
-fetch("/api/verify?id="+id)
-]);
-
-const movie=await responses[0].json();
-const reelwise=await responses[1].json();
-const verification=await responses[2].json();
-
-if(!responses[0].ok || !reelwise.available){
-return null;
-}
-
-const fact=
-(reelwise.facts && reelwise.facts.length)
-? reelwise.facts[0]
-: (
-(reelwise.casting && reelwise.casting.length)
-? reelwise.casting[0]
-: ""
-);
-
-if(!fact){
-return null;
-}
-
-return {
-id,
-title:movie.title,
-backdrop:movie.backdrop_path,
-poster:movie.poster_path,
-fact,
-verified:verification.reviewed===true
-};
-
-}catch(e){
-return null;
-}
-
-})
-);
-
-const available=
-cards.filter(Boolean);
-
-if(!available.length){
-
-container.innerHTML=
-'<div class="message">No stories are available right now.</div>';
+results.innerHTML =
+'<div class="message">Enter a movie or actor to search.</div>';
 
 return;
-}
-
-container.innerHTML=
-available.map(item=>{
-
-const image=
-item.backdrop
-? "https://image.tmdb.org/t/p/w780"+item.backdrop
-: (
-item.poster
-? "https://image.tmdb.org/t/p/w500"+item.poster
-: ""
-);
-
-return `
-
-<div class="discovery-card"
-onclick="openMovie(${item.id},'discovery')">
-
-${image
-? `<img src="${image}">`
-: ""
-}
-
-<div class="discovery-copy">
-
-<div class="discovery-badge">
-🔥 YOU PROBABLY DIDN'T KNOW
-</div>
-
-${item.verified
-? `<div class="discovery-verified">✓ REELWISE VERIFIED</div>`
-: ""
-}
-
-<div class="discovery-title">
-${escapeHtml(item.title)}
-</div>
-
-<div class="discovery-fact">
-${escapeHtml(item.fact)}
-</div>
-
-<div class="discovery-link">
-DISCOVER THE FULL STORY →
-</div>
-
-</div>
-
-</div>
-
-`;
-
-}).join("");
-
-}catch(e){
-
-container.innerHTML=
-'<div class="message">We could not load Reelwise stories right now.</div>';
 
 }
 
-}
+resultsTitle.textContent =
+'Results for "' + query + '"';
 
-
-async function openMovie(id,returnTo="home"){
-
-currentMovieId=id;
-movieBackTarget=returnTo;
-
-hideAllPages();
-
-document.getElementById("moviePage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-const button=
-document.getElementById("movieBackButton");
-
-if(returnTo==="degrees"){
-button.textContent="← Back to Six Degrees";
-}else if(returnTo==="person"){
-button.textContent="← Back to Star";
-}else if(returnTo==="quotes"){
-button.textContent="← Back to Quotes";
-}else if(returnTo==="discovery"){
-button.textContent="← Back to Discovery";
-}else{
-button.textContent="← Back to Movies";
-}
-
-const content=
-document.getElementById("movieContent");
-
-content.innerHTML=
-'<div class="message">Opening movie...</div>';
-
-window.scrollTo(0,0);
+results.innerHTML =
+'<div class="message">Searching Reelwise...</div>';
 
 try{
 
-const response=
-await fetch("/api/movie?id="+id);
+const response =
+await fetch(
+"/api/search?q=" +
+encodeURIComponent(query)
+);
 
-const movie=
+const data =
 await response.json();
 
 if(!response.ok){
-throw new Error();
+
+throw new Error(
+data.error ||
+"Search failed."
+);
+
 }
 
-let reelwise={available:false};
-let verification={reviewed:false};
+const items =
+Array.isArray(data.results)
+? data.results
+: [];
 
-try{
+if(!items.length){
 
-reelwise=
-await(
-await fetch("/api/reelwise?id="+id)
-).json();
+results.innerHTML =
+'<div class="message">No results found.</div>';
 
-}catch(e){}
+return;
 
-try{
+}
 
-verification=
-await(
-await fetch("/api/verify?id="+id)
-).json();
+results.innerHTML =
+items.slice(0,30)
+.map(makeCard)
+.join("");
 
-}catch(e){}
+attachCardEvents();
 
-const poster=
-movie.poster_path
-? "https://image.tmdb.org/t/p/w500"+movie.poster_path
+}
+catch(error){
+
+console.error(error);
+
+results.innerHTML =
+'<div class="message">Something went wrong: ' +
+escapeHTML(error.message) +
+'</div>';
+
+}
+
+}
+
+
+function makeCard(item){
+
+const isMovie =
+item.result_type === "movie";
+
+const name =
+item.display_title ||
+item.title ||
+item.name ||
+"Unknown";
+
+const image =
+isMovie
+? item.poster_path
+: item.profile_path;
+
+const imageURL =
+image
+? "https://image.tmdb.org/t/p/w500" + image
 : "";
 
-const year=
-movie.release_date
-? movie.release_date.substring(0,4)
-: "";
-
-const meta=
-[
-year,
-movie.runtime ? movie.runtime+" min":"",
-(movie.genres||[]).map(g=>g.name).join(" / ")
-]
-.filter(Boolean)
-.join(" • ");
-
-const cast=
-(movie.credits?.cast||[]).slice(0,12);
-
-const castHtml=
-cast.map(person=>{
-
-const photo=
-person.profile_path
-? "https://image.tmdb.org/t/p/w500"+person.profile_path
-: "";
+const subtitle =
+isMovie
+? (item.year || "Movie")
+: (
+item.known_for_department ||
+"Actor"
+);
 
 return `
+<div
+class="card"
+data-type="${item.result_type}"
+data-id="${item.id}"
+>
 
-<div class="cast-card"
-onclick="openPerson(${person.id},'movie')">
-
-${photo
-? `<img src="${photo}">`
-: `<div class="no-photo">No Photo</div>`
-}
-
-<div class="cast-info">
-
-<div class="cast-name">
-${escapeHtml(person.name)}
-</div>
-
-<div class="cast-character">
-${escapeHtml(person.character||"")}
-</div>
-
-</div>
-
-</div>
-
-`;
-
-}).join("");
-
-let reelwiseHtml="";
-
-if(reelwise.available){
-
-reelwiseHtml=`
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🔥 You Probably Didn't Know
-</h2>
-
-<div class="reelwise-grid">
-
-${reelwise.facts.map(x=>`
-<div class="story-card">
-<p>${escapeHtml(x)}</p>
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🎭 Casting Stories
-</h2>
-
-<div class="reelwise-grid">
-
-${reelwise.casting.map(x=>`
-<div class="story-card">
-<p>${escapeHtml(x)}</p>
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🎵 Music & Soundtrack
-</h2>
-
-<div class="reelwise-grid">
-
-${reelwise.soundtrack.map(x=>`
-<div class="story-card">
-<p>${escapeHtml(x)}</p>
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-💬 Memorable Quotes
-</h2>
-
-<div class="reelwise-grid">
-
-${reelwise.quotes.map(x=>`
-<div class="quote-card">
-“${escapeHtml(x)}”
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-`;
-
-}else{
-
-reelwiseHtml=`
-
-<div class="placeholder">
-
-<h2>🎬 The Reelwise Story</h2>
-
-<p>
-Quotes, behind-the-scenes stories,
-casting stories, music and more
-are coming to this movie.
-</p>
-
-</div>
-
-`;
-
-}
-
-const badge=
-verification.reviewed
-? `<div class="verified-badge">
-✓ REELWISE VERIFIED
+${
+imageURL
+?
+`<img
+class="poster"
+src="${imageURL}"
+alt="${escapeHTML(name)}"
+>`
+:
+`<div class="no-poster">
+${isMovie ? "🎬" : "⭐"}
 </div>`
-: "";
-
-content.innerHTML=`
-
-<div class="movie-detail">
-
-<div>
-
-${poster
-? `<img class="detail-poster" src="${poster}">`
-: `<div class="no-photo">No Poster</div>`
 }
 
+<div class="card-info">
+
+<div class="type">
+${isMovie ? "Movie" : "Star"}
 </div>
 
-<div class="detail-copy">
+<strong>
+${escapeHTML(name)}
+</strong>
 
-<div class="reelwise-label">
-REELWISE MOVIE PAGE
-</div>
-
-${badge}
-
-<h1>${escapeHtml(movie.title)}</h1>
-
-<div class="detail-meta">
-${escapeHtml(meta)}
-</div>
-
-<p class="detail-overview">
-${escapeHtml(movie.overview||"")}
-</p>
+<small>
+${escapeHTML(subtitle)}
+</small>
 
 </div>
 
 </div>
-
-<div class="cast-section">
-
-<h2 class="section-title">
-⭐ Cast
-</h2>
-
-<div class="cast-grid">
-${castHtml}
-</div>
-
-</div>
-
-${reelwiseHtml}
-
 `;
 
-}catch(e){
+}
 
-content.innerHTML=
-'<div class="message">We could not open this movie yet.</div>';
+
+function attachCardEvents(){
+
+document
+.querySelectorAll(".card")
+.forEach(card => {
+
+card.addEventListener(
+"click",
+function(){
+
+const type =
+card.dataset.type;
+
+const id =
+card.dataset.id;
+
+if(type === "movie"){
+
+showMovie(id);
+
+}
+else{
+
+showPerson(id);
 
 }
 
 }
+);
 
+});
 
-async function openPerson(id,returnTo="movie"){
-
-personBackTarget=returnTo;
-
-hideAllPages();
-
-document.getElementById("personPage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-const button=
-document.getElementById("personBackButton");
-
-if(returnTo==="degrees"){
-button.textContent="← Back to Six Degrees";
-}else if(returnTo==="home"){
-button.textContent="← Back to Reelwise";
-}else if(returnTo==="stars"){
-button.textContent="← Back to Stars";
-}else{
-button.textContent="← Back to Movie";
 }
 
-const content=
-document.getElementById("personContent");
 
-content.innerHTML=
-'<div class="message">Opening star...</div>';
+async function showMovie(id){
 
-window.scrollTo(0,0);
+resultsTitle.textContent =
+"Movie";
+
+results.innerHTML =
+'<div class="message">Loading movie...</div>';
 
 try{
 
-const response=
-await fetch("/api/person?id="+id);
+const response =
+await fetch(
+"/api/search?type=movie-details&id=" +
+encodeURIComponent(id)
+);
 
-const person=
+const movie =
 await response.json();
 
 if(!response.ok){
-throw new Error();
+
+throw new Error(
+movie.error ||
+"Movie could not be loaded."
+);
+
 }
 
-let starwise={available:false};
-
-try{
-
-starwise=
-await(
-await fetch("/api/starwise?id="+id)
-).json();
-
-}catch(e){}
-
-const photo=
-person.profile_path
-? "https://image.tmdb.org/t/p/w500"+person.profile_path
+const poster =
+movie.poster_path
+? "https://image.tmdb.org/t/p/w500" +
+movie.poster_path
 : "";
 
-const meta=
-[
-person.birthday,
-person.place_of_birth
-]
-.filter(Boolean)
-.join(" • ");
+const cast =
+movie.credits &&
+Array.isArray(movie.credits.cast)
+? movie.credits.cast.slice(0,18)
+: [];
 
-const credits=
-(person.movie_credits?.cast||[])
-.filter(x=>x.poster_path)
-.filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i)
-.sort((a,b)=>(b.popularity||0)-(a.popularity||0))
-.slice(0,18);
-
-const creditsHtml=
-credits.map(movie=>{
-
-const year=
+const year =
 movie.release_date
-? movie.release_date.substring(0,4)
+? movie.release_date.slice(0,4)
 : "";
 
-return `
+results.innerHTML = `
 
-<div class="credit-card"
-onclick="openMovie(${movie.id},'person')">
+<div class="detail">
 
-<img src="https://image.tmdb.org/t/p/w500${movie.poster_path}">
+<button
+class="back-button"
+onclick="searchReelwise()">
+← Back to results
+</button>
 
-<div class="credit-info">
-
-<div class="credit-title">
-${escapeHtml(movie.title)}
-</div>
-
-<div class="credit-year">
-${year}
-</div>
-
-</div>
-
-</div>
-
-`;
-
-}).join("");
-
-let extra="";
-
-if(starwise.available){
-
-extra=`
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-⭐ Known For
-</h2>
-
-<div class="known-for">
-
-${starwise.knownFor.map(x=>`
-<div class="known-chip">
-${escapeHtml(x)}
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🎬 Career Highlights
-</h2>
-
-<div class="reelwise-grid">
-
-${starwise.highlights.map(x=>`
-<div class="story-card">
-<p>${escapeHtml(x)}</p>
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🔥 You Probably Didn't Know
-</h2>
-
-<div class="reelwise-grid">
-
-${starwise.facts.map(x=>`
-<div class="story-card">
-<p>${escapeHtml(x)}</p>
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-
-<div class="reelwise-section">
-
-<h2 class="section-title">
-🎭 Memorable Roles
-</h2>
-
-<div class="reelwise-grid">
-
-${starwise.roles.map(x=>`
-<div class="role-card">
-${escapeHtml(x)}
-</div>
-`).join("")}
-
-</div>
-
-</div>
-
-`;
-
-}
-
-content.innerHTML=`
-
-<div class="person-detail">
+<div class="detail-layout">
 
 <div>
 
-${photo
-? `<img class="person-photo" src="${photo}">`
-: `<div class="no-photo">No Photo</div>`
+${
+poster
+?
+`<img
+class="detail-image"
+src="${poster}"
+alt="${escapeHTML(movie.title)}"
+>`
+:
+`<div class="no-poster">🎬</div>`
 }
 
 </div>
 
-<div class="person-copy">
-
-<div class="reelwise-label">
-REELWISE STAR PAGE
-</div>
+<div>
 
 <h1>
-${escapeHtml(person.name)}
+${escapeHTML(movie.title || "Movie")}
 </h1>
 
-<div class="person-meta">
-${escapeHtml(meta)}
-</div>
+<p>
+<strong>
+${escapeHTML(year)}
+</strong>
+</p>
 
-<p class="person-bio">
-${escapeHtml(
-person.biography||
-"More about this star is coming to Reelwise."
+<p>
+${escapeHTML(
+movie.overview ||
+"No description available."
 )}
 </p>
 
+<h2>Cast</h2>
+
+<div class="cast">
+
+${cast.map(person => `
+
+<button
+onclick="showPerson('${person.id}')">
+
+${escapeHTML(person.name)}
+
+</button>
+
+`).join("")}
+
+</div>
+
 </div>
 
 </div>
 
-${extra}
-
-<div class="credits-section">
-
-<h2 class="section-title">
-🎬 Movies
-</h2>
-
-<div class="credit-grid">
-${creditsHtml}
 </div>
-
-</div>
-
 `;
 
-}catch(e){
+}
+catch(error){
 
-content.innerHTML=
-'<div class="message">We could not open this star yet.</div>';
+results.innerHTML =
+'<div class="message">' +
+escapeHTML(error.message) +
+'</div>';
 
 }
 
 }
 
 
-async function showStars(){
+async function showPerson(id){
 
-hideAllPages();
+resultsTitle.textContent =
+"Movie Star";
 
-document.getElementById("starsPage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-window.scrollTo(0,0);
-
-const container=
-document.getElementById("featuredStars");
-
-container.innerHTML=
-'<div class="message">Loading movie stars...</div>';
+results.innerHTML =
+'<div class="message">Loading star...</div>';
 
 try{
 
-const response=
-await fetch("/api/stars");
+const response =
+await fetch(
+"/api/search?type=person-details&id=" +
+encodeURIComponent(id)
+);
 
-const stars=
+const person =
 await response.json();
 
 if(!response.ok){
-throw new Error();
-}
 
-if(!Array.isArray(stars)||!stars.length){
-
-container.innerHTML=
-'<div class="message">No stars found right now.</div>';
-
-return;
-}
-
-container.innerHTML=
-stars.map(person=>`
-
-<div class="star-card"
-onclick="openPerson(${person.id},'stars')">
-
-<img
-src="https://image.tmdb.org/t/p/w500${person.profile_path}">
-
-<div class="star-card-info">
-
-<div class="star-card-label">
-MOVIE STAR
-</div>
-
-<div class="star-card-name">
-${escapeHtml(person.name)}
-</div>
-
-</div>
-
-</div>
-
-`).join("");
-
-}catch(e){
-
-container.innerHTML=
-'<div class="message">We could not load the stars right now.</div>';
-
-}
-
-}
-
-
-function showQuotes(){
-
-hideAllPages();
-
-document.getElementById("quotesPage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-window.scrollTo(0,0);
-
-}
-
-
-function showDegrees(){
-
-hideAllPages();
-
-document.getElementById("degreesPage").style.display="block";
-document.getElementById("hero").style.display="none";
-
-window.scrollTo(0,0);
-
-}
-
-
-async function findDegrees(){
-
-const actor1=
-document.getElementById("actorOne").value.trim();
-
-const actor2=
-document.getElementById("actorTwo").value.trim();
-
-const result=
-document.getElementById("degreesResult");
-
-if(!actor1||!actor2){
-
-result.innerHTML=
-'<div class="message">Enter two actor names.</div>';
-
-return;
-}
-
-result.innerHTML=
-'<div class="message">Finding the best connection...</div>';
-
-try{
-
-const response=
-await fetch(
-"/api/degrees?actor1="+
-encodeURIComponent(actor1)+
-"&actor2="+
-encodeURIComponent(actor2)
+throw new Error(
+person.error ||
+"Actor could not be loaded."
 );
 
-const data=
-await response.json();
-
-if(!data.found){
-
-result.innerHTML=
-'<div class="message">No connection found yet.</div>';
-
-return;
 }
 
-let chainHtml="";
+const photo =
+person.profile_path
+? "https://image.tmdb.org/t/p/w500" +
+person.profile_path
+: "";
 
-data.path.forEach(step=>{
+const credits =
+person.combined_credits &&
+Array.isArray(person.combined_credits.cast)
+? person.combined_credits.cast
+: [];
 
-chainHtml+=`
+const movies =
+credits
+.filter(item =>
+item.media_type === "movie"
+)
+.sort(
+(a,b) =>
+(b.popularity || 0) -
+(a.popularity || 0)
+)
+.slice(0,18);
 
-<div class="chain-actor">
+results.innerHTML = `
 
-<div
-class="chain-actor-name"
-onclick="openPerson(${step.actorId},'degrees')">
+<div class="detail">
 
-${escapeHtml(step.actor)}
+<button
+class="back-button"
+onclick="searchReelwise()">
+← Back to results
+</button>
+
+<div class="detail-layout">
+
+<div>
+
+${
+photo
+?
+`<img
+class="detail-image"
+src="${photo}"
+alt="${escapeHTML(person.name)}"
+>`
+:
+`<div class="no-poster">⭐</div>`
+}
+
+</div>
+
+<div>
+
+<h1>
+${escapeHTML(person.name || "Movie Star")}
+</h1>
+
+<p>
+${escapeHTML(
+person.biography ||
+"Biography information is not available."
+)}
+</p>
+
+<h2>Known For</h2>
+
+<div class="cast">
+
+${movies.map(movie => `
+
+<button
+onclick="showMovie('${movie.id}')">
+
+${escapeHTML(
+movie.title ||
+movie.original_title ||
+"Movie"
+)}
+
+</button>
+
+`).join("")}
 
 </div>
 
 </div>
 
+</div>
+
+</div>
 `;
 
-if(step.movie){
-
-chainHtml+=`
-
-<div class="chain-arrow">↓</div>
-
-<div class="chain-movie">
-
-<div class="chain-movie-label">
-MOVIE CONNECTION
-</div>
-
-<div
-class="chain-movie-title"
-onclick="openMovie(${step.movieId},'degrees')">
-
-🎬 ${escapeHtml(step.movie)}
-
-</div>
-
-</div>
-
-<div class="chain-arrow">↓</div>
-
-`;
-
 }
+catch(error){
 
-});
-
-result.innerHTML=`
-
-<div class="degree-result">
-
-<div class="degree-summary">
-
-<div class="reelwise-label">
-CONNECTION FOUND
-</div>
-
-<h2>
-${escapeHtml(data.actor1.name)}
-→
-${escapeHtml(data.actor2.name)}
-</h2>
-
-<div class="degree-badge">
-${data.degrees}
-${data.degrees===1?"Degree":"Degrees"}
-</div>
-
-</div>
-
-<div class="chain">
-${chainHtml}
-</div>
-
-</div>
-
-`;
-
-}catch(e){
-
-result.innerHTML=
-'<div class="message">We could not find the connection right now.</div>';
+results.innerHTML =
+'<div class="message">' +
+escapeHTML(error.message) +
+'</div>';
 
 }
 
 }
 
 
-function goBackFromPerson(){
+function escapeHTML(value){
 
-hideAllPages();
-
-if(personBackTarget==="degrees"){
-
-document.getElementById("degreesPage").style.display="block";
-
-}else if(personBackTarget==="stars"){
-
-document.getElementById("starsPage").style.display="block";
-
-}else if(personBackTarget==="home"){
-
-document.getElementById("homePage").style.display="block";
-document.getElementById("hero").style.display="block";
-
-}else{
-
-document.getElementById("moviePage").style.display="block";
+return String(value || "")
+.replaceAll("&","&amp;")
+.replaceAll("<","&lt;")
+.replaceAll(">","&gt;")
+.replaceAll('"',"&quot;")
+.replaceAll("'","&#039;");
 
 }
-
-window.scrollTo(0,0);
-
-}
-
-
-function goBackFromMovie(){
-
-hideAllPages();
-
-if(movieBackTarget==="degrees"){
-
-document.getElementById("degreesPage").style.display="block";
-
-}else if(movieBackTarget==="person"){
-
-document.getElementById("personPage").style.display="block";
-
-}else if(movieBackTarget==="quotes"){
-
-document.getElementById("quotesPage").style.display="block";
-
-}else if(movieBackTarget==="discovery"){
-
-document.getElementById("discoveryPage").style.display="block";
-
-}else{
-
-document.getElementById("homePage").style.display="block";
-document.getElementById("hero").style.display="block";
-
-}
-
-window.scrollTo(0,0);
-
-}
-
-
-function hideAllPages(){
-
-document.getElementById("homePage").style.display="none";
-document.getElementById("starsPage").style.display="none";
-document.getElementById("quotesPage").style.display="none";
-document.getElementById("discoveryPage").style.display="none";
-document.getElementById("moviePage").style.display="none";
-document.getElementById("personPage").style.display="none";
-document.getElementById("degreesPage").style.display="none";
-
-}
-
-
-function showHome(){
-
-hideAllPages();
-
-document.getElementById("homePage").style.display="block";
-document.getElementById("hero").style.display="block";
-
-document.getElementById("searchInput").value="";
-
-loadPopularMovies();
-
-window.scrollTo(0,0);
-
-}
-
-
-function escapeHtml(text){
-
-const div=document.createElement("div");
-
-div.textContent=text||"";
-
-return div.innerHTML;
-
-}
-
-
-document
-.getElementById("searchInput")
-.addEventListener("keydown",e=>{
-
-if(e.key==="Enter"){
-searchReelwise();
-}
-
-});
-
-
-document
-.getElementById("actorOne")
-.addEventListener("keydown",e=>{
-
-if(e.key==="Enter"){
-findDegrees();
-}
-
-});
-
-
-document
-.getElementById("actorTwo")
-.addEventListener("keydown",e=>{
-
-if(e.key==="Enter"){
-findDegrees();
-}
-
-});
-
-
-loadPopularMovies();
 
 </script>
 
