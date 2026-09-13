@@ -16,7 +16,7 @@ const reviewStatus = {
 
   1371: {
     title: "Rocky III",
-    status: "needs-review"
+    status: "verified"
   },
 
   1374: {
