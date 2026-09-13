@@ -4,125 +4,171 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-<title>Reelwise — Movies. Stars. Stories.</title>
+<title>Reelwise — Know the Movie. Know the Story.</title>
 
 <style>
+:root{
+  --bg:#090b0f;
+  --panel:#11151c;
+  --panel2:#151a22;
+  --line:#252c38;
+  --text:#f5f7fa;
+  --muted:#9ca6b5;
+  --accent:#ff5a36;
+  --gold:#e4b34d;
+}
+
 *{box-sizing:border-box}
 
 body{
   margin:0;
-  background:#08080c;
-  color:#fff;
-  font-family:Arial,Helvetica,sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+}
+
+button,input{
+  font:inherit;
+}
+
+button{
+  cursor:pointer;
 }
 
 header{
-  background:linear-gradient(180deg,#191923 0%,#08080c 100%);
-  padding:22px 20px 65px;
+  background:rgba(9,11,15,.96);
+  border-bottom:1px solid var(--line);
 }
 
 nav{
-  max-width:1200px;
+  max-width:1120px;
   margin:auto;
+  padding:18px 20px;
   display:flex;
-  justify-content:space-between;
   align-items:center;
+  justify-content:space-between;
   gap:20px;
 }
 
 .logo{
-  font-size:30px;
+  font-size:28px;
   font-weight:900;
-  letter-spacing:1px;
+  letter-spacing:-1px;
   cursor:pointer;
 }
 
 .logo span{
-  color:#e50914;
+  color:var(--accent);
 }
 
 .nav-links{
   display:flex;
-  gap:22px;
-  flex-wrap:wrap;
-  justify-content:center;
+  gap:18px;
 }
 
-.nav-links a{
-  color:#aaa;
-  text-decoration:none;
-  font-size:14px;
+.nav-links button{
+  background:none;
+  border:0;
+  color:#cbd1da;
+  padding:8px;
 }
 
-.nav-links a:hover{
+.nav-links button:hover{
   color:#fff;
 }
 
 .hero{
-  max-width:900px;
-  margin:70px auto 0;
-  text-align:center;
+  max-width:1120px;
+  margin:auto;
+  padding:65px 20px 55px;
+  display:grid;
+  grid-template-columns:1.35fr .8fr;
+  gap:35px;
+  align-items:center;
+}
+
+.eyebrow{
+  color:var(--gold);
+  font-weight:900;
+  font-size:12px;
+  letter-spacing:1.5px;
 }
 
 .hero h1{
-  font-size:clamp(42px,8vw,76px);
-  margin:0;
-  line-height:1;
+  font-size:clamp(46px,7vw,76px);
+  line-height:.98;
+  letter-spacing:-3px;
+  margin:12px 0 18px;
 }
 
 .hero h1 span{
-  color:#e50914;
+  color:var(--accent);
 }
 
 .hero p{
-  color:#aaa;
+  color:var(--muted);
   font-size:19px;
-  line-height:1.5;
-  margin:22px 0 32px;
+  line-height:1.6;
+  max-width:660px;
+}
+
+.hero-card{
+  min-height:270px;
+  background:linear-gradient(145deg,#1d2634,#0f1319);
+  border:1px solid var(--line);
+  border-radius:18px;
+  padding:28px;
+  display:flex;
+  flex-direction:column;
+  justify-content:end;
+}
+
+.hero-card strong{
+  font-size:27px;
+  line-height:1.2;
+  margin-top:10px;
 }
 
 .search{
   max-width:700px;
-  margin:auto;
   display:flex;
   gap:10px;
+  margin-top:28px;
 }
 
 .search input{
   flex:1;
-  padding:18px;
-  border-radius:8px;
-  border:1px solid #333;
-  background:#18181f;
-  color:#fff;
-  font-size:17px;
+  padding:15px;
+  border-radius:9px;
+  border:1px solid #303846;
+  background:var(--panel2);
+  color:white;
   outline:none;
 }
 
 .search input:focus{
-  border-color:#e50914;
+  border-color:var(--accent);
 }
 
-.search button{
-  padding:18px 28px;
+.search button,
+.cta{
   border:0;
-  border-radius:8px;
-  background:#e50914;
+  background:var(--accent);
   color:#fff;
-  font-weight:bold;
-  font-size:16px;
-  cursor:pointer;
+  border-radius:9px;
+  padding:14px 18px;
+  font-weight:800;
 }
 
 main{
-  max-width:1200px;
+  max-width:1120px;
   margin:auto;
-  padding:45px 20px;
+  padding:35px 20px 70px;
 }
 
 .section-title{
-  font-size:25px;
-  margin-bottom:20px;
+  font-size:28px;
+  margin:0 0 20px;
 }
 
 .features{
@@ -133,62 +179,77 @@ main{
 }
 
 .feature{
-  background:#15151c;
-  border:1px solid #272731;
-  border-radius:12px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:15px;
   padding:25px;
+  cursor:pointer;
+  transition:.18s;
+}
+
+.feature:hover{
+  transform:translateY(-3px);
+  border-color:var(--accent);
 }
 
 .feature-icon{
-  font-size:32px;
+  font-size:34px;
   margin-bottom:12px;
 }
 
 .feature h3{
   margin:0 0 8px;
+  font-size:22px;
 }
 
 .feature p{
   margin:0;
-  color:#999;
+  color:var(--muted);
   line-height:1.5;
+}
+
+.feature .go{
+  display:inline-block;
+  margin-top:16px;
+  color:var(--gold);
+  font-weight:800;
 }
 
 #results{
   display:grid;
   grid-template-columns:repeat(auto-fill,minmax(165px,1fr));
-  gap:22px;
+  gap:18px;
 }
 
 .card{
-  background:#15151c;
-  border:1px solid #292933;
+  background:var(--panel);
+  border:1px solid var(--line);
   border-radius:12px;
   overflow:hidden;
   cursor:pointer;
-  transition:.2s;
+  transition:.18s;
 }
 
 .card:hover{
-  transform:translateY(-4px);
-  border-color:#555;
+  transform:translateY(-3px);
+  border-color:#4a5568;
 }
 
 .poster{
   width:100%;
   aspect-ratio:2/3;
   object-fit:cover;
-  background:#202028;
   display:block;
+  background:#202630;
 }
 
 .no-poster{
   aspect-ratio:2/3;
-  background:linear-gradient(145deg,#30303b,#111117);
+  background:linear-gradient(145deg,#36465b,#141820);
   display:flex;
   align-items:center;
   justify-content:center;
-  font-size:44px;
+  font-size:45px;
 }
 
 .card-info{
@@ -197,122 +258,176 @@ main{
 
 .card-info strong{
   display:block;
-  font-size:15px;
   line-height:1.3;
-  margin-bottom:5px;
+  margin-bottom:4px;
 }
 
 .card-info small{
-  color:#888;
+  color:var(--muted);
 }
 
 .type{
-  color:#e50914;
+  color:var(--gold);
   font-size:11px;
-  font-weight:bold;
-  text-transform:uppercase;
+  font-weight:900;
+  letter-spacing:1px;
   margin-bottom:5px;
 }
 
 .message{
-  color:#888;
-  text-align:center;
   grid-column:1/-1;
+  background:var(--panel);
+  border:1px dashed #37404e;
+  border-radius:14px;
   padding:35px;
+  text-align:center;
+  color:var(--muted);
 }
 
 .detail{
   grid-column:1/-1;
-  background:#15151c;
-  border:1px solid #292933;
-  border-radius:14px;
-  padding:25px;
 }
 
 .detail-layout{
   display:grid;
-  grid-template-columns:220px 1fr;
-  gap:25px;
+  grid-template-columns:260px 1fr;
+  gap:30px;
 }
 
 .detail-image{
   width:100%;
-  border-radius:10px;
+  border-radius:15px;
 }
 
 .detail h1{
-  margin-top:0;
-  font-size:38px;
+  font-size:clamp(38px,6vw,60px);
+  line-height:1;
+  margin:0 0 12px;
 }
 
 .detail p{
-  color:#aaa;
-  line-height:1.6;
+  color:var(--muted);
+  line-height:1.65;
 }
 
 .back-button{
-  background:#292933;
-  color:#fff;
+  background:none;
   border:0;
-  border-radius:8px;
-  padding:11px 16px;
-  margin-bottom:20px;
-  cursor:pointer;
+  color:var(--muted);
+  padding:0 0 22px;
 }
 
 .cast{
   display:flex;
   flex-wrap:wrap;
   gap:8px;
-  margin-top:15px;
+  margin-top:14px;
 }
 
 .cast button{
-  background:#23232c;
-  color:#fff;
-  border:1px solid #393944;
-  border-radius:20px;
-  padding:8px 12px;
-  cursor:pointer;
+  background:#151b24;
+  border:1px solid #303846;
+  color:white;
+  border-radius:8px;
+  padding:9px 11px;
 }
 
 .cast button:hover{
-  border-color:#e50914;
+  border-color:var(--accent);
+}
+
+.section-page{
+  grid-column:1/-1;
+  padding:10px 0;
+}
+
+.section-page h1{
+  font-size:clamp(40px,7vw,62px);
+  margin:8px 0 12px;
+}
+
+.section-page p{
+  color:var(--muted);
+  font-size:17px;
+  line-height:1.6;
+}
+
+.big-search{
+  max-width:680px;
+  display:flex;
+  gap:10px;
+  margin:28px 0;
+}
+
+.big-search input{
+  flex:1;
+  padding:16px;
+  border-radius:9px;
+  border:1px solid #303846;
+  background:var(--panel2);
+  color:#fff;
+}
+
+.big-search button{
+  background:var(--accent);
+  border:0;
+  color:#fff;
+  border-radius:9px;
+  padding:15px 20px;
+  font-weight:800;
+}
+
+.degree-box{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:15px;
+  padding:26px;
+  max-width:750px;
+}
+
+.degree-inputs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin:20px 0;
+}
+
+.degree-inputs input{
+  width:100%;
+  padding:14px;
+  border-radius:9px;
+  border:1px solid #303846;
+  background:#151a22;
+  color:#fff;
+}
+
+.degree-box button{
+  background:var(--accent);
+  color:#fff;
+  border:0;
+  border-radius:9px;
+  padding:13px 18px;
+  font-weight:800;
 }
 
 footer{
-  border-top:1px solid #222;
-  text-align:center;
-  color:#666;
+  border-top:1px solid var(--line);
+  color:#737d8b;
   padding:30px 20px;
-  margin-top:40px;
+  text-align:center;
 }
 
-@media(max-width:700px){
-
-  nav{
-    flex-direction:column;
-    gap:18px;
+@media(max-width:800px){
+  .hero{
+    grid-template-columns:1fr;
   }
 
   .nav-links{
-    gap:12px;
-  }
-
-  .nav-links a{
-    font-size:13px;
+    display:none;
   }
 
   .features{
     grid-template-columns:1fr;
-  }
-
-  .search{
-    flex-direction:column;
-  }
-
-  .search button{
-    width:100%;
   }
 
   .detail-layout{
@@ -320,7 +435,26 @@ footer{
   }
 
   .detail-image{
-    max-width:250px;
+    max-width:260px;
+  }
+
+  .degree-inputs{
+    grid-template-columns:1fr;
+  }
+}
+
+@media(max-width:520px){
+  .hero{
+    padding-top:40px;
+  }
+
+  .hero h1{
+    letter-spacing:-2px;
+  }
+
+  .search,
+  .big-search{
+    flex-direction:column;
   }
 }
 </style>
@@ -332,28 +466,35 @@ footer{
 
 <nav>
 
-<div class="logo" onclick="location.reload()">
-REEL<span>WISE</span>
+<div class="logo" onclick="showHome()">
+reel<span>wise</span>
 </div>
 
 <div class="nav-links">
-<a href="#">Movies</a>
-<a href="#">Stars</a>
-<a href="#">Quotes</a>
-<a href="#">Six Degrees</a>
+<button onclick="openSection('movies')">Movies</button>
+<button onclick="openSection('stars')">Stars</button>
+<button onclick="openSection('six')">Six Degrees</button>
 </div>
 
 </nav>
 
-<div class="hero">
+<div class="hero" id="hero">
+
+<div>
+
+<div class="eyebrow">
+MOVIES, CELEBRITIES & THE STORIES BEHIND THEM
+</div>
 
 <h1>
-Movies <span>reimagined.</span>
+Know the movie.<br>
+<span>Know the story.</span>
 </h1>
 
 <p>
-Discover movies, legendary stars, unforgettable quotes
-and the stories behind the scenes.
+Search movies and stars from across film history,
+follow careers, discover casts and explore the connections
+that make movies interesting.
 </p>
 
 <form class="search" id="searchForm">
@@ -361,7 +502,7 @@ and the stories behind the scenes.
 <input
 id="searchInput"
 type="text"
-placeholder="Search any movie or actor..."
+placeholder="Search movies or stars..."
 autocomplete="off"
 >
 
@@ -373,9 +514,30 @@ Search
 
 </div>
 
+<div class="hero-card">
+
+<div class="eyebrow">
+🔥 THE REELWISE DIFFERENCE
+</div>
+
+<strong>
+The movie is only the beginning.
+</strong>
+
+<p>
+Follow the stars, the stories and the connections behind it.
+</p>
+
+</div>
+
+</div>
+
 </header>
 
+
 <main>
+
+<div id="homeContent">
 
 <h2 class="section-title">
 Explore Reelwise
@@ -383,44 +545,91 @@ Explore Reelwise
 
 <div class="features">
 
-<div class="feature">
-<div class="feature-icon">🎬</div>
+<div
+class="feature"
+onclick="openSection('movies')"
+>
 
-<h3>Movies</h3>
+<div class="feature-icon">
+🎬
+</div>
+
+<h3>
+Movies
+</h3>
 
 <p>
-Search movies from every era — classics, cult favorites
-and today's biggest films.
+Search movies from every era and explore their casts,
+stories and connections.
 </p>
+
+<span class="go">
+Explore Movies →
+</span>
+
 </div>
 
-<div class="feature">
-<div class="feature-icon">⭐</div>
 
-<h3>Movie Stars</h3>
+<div
+class="feature"
+onclick="openSection('stars')"
+>
+
+<div class="feature-icon">
+⭐
+</div>
+
+<h3>
+Movie Stars
+</h3>
 
 <p>
-Search actors and discover their careers,
-movies and connections.
+Search actors and discover biographies,
+filmographies and the movies that connect them.
 </p>
+
+<span class="go">
+Explore Stars →
+</span>
+
 </div>
 
-<div class="feature">
-<div class="feature-icon">🔗</div>
 
-<h3>Six Degrees</h3>
+<div
+class="feature"
+onclick="openSection('six')"
+>
+
+<div class="feature-icon">
+🔗
+</div>
+
+<h3>
+Six Degrees
+</h3>
 
 <p>
-Connect movie stars through the films
-they appeared in together.
+Choose any two actors and discover how their movie careers connect.
 </p>
+
+<span class="go">
+Play Six Degrees →
+</span>
+
+</div>
+
 </div>
 
 </div>
 
-<h2 class="section-title" id="resultsTitle">
+
+<h2
+class="section-title"
+id="resultsTitle"
+>
 Movie & Star Search
 </h2>
+
 
 <div id="results">
 
@@ -432,23 +641,31 @@ Search for any movie or actor above.
 
 </main>
 
+
 <footer>
-Reelwise — Movies. Stars. Stories.
+Reelwise · Know the movie. Know the story.
 </footer>
+
 
 <script>
 
 const results =
 document.getElementById("results");
 
-const searchForm =
-document.getElementById("searchForm");
+const resultsTitle =
+document.getElementById("resultsTitle");
 
 const searchInput =
 document.getElementById("searchInput");
 
-const resultsTitle =
-document.getElementById("resultsTitle");
+const searchForm =
+document.getElementById("searchForm");
+
+const homeContent =
+document.getElementById("homeContent");
+
+let searchMode = "all";
+let lastQuery = "";
 
 
 searchForm.addEventListener(
@@ -457,28 +674,311 @@ function(event){
 
 event.preventDefault();
 
-searchReelwise();
+searchMode = "all";
+
+searchReelwise(
+searchInput.value
+);
 
 }
 );
 
 
-async function searchReelwise(){
+function showHome(){
 
-const query =
-searchInput.value.trim();
+homeContent.style.display = "block";
 
-if(!query){
+resultsTitle.textContent =
+"Movie & Star Search";
 
 results.innerHTML =
-'<div class="message">Enter a movie or actor to search.</div>';
+'<div class="message">Search for any movie or actor above.</div>';
+
+window.scrollTo({
+top:0,
+behavior:"smooth"
+});
+
+}
+
+
+function openSection(section){
+
+homeContent.style.display = "none";
+
+if(section === "movies"){
+
+showMovieSection();
 
 return;
 
 }
 
+if(section === "stars"){
+
+showStarSection();
+
+return;
+
+}
+
+if(section === "six"){
+
+showSixDegrees();
+
+}
+
+}
+
+
+function showMovieSection(){
+
 resultsTitle.textContent =
-'Results for "' + query + '"';
+"Explore Movies";
+
+results.innerHTML = `
+
+<div class="section-page">
+
+<button
+class="back-button"
+onclick="showHome()">
+← Home
+</button>
+
+<div class="eyebrow">
+MOVIES
+</div>
+
+<h1>
+Find any movie.
+</h1>
+
+<p>
+Search classics, cult favorites, blockbusters
+or almost any movie you can think of.
+</p>
+
+<div class="big-search">
+
+<input
+id="movieSearch"
+placeholder="Try GoodFellas, Rocky III, Top Gun..."
+>
+
+<button onclick="searchMoviesOnly()">
+Search Movies
+</button>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+
+function showStarSection(){
+
+resultsTitle.textContent =
+"Explore Movie Stars";
+
+results.innerHTML = `
+
+<div class="section-page">
+
+<button
+class="back-button"
+onclick="showHome()">
+← Home
+</button>
+
+<div class="eyebrow">
+MOVIE STARS
+</div>
+
+<h1>
+Follow the stars.
+</h1>
+
+<p>
+Search an actor to explore their biography,
+movies and career.
+</p>
+
+<div class="big-search">
+
+<input
+id="starSearch"
+placeholder="Try Tom Cruise, Robert De Niro..."
+>
+
+<button onclick="searchStarsOnly()">
+Search Stars
+</button>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+
+function showSixDegrees(){
+
+resultsTitle.textContent =
+"Six Degrees";
+
+results.innerHTML = `
+
+<div class="section-page">
+
+<button
+class="back-button"
+onclick="showHome()">
+← Home
+</button>
+
+<div class="eyebrow">
+SIX DEGREES
+</div>
+
+<h1>
+How are two movie stars connected?
+</h1>
+
+<p>
+Enter any two actors. Reelwise will connect them
+through movies and co-stars.
+</p>
+
+<div class="degree-box">
+
+<div class="degree-inputs">
+
+<input
+id="actorOne"
+placeholder="First actor — Tom Cruise"
+>
+
+<input
+id="actorTwo"
+placeholder="Second actor — Robert De Niro"
+>
+
+</div>
+
+<button onclick="sixDegreesComingNext()">
+Find Connection
+</button>
+
+<div
+id="degreeMessage"
+style="margin-top:18px;color:var(--muted)"
+></div>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+
+function sixDegreesComingNext(){
+
+const one =
+document.getElementById("actorOne")
+.value.trim();
+
+const two =
+document.getElementById("actorTwo")
+.value.trim();
+
+const box =
+document.getElementById("degreeMessage");
+
+if(!one || !two){
+
+box.textContent =
+"Enter two actor names.";
+
+return;
+
+}
+
+box.innerHTML =
+'<strong style="color:var(--gold)">Six Degrees screen is ready.</strong><br>' +
+'Next we will connect ' +
+escapeHTML(one) +
+' to ' +
+escapeHTML(two) +
+' using the Reelwise movie database.';
+
+}
+
+
+function searchMoviesOnly(){
+
+const input =
+document.getElementById("movieSearch");
+
+if(!input) return;
+
+searchMode = "movie";
+
+searchReelwise(
+input.value
+);
+
+}
+
+
+function searchStarsOnly(){
+
+const input =
+document.getElementById("starSearch");
+
+if(!input) return;
+
+searchMode = "person";
+
+searchReelwise(
+input.value
+);
+
+}
+
+
+async function searchReelwise(queryValue){
+
+const query =
+String(
+queryValue || ""
+).trim();
+
+if(!query){
+
+results.innerHTML =
+'<div class="message">Enter something to search.</div>';
+
+return;
+
+}
+
+lastQuery = query;
+
+homeContent.style.display =
+"none";
+
+resultsTitle.textContent =
+'Results for "' +
+query +
+'"';
 
 results.innerHTML =
 '<div class="message">Searching Reelwise...</div>';
@@ -503,10 +1003,30 @@ data.error ||
 
 }
 
-const items =
+let items =
 Array.isArray(data.results)
 ? data.results
 : [];
+
+if(searchMode === "movie"){
+
+items =
+items.filter(
+item =>
+item.result_type === "movie"
+);
+
+}
+
+if(searchMode === "person"){
+
+items =
+items.filter(
+item =>
+item.result_type === "person"
+);
+
+}
 
 if(!items.length){
 
@@ -518,7 +1038,8 @@ return;
 }
 
 results.innerHTML =
-items.slice(0,30)
+items
+.slice(0,30)
 .map(makeCard)
 .join("");
 
@@ -527,10 +1048,8 @@ attachCardEvents();
 }
 catch(error){
 
-console.error(error);
-
 results.innerHTML =
-'<div class="message">Something went wrong: ' +
+'<div class="message">' +
 escapeHTML(error.message) +
 '</div>';
 
@@ -569,6 +1088,7 @@ item.known_for_department ||
 );
 
 return `
+
 <div
 class="card"
 data-type="${item.result_type}"
@@ -592,7 +1112,7 @@ ${isMovie ? "🎬" : "⭐"}
 <div class="card-info">
 
 <div class="type">
-${isMovie ? "Movie" : "Star"}
+${isMovie ? "MOVIE" : "STAR"}
 </div>
 
 <strong>
@@ -606,6 +1126,7 @@ ${escapeHTML(subtitle)}
 </div>
 
 </div>
+
 `;
 
 }
@@ -621,11 +1142,11 @@ card.addEventListener(
 "click",
 function(){
 
-const type =
-card.dataset.type;
-
 const id =
 card.dataset.id;
+
+const type =
+card.dataset.type;
 
 if(type === "movie"){
 
@@ -647,6 +1168,9 @@ showPerson(id);
 
 
 async function showMovie(id){
+
+homeContent.style.display =
+"none";
 
 resultsTitle.textContent =
 "Movie";
@@ -683,7 +1207,7 @@ movie.poster_path
 const cast =
 movie.credits &&
 Array.isArray(movie.credits.cast)
-? movie.credits.cast.slice(0,18)
+? movie.credits.cast.slice(0,20)
 : [];
 
 const year =
@@ -697,8 +1221,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="searchReelwise()">
-← Back to results
+onclick="returnToSearch()">
+← Back
 </button>
 
 <div class="detail-layout">
@@ -721,15 +1245,13 @@ alt="${escapeHTML(movie.title)}"
 
 <div>
 
+<div class="eyebrow">
+${escapeHTML(year)}
+</div>
+
 <h1>
 ${escapeHTML(movie.title || "Movie")}
 </h1>
-
-<p>
-<strong>
-${escapeHTML(year)}
-</strong>
-</p>
 
 <p>
 ${escapeHTML(
@@ -738,7 +1260,9 @@ movie.overview ||
 )}
 </p>
 
-<h2>Cast</h2>
+<h2>
+The Stars
+</h2>
 
 <div class="cast">
 
@@ -760,6 +1284,7 @@ ${escapeHTML(person.name)}
 </div>
 
 </div>
+
 `;
 
 }
@@ -776,6 +1301,9 @@ escapeHTML(error.message) +
 
 
 async function showPerson(id){
+
+homeContent.style.display =
+"none";
 
 resultsTitle.textContent =
 "Movie Star";
@@ -817,15 +1345,16 @@ Array.isArray(person.combined_credits.cast)
 
 const movies =
 credits
-.filter(item =>
+.filter(
+item =>
 item.media_type === "movie"
 )
 .sort(
 (a,b) =>
-(b.popularity || 0) -
-(a.popularity || 0)
+Number(b.popularity || 0) -
+Number(a.popularity || 0)
 )
-.slice(0,18);
+.slice(0,20);
 
 results.innerHTML = `
 
@@ -833,8 +1362,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="searchReelwise()">
-← Back to results
+onclick="returnToSearch()">
+← Back
 </button>
 
 <div class="detail-layout">
@@ -857,8 +1386,15 @@ alt="${escapeHTML(person.name)}"
 
 <div>
 
+<div class="eyebrow">
+REELWISE STAR
+</div>
+
 <h1>
-${escapeHTML(person.name || "Movie Star")}
+${escapeHTML(
+person.name ||
+"Movie Star"
+)}
 </h1>
 
 <p>
@@ -868,7 +1404,9 @@ person.biography ||
 )}
 </p>
 
-<h2>Known For</h2>
+<h2>
+Movies
+</h2>
 
 <div class="cast">
 
@@ -894,6 +1432,7 @@ movie.original_title ||
 </div>
 
 </div>
+
 `;
 
 }
@@ -903,6 +1442,24 @@ results.innerHTML =
 '<div class="message">' +
 escapeHTML(error.message) +
 '</div>';
+
+}
+
+}
+
+
+function returnToSearch(){
+
+if(lastQuery){
+
+searchReelwise(
+lastQuery
+);
+
+}
+else{
+
+showHome();
 
 }
 
