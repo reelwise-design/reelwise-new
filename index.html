@@ -267,7 +267,9 @@ main{
   color:var(--muted);
 }
 
-.detail{grid-column:1/-1;}
+.detail{
+  grid-column:1/-1;
+}
 
 .detail-layout{
   display:grid;
@@ -315,7 +317,94 @@ main{
   padding:9px 11px;
 }
 
-.cast button:hover{border-color:var(--accent);}
+.cast button:hover{
+  border-color:var(--accent);
+}
+
+.movie-vault{
+  margin-top:42px;
+  padding-top:32px;
+  border-top:1px solid var(--line);
+}
+
+.movie-vault-heading{
+  margin-bottom:20px;
+}
+
+.movie-vault-heading h2{
+  margin:7px 0 8px;
+  font-size:30px;
+}
+
+.movie-vault-heading p{
+  margin:0;
+  color:var(--muted);
+}
+
+.movie-extras{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:15px;
+}
+
+.extra-card{
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:14px;
+  padding:21px;
+  transition:.18s;
+}
+
+.extra-card:hover{
+  border-color:#495465;
+  transform:translateY(-2px);
+}
+
+.extra-icon{
+  font-size:29px;
+  margin-bottom:10px;
+}
+
+.extra-card h3{
+  margin:0 0 8px;
+  font-size:21px;
+}
+
+.extra-card p{
+  margin:0 0 15px;
+  color:var(--muted);
+  line-height:1.5;
+  font-size:15px;
+}
+
+.extra-card button{
+  background:none;
+  border:0;
+  padding:0;
+  color:var(--gold);
+  font-weight:800;
+}
+
+.extra-card button:hover{
+  color:var(--accent);
+}
+
+.feature-view{
+  background:var(--panel2);
+  border:1px solid var(--line);
+  border-left:3px solid var(--accent);
+  border-radius:12px;
+  padding:20px;
+  margin-top:20px;
+}
+
+.feature-view h3{
+  margin:0 0 8px;
+}
+
+.feature-view p{
+  margin:0;
+}
 
 .section-page{
   grid-column:1/-1;
@@ -411,28 +500,52 @@ footer{
 
 @media(max-width:800px){
 
-  .hero{grid-template-columns:1fr;}
+  .hero{
+    grid-template-columns:1fr;
+  }
 
-  .nav-links{display:none;}
+  .nav-links{
+    display:none;
+  }
 
-  .features{grid-template-columns:1fr;}
+  .features{
+    grid-template-columns:1fr;
+  }
 
-  .detail-layout{grid-template-columns:1fr;}
+  .detail-layout{
+    grid-template-columns:1fr;
+  }
 
-  .detail-image{max-width:260px;}
+  .detail-image{
+    max-width:260px;
+  }
 
-  .degree-inputs{grid-template-columns:1fr;}
+  .degree-inputs{
+    grid-template-columns:1fr;
+  }
 
-  .section-page{padding-top:20px;}
+  .movie-extras{
+    grid-template-columns:1fr;
+  }
 
-  .back-button{padding-bottom:30px;}
+  .section-page{
+    padding-top:20px;
+  }
+
+  .back-button{
+    padding-bottom:30px;
+  }
 }
 
 @media(max-width:520px){
 
-  .hero{padding-top:40px;}
+  .hero{
+    padding-top:40px;
+  }
 
-  .hero h1{letter-spacing:-2px;}
+  .hero h1{
+    letter-spacing:-2px;
+  }
 
   .search,
   .big-search{
@@ -454,9 +567,17 @@ reel<span>wise</span>
 
 <div class="nav-links">
 
-<button onclick="openSection('movies')">Movies</button>
-<button onclick="openSection('stars')">Stars</button>
-<button onclick="openSection('six')">Six Degrees</button>
+<button onclick="openSection('movies')">
+Movies
+</button>
+
+<button onclick="openSection('stars')">
+Stars
+</button>
+
+<button onclick="openSection('six')">
+Six Degrees
+</button>
 
 </div>
 
@@ -490,7 +611,9 @@ placeholder="Search movies or stars..."
 autocomplete="off"
 >
 
-<button type="submit">Search</button>
+<button type="submit">
+Search
+</button>
 
 </form>
 
@@ -526,11 +649,18 @@ Explore Reelwise
 
 <div class="features">
 
-<div class="feature" onclick="openSection('movies')">
+<div
+class="feature"
+onclick="openSection('movies')"
+>
 
-<div class="feature-icon">🎬</div>
+<div class="feature-icon">
+🎬
+</div>
 
-<h3>Movies</h3>
+<h3>
+Movies
+</h3>
 
 <p>
 Search movies from every era and explore their casts,
@@ -543,11 +673,18 @@ Explore Movies →
 
 </div>
 
-<div class="feature" onclick="openSection('stars')">
+<div
+class="feature"
+onclick="openSection('stars')"
+>
 
-<div class="feature-icon">⭐</div>
+<div class="feature-icon">
+⭐
+</div>
 
-<h3>Movie Stars</h3>
+<h3>
+Movie Stars
+</h3>
 
 <p>
 Search actors and discover biographies,
@@ -560,11 +697,18 @@ Explore Stars →
 
 </div>
 
-<div class="feature" onclick="openSection('six')">
+<div
+class="feature"
+onclick="openSection('six')"
+>
 
-<div class="feature-icon">🔗</div>
+<div class="feature-icon">
+🔗
+</div>
 
-<h3>Six Degrees</h3>
+<h3>
+Six Degrees
+</h3>
 
 <p>
 Choose any two actors and discover how their movie careers connect.
@@ -580,7 +724,10 @@ Play Six Degrees →
 
 </div>
 
-<h2 class="section-title" id="resultsTitle">
+<h2
+class="section-title"
+id="resultsTitle"
+>
 Movie & Star Search
 </h2>
 
@@ -616,6 +763,7 @@ const homeContent =
 document.getElementById("homeContent");
 
 let searchMode = "all";
+
 let lastQuery = "";
 
 searchForm.addEventListener(
@@ -635,7 +783,8 @@ searchInput.value
 
 function showHome(){
 
-homeContent.style.display = "block";
+homeContent.style.display =
+"block";
 
 resultsTitle.textContent =
 "Movie & Star Search";
@@ -652,20 +801,29 @@ behavior:"smooth"
 
 function openSection(section){
 
-homeContent.style.display = "none";
+homeContent.style.display =
+"none";
 
 if(section === "movies"){
+
 showMovieSection();
+
 return;
+
 }
 
 if(section === "stars"){
+
 showStarSection();
+
 return;
+
 }
 
 if(section === "six"){
+
 showSixDegrees();
+
 }
 
 }
@@ -681,7 +839,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="showHome()">
+onclick="showHome()"
+>
 ← Home
 </button>
 
@@ -728,7 +887,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="showHome()">
+onclick="showHome()"
+>
 ← Home
 </button>
 
@@ -775,7 +935,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="showHome()">
+onclick="showHome()"
+>
 ← Home
 </button>
 
@@ -815,7 +976,8 @@ Find Connection
 <div
 id="degreeMessage"
 style="margin-top:18px;color:var(--muted)"
-></div>
+>
+</div>
 
 </div>
 
@@ -828,15 +990,21 @@ style="margin-top:18px;color:var(--muted)"
 async function sixDegreesComingNext(){
 
 const one =
-document.getElementById("actorOne")
-.value.trim();
+document
+.getElementById("actorOne")
+.value
+.trim();
 
 const two =
-document.getElementById("actorTwo")
-.value.trim();
+document
+.getElementById("actorTwo")
+.value
+.trim();
 
 const box =
-document.getElementById("degreeMessage");
+document.getElementById(
+"degreeMessage"
+);
 
 if(!one || !two){
 
@@ -938,7 +1106,9 @@ align-items:center;
 justify-content:center;
 font-size:24px;
 "
->⭐</div>`
+>
+⭐
+</div>`
 }
 
 <div>
@@ -1016,7 +1186,9 @@ display:flex;
 align-items:center;
 justify-content:center;
 "
->🎬</div>`
+>
+🎬
+</div>`
 }
 
 <div>
@@ -1058,11 +1230,20 @@ return "";
 
 const storyParts = [];
 
-for(let i = 0; i < chain.length - 2; i += 2){
+for(
+let i = 0;
+i < chain.length - 2;
+i += 2
+){
 
-const actorA = chain[i];
-const movie = chain[i + 1];
-const actorB = chain[i + 2];
+const actorA =
+chain[i];
+
+const movie =
+chain[i + 1];
+
+const actorB =
+chain[i + 2];
 
 if(
 actorA &&
@@ -1074,9 +1255,16 @@ actorB.type === "person"
 ){
 
 storyParts.push({
-actorA: escapeHTML(actorA.name),
-movie: escapeHTML(movie.title),
-actorB: escapeHTML(actorB.name)
+
+actorA:
+escapeHTML(actorA.name),
+
+movie:
+escapeHTML(movie.title),
+
+actorB:
+escapeHTML(actorB.name)
+
 });
 
 }
@@ -1094,7 +1282,11 @@ storyParts[0].movie +
 "</strong> with " +
 storyParts[0].actorB;
 
-for(let i = 1; i < storyParts.length; i++){
+for(
+let i = 1;
+i < storyParts.length;
+i++
+){
 
 connectionStory +=
 ", who was in <strong>" +
@@ -1136,7 +1328,10 @@ margin-bottom:16px;
 "
 >
 ${data.degrees}
-${data.degrees === 1 ? " degree" : " degrees"} of separation
+${data.degrees === 1
+? " degree"
+: " degrees"}
+of separation
 </div>
 
 ${
@@ -1184,11 +1379,16 @@ escapeHTML(error.message);
 function searchMoviesOnly(){
 
 const input =
-document.getElementById("movieSearch");
+document.getElementById(
+"movieSearch"
+);
 
-if(!input){return;}
+if(!input){
+return;
+}
 
-searchMode = "movie";
+searchMode =
+"movie";
 
 searchReelwise(
 input.value
@@ -1199,11 +1399,16 @@ input.value
 function searchStarsOnly(){
 
 const input =
-document.getElementById("starSearch");
+document.getElementById(
+"starSearch"
+);
 
-if(!input){return;}
+if(!input){
+return;
+}
 
-searchMode = "person";
+searchMode =
+"person";
 
 searchReelwise(
 input.value
@@ -1227,7 +1432,8 @@ return;
 
 }
 
-lastQuery = query;
+lastQuery =
+query;
 
 homeContent.style.display =
 "none";
@@ -1332,12 +1538,16 @@ isMovie
 
 const imageURL =
 image
-? "https://image.tmdb.org/t/p/w500" + image
+? "https://image.tmdb.org/t/p/w500" +
+image
 : "";
 
 const subtitle =
 isMovie
-? (item.year || "Movie")
+? (
+item.year ||
+"Movie"
+)
 : (
 item.known_for_department ||
 "Actor"
@@ -1475,7 +1685,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="returnToSearch()">
+onclick="returnToSearch()"
+>
 ← Back
 </button>
 
@@ -1541,6 +1752,120 @@ ${escapeHTML(person.name)}
 
 </div>
 
+<div class="movie-vault">
+
+<div class="movie-vault-heading">
+
+<div class="eyebrow">
+THE REELWISE VAULT
+</div>
+
+<h2>
+Go beyond the movie.
+</h2>
+
+<p>
+Quotes, trivia and the stories you usually have to search all over the internet to find.
+</p>
+
+</div>
+
+<div class="movie-extras">
+
+<div class="extra-card">
+
+<div class="extra-icon">
+💬
+</div>
+
+<h3>
+Quotes
+</h3>
+
+<p>
+Memorable lines, classic exchanges and the quotes fans remember.
+</p>
+
+<button
+onclick="showMovieFeature('quotes','${escapeJS(movie.title)}')"
+>
+Explore Quotes →
+</button>
+
+</div>
+
+<div class="extra-card">
+
+<div class="extra-icon">
+🧠
+</div>
+
+<h3>
+Trivia
+</h3>
+
+<p>
+Surprising facts about the movie, the stars and what happened during production.
+</p>
+
+<button
+onclick="showMovieFeature('trivia','${escapeJS(movie.title)}')"
+>
+Explore Trivia →
+</button>
+
+</div>
+
+<div class="extra-card">
+
+<div class="extra-icon">
+🎥
+</div>
+
+<h3>
+Behind the Scenes
+</h3>
+
+<p>
+The stories, decisions and moments that happened when the cameras weren't rolling.
+</p>
+
+<button
+onclick="showMovieFeature('behind','${escapeJS(movie.title)}')"
+>
+Go Behind the Scenes →
+</button>
+
+</div>
+
+<div class="extra-card">
+
+<div class="extra-icon">
+😂
+</div>
+
+<h3>
+Bloopers
+</h3>
+
+<p>
+Mistakes, outtakes and funny moments from the making of the movie.
+</p>
+
+<button
+onclick="showMovieFeature('bloopers','${escapeJS(movie.title)}')"
+>
+Explore Bloopers →
+</button>
+
+</div>
+
+</div>
+
+<div id="movieFeatureView"></div>
+
+</div>
+
 </div>
 
 `;
@@ -1554,6 +1879,107 @@ escapeHTML(error.message) +
 '</div>';
 
 }
+
+}
+
+function showMovieFeature(
+feature,
+movieTitle
+){
+
+const view =
+document.getElementById(
+"movieFeatureView"
+);
+
+if(!view){
+return;
+}
+
+let title = "";
+let icon = "";
+let message = "";
+
+if(feature === "quotes"){
+
+title =
+"Quotes";
+
+icon =
+"💬";
+
+message =
+"The Reelwise quote vault for " +
+movieTitle +
+" is ready for us to fill with memorable lines and exchanges.";
+
+}
+
+if(feature === "trivia"){
+
+title =
+"Trivia";
+
+icon =
+"🧠";
+
+message =
+"The Reelwise trivia vault for " +
+movieTitle +
+" will collect the most interesting facts about the movie and its stars.";
+
+}
+
+if(feature === "behind"){
+
+title =
+"Behind the Scenes";
+
+icon =
+"🎥";
+
+message =
+"This is where Reelwise will tell the stories behind the making of " +
+movieTitle +
+" — casting decisions, unexpected moments and stories from the set.";
+
+}
+
+if(feature === "bloopers"){
+
+title =
+"Bloopers";
+
+icon =
+"😂";
+
+message =
+"This section will collect bloopers, outtakes and funny moments connected to " +
+movieTitle +
+".";
+
+}
+
+view.innerHTML = `
+
+<div class="feature-view">
+
+<h3>
+${icon} ${escapeHTML(title)}
+</h3>
+
+<p>
+${escapeHTML(message)}
+</p>
+
+</div>
+
+`;
+
+view.scrollIntoView({
+behavior:"smooth",
+block:"center"
+});
 
 }
 
@@ -1596,7 +2022,9 @@ person.profile_path
 
 const credits =
 person.combined_credits &&
-Array.isArray(person.combined_credits.cast)
+Array.isArray(
+person.combined_credits.cast
+)
 ? person.combined_credits.cast
 : [];
 
@@ -1608,8 +2036,12 @@ item.media_type === "movie"
 )
 .sort(
 (a,b) =>
-Number(b.popularity || 0) -
-Number(a.popularity || 0)
+Number(
+b.popularity || 0
+) -
+Number(
+a.popularity || 0
+)
 )
 .slice(0,20);
 
@@ -1619,7 +2051,8 @@ results.innerHTML = `
 
 <button
 class="back-button"
-onclick="returnToSearch()">
+onclick="returnToSearch()"
+>
 ← Back
 </button>
 
@@ -1732,6 +2165,17 @@ value || ""
 .replaceAll(">","&gt;")
 .replaceAll('"',"&quot;")
 .replaceAll("'","&#039;");
+
+}
+
+function escapeJS(value){
+
+return String(
+value || ""
+)
+.replaceAll("\\","\\\\")
+.replaceAll("'","\\'")
+.replaceAll("\n"," ");
 
 }
 
