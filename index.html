@@ -19,9 +19,7 @@
   --gold:#f2b84b;
 }
 
-*{
-  box-sizing:border-box;
-}
+*{box-sizing:border-box}
 
 body{
   margin:0;
@@ -51,9 +49,7 @@ nav{
   cursor:pointer;
 }
 
-.logo span{
-  color:var(--orange);
-}
+.logo span{color:var(--orange)}
 
 .nav-links{
   display:flex;
@@ -88,7 +84,8 @@ nav{
 }
 
 .hero h1,
-.stars-hero h1{
+.stars-hero h1,
+.quotes-hero h1{
   font-size:clamp(44px,8vw,78px);
   line-height:1;
   margin:0;
@@ -96,12 +93,14 @@ nav{
 }
 
 .hero h1 span,
-.stars-hero h1 span{
+.stars-hero h1 span,
+.quotes-hero h1 span{
   color:var(--orange);
 }
 
 .hero p,
-.stars-hero p{
+.stars-hero p,
+.quotes-hero p{
   color:var(--muted);
   font-size:19px;
   line-height:1.55;
@@ -205,13 +204,8 @@ main{
   object-fit:cover;
 }
 
-.movie-info{
-  padding:14px;
-}
-
-.movie-title{
-  font-weight:bold;
-}
+.movie-info{padding:14px}
+.movie-title{font-weight:bold}
 
 .movie-year{
   color:#878b93;
@@ -227,7 +221,8 @@ main{
 #moviePage,
 #personPage,
 #degreesPage,
-#starsPage{
+#starsPage,
+#quotesPage{
   display:none;
 }
 
@@ -384,9 +379,7 @@ main{
   padding:25px;
 }
 
-.placeholder p{
-  color:var(--muted);
-}
+.placeholder p{color:var(--muted)}
 
 .credit-grid{
   display:grid;
@@ -417,7 +410,8 @@ main{
 
 /* STARS */
 
-.stars-hero{
+.stars-hero,
+.quotes-hero{
   text-align:center;
   max-width:850px;
   margin:10px auto 55px;
@@ -452,9 +446,7 @@ main{
   display:block;
 }
 
-.star-card-info{
-  padding:20px;
-}
+.star-card-info{padding:20px}
 
 .star-card-name{
   font-size:22px;
@@ -469,6 +461,55 @@ main{
   letter-spacing:1px;
 }
 
+/* QUOTES */
+
+.quotes-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:22px;
+}
+
+.big-quote-card{
+  background:linear-gradient(180deg,#181a20,#111319);
+  border:1px solid var(--line);
+  border-radius:16px;
+  padding:27px;
+  cursor:pointer;
+  transition:.2s ease;
+}
+
+.big-quote-card:hover{
+  transform:translateY(-4px);
+  border-color:var(--orange);
+}
+
+.quote-mark{
+  color:var(--orange);
+  font-size:44px;
+  font-weight:900;
+  line-height:.7;
+}
+
+.big-quote-text{
+  font-size:24px;
+  font-weight:900;
+  line-height:1.35;
+  margin:15px 0 22px;
+}
+
+.quote-movie{
+  color:var(--gold);
+  font-size:14px;
+  font-weight:900;
+  letter-spacing:.7px;
+}
+
+.quote-hint{
+  color:var(--muted);
+  font-size:12px;
+  margin-top:8px;
+}
+
 /* SIX DEGREES */
 
 .degrees-wrap{
@@ -476,9 +517,7 @@ main{
   margin:20px auto;
 }
 
-.degrees-hero{
-  text-align:center;
-}
+.degrees-hero{text-align:center}
 
 .degrees-hero h1{
   font-size:60px;
@@ -488,9 +527,7 @@ main{
   color:var(--orange);
 }
 
-.degrees-hero p{
-  color:var(--muted);
-}
+.degrees-hero p{color:var(--muted)}
 
 .degrees-form{
   display:grid;
@@ -499,9 +536,7 @@ main{
   margin:30px 0 15px;
 }
 
-.degrees-button-wrap{
-  text-align:center;
-}
+.degrees-button-wrap{text-align:center}
 
 .degree-result{
   margin-top:35px;
@@ -581,17 +616,11 @@ footer{
 
 @media(max-width:700px){
 
-  nav{
-    flex-direction:column;
-  }
+  nav{flex-direction:column}
 
-  .features{
-    grid-template-columns:1fr;
-  }
+  .features{grid-template-columns:1fr}
 
-  .search{
-    flex-direction:column;
-  }
+  .search{flex-direction:column}
 
   .movie-detail,
   .person-detail{
@@ -636,7 +665,7 @@ Movies
 Stars
 </a>
 
-<a href="#">
+<a href="#" onclick="showQuotes();return false;">
 Quotes
 </a>
 
@@ -755,6 +784,120 @@ Loading movie stars...
 </div>
 
 
+<div id="quotesPage">
+
+<button class="back-button" onclick="showHome()">
+← Back to Reelwise
+</button>
+
+<div class="quotes-hero">
+
+<div class="eyebrow">
+REELWISE MOVIE QUOTES
+</div>
+
+<h1>
+The lines<br>
+<span>you never forget.</span>
+</h1>
+
+<p>
+Memorable movie lines from the films we love.
+Tap a quote to open its Reelwise movie page.
+</p>
+
+</div>
+
+<h2 class="section-title">
+Featured Quotes
+</h2>
+
+<div class="quotes-grid">
+
+<div class="big-quote-card"
+onclick="openMovie(1371,'quotes')">
+
+<div class="quote-mark">“</div>
+
+<div class="big-quote-text">
+There is no tomorrow!
+</div>
+
+<div class="quote-movie">
+ROCKY III
+</div>
+
+<div class="quote-hint">
+Open the Reelwise movie page →
+</div>
+
+</div>
+
+
+<div class="big-quote-card"
+onclick="openMovie(1371,'quotes')">
+
+<div class="quote-mark">“</div>
+
+<div class="big-quote-text">
+I pity the fool.
+</div>
+
+<div class="quote-movie">
+ROCKY III
+</div>
+
+<div class="quote-hint">
+Open the Reelwise movie page →
+</div>
+
+</div>
+
+
+<div class="big-quote-card"
+onclick="openMovie(744,'quotes')">
+
+<div class="quote-mark">“</div>
+
+<div class="big-quote-text">
+I feel the need... the need for speed.
+</div>
+
+<div class="quote-movie">
+TOP GUN
+</div>
+
+<div class="quote-hint">
+Open the Reelwise movie page →
+</div>
+
+</div>
+
+
+<div class="big-quote-card"
+onclick="openMovie(881,'quotes')">
+
+<div class="quote-mark">“</div>
+
+<div class="big-quote-text">
+You can't handle the truth!
+</div>
+
+<div class="quote-movie">
+A FEW GOOD MEN
+</div>
+
+<div class="quote-hint">
+Open the Reelwise movie page →
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
 <div id="moviePage">
 
 <button
@@ -845,6 +988,7 @@ let currentMovieId=null;
 let movieBackTarget="home";
 let personBackTarget="movie";
 
+
 async function searchMovies(){
 
 const query=
@@ -859,7 +1003,6 @@ results.innerHTML=
 '<div class="message">Enter a movie title to search.</div>';
 
 return;
-
 }
 
 results.innerHTML=
@@ -951,6 +1094,8 @@ if(returnTo==="degrees"){
 button.textContent="← Back to Six Degrees";
 }else if(returnTo==="person"){
 button.textContent="← Back to Star";
+}else if(returnTo==="quotes"){
+button.textContent="← Back to Quotes";
 }else{
 button.textContent="← Back to Movies";
 }
@@ -1541,6 +1686,18 @@ container.innerHTML=
 }
 
 
+function showQuotes(){
+
+hideAllPages();
+
+document.getElementById("quotesPage").style.display="block";
+document.getElementById("hero").style.display="none";
+
+window.scrollTo(0,0);
+
+}
+
+
 function showDegrees(){
 
 hideAllPages();
@@ -1729,6 +1886,10 @@ document.getElementById("degreesPage").style.display="block";
 
 document.getElementById("personPage").style.display="block";
 
+}else if(movieBackTarget==="quotes"){
+
+document.getElementById("quotesPage").style.display="block";
+
 }else{
 
 document.getElementById("homePage").style.display="block";
@@ -1745,6 +1906,7 @@ function hideAllPages(){
 
 document.getElementById("homePage").style.display="none";
 document.getElementById("starsPage").style.display="none";
+document.getElementById("quotesPage").style.display="none";
 document.getElementById("moviePage").style.display="none";
 document.getElementById("personPage").style.display="none";
 document.getElementById("degreesPage").style.display="none";
