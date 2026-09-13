@@ -18,7 +18,9 @@
   --gold:#e4b34d;
 }
 
-*{box-sizing:border-box}
+*{
+  box-sizing:border-box;
+}
 
 body{
   margin:0;
@@ -27,7 +29,8 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
 
-button,input{
+button,
+input{
   font:inherit;
 }
 
@@ -311,10 +314,12 @@ main{
 }
 
 .back-button{
+  display:inline-block;
   background:none;
   border:0;
   color:var(--muted);
-  padding:0 0 22px;
+  padding:0 0 24px;
+  margin:0;
 }
 
 .cast{
@@ -418,6 +423,7 @@ footer{
 }
 
 @media(max-width:800px){
+
   .hero{
     grid-template-columns:1fr;
   }
@@ -441,9 +447,18 @@ footer{
   .degree-inputs{
     grid-template-columns:1fr;
   }
+
+  .section-page{
+    padding-top:20px;
+  }
+
+  .back-button{
+    padding-bottom:30px;
+  }
 }
 
 @media(max-width:520px){
+
   .hero{
     padding-top:40px;
   }
@@ -471,12 +486,23 @@ reel<span>wise</span>
 </div>
 
 <div class="nav-links">
-<button onclick="openSection('movies')">Movies</button>
-<button onclick="openSection('stars')">Stars</button>
-<button onclick="openSection('six')">Six Degrees</button>
+
+<button onclick="openSection('movies')">
+Movies
+</button>
+
+<button onclick="openSection('stars')">
+Stars
+</button>
+
+<button onclick="openSection('six')">
+Six Degrees
+</button>
+
 </div>
 
 </nav>
+
 
 <div class="hero" id="hero">
 
@@ -514,6 +540,7 @@ Search
 
 </div>
 
+
 <div class="hero-card">
 
 <div class="eyebrow">
@@ -544,6 +571,7 @@ Explore Reelwise
 </h2>
 
 <div class="features">
+
 
 <div
 class="feature"
@@ -665,6 +693,7 @@ const homeContent =
 document.getElementById("homeContent");
 
 let searchMode = "all";
+
 let lastQuery = "";
 
 
@@ -686,7 +715,8 @@ searchInput.value
 
 function showHome(){
 
-homeContent.style.display = "block";
+homeContent.style.display =
+"block";
 
 resultsTitle.textContent =
 "Movie & Star Search";
@@ -704,7 +734,8 @@ behavior:"smooth"
 
 function openSection(section){
 
-homeContent.style.display = "none";
+homeContent.style.display =
+"none";
 
 if(section === "movies"){
 
@@ -889,7 +920,7 @@ style="margin-top:18px;color:var(--muted)"
 }
 
 
-function sixDegreesComingNext(){
+async function sixDegreesComingNext(){
 
 const one =
 document.getElementById("actorOne")
@@ -912,12 +943,286 @@ return;
 }
 
 box.innerHTML =
-'<strong style="color:var(--gold)">Six Degrees screen is ready.</strong><br>' +
-'Next we will connect ' +
-escapeHTML(one) +
-' to ' +
-escapeHTML(two) +
-' using the Reelwise movie database.';
+'<span style="color:var(--muted)">Finding the connection...</span>';
+
+try{
+
+const response =
+await fetch(
+"/api/degrees?actor1=" +
+encodeURIComponent(one) +
+"&actor2=" +
+encodeURIComponent(two)
+);
+
+const data =
+await response.json();
+
+if(!response.ok){
+
+throw new Error(
+data.error ||
+"Six Degrees search failed."
+);
+
+}
+
+if(!data.found){
+
+box.innerHTML =
+'<strong style="color:var(--gold)">No connection found yet.</strong><br>' +
+escapeHTML(
+data.message ||
+"Try another pair."
+);
+
+return;
+
+}
+
+const chain =
+Array.isArray(data.chain)
+? data.chain
+: [];
+
+const chainHTML =
+chain.map(item => {
+
+if(item.type === "person"){
+
+const photo =
+item.profile_path
+? "https://image.tmdb.org/t/p/w185" +
+item.profile_path
+: "";
+
+return `
+
+<div
+style="
+display:flex;
+align-items:center;
+gap:12px;
+margin:12px 0;
+cursor:pointer;
+"
+onclick="showPerson('${item.id}')"
+>
+
+${
+photo
+?
+`<img
+src="${photo}"
+style="
+width:55px;
+height:55px;
+border-radius:50%;
+object-fit:cover;
+"
+>`
+:
+`<div
+style="
+width:55px;
+height:55px;
+border-radius:50%;
+background:#1d2634;
+display:flex;
+align-items:center;
+justify-content:center;
+font-size:24px;
+"
+>
+⭐
+</div>`
+}
+
+<div>
+
+<div
+style="
+color:var(--gold);
+font-weight:900;
+font-size:12px;
+"
+>
+ACTOR
+</div>
+
+<div
+style="
+font-size:18px;
+font-weight:800;
+"
+>
+${escapeHTML(item.name)}
+</div>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+
+if(item.type === "movie"){
+
+const poster =
+item.poster_path
+? "https://image.tmdb.org/t/p/w185" +
+item.poster_path
+: "";
+
+return `
+
+<div
+style="
+display:flex;
+align-items:center;
+gap:12px;
+margin:12px 0 12px 28px;
+padding-left:16px;
+border-left:2px solid var(--accent);
+cursor:pointer;
+"
+onclick="showMovie('${item.id}')"
+>
+
+${
+poster
+?
+`<img
+src="${poster}"
+style="
+width:45px;
+height:68px;
+border-radius:6px;
+object-fit:cover;
+"
+>`
+:
+`<div
+style="
+width:45px;
+height:68px;
+border-radius:6px;
+background:#1d2634;
+display:flex;
+align-items:center;
+justify-content:center;
+"
+>
+🎬
+</div>`
+}
+
+<div>
+
+<div
+style="
+color:var(--accent);
+font-weight:900;
+font-size:12px;
+"
+>
+MOVIE
+</div>
+
+<div
+style="
+font-weight:800;
+"
+>
+${escapeHTML(item.title)}
+</div>
+
+<div
+style="
+color:var(--muted);
+font-size:13px;
+"
+>
+${escapeHTML(item.year || "")}
+</div>
+
+</div>
+
+</div>
+
+`;
+
+}
+
+return "";
+
+}).join("");
+
+
+box.innerHTML = `
+
+<div
+style="
+margin-top:8px;
+padding:18px;
+background:#0f1319;
+border:1px solid var(--line);
+border-radius:12px;
+"
+>
+
+<div
+style="
+color:var(--gold);
+font-weight:900;
+font-size:20px;
+margin-bottom:4px;
+"
+>
+Connection found
+</div>
+
+<div
+style="
+color:var(--muted);
+margin-bottom:16px;
+"
+>
+${data.degrees}
+${data.degrees === 1 ? " degree" : " degrees"} of separation
+</div>
+
+${chainHTML}
+
+<button
+onclick="showSixDegrees()"
+style="
+margin-top:15px;
+background:var(--accent);
+color:white;
+border:0;
+border-radius:9px;
+padding:11px 16px;
+font-weight:800;
+"
+>
+Play Again
+</button>
+
+</div>
+
+`;
+
+}
+catch(error){
+
+box.innerHTML =
+'<strong style="color:var(--accent)">Something went wrong.</strong><br>' +
+escapeHTML(error.message);
+
+}
 
 }
 
@@ -927,9 +1232,12 @@ function searchMoviesOnly(){
 const input =
 document.getElementById("movieSearch");
 
-if(!input) return;
+if(!input){
+return;
+}
 
-searchMode = "movie";
+searchMode =
+"movie";
 
 searchReelwise(
 input.value
@@ -943,9 +1251,12 @@ function searchStarsOnly(){
 const input =
 document.getElementById("starSearch");
 
-if(!input) return;
+if(!input){
+return;
+}
 
-searchMode = "person";
+searchMode =
+"person";
 
 searchReelwise(
 input.value
@@ -970,7 +1281,8 @@ return;
 
 }
 
-lastQuery = query;
+lastQuery =
+query;
 
 homeContent.style.display =
 "none";
@@ -1238,7 +1550,9 @@ src="${poster}"
 alt="${escapeHTML(movie.title)}"
 >`
 :
-`<div class="no-poster">🎬</div>`
+`<div class="no-poster">
+🎬
+</div>`
 }
 
 </div>
@@ -1250,7 +1564,10 @@ ${escapeHTML(year)}
 </div>
 
 <h1>
-${escapeHTML(movie.title || "Movie")}
+${escapeHTML(
+movie.title ||
+"Movie"
+)}
 </h1>
 
 <p>
@@ -1269,7 +1586,8 @@ The Stars
 ${cast.map(person => `
 
 <button
-onclick="showPerson('${person.id}')">
+onclick="showPerson('${person.id}')"
+>
 
 ${escapeHTML(person.name)}
 
@@ -1379,7 +1697,9 @@ src="${photo}"
 alt="${escapeHTML(person.name)}"
 >`
 :
-`<div class="no-poster">⭐</div>`
+`<div class="no-poster">
+⭐
+</div>`
 }
 
 </div>
@@ -1413,7 +1733,8 @@ Movies
 ${movies.map(movie => `
 
 <button
-onclick="showMovie('${movie.id}')">
+onclick="showMovie('${movie.id}')"
+>
 
 ${escapeHTML(
 movie.title ||
@@ -1468,7 +1789,9 @@ showHome();
 
 function escapeHTML(value){
 
-return String(value || "")
+return String(
+value || ""
+)
 .replaceAll("&","&amp;")
 .replaceAll("<","&lt;")
 .replaceAll(">","&gt;")
