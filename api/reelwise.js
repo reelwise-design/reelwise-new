@@ -1,30 +1,31 @@
-const reelwiseData = {
+744: {
+  title: "Top Gun",
 
-  744: {
-    title: "Top Gun",
+  facts: [
+    "Top Gun grew out of a California magazine article about the pilots and instructors at the U.S. Navy Fighter Weapons School at Miramar.",
+    "Tom Cruise spent months visiting Miramar before filming, attending classes and spending time with pilots to prepare for Maverick.",
+    "The Navy cooperated heavily with the production, giving filmmakers access to Miramar, F-14 Tomcats and aircraft carriers for filming.",
+    "The film became so popular that Navy recruiters set up booths at selected theaters to answer questions from people interested in naval aviation."
+  ],
 
-    facts: [
-      "Top Gun helped define the look and attitude of blockbuster movies in the 1980s.",
-      "Maverick and Iceman's rivalry became one of the film's most memorable relationships.",
-      "The movie turned naval aviation into a major part of pop culture."
-    ],
+  casting: [
+    "Kelly McGillis's character, Charlie Blackwood, was inspired by Christine Fox, a real civilian defense analyst who worked in the field of maritime air superiority.",
+    "Val Kilmer's Iceman became one of the movie's defining characters and returned decades later in Top Gun: Maverick.",
+    "Former Top Gun instructor Peter 'Viper' Pettigrew served as the film's technical adviser and helped the filmmakers portray naval aviation more convincingly."
+  ],
 
-    casting: [
-      "Top Gun helped cement Tom Cruise as one of Hollywood's biggest stars.",
-      "Val Kilmer's Iceman became such an important part of the movie that the character returned decades later in Top Gun: Maverick."
-    ],
+  soundtrack: [
+    "Danger Zone, performed by Kenny Loggins, became one of the songs most closely associated with Top Gun.",
+    "Take My Breath Away, performed by Berlin, won the Academy Award for Best Original Song.",
+    "Top Gun received four Academy Award nominations overall, including film editing, sound and sound effects editing, and won for Take My Breath Away."
+  ],
 
-    soundtrack: [
-      "Danger Zone, performed by Kenny Loggins, became inseparable from Top Gun.",
-      "Take My Breath Away, performed by Berlin, became another signature song from the film and won the Academy Award for Best Original Song."
-    ],
-
-    quotes: [
-      "I feel the need... the need for speed!",
-      "You can be my wingman any time.",
-      "Talk to me, Goose."
-    ]
-  },
+  quotes: [
+    "I feel the need... the need for speed!",
+    "You can be my wingman any time.",
+    "Talk to me, Goose."
+  ]
+},
 
 
   1366: {
