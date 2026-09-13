@@ -1073,22 +1073,38 @@ movie.type === "movie" &&
 actorB.type === "person"
 ){
 
-storyParts.push(
-escapeHTML(actorA.name) +
+storyParts.push({
+actorA: escapeHTML(actorA.name),
+movie: escapeHTML(movie.title),
+actorB: escapeHTML(actorB.name)
+});
+
+}
+
+}
+
+let connectionStory = "";
+
+if(storyParts.length){
+
+connectionStory =
+storyParts[0].actorA +
 " was in <strong>" +
-escapeHTML(movie.title) +
+storyParts[0].movie +
 "</strong> with " +
-escapeHTML(actorB.name)
-);
+storyParts[0].actorB;
+
+for(let i = 1; i < storyParts.length; i++){
+
+connectionStory +=
+", who was in <strong>" +
+storyParts[i].movie +
+"</strong> with " +
+storyParts[i].actorB;
 
 }
 
 }
-
-const connectionStory =
-storyParts.length
-? storyParts.join(", who ")
-: "";
 
 box.innerHTML = `
 
