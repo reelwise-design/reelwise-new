@@ -297,6 +297,20 @@ main{
   margin-bottom:14px;
 }
 
+.verified-badge{
+  display:inline-block;
+  margin-left:8px;
+  background:rgba(242,184,75,.12);
+  border:1px solid rgba(242,184,75,.45);
+  color:var(--gold);
+  padding:7px 11px;
+  border-radius:6px;
+  font-size:12px;
+  font-weight:900;
+  letter-spacing:.7px;
+  margin-bottom:14px;
+}
+
 .cast-section,
 .credits-section{
   margin-top:55px;
@@ -490,8 +504,7 @@ main{
 }
 
 .degree-result{
-  background:
-    linear-gradient(180deg,#17191f,#111319);
+  background:linear-gradient(180deg,#17191f,#111319);
   border:1px solid #343842;
   border-radius:18px;
   padding:28px;
@@ -535,8 +548,7 @@ main{
 }
 
 .chain-actor{
-  background:
-    linear-gradient(135deg,#23262e,#17191f);
+  background:linear-gradient(135deg,#23262e,#17191f);
   border:1px solid #3a3e48;
 }
 
@@ -551,8 +563,7 @@ main{
 }
 
 .chain-movie{
-  background:
-    linear-gradient(135deg,rgba(255,90,54,.15),rgba(242,184,75,.08));
+  background:linear-gradient(135deg,rgba(255,90,54,.15),rgba(242,184,75,.08));
   border:1px solid rgba(255,90,54,.38);
 }
 
@@ -985,6 +996,10 @@ async function openMovie(id,returnTo="home"){
       available:false
     };
 
+    let verification={
+      reviewed:false
+    };
+
     try{
 
       const reelwiseResponse=
@@ -995,6 +1010,19 @@ async function openMovie(id,returnTo="home"){
 
       reelwise=
         await reelwiseResponse.json();
+
+    }catch(e){}
+
+    try{
+
+      const verifyResponse=
+        await fetch(
+          "/api/verify?id="+
+          encodeURIComponent(id)
+        );
+
+      verification=
+        await verifyResponse.json();
 
     }catch(e){}
 
@@ -1177,6 +1205,13 @@ async function openMovie(id,returnTo="home"){
 
     }
 
+    const verifiedBadge=
+      verification.reviewed
+      ? `<div class="verified-badge">
+          ✓ REELWISE VERIFIED
+        </div>`
+      : "";
+
     movieContent.innerHTML=`
 
       <div class="movie-detail">
@@ -1200,6 +1235,8 @@ async function openMovie(id,returnTo="home"){
           <div class="reelwise-label">
             REELWISE MOVIE PAGE
           </div>
+
+          ${verifiedBadge}
 
           <h1>
             ${escapeHtml(movie.title)}
