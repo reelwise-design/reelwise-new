@@ -7,17 +7,31 @@
 <title>Reelwise — Movies. Stars. Stories.</title>
 
 <style>
-*{box-sizing:border-box}
+:root{
+  --bg:#08090c;
+  --panel:#13151a;
+  --panel2:#1a1d23;
+  --line:#2b2f38;
+  --text:#f5f5f2;
+  --muted:#9a9da5;
+  --orange:#ff5a36;
+  --orange2:#ff7a45;
+  --gold:#f2b84b;
+}
+
+*{
+  box-sizing:border-box;
+}
 
 body{
   margin:0;
-  background:#08080c;
-  color:#fff;
+  background:
+    radial-gradient(circle at top,#1b1c20 0%,#0b0c10 38%,#08090c 70%);
+  color:var(--text);
   font-family:Arial,Helvetica,sans-serif;
 }
 
 header{
-  background:linear-gradient(180deg,#191923 0%,#08080c 100%);
   padding:22px 20px 70px;
 }
 
@@ -31,13 +45,15 @@ nav{
 }
 
 .logo{
-  font-size:30px;
-  font-weight:800;
-  letter-spacing:1px;
+  font-size:31px;
+  font-weight:900;
+  letter-spacing:1.5px;
   cursor:pointer;
 }
 
-.logo span{color:#e50914}
+.logo span{
+  color:var(--orange);
+}
 
 .nav-links{
   display:flex;
@@ -47,13 +63,14 @@ nav{
 }
 
 .nav-links a{
-  color:#aaa;
+  color:#aaaeb6;
   text-decoration:none;
   font-size:14px;
+  font-weight:700;
 }
 
 .nav-links a:hover{
-  color:#fff;
+  color:var(--orange);
 }
 
 .hero{
@@ -62,18 +79,29 @@ nav{
   text-align:center;
 }
 
-.hero h1{
-  font-size:clamp(42px,8vw,76px);
-  margin:0;
-  line-height:1;
+.eyebrow{
+  color:var(--gold);
+  font-size:12px;
+  letter-spacing:2px;
+  font-weight:800;
+  margin-bottom:12px;
 }
 
-.hero h1 span{color:#e50914}
+.hero h1{
+  font-size:clamp(44px,8vw,78px);
+  line-height:1;
+  margin:0;
+  letter-spacing:-2px;
+}
+
+.hero h1 span{
+  color:var(--orange);
+}
 
 .hero p{
-  color:#aaa;
+  color:var(--muted);
   font-size:19px;
-  line-height:1.5;
+  line-height:1.55;
   margin:22px 0 32px;
 }
 
@@ -84,15 +112,25 @@ nav{
   gap:10px;
 }
 
-.search input{
-  flex:1;
+.search input,
+.degrees-form input{
+  width:100%;
   padding:18px;
-  border-radius:8px;
-  border:1px solid #333;
-  background:#18181f;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:#15171c;
   color:#fff;
   font-size:17px;
   outline:none;
+}
+
+.search input:focus,
+.degrees-form input:focus{
+  border-color:var(--orange);
+}
+
+button{
+  font-family:inherit;
 }
 
 .search button,
@@ -100,12 +138,18 @@ nav{
 .primary-button{
   padding:18px 26px;
   border:0;
-  border-radius:8px;
-  background:#e50914;
-  color:#fff;
-  font-weight:bold;
+  border-radius:10px;
+  background:linear-gradient(135deg,var(--orange),var(--orange2));
+  color:white;
+  font-weight:800;
   font-size:16px;
   cursor:pointer;
+}
+
+.search button:hover,
+.back-button:hover,
+.primary-button:hover{
+  filter:brightness(1.07);
 }
 
 main{
@@ -127,9 +171,9 @@ main{
 }
 
 .feature{
-  background:#15151c;
-  border:1px solid #272731;
-  border-radius:12px;
+  background:linear-gradient(180deg,#17191f,#111319);
+  border:1px solid var(--line);
+  border-radius:14px;
   padding:25px;
 }
 
@@ -138,11 +182,13 @@ main{
   margin-bottom:12px;
 }
 
-.feature h3{margin:0 0 8px}
+.feature h3{
+  margin:0 0 8px;
+}
 
 .feature p{
   margin:0;
-  color:#999;
+  color:var(--muted);
   line-height:1.5;
 }
 
@@ -153,11 +199,19 @@ main{
 }
 
 .movie{
-  background:#15151c;
-  border:1px solid #272731;
-  border-radius:10px;
+  background:var(--panel);
+  border:1px solid var(--line);
+  border-radius:12px;
   overflow:hidden;
   cursor:pointer;
+  transition:.18s ease;
+}
+
+.movie:hover,
+.cast-card:hover,
+.credit-card:hover{
+  transform:translateY(-3px);
+  border-color:#474b56;
 }
 
 .movie img{
@@ -167,17 +221,21 @@ main{
   object-fit:cover;
 }
 
-.movie-info{padding:14px}
+.movie-info{
+  padding:14px;
+}
 
 .movie-title{
   font-weight:bold;
   margin-bottom:6px;
 }
 
-.movie-year{color:#888}
+.movie-year{
+  color:#878b93;
+}
 
 .message{
-  color:#888;
+  color:var(--muted);
   text-align:center;
   grid-column:1/-1;
   padding:30px;
@@ -201,36 +259,41 @@ main{
 .detail-poster,
 .person-photo{
   width:100%;
-  border-radius:12px;
+  border-radius:14px;
   display:block;
+  box-shadow:0 18px 50px rgba(0,0,0,.4);
 }
 
 .detail-copy h1,
 .person-copy h1{
   font-size:clamp(40px,7vw,70px);
   margin:0 0 10px;
+  letter-spacing:-1px;
 }
 
 .detail-meta,
 .person-meta{
-  color:#999;
+  color:var(--gold);
   margin-bottom:22px;
 }
 
 .detail-overview,
 .person-bio{
-  color:#bbb;
+  color:#c0c2c7;
   font-size:18px;
   line-height:1.65;
 }
 
 .reelwise-label{
   display:inline-block;
-  background:#e50914;
+  background:rgba(255,90,54,.12);
+  border:1px solid rgba(255,90,54,.35);
+  color:var(--orange);
   padding:7px 11px;
-  border-radius:5px;
+  border-radius:6px;
   font-size:12px;
-  font-weight:bold;
+  font-weight:900;
+  letter-spacing:.8px;
   margin-bottom:14px;
 }
 
@@ -246,11 +309,12 @@ main{
 }
 
 .cast-card{
-  background:#15151c;
-  border:1px solid #272731;
+  background:var(--panel);
+  border:1px solid var(--line);
   border-radius:12px;
   overflow:hidden;
   cursor:pointer;
+  transition:.18s ease;
 }
 
 .cast-card img{
@@ -264,14 +328,16 @@ main{
 .no-photo{
   width:100%;
   aspect-ratio:2/3;
-  background:#202028;
+  background:#20232a;
   display:flex;
   align-items:center;
   justify-content:center;
-  color:#777;
+  color:#777b84;
 }
 
-.cast-info{padding:13px}
+.cast-info{
+  padding:13px;
+}
 
 .cast-name{
   font-weight:bold;
@@ -279,7 +345,7 @@ main{
 }
 
 .cast-character{
-  color:#999;
+  color:var(--muted);
   font-size:13px;
 }
 
@@ -294,21 +360,21 @@ main{
 }
 
 .story-card{
-  background:#15151c;
-  border:1px solid #272731;
+  background:linear-gradient(180deg,#17191f,#111319);
+  border:1px solid var(--line);
   border-radius:12px;
   padding:22px;
 }
 
 .story-card p{
-  color:#aaa;
+  color:#b6b9c0;
   line-height:1.6;
   margin:0;
 }
 
 .quote-card{
-  background:#15151c;
-  border-left:4px solid #e50914;
+  background:#17191f;
+  border-left:4px solid var(--orange);
   border-radius:8px;
   padding:20px;
   font-size:20px;
@@ -317,14 +383,14 @@ main{
 
 .placeholder{
   margin-top:55px;
-  background:#15151c;
-  border:1px solid #272731;
+  background:#15171c;
+  border:1px solid var(--line);
   border-radius:12px;
   padding:25px;
 }
 
 .placeholder p{
-  color:#aaa;
+  color:var(--muted);
   line-height:1.6;
 }
 
@@ -335,11 +401,12 @@ main{
 }
 
 .credit-card{
-  background:#15151c;
-  border:1px solid #272731;
+  background:var(--panel);
+  border:1px solid var(--line);
   border-radius:10px;
   overflow:hidden;
   cursor:pointer;
+  transition:.18s ease;
 }
 
 .credit-card img{
@@ -349,12 +416,16 @@ main{
   display:block;
 }
 
-.credit-info{padding:12px}
+.credit-info{
+  padding:12px;
+}
 
-.credit-title{font-weight:bold}
+.credit-title{
+  font-weight:bold;
+}
 
 .credit-year{
-  color:#888;
+  color:#878b93;
   font-size:13px;
   margin-top:5px;
 }
@@ -366,23 +437,23 @@ main{
 }
 
 .known-chip{
-  background:#23232c;
-  border:1px solid #34343f;
+  background:#1f2229;
+  border:1px solid #343842;
   border-radius:20px;
   padding:9px 14px;
   color:#ddd;
 }
 
 .role-card{
-  background:#15151c;
-  border-left:4px solid #e50914;
+  background:#17191f;
+  border-left:4px solid var(--gold);
   border-radius:8px;
   padding:18px;
   font-weight:bold;
 }
 
 .degrees-wrap{
-  max-width:850px;
+  max-width:820px;
   margin:20px auto 0;
 }
 
@@ -392,12 +463,16 @@ main{
 }
 
 .degrees-hero h1{
-  font-size:clamp(38px,7vw,64px);
+  font-size:clamp(40px,7vw,66px);
   margin:0 0 15px;
 }
 
+.degrees-hero h1 span{
+  color:var(--orange);
+}
+
 .degrees-hero p{
-  color:#aaa;
+  color:var(--muted);
   font-size:18px;
   line-height:1.6;
 }
@@ -409,89 +484,108 @@ main{
   margin-bottom:15px;
 }
 
-.degrees-form input{
-  padding:18px;
-  border-radius:8px;
-  border:1px solid #333;
-  background:#18181f;
-  color:#fff;
-  font-size:17px;
-  outline:none;
-}
-
 .degrees-button-wrap{
   text-align:center;
   margin-bottom:35px;
 }
 
 .degree-result{
-  background:#15151c;
-  border:1px solid #272731;
+  background:
+    linear-gradient(180deg,#17191f,#111319);
+  border:1px solid #343842;
+  border-radius:18px;
+  padding:28px;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);
+}
+
+.degree-summary{
+  text-align:center;
+  margin-bottom:28px;
+}
+
+.degree-summary h2{
+  margin:8px 0 10px;
+  font-size:30px;
+}
+
+.degree-summary p{
+  color:var(--muted);
+}
+
+.degree-badge{
+  display:inline-block;
+  background:rgba(242,184,75,.12);
+  color:var(--gold);
+  border:1px solid rgba(242,184,75,.35);
+  border-radius:999px;
+  padding:8px 14px;
+  font-weight:900;
+}
+
+.chain{
+  max-width:620px;
+  margin:auto;
+}
+
+.chain-actor,
+.chain-movie{
   border-radius:14px;
-  padding:26px;
-}
-
-.degree-result h2{
-  margin-top:0;
-  line-height:1.25;
-}
-
-.degree-heading-actor{
-  cursor:pointer;
-  border-bottom:2px solid transparent;
-}
-
-.degree-heading-actor:hover{
-  border-bottom-color:#e50914;
-}
-
-.connection-step{
-  background:#202028;
-  border-radius:12px;
   padding:20px;
-  margin:14px 0;
-  line-height:1.6;
-  font-size:18px;
+  text-align:center;
 }
 
-.connection-actor{
-  font-weight:bold;
+.chain-actor{
+  background:
+    linear-gradient(135deg,#23262e,#17191f);
+  border:1px solid #3a3e48;
+}
+
+.chain-actor-name{
+  font-weight:900;
+  font-size:22px;
   cursor:pointer;
 }
 
-.connection-actor:hover{
-  color:#e50914;
+.chain-actor-name:hover{
+  color:var(--orange);
 }
 
-.connection-movie{
-  color:#e50914;
-  font-weight:bold;
+.chain-movie{
+  background:
+    linear-gradient(135deg,rgba(255,90,54,.15),rgba(242,184,75,.08));
+  border:1px solid rgba(255,90,54,.38);
+}
+
+.chain-movie-label{
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1.5px;
+  margin-bottom:6px;
+}
+
+.chain-movie-title{
+  color:var(--orange);
+  font-size:20px;
+  font-weight:900;
   cursor:pointer;
 }
 
-.connection-movie:hover{
+.chain-movie-title:hover{
   text-decoration:underline;
 }
 
-.connection-arrow{
+.chain-arrow{
   text-align:center;
-  color:#777;
-  font-size:24px;
-  margin:-3px 0;
-}
-
-.final-actor{
-  background:#202028;
-  border-radius:12px;
-  padding:20px;
-  margin-top:14px;
-  font-size:18px;
+  color:var(--gold);
+  font-size:25px;
+  padding:7px 0;
 }
 
 footer{
-  border-top:1px solid #222;
+  border-top:1px solid #22252b;
   text-align:center;
-  color:#666;
+  color:#666a72;
   padding:30px 20px;
   margin-top:40px;
 }
@@ -562,11 +656,18 @@ footer{
 
 <div class="hero" id="hero">
 
-  <h1>Movies <span>reimagined.</span></h1>
+  <div class="eyebrow">
+    MOVIES • STARS • STORIES • CONNECTIONS
+  </div>
+
+  <h1>
+    Know the movie.<br>
+    <span>Know the story.</span>
+  </h1>
 
   <p>
-    Discover movies, legendary stars, unforgettable quotes
-    and the stories behind the scenes.
+    Discover unforgettable movies, legendary stars,
+    famous quotes and the stories behind them.
   </p>
 
   <div class="search">
@@ -578,31 +679,30 @@ footer{
 
 </header>
 
-
 <main>
 
 <div id="homePage">
 
-<h2 class="section-title">Explore Reelwise</h2>
+<h2 class="section-title">What makes Reelwise different?</h2>
 
 <div class="features">
 
   <div class="feature">
     <div class="feature-icon">🎬</div>
     <h3>Movies</h3>
-    <p>Explore movies from every era.</p>
+    <p>Explore movies, casts, stories and the details worth knowing.</p>
   </div>
 
   <div class="feature">
     <div class="feature-icon">⭐</div>
     <h3>Movie Stars</h3>
-    <p>Discover the actors behind the characters.</p>
+    <p>Go beyond filmographies and discover the people behind the roles.</p>
   </div>
 
   <div class="feature">
-    <div class="feature-icon">💬</div>
-    <h3>Famous Quotes</h3>
-    <p>Relive the lines that made movie history.</p>
+    <div class="feature-icon">🔥</div>
+    <h3>You Probably Didn’t Know</h3>
+    <p>Discover casting stories, memorable facts and movie connections.</p>
   </div>
 
 </div>
@@ -614,7 +714,6 @@ footer{
 </div>
 
 </div>
-
 
 <div id="moviePage">
 
@@ -629,7 +728,6 @@ footer{
 
 </div>
 
-
 <div id="personPage">
 
 <button
@@ -642,7 +740,6 @@ footer{
 <div id="personContent"></div>
 
 </div>
-
 
 <div id="degreesPage">
 
@@ -658,15 +755,16 @@ footer{
       REELWISE GAME
     </div>
 
-    <h1>Six Degrees</h1>
+    <h1>
+      Six <span>Degrees</span>
+    </h1>
 
     <p>
-      Enter two movie stars and Reelwise will connect them
-      through movies and co-stars.
+      Pick any two movie stars.
+      Reelwise will connect them through movies and co-stars.
     </p>
 
   </div>
-
 
   <div class="degrees-form">
 
@@ -684,7 +782,6 @@ footer{
 
   </div>
 
-
   <div class="degrees-button-wrap">
 
     <button
@@ -696,7 +793,6 @@ footer{
 
   </div>
 
-
   <div id="degreesResult"></div>
 
 </div>
@@ -705,11 +801,9 @@ footer{
 
 </main>
 
-
 <footer>
-Reelwise — Movies. Stars. Stories. Connections.
+Reelwise — Movies. Stars. Quotes. Stories. Connections.
 </footer>
-
 
 <script>
 
@@ -717,7 +811,6 @@ let currentMovieId=null;
 
 let movieBackTarget="home";
 let personBackTarget="movie";
-
 
 async function searchMovies(){
 
@@ -727,20 +820,16 @@ async function searchMovies(){
   const results=
     document.getElementById("results");
 
-
   if(!query){
 
     results.innerHTML=
       '<div class="message">Enter a movie title to search.</div>';
 
     return;
-
   }
-
 
   results.innerHTML=
     '<div class="message">Searching Reelwise...</div>';
-
 
   try{
 
@@ -750,15 +839,12 @@ async function searchMovies(){
         encodeURIComponent(query)
       );
 
-
     const movies=
       await response.json();
-
 
     if(!response.ok){
       throw new Error("Search failed");
     }
-
 
     if(!movies.length){
 
@@ -766,9 +852,7 @@ async function searchMovies(){
         '<div class="message">No movies found.</div>';
 
       return;
-
     }
-
 
     results.innerHTML=
       movies.map(movie=>{
@@ -779,12 +863,10 @@ async function searchMovies(){
             movie.poster_path
           : "";
 
-
         const year=
           movie.release_date
           ? movie.release_date.substring(0,4)
           : "";
-
 
         return `
 
@@ -822,13 +904,11 @@ async function searchMovies(){
 
       }).join("");
 
-
     document
       .getElementById("movieSearchTitle")
       .scrollIntoView({
         behavior:"smooth"
       });
-
 
   }catch(error){
 
@@ -839,32 +919,25 @@ async function searchMovies(){
 
 }
 
-
-
 async function openMovie(id,returnTo="home"){
 
   currentMovieId=id;
   movieBackTarget=returnTo;
 
-
   hideAllPages();
-
 
   document
     .getElementById("moviePage")
     .style.display="block";
 
-
   document
     .getElementById("hero")
     .style.display="none";
-
 
   const backButton=
     document.getElementById(
       "movieBackButton"
     );
-
 
   if(returnTo==="degrees"){
 
@@ -883,19 +956,15 @@ async function openMovie(id,returnTo="home"){
 
   }
 
-
   const movieContent=
     document.getElementById(
       "movieContent"
     );
 
-
   movieContent.innerHTML=
     '<div class="message">Opening movie...</div>';
 
-
   window.scrollTo(0,0);
-
 
   try{
 
@@ -905,20 +974,16 @@ async function openMovie(id,returnTo="home"){
         encodeURIComponent(id)
       );
 
-
     const movie=
       await movieResponse.json();
-
 
     if(!movieResponse.ok){
       throw new Error("Movie failed");
     }
 
-
     let reelwise={
       available:false
     };
-
 
     try{
 
@@ -928,13 +993,10 @@ async function openMovie(id,returnTo="home"){
           encodeURIComponent(id)
         );
 
-
       reelwise=
         await reelwiseResponse.json();
 
-
     }catch(e){}
-
 
     const poster=
       movie.poster_path
@@ -942,18 +1004,15 @@ async function openMovie(id,returnTo="home"){
         movie.poster_path
       : "";
 
-
     const year=
       movie.release_date
       ? movie.release_date.substring(0,4)
       : "";
 
-
     const runtime=
       movie.runtime
       ? movie.runtime+" min"
       : "";
-
 
     const genres=
       movie.genres
@@ -962,17 +1021,14 @@ async function openMovie(id,returnTo="home"){
           .join(" / ")
       : "";
 
-
     const meta=
       [year,runtime,genres]
         .filter(Boolean)
         .join(" • ");
 
-
     const cast=
       (movie.credits?.cast || [])
         .slice(0,12);
-
 
     const castHtml=
       cast.map(person=>{
@@ -982,7 +1038,6 @@ async function openMovie(id,returnTo="home"){
           ? "https://image.tmdb.org/t/p/w500"+
             person.profile_path
           : "";
-
 
         return `
 
@@ -1020,9 +1075,7 @@ async function openMovie(id,returnTo="home"){
 
       }).join("");
 
-
     let reelwiseHtml="";
-
 
     if(reelwise.available){
 
@@ -1046,7 +1099,6 @@ async function openMovie(id,returnTo="home"){
 
         </div>
 
-
         <div class="reelwise-section">
 
           <h2 class="section-title">
@@ -1065,7 +1117,6 @@ async function openMovie(id,returnTo="home"){
 
         </div>
 
-
         <div class="reelwise-section">
 
           <h2 class="section-title">
@@ -1083,7 +1134,6 @@ async function openMovie(id,returnTo="home"){
           </div>
 
         </div>
-
 
         <div class="reelwise-section">
 
@@ -1127,7 +1177,6 @@ async function openMovie(id,returnTo="home"){
 
     }
 
-
     movieContent.innerHTML=`
 
       <div class="movie-detail">
@@ -1145,7 +1194,6 @@ async function openMovie(id,returnTo="home"){
           }
 
         </div>
-
 
         <div class="detail-copy">
 
@@ -1169,7 +1217,6 @@ async function openMovie(id,returnTo="home"){
 
       </div>
 
-
       <div class="cast-section">
 
         <h2 class="section-title">
@@ -1186,7 +1233,6 @@ async function openMovie(id,returnTo="home"){
 
     `;
 
-
   }catch(error){
 
     movieContent.innerHTML=
@@ -1196,8 +1242,6 @@ async function openMovie(id,returnTo="home"){
 
 }
 
-
-
 async function openPerson(
   id,
   returnTo="movie"
@@ -1205,25 +1249,20 @@ async function openPerson(
 
   personBackTarget=returnTo;
 
-
   hideAllPages();
-
 
   document
     .getElementById("personPage")
     .style.display="block";
 
-
   document
     .getElementById("hero")
     .style.display="none";
-
 
   const backButton=
     document.getElementById(
       "personBackButton"
     );
-
 
   if(returnTo==="degrees"){
 
@@ -1242,19 +1281,15 @@ async function openPerson(
 
   }
 
-
   const personContent=
     document.getElementById(
       "personContent"
     );
 
-
   personContent.innerHTML=
     '<div class="message">Opening star...</div>';
 
-
   window.scrollTo(0,0);
-
 
   try{
 
@@ -1264,20 +1299,16 @@ async function openPerson(
         encodeURIComponent(id)
       );
 
-
     const person=
       await response.json();
-
 
     if(!response.ok){
       throw new Error("Person failed");
     }
 
-
     let starwise={
       available:false
     };
-
 
     try{
 
@@ -1287,13 +1318,10 @@ async function openPerson(
           encodeURIComponent(id)
         );
 
-
       starwise=
         await starwiseResponse.json();
 
-
     }catch(e){}
-
 
     const photo=
       person.profile_path
@@ -1301,20 +1329,16 @@ async function openPerson(
         person.profile_path
       : "";
 
-
     const birthday=
       person.birthday || "";
 
-
     const birthplace=
       person.place_of_birth || "";
-
 
     const meta=
       [birthday,birthplace]
         .filter(Boolean)
         .join(" • ");
-
 
     const credits=
       (person.movie_credits?.cast || [])
@@ -1338,7 +1362,6 @@ async function openPerson(
 
       .slice(0,18);
 
-
     const creditsHtml=
       credits.map(movie=>{
 
@@ -1346,12 +1369,10 @@ async function openPerson(
           "https://image.tmdb.org/t/p/w500"+
           movie.poster_path;
 
-
         const year=
           movie.release_date
           ? movie.release_date.substring(0,4)
           : "";
-
 
         return `
 
@@ -1383,9 +1404,7 @@ async function openPerson(
 
       }).join("");
 
-
     let starwiseHtml="";
-
 
     if(starwise.available){
 
@@ -1409,7 +1428,6 @@ async function openPerson(
 
         </div>
 
-
         <div class="reelwise-section">
 
           <h2 class="section-title">
@@ -1428,7 +1446,6 @@ async function openPerson(
 
         </div>
 
-
         <div class="reelwise-section">
 
           <h2 class="section-title">
@@ -1446,7 +1463,6 @@ async function openPerson(
           </div>
 
         </div>
-
 
         <div class="reelwise-section">
 
@@ -1467,7 +1483,6 @@ async function openPerson(
         </div>
 
       `;
-
 
     }else{
 
@@ -1491,7 +1506,6 @@ async function openPerson(
 
     }
 
-
     personContent.innerHTML=`
 
       <div class="person-detail">
@@ -1511,7 +1525,6 @@ async function openPerson(
           }
 
         </div>
-
 
         <div class="person-copy">
 
@@ -1540,9 +1553,7 @@ async function openPerson(
 
       </div>
 
-
       ${starwiseHtml}
-
 
       <div class="credits-section">
 
@@ -1558,7 +1569,6 @@ async function openPerson(
 
     `;
 
-
   }catch(error){
 
     personContent.innerHTML=
@@ -1568,28 +1578,21 @@ async function openPerson(
 
 }
 
-
-
 function showDegrees(){
 
   hideAllPages();
-
 
   document
     .getElementById("degreesPage")
     .style.display="block";
 
-
   document
     .getElementById("hero")
     .style.display="none";
 
-
   window.scrollTo(0,0);
 
 }
-
-
 
 async function findDegrees(){
 
@@ -1599,19 +1602,16 @@ async function findDegrees(){
       .value
       .trim();
 
-
   const actor2=
     document
       .getElementById("actorTwo")
       .value
       .trim();
 
-
   const result=
     document.getElementById(
       "degreesResult"
     );
-
 
   if(!actor1 || !actor2){
 
@@ -1619,13 +1619,10 @@ async function findDegrees(){
       '<div class="message">Enter two actor names.</div>';
 
     return;
-
   }
 
-
   result.innerHTML=
-    '<div class="message">Finding the shortest connection...</div>';
-
+    '<div class="message">Finding the best connection...</div>';
 
   try{
 
@@ -1639,10 +1636,8 @@ async function findDegrees(){
 
       );
 
-
     const data=
       await response.json();
-
 
     if(!response.ok){
 
@@ -1653,32 +1648,33 @@ async function findDegrees(){
 
     }
 
-
     if(!data.found){
 
       result.innerHTML=`
 
         <div class="degree-result">
 
-          <h2>
-            No connection found yet
-          </h2>
+          <div class="degree-summary">
 
-          <p>
-            ${escapeHtml(
-              data.message ||
-              "Reelwise could not find a connection yet."
-            )}
-          </p>
+            <h2>
+              No connection found yet
+            </h2>
+
+            <p>
+              ${escapeHtml(
+                data.message ||
+                "Reelwise could not find a connection yet."
+              )}
+            </p>
+
+          </div>
 
         </div>
 
       `;
 
       return;
-
     }
-
 
     if(data.degrees===0){
 
@@ -1686,139 +1682,121 @@ async function findDegrees(){
 
         <div class="degree-result">
 
-          <h2>
-            That's the same actor.
-          </h2>
+          <div class="degree-summary">
 
-          <p>
-            ${escapeHtml(data.actor1.name)}
-            is already connected to themselves.
-          </p>
+            <h2>
+              That's the same actor.
+            </h2>
+
+            <p>
+              ${escapeHtml(data.actor1.name)}
+              is already connected to themselves.
+            </p>
+
+          </div>
 
         </div>
 
       `;
 
       return;
-
     }
 
+    let chainHtml="";
 
-    const pathHtml=
-      data.path.map(
-        (step,index)=>{
+    data.path.forEach((step,index)=>{
 
+      chainHtml+=`
 
-          if(step.movie){
+        <div class="chain-actor">
 
-            return `
+          <div
+            class="chain-actor-name"
+            onclick="openPerson(${step.actorId},'degrees')"
+          >
+            ${escapeHtml(step.actor)}
+          </div>
 
-              <div class="connection-step">
+        </div>
 
-                <span
-                  class="connection-actor"
-                  onclick="openPerson(${step.actorId},'degrees')"
-                >
-                  ${escapeHtml(step.actor)}
-                </span>
+      `;
 
-                appeared in
+      if(step.movie){
 
-                <span
-                  class="connection-movie"
-                  onclick="openMovie(${step.movieId},'degrees')"
-                >
-                  ${escapeHtml(step.movie)}
-                </span>
+        chainHtml+=`
 
-              </div>
+          <div class="chain-arrow">
+            ↓
+          </div>
 
-              <div class="connection-arrow">
-                ↓
-              </div>
+          <div class="chain-movie">
 
-            `;
-
-          }
-
-
-          return `
-
-            <div class="final-actor">
-
-              <span
-                class="connection-actor"
-                onclick="openPerson(${step.actorId},'degrees')"
-              >
-                ${escapeHtml(step.actor)}
-              </span>
-
+            <div class="chain-movie-label">
+              MOVIE CONNECTION
             </div>
 
-          `;
+            <div
+              class="chain-movie-title"
+              onclick="openMovie(${step.movieId},'degrees')"
+            >
+              🎬 ${escapeHtml(step.movie)}
+            </div>
 
-        }
-      ).join("");
+          </div>
 
+          <div class="chain-arrow">
+            ↓
+          </div>
+
+        `;
+
+      }
+
+    });
 
     result.innerHTML=`
 
       <div class="degree-result">
 
-        <div class="reelwise-label">
-          CONNECTION FOUND
+        <div class="degree-summary">
+
+          <div class="reelwise-label">
+            CONNECTION FOUND
+          </div>
+
+          <h2>
+            ${escapeHtml(data.actor1.name)}
+            →
+            ${escapeHtml(data.actor2.name)}
+          </h2>
+
+          <div class="degree-badge">
+            ${data.degrees}
+            ${data.degrees===1 ? "Degree" : "Degrees"}
+          </div>
+
         </div>
 
-        <h2>
-
-          <span
-            class="degree-heading-actor"
-            onclick="openPerson(${data.actor1.id},'degrees')"
-          >
-            ${escapeHtml(data.actor1.name)}
-          </span>
-
-          →
-
-          <span
-            class="degree-heading-actor"
-            onclick="openPerson(${data.actor2.id},'degrees')"
-          >
-            ${escapeHtml(data.actor2.name)}
-          </span>
-
-        </h2>
-
-        <p>
-          Reelwise found a
-          <strong>
-            ${data.degrees}-degree connection
-          </strong>.
-        </p>
-
-        ${pathHtml}
+        <div class="chain">
+          ${chainHtml}
+        </div>
 
       </div>
 
     `;
 
-
   }catch(error){
 
     result.innerHTML=
-
       '<div class="message">We could not find the connection right now.</div>';
 
   }
 
 }
 
-
-
 function goBackFromPerson(){
 
   hideAllPages();
-
 
   if(personBackTarget==="degrees"){
 
@@ -1852,17 +1830,13 @@ function goBackFromPerson(){
 
   }
 
-
   window.scrollTo(0,0);
 
 }
 
-
-
 function goBackFromMovie(){
 
   hideAllPages();
-
 
   if(movieBackTarget==="degrees"){
 
@@ -1896,12 +1870,9 @@ function goBackFromMovie(){
 
   }
 
-
   window.scrollTo(0,0);
 
 }
-
-
 
 function hideAllPages(){
 
@@ -1923,28 +1894,21 @@ function hideAllPages(){
 
 }
 
-
-
 function showHome(){
 
   hideAllPages();
-
 
   document
     .getElementById("homePage")
     .style.display="block";
 
-
   document
     .getElementById("hero")
     .style.display="block";
 
-
   window.scrollTo(0,0);
 
 }
-
-
 
 function escapeHtml(text){
 
@@ -1957,8 +1921,6 @@ function escapeHtml(text){
   return div.innerHTML;
 
 }
-
-
 
 document
   .getElementById("searchInput")
@@ -1973,7 +1935,6 @@ document
     }
   );
 
-
 document
   .getElementById("actorOne")
   .addEventListener(
@@ -1986,7 +1947,6 @@ document
 
     }
   );
-
 
 document
   .getElementById("actorTwo")
