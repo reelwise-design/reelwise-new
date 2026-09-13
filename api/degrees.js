@@ -9,7 +9,6 @@ export default async function handler(req, res) {
     });
   }
 
-
   const token = process.env.TMDB_READ_ACCESS_TOKEN;
 
   if (!token) {
@@ -18,12 +17,10 @@ export default async function handler(req, res) {
     });
   }
 
-
   const headers = {
     Authorization: `Bearer ${token}`,
     accept: "application/json"
   };
-
 
   const movieCastCache = new Map();
   const personCreditsCache = new Map();
@@ -41,7 +38,6 @@ export default async function handler(req, res) {
     }
 
     return await response.json();
-
   }
 
 
@@ -52,7 +48,6 @@ export default async function handler(req, res) {
     );
 
     return data?.results?.[0] || null;
-
   }
 
 
@@ -71,7 +66,6 @@ export default async function handler(req, res) {
     personCreditsCache.set(personId, movies);
 
     return movies;
-
   }
 
 
@@ -90,7 +84,6 @@ export default async function handler(req, res) {
     movieCastCache.set(movieId, cast);
 
     return cast;
-
   }
 
 
@@ -107,7 +100,6 @@ export default async function handler(req, res) {
     movieDetailsCache.set(movieId, data);
 
     return data;
-
   }
 
 
@@ -120,7 +112,6 @@ export default async function handler(req, res) {
     const character =
       (credit.character || "").toLowerCase();
 
-
     const badTerms = [
       "self",
       "archive",
@@ -130,25 +121,40 @@ export default async function handler(req, res) {
       "herself"
     ];
 
+    return !badTerms.some(term =>
+      character.includes(term)
+    );
+  }
+
+
+  async function validMovie(movieId) {
+
+    const details =
+      await getMovieDetails(movieId);
+
+    if (!details) {
+      return false;
+    }
+
+    const genres =
+      details.genres || [];
 
     if (
-      badTerms.some(term =>
-        character.includes(term)
+      genres.some(
+        genre =>
+          genre.name === "Documentary"
       )
     ) {
       return false;
     }
 
-
     return true;
-
   }
 
 
-  function selectMovies(movies) {
+  function selectMovies(movies, limit = 20) {
 
     const seen = new Set();
-
 
     return movies
 
@@ -166,60 +172,265 @@ export default async function handler(req, res) {
         }
 
         seen.add(movie.id);
-
         return true;
 
       })
 
-      .sort((a, b) => {
-
-        const popA = a.popularity || 0;
-        const popB = b.popularity || 0;
-
-        return popB - popA;
-
-      })
-
-      .slice(0, 7);
-
-  }
-
-
-  async function validMovie(movieId) {
-
-    const details =
-      await getMovieDetails(movieId);
-
-
-    if (!details) {
-      return false;
-    }
-
-
-    const genres =
-      details.genres || [];
-
-
-    if (
-      genres.some(
-        genre =>
-          genre.name === "Documentary"
+      .sort(
+        (a, b) =>
+          (b.popularity || 0) -
+          (a.popularity || 0)
       )
-    ) {
-      return false;
-    }
 
-
-    return true;
-
+      .slice(0, limit);
   }
 
+
+  /*
+    1 DEGREE
+  */
+
+  async function findDirectConnection(
+    personA,
+    personB,
+    moviesA,
+    moviesB
+  ) {
+
+    const moviesBMap = new Map(
+      moviesB
+        .filter(isRealActingCredit)
+        .map(movie => [
+          movie.id,
+          movie
+        ])
+    );
+
+    for (const movie of moviesA) {
+
+      if (!isRealActingCredit(movie)) {
+        continue;
+      }
+
+      const match =
+        moviesBMap.get(movie.id);
+
+      if (!match) {
+        continue;
+      }
+
+      if (!isRealActingCredit(match)) {
+        continue;
+      }
+
+      if (!(await validMovie(movie.id))) {
+        continue;
+      }
+
+      return {
+        found: true,
+        degrees: 1,
+        path: [
+          {
+            actor: personA.name,
+            actorId: personA.id,
+            movie: movie.title,
+            movieId: movie.id
+          },
+          {
+            actor: personB.name,
+            actorId: personB.id
+          }
+        ]
+      };
+    }
+
+    return null;
+  }
+
+
+  /*
+    2 DEGREES
+  */
+
+  async function findTwoDegreeConnection(
+    personA,
+    personB,
+    allMoviesA,
+    allMoviesB
+  ) {
+
+    const moviesA =
+      selectMovies(allMoviesA, 25);
+
+    const moviesB =
+      selectMovies(allMoviesB, 25);
+
+    const [castsA, castsB] =
+      await Promise.all([
+
+        Promise.all(
+          moviesA.map(movie =>
+            getMovieCast(movie.id)
+          )
+        ),
+
+        Promise.all(
+          moviesB.map(movie =>
+            getMovieCast(movie.id)
+          )
+        )
+
+      ]);
+
+
+    const actorMapB = new Map();
+
+
+    castsB.forEach(
+      (cast, movieIndex) => {
+
+        const movie =
+          moviesB[movieIndex];
+
+        cast
+          .slice(0, 30)
+          .forEach(actor => {
+
+            if (
+              !actor.id ||
+              actor.id === personA.id ||
+              actor.id === personB.id ||
+              !isRealActingCredit(actor)
+            ) {
+              return;
+            }
+
+            if (!actorMapB.has(actor.id)) {
+
+              actorMapB.set(
+                actor.id,
+                {
+                  actor,
+                  movie
+                }
+              );
+
+            }
+
+          });
+
+      }
+    );
+
+
+    for (
+      let movieIndex = 0;
+      movieIndex < castsA.length;
+      movieIndex++
+    ) {
+
+      const cast =
+        castsA[movieIndex];
+
+      const movieA =
+        moviesA[movieIndex];
+
+
+      for (
+        const middleActor of
+        cast.slice(0, 30)
+      ) {
+
+        if (
+          !middleActor.id ||
+          middleActor.id === personA.id ||
+          middleActor.id === personB.id ||
+          !isRealActingCredit(middleActor)
+        ) {
+          continue;
+        }
+
+
+        const match =
+          actorMapB.get(
+            middleActor.id
+          );
+
+
+        if (!match) {
+          continue;
+        }
+
+
+        const [
+          validA,
+          validB
+        ] = await Promise.all([
+
+          validMovie(movieA.id),
+
+          validMovie(
+            match.movie.id
+          )
+
+        ]);
+
+
+        if (!validA || !validB) {
+          continue;
+        }
+
+
+        return {
+
+          found: true,
+
+          degrees: 2,
+
+          path: [
+
+            {
+              actor: personA.name,
+              actorId: personA.id,
+              movie: movieA.title,
+              movieId: movieA.id
+            },
+
+            {
+              actor: middleActor.name,
+              actorId: middleActor.id,
+              movie: match.movie.title,
+              movieId: match.movie.id
+            },
+
+            {
+              actor: personB.name,
+              actorId: personB.id
+            }
+
+          ]
+
+        };
+
+      }
+
+    }
+
+    return null;
+  }
+
+
+  /*
+    3 TO 6 DEGREES
+  */
 
   async function getNeighbors(person) {
 
     const movies =
       selectMovies(
-        await getPersonCredits(person.id)
+        await getPersonCredits(person.id),
+        7
       );
 
 
@@ -231,7 +442,7 @@ export default async function handler(req, res) {
       );
 
 
-    const neighborMap =
+    const neighbors =
       new Map();
 
 
@@ -246,39 +457,29 @@ export default async function handler(req, res) {
 
 
       for (
-        const castMember of
+        const actor of
         cast.slice(0, 18)
       ) {
 
         if (
-          !castMember.id ||
-          castMember.id === person.id
+          !actor.id ||
+          actor.id === person.id ||
+          !isRealActingCredit(actor)
         ) {
           continue;
         }
 
 
-        if (
-          !isRealActingCredit(castMember)
-        ) {
-          continue;
-        }
+        if (!neighbors.has(actor.id)) {
 
-
-        if (
-          !neighborMap.has(
-            castMember.id
-          )
-        ) {
-
-          neighborMap.set(
-            castMember.id,
+          neighbors.set(
+            actor.id,
             {
               actor: {
-                id: castMember.id,
-                name: castMember.name,
+                id: actor.id,
+                name: actor.name,
                 popularity:
-                  castMember.popularity || 0
+                  actor.popularity || 0
               },
 
               movie: {
@@ -296,7 +497,7 @@ export default async function handler(req, res) {
 
 
     return Array.from(
-      neighborMap.values()
+      neighbors.values()
     )
 
       .sort(
@@ -306,11 +507,116 @@ export default async function handler(req, res) {
       )
 
       .slice(0, 28);
-
   }
 
 
-  function buildPath(
+  async function expandFrontier(
+    frontier,
+    ownVisited,
+    otherVisited
+  ) {
+
+    const next = [];
+    const meetings = [];
+
+
+    for (
+      const person of
+      frontier.slice(0, 14)
+    ) {
+
+      const current =
+        ownVisited.get(person.id);
+
+      if (!current) {
+        continue;
+      }
+
+
+      const neighbors =
+        await getNeighbors(person);
+
+
+      for (
+        const connection of
+        neighbors
+      ) {
+
+        const actor =
+          connection.actor;
+
+
+        if (
+          ownVisited.has(actor.id)
+        ) {
+          continue;
+        }
+
+
+        ownVisited.set(
+          actor.id,
+          {
+            id: actor.id,
+            name: actor.name,
+            depth:
+              current.depth + 1,
+
+            parent:
+              person.id,
+
+            parentName:
+              person.name,
+
+            movieId:
+              connection.movie.id,
+
+            movieTitle:
+              connection.movie.title,
+
+            popularity:
+              actor.popularity || 0
+          }
+        );
+
+
+        next.push({
+          id: actor.id,
+          name: actor.name,
+          popularity:
+            actor.popularity || 0
+        });
+
+
+        if (
+          otherVisited.has(actor.id)
+        ) {
+
+          meetings.push(actor.id);
+
+        }
+
+      }
+
+    }
+
+
+    next.sort(
+      (a, b) =>
+        (b.popularity || 0) -
+        (a.popularity || 0)
+    );
+
+
+    return {
+      next:
+        next.slice(0, 20),
+
+      meetings
+    };
+  }
+
+
+  function buildEdges(
     visitedA,
     visitedB,
     meetingId
@@ -328,16 +634,29 @@ export default async function handler(req, res) {
         visitedA.get(current);
 
       left.unshift({
-        from: node.parentName,
-        fromId: node.parent,
-        movie: node.movieTitle,
-        movieId: node.movieId,
-        to: node.name,
-        toId: current
+
+        from:
+          node.parentName,
+
+        fromId:
+          node.parent,
+
+        movie:
+          node.movieTitle,
+
+        movieId:
+          node.movieId,
+
+        to:
+          node.name,
+
+        toId:
+          current
+
       });
 
-      current = node.parent;
-
+      current =
+        node.parent;
     }
 
 
@@ -353,16 +672,29 @@ export default async function handler(req, res) {
         visitedB.get(current);
 
       right.push({
-        from: node.name,
-        fromId: current,
-        movie: node.movieTitle,
-        movieId: node.movieId,
-        to: node.parentName,
-        toId: node.parent
+
+        from:
+          node.name,
+
+        fromId:
+          current,
+
+        movie:
+          node.movieTitle,
+
+        movieId:
+          node.movieId,
+
+        to:
+          node.parentName,
+
+        toId:
+          node.parent
+
       });
 
-      current = node.parent;
-
+      current =
+        node.parent;
     }
 
 
@@ -370,81 +702,76 @@ export default async function handler(req, res) {
       ...left,
       ...right
     ];
-
   }
 
 
-  async function verifyPath(path) {
+  async function pathIsValid(edges) {
 
-    for (const step of path) {
+    for (const edge of edges) {
 
-      const valid =
-        await validMovie(
-          step.movieId
-        );
-
-      if (!valid) {
+      if (
+        !(await validMovie(
+          edge.movieId
+        ))
+      ) {
         return false;
       }
 
     }
 
     return true;
-
   }
 
 
-  function formatPath(
-    actorA,
-    actorB,
+  function formatEdges(
+    personB,
     edges
   ) {
 
-    const path = [];
+    const path =
+      edges.map(edge => ({
 
+        actor:
+          edge.from,
 
-    if (!edges.length) {
-      return path;
-    }
+        actorId:
+          edge.fromId,
 
+        movie:
+          edge.movie,
 
-    for (
-      let i = 0;
-      i < edges.length;
-      i++
-    ) {
+        movieId:
+          edge.movieId
 
-      const edge = edges[i];
-
-
-      path.push({
-        actor: edge.from,
-        actorId: edge.fromId,
-        movie: edge.movie,
-        movieId: edge.movieId
-      });
-
-    }
+      }));
 
 
     path.push({
-      actor: actorB.name,
-      actorId: actorB.id
+
+      actor:
+        personB.name,
+
+      actorId:
+        personB.id
+
     });
 
 
     return path;
-
   }
 
 
   try {
 
-    const [personA, personB] =
-      await Promise.all([
-        searchPerson(actor1),
-        searchPerson(actor2)
-      ]);
+    const [
+      personA,
+      personB
+    ] = await Promise.all([
+
+      searchPerson(actor1),
+      searchPerson(actor2)
+
+    ]);
 
 
     if (!personA || !personB) {
@@ -460,30 +787,88 @@ export default async function handler(req, res) {
     if (personA.id === personB.id) {
 
       return res.status(200).json({
+
         found: true,
         degrees: 0,
         actor1: personA,
         actor2: personB,
         path: []
+
+      });
+
+    }
+
+
+    const [
+      allMoviesA,
+      allMoviesB
+    ] = await Promise.all([
+
+      getPersonCredits(personA.id),
+
+      getPersonCredits(personB.id)
+
+    ]);
+
+
+    /*
+      CHECK 1 DEGREE FIRST
+    */
+
+    const direct =
+      await findDirectConnection(
+        personA,
+        personB,
+        allMoviesA,
+        allMoviesB
+      );
+
+
+    if (direct) {
+
+      return res.status(200).json({
+
+        ...direct,
+        actor1: personA,
+        actor2: personB
+
       });
 
     }
 
 
     /*
-      BIDIRECTIONAL SEARCH
-
-      Search outward from BOTH actors.
-
-      Each side can travel three levels.
-
-      3 + 3 = maximum 6 degrees.
+      CHECK 2 DEGREES SECOND
     */
 
+    const twoDegree =
+      await findTwoDegreeConnection(
+        personA,
+        personB,
+        allMoviesA,
+        allMoviesB
+      );
+
+
+    if (twoDegree) {
+
+      return res.status(200).json({
+
+        ...twoDegree,
+        actor1: personA,
+        actor2: personB
+
+      });
+
+    }
+
+
+    /*
+      ONLY NOW SEARCH 3–6
+    */
 
     const visitedA =
       new Map();
-
 
     const visitedB =
       new Map();
@@ -527,122 +912,7 @@ export default async function handler(req, res) {
     ];
 
 
-    async function expandFrontier(
-      frontier,
-      ownVisited,
-      otherVisited,
-      maxDepth
-    ) {
-
-      const next = [];
-
-
-      for (
-        const person of
-        frontier.slice(0, 12)
-      ) {
-
-        const current =
-          ownVisited.get(person.id);
-
-
-        if (
-          !current ||
-          current.depth >= maxDepth
-        ) {
-          continue;
-        }
-
-
-        const neighbors =
-          await getNeighbors(person);
-
-
-        for (
-          const connection of
-          neighbors
-        ) {
-
-          const actor =
-            connection.actor;
-
-
-          if (
-            ownVisited.has(actor.id)
-          ) {
-            continue;
-          }
-
-
-          ownVisited.set(
-            actor.id,
-            {
-              id: actor.id,
-              name: actor.name,
-              depth:
-                current.depth + 1,
-
-              parent:
-                person.id,
-
-              parentName:
-                person.name,
-
-              movieId:
-                connection.movie.id,
-
-              movieTitle:
-                connection.movie.title,
-
-              popularity:
-                actor.popularity || 0
-            }
-          );
-
-
-          next.push({
-            id: actor.id,
-            name: actor.name,
-            popularity:
-              actor.popularity || 0
-          });
-
-
-          if (
-            otherVisited.has(actor.id)
-          ) {
-
-            return {
-              found: true,
-              meetingId:
-                actor.id,
-              next
-            };
-
-          }
-
-        }
-
-      }
-
-
-      next.sort(
-        (a, b) =>
-          (b.popularity || 0) -
-          (a.popularity || 0)
-      );
-
-
-      return {
-        found: false,
-        next:
-          next.slice(0, 18)
-      };
-
-    }
-
-
-    let meetingId = null;
+    let bestPath = null;
 
 
     for (
@@ -655,44 +925,98 @@ export default async function handler(req, res) {
         await expandFrontier(
           frontierA,
           visitedA,
-          visitedB,
-          3
+          visitedB
         );
-
 
       frontierA =
         resultA.next;
-
-
-      if (resultA.found) {
-
-        meetingId =
-          resultA.meetingId;
-
-        break;
-
-      }
 
 
       const resultB =
         await expandFrontier(
           frontierB,
           visitedB,
-          visitedA,
-          3
+          visitedA
         );
-
 
       frontierB =
         resultB.next;
 
 
-      if (resultB.found) {
+      const meetings = [
+        ...resultA.meetings,
+        ...resultB.meetings
+      ];
 
-        meetingId =
-          resultB.meetingId;
 
-        break;
+      for (
+        const meetingId of meetings
+      ) {
+
+        const edges =
+          buildEdges(
+            visitedA,
+            visitedB,
+            meetingId
+          );
+
+
+        if (
+          edges.length < 3 ||
+          edges.length > 6
+        ) {
+          continue;
+        }
+
+
+        if (
+          !(await pathIsValid(edges))
+        ) {
+          continue;
+        }
+
+
+        if (
+          !bestPath ||
+          edges.length <
+            bestPath.length
+        ) {
+
+          bestPath = edges;
+
+        }
+
+      }
+
+
+      /*
+        Once a valid path is found at
+        this depth, return the shortest
+        one from that search level.
+      */
+
+      if (bestPath) {
+
+        return res.status(200).json({
+
+          found: true,
+
+          degrees:
+            bestPath.length,
+
+          actor1:
+            personA,
+
+          actor2:
+            personB,
+
+          path:
+            formatEdges(
+              personB,
+              bestPath
+            )
+
+        });
 
       }
 
@@ -707,101 +1031,18 @@ export default async function handler(req, res) {
     }
 
 
-    if (!meetingId) {
-
-      return res.status(200).json({
-
-        found: false,
-
-        actor1: personA,
-
-        actor2: personB,
-
-        message:
-          "Reelwise searched up to six degrees but did not find a strong movie connection in this search."
-
-      });
-
-    }
-
-
-    const edges =
-      buildPath(
-        visitedA,
-        visitedB,
-        meetingId
-      );
-
-
-    /*
-      Reject documentary or compilation
-      movies before displaying result.
-    */
-
-
-    const verified =
-      await verifyPath(edges);
-
-
-    if (!verified) {
-
-      return res.status(200).json({
-
-        found: false,
-
-        actor1: personA,
-
-        actor2: personB,
-
-        message:
-          "A possible connection was found, but Reelwise rejected it because it included archive, documentary or compilation material."
-
-      });
-
-    }
-
-
-    const degrees =
-      edges.length;
-
-
-    if (
-      degrees < 1 ||
-      degrees > 6
-    ) {
-
-      return res.status(200).json({
-
-        found: false,
-
-        actor1: personA,
-
-        actor2: personB,
-
-        message:
-          "No valid Six Degrees connection was found."
-
-      });
-
-    }
-
-
     return res.status(200).json({
 
-      found: true,
+      found: false,
 
-      degrees,
+      actor1:
+        personA,
 
-      actor1: personA,
+      actor2:
+        personB,
 
-      actor2: personB,
-
-      path:
-        formatPath(
-          personA,
-          personB,
-          edges
-        )
+      message:
+        "Reelwise searched up to six degrees but did not find a strong movie connection."
 
     });
 
@@ -815,8 +1056,10 @@ export default async function handler(req, res) {
 
 
     return res.status(500).json({
+
       error:
         "Six Degrees search failed"
+
     });
 
   }
