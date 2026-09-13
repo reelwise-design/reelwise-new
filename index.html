@@ -29,9 +29,7 @@ body{
   font-family:Arial,Helvetica,sans-serif;
 }
 
-header{
-  padding:22px 20px 70px;
-}
+header{padding:22px 20px 70px}
 
 nav{
   max-width:1200px;
@@ -65,9 +63,7 @@ nav{
   font-weight:700;
 }
 
-.nav-links a:hover{
-  color:var(--orange);
-}
+.nav-links a:hover{color:var(--orange)}
 
 .hero{
   max-width:900px;
@@ -527,7 +523,9 @@ main{
   color:var(--orange);
 }
 
-.degrees-hero p{color:var(--muted)}
+.degrees-hero p{
+  color:var(--muted);
+}
 
 .degrees-form{
   display:grid;
@@ -618,9 +616,13 @@ footer{
 
   nav{flex-direction:column}
 
-  .features{grid-template-columns:1fr}
+  .features{
+    grid-template-columns:1fr;
+  }
 
-  .search{flex-direction:column}
+  .search{
+    flex-direction:column;
+  }
 
   .movie-detail,
   .person-detail{
@@ -770,7 +772,7 @@ career highlights and the stories behind their movies.
 </div>
 
 <h2 class="section-title">
-Featured Stars
+Popular Stars
 </h2>
 
 <div id="featuredStars" class="stars-grid">
@@ -1022,6 +1024,14 @@ if(!response.ok){
 throw new Error();
 }
 
+if(!movies.length){
+
+results.innerHTML=
+'<div class="message">No movies found.</div>';
+
+return;
+}
+
 results.innerHTML=
 movies.map(movie=>{
 
@@ -1120,17 +1130,21 @@ let reelwise={available:false};
 let verification={reviewed:false};
 
 try{
+
 reelwise=
 await(
 await fetch("/api/reelwise?id="+id)
 ).json();
+
 }catch(e){}
 
 try{
+
 verification=
 await(
 await fetch("/api/verify?id="+id)
 ).json();
+
 }catch(e){}
 
 const poster=
@@ -1215,6 +1229,7 @@ ${reelwise.facts.map(x=>`
 
 </div>
 
+
 <div class="reelwise-section">
 
 <h2 class="section-title">
@@ -1233,6 +1248,7 @@ ${reelwise.casting.map(x=>`
 
 </div>
 
+
 <div class="reelwise-section">
 
 <h2 class="section-title">
@@ -1250,6 +1266,7 @@ ${reelwise.soundtrack.map(x=>`
 </div>
 
 </div>
+
 
 <div class="reelwise-section">
 
@@ -1399,10 +1416,12 @@ await fetch("/api/person?id="+id)
 let starwise={available:false};
 
 try{
+
 starwise=
 await(
 await fetch("/api/starwise?id="+id)
 ).json();
+
 }catch(e){}
 
 const photo=
@@ -1470,7 +1489,9 @@ extra=`
 
 <div class="reelwise-section">
 
-<h2 class="section-title">⭐ Known For</h2>
+<h2 class="section-title">
+⭐ Known For
+</h2>
 
 <div class="known-for">
 
@@ -1483,6 +1504,7 @@ ${escapeHtml(x)}
 </div>
 
 </div>
+
 
 <div class="reelwise-section">
 
@@ -1502,6 +1524,7 @@ ${starwise.highlights.map(x=>`
 
 </div>
 
+
 <div class="reelwise-section">
 
 <h2 class="section-title">
@@ -1519,6 +1542,7 @@ ${starwise.facts.map(x=>`
 </div>
 
 </div>
+
 
 <div class="reelwise-section">
 
@@ -1621,47 +1645,40 @@ document.getElementById("featuredStars");
 container.innerHTML=
 '<div class="message">Loading movie stars...</div>';
 
-const starIds=[16483,500,380,1158,2231,3,11701];
-
 try{
 
-const people=
-await Promise.all(
-
-starIds.map(async id=>{
-
 const response=
-await fetch("/api/person?id="+id);
+await fetch("/api/stars");
 
-return await response.json();
+const stars=
+await response.json();
 
-})
+if(!response.ok){
+throw new Error();
+}
 
-);
+if(!Array.isArray(stars)||!stars.length){
 
 container.innerHTML=
-people.map(person=>{
+'<div class="message">No stars found right now.</div>';
 
-const photo=
-person.profile_path
-? "https://image.tmdb.org/t/p/w500"+person.profile_path
-: "";
+return;
+}
 
-return `
+container.innerHTML=
+stars.map(person=>`
 
 <div
 class="star-card"
 onclick="openPerson(${person.id},'stars')">
 
-${photo
-? `<img src="${photo}">`
-: `<div class="no-photo">No Photo</div>`
-}
+<img
+src="https://image.tmdb.org/t/p/w500${person.profile_path}">
 
 <div class="star-card-info">
 
 <div class="star-card-label">
-REELWISE STAR
+MOVIE STAR
 </div>
 
 <div class="star-card-name">
@@ -1672,9 +1689,7 @@ ${escapeHtml(person.name)}
 
 </div>
 
-`;
-
-}).join("");
+`).join("");
 
 }catch(e){
 
@@ -1727,7 +1742,6 @@ result.innerHTML=
 '<div class="message">Enter two actor names.</div>';
 
 return;
-
 }
 
 result.innerHTML=
@@ -1752,7 +1766,6 @@ result.innerHTML=
 '<div class="message">No connection found yet.</div>';
 
 return;
-
 }
 
 let chainHtml="";
