@@ -1,4 +1,6 @@
-744: {
+const reelwiseData = {
+  
+  744: {
   title: "Top Gun",
 
   facts: [
