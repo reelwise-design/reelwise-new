@@ -1,1067 +1,559 @@
-export default async function handler(req, res) {
+const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
+const API_KEY = process.env.TMDB_API_KEY;
 
-  const actor1 = req.query.actor1;
-  const actor2 = req.query.actor2;
+const TMDB = "https://api.themoviedb.org/3";
 
-  if (!actor1 || !actor2) {
-    return res.status(400).json({
-      error: "Missing actor names"
-    });
-  }
+async function tmdb(path) {
+  let url = TMDB + path;
 
-  const token = process.env.TMDB_READ_ACCESS_TOKEN;
-
-  if (!token) {
-    return res.status(500).json({
-      error: "TMDB token is not configured"
-    });
-  }
-
-  const headers = {
-    Authorization: `Bearer ${token}`,
-    accept: "application/json"
+  const options = {
+    headers: {
+      accept: "application/json"
+    }
   };
 
-  const movieCastCache = new Map();
-  const personCreditsCache = new Map();
-  const movieDetailsCache = new Map();
-
-
-  async function tmdb(url) {
-
-    const response = await fetch(url, {
-      headers
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.json();
+  if (TOKEN) {
+    options.headers.Authorization = `Bearer ${TOKEN}`;
+  } else if (API_KEY) {
+    url += (url.includes("?") ? "&" : "?") +
+      "api_key=" +
+      encodeURIComponent(API_KEY);
+  } else {
+    throw new Error("TMDB credentials are not configured.");
   }
 
+  const response = await fetch(url, options);
 
-  async function searchPerson(name) {
-
-    const data = await tmdb(
-      `https://api.themoviedb.org/3/search/person?query=${encodeURIComponent(name)}&include_adult=false&language=en-US&page=1`
-    );
-
-    return data?.results?.[0] || null;
-  }
-
-
-  async function getPersonCredits(personId) {
-
-    if (personCreditsCache.has(personId)) {
-      return personCreditsCache.get(personId);
-    }
-
-    const data = await tmdb(
-      `https://api.themoviedb.org/3/person/${personId}/movie_credits?language=en-US`
-    );
-
-    const movies = data?.cast || [];
-
-    personCreditsCache.set(personId, movies);
-
-    return movies;
-  }
-
-
-  async function getMovieCast(movieId) {
-
-    if (movieCastCache.has(movieId)) {
-      return movieCastCache.get(movieId);
-    }
-
-    const data = await tmdb(
-      `https://api.themoviedb.org/3/movie/${movieId}/credits?language=en-US`
-    );
-
-    const cast = data?.cast || [];
-
-    movieCastCache.set(movieId, cast);
-
-    return cast;
-  }
-
-
-  async function getMovieDetails(movieId) {
-
-    if (movieDetailsCache.has(movieId)) {
-      return movieDetailsCache.get(movieId);
-    }
-
-    const data = await tmdb(
-      `https://api.themoviedb.org/3/movie/${movieId}?language=en-US`
-    );
-
-    movieDetailsCache.set(movieId, data);
-
-    return data;
-  }
-
-
-  function isRealActingCredit(credit) {
-
-    if (!credit) {
-      return false;
-    }
-
-    const character =
-      (credit.character || "").toLowerCase();
-
-    const badTerms = [
-      "self",
-      "archive",
-      "archival",
-      "footage",
-      "himself",
-      "herself"
-    ];
-
-    return !badTerms.some(term =>
-      character.includes(term)
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(
+      `TMDB request failed (${response.status}): ${text}`
     );
   }
 
+  return response.json();
+}
 
-  async function validMovie(movieId) {
 
-    const details =
-      await getMovieDetails(movieId);
+function normalizeName(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase();
+}
 
-    if (!details) {
-      return false;
-    }
 
-    const genres =
-      details.genres || [];
+async function findActor(name) {
+  const data = await tmdb(
+    "/search/person?query=" +
+    encodeURIComponent(name) +
+    "&include_adult=false&language=en-US&page=1"
+  );
 
-    if (
-      genres.some(
-        genre =>
-          genre.name === "Documentary"
+  const people = Array.isArray(data.results)
+    ? data.results.filter(person =>
+        person.known_for_department === "Acting"
       )
-    ) {
-      return false;
-    }
+    : [];
 
-    return true;
+  if (!people.length) {
+    return null;
   }
 
+  const wanted = normalizeName(name);
 
-  function selectMovies(movies, limit = 20) {
+  const exact = people
+    .filter(person =>
+      normalizeName(person.name) === wanted
+    )
+    .sort(
+      (a, b) =>
+        Number(b.popularity || 0) -
+        Number(a.popularity || 0)
+    );
 
-    const seen = new Set();
+  return exact[0] || people[0];
+}
 
-    return movies
 
-      .filter(movie =>
-        movie.id &&
-        movie.title &&
-        !movie.adult &&
-        isRealActingCredit(movie)
-      )
+const creditCache = new Map();
+const castCache = new Map();
 
-      .filter(movie => {
 
-        if (seen.has(movie.id)) {
-          return false;
-        }
-
-        seen.add(movie.id);
-        return true;
-
-      })
-
-      .sort(
-        (a, b) =>
-          (b.popularity || 0) -
-          (a.popularity || 0)
-      )
-
-      .slice(0, limit);
+async function actorMovies(actorId) {
+  if (creditCache.has(actorId)) {
+    return creditCache.get(actorId);
   }
 
+  const data = await tmdb(
+    `/person/${actorId}/movie_credits?language=en-US`
+  );
+
+  let movies = Array.isArray(data.cast)
+    ? data.cast
+    : [];
 
   /*
-    1 DEGREE
+    Vote count works better than current popularity
+    for older well-known films.
   */
+  movies = movies
+    .filter(movie =>
+      movie.id &&
+      movie.title &&
+      Number(movie.vote_count || 0) > 25
+    )
+    .sort(
+      (a, b) =>
+        Number(b.vote_count || 0) -
+        Number(a.vote_count || 0)
+    )
+    .slice(0, 20);
 
-  async function findDirectConnection(
-    personA,
-    personB,
-    moviesA,
-    moviesB
-  ) {
+  creditCache.set(actorId, movies);
 
-    const moviesBMap = new Map(
-      moviesB
-        .filter(isRealActingCredit)
-        .map(movie => [
-          movie.id,
-          movie
-        ])
-    );
+  return movies;
+}
 
-    for (const movie of moviesA) {
 
-      if (!isRealActingCredit(movie)) {
-        continue;
-      }
+async function movieCast(movieId) {
+  if (castCache.has(movieId)) {
+    return castCache.get(movieId);
+  }
 
-      const match =
-        moviesBMap.get(movie.id);
+  const data = await tmdb(
+    `/movie/${movieId}/credits?language=en-US`
+  );
 
-      if (!match) {
-        continue;
-      }
+  const cast = Array.isArray(data.cast)
+    ? data.cast
+        .filter(person =>
+          person.id &&
+          person.name &&
+          person.known_for_department === "Acting"
+        )
+        .slice(0, 22)
+    : [];
 
-      if (!isRealActingCredit(match)) {
-        continue;
-      }
+  castCache.set(movieId, cast);
 
-      if (!(await validMovie(movie.id))) {
-        continue;
-      }
+  return cast;
+}
 
+
+async function directConnection(actorA, actorB) {
+  const [moviesA, moviesB] = await Promise.all([
+    actorMovies(actorA.id),
+    actorMovies(actorB.id)
+  ]);
+
+  const bMovieIds = new Set(
+    moviesB.map(movie => movie.id)
+  );
+
+  for (const movie of moviesA) {
+    if (bMovieIds.has(movie.id)) {
       return {
-        found: true,
         degrees: 1,
-        path: [
+        chain: [
           {
-            actor: personA.name,
-            actorId: personA.id,
-            movie: movie.title,
-            movieId: movie.id
+            type: "person",
+            id: actorA.id,
+            name: actorA.name,
+            profile_path: actorA.profile_path || null
           },
           {
-            actor: personB.name,
-            actorId: personB.id
+            type: "movie",
+            id: movie.id,
+            title: movie.title,
+            poster_path: movie.poster_path || null,
+            year: movie.release_date
+              ? movie.release_date.slice(0, 4)
+              : ""
+          },
+          {
+            type: "person",
+            id: actorB.id,
+            name: actorB.name,
+            profile_path: actorB.profile_path || null
           }
         ]
       };
     }
-
-    return null;
   }
 
-
-  /*
-    2 DEGREES
-  */
-
-  async function findTwoDegreeConnection(
-    personA,
-    personB,
-    allMoviesA,
-    allMoviesB
-  ) {
-
-    const moviesA =
-      selectMovies(allMoviesA, 25);
-
-    const moviesB =
-      selectMovies(allMoviesB, 25);
-
-    const [castsA, castsB] =
-      await Promise.all([
-
-        Promise.all(
-          moviesA.map(movie =>
-            getMovieCast(movie.id)
-          )
-        ),
-
-        Promise.all(
-          moviesB.map(movie =>
-            getMovieCast(movie.id)
-          )
-        )
-
-      ]);
+  return null;
+}
 
 
-    const actorMapB = new Map();
+async function getNeighbors(actor) {
+  const movies = await actorMovies(actor.id);
 
+  const selectedMovies = movies.slice(0, 16);
 
-    castsB.forEach(
-      (cast, movieIndex) => {
-
-        const movie =
-          moviesB[movieIndex];
-
-        cast
-          .slice(0, 30)
-          .forEach(actor => {
-
-            if (
-              !actor.id ||
-              actor.id === personA.id ||
-              actor.id === personB.id ||
-              !isRealActingCredit(actor)
-            ) {
-              return;
-            }
-
-            if (!actorMapB.has(actor.id)) {
-
-              actorMapB.set(
-                actor.id,
-                {
-                  actor,
-                  movie
-                }
-              );
-
-            }
-
-          });
-
-      }
-    );
-
-
-    for (
-      let movieIndex = 0;
-      movieIndex < castsA.length;
-      movieIndex++
-    ) {
-
-      const cast =
-        castsA[movieIndex];
-
-      const movieA =
-        moviesA[movieIndex];
-
-
-      for (
-        const middleActor of
-        cast.slice(0, 30)
-      ) {
-
-        if (
-          !middleActor.id ||
-          middleActor.id === personA.id ||
-          middleActor.id === personB.id ||
-          !isRealActingCredit(middleActor)
-        ) {
-          continue;
-        }
-
-
-        const match =
-          actorMapB.get(
-            middleActor.id
-          );
-
-
-        if (!match) {
-          continue;
-        }
-
-
-        const [
-          validA,
-          validB
-        ] = await Promise.all([
-
-          validMovie(movieA.id),
-
-          validMovie(
-            match.movie.id
-          )
-
-        ]);
-
-
-        if (!validA || !validB) {
-          continue;
-        }
-
+  const castLists = await Promise.all(
+    selectedMovies.map(async movie => {
+      try {
+        const cast = await movieCast(movie.id);
 
         return {
-
-          found: true,
-
-          degrees: 2,
-
-          path: [
-
-            {
-              actor: personA.name,
-              actorId: personA.id,
-              movie: movieA.title,
-              movieId: movieA.id
-            },
-
-            {
-              actor: middleActor.name,
-              actorId: middleActor.id,
-              movie: match.movie.title,
-              movieId: match.movie.id
-            },
-
-            {
-              actor: personB.name,
-              actorId: personB.id
-            }
-
-          ]
-
+          movie,
+          cast
         };
-
+      } catch {
+        return {
+          movie,
+          cast: []
+        };
       }
+    })
+  );
 
-    }
+  const neighbors = new Map();
 
-    return null;
-  }
-
-
-  /*
-    3 TO 6 DEGREES
-  */
-
-  async function getNeighbors(person) {
-
-    const movies =
-      selectMovies(
-        await getPersonCredits(person.id),
-        7
-      );
-
-
-    const casts =
-      await Promise.all(
-        movies.map(movie =>
-          getMovieCast(movie.id)
-        )
-      );
-
-
-    const neighbors =
-      new Map();
-
-
-    for (
-      let i = 0;
-      i < movies.length;
-      i++
-    ) {
-
-      const movie = movies[i];
-      const cast = casts[i] || [];
-
-
-      for (
-        const actor of
-        cast.slice(0, 18)
-      ) {
-
-        if (
-          !actor.id ||
-          actor.id === person.id ||
-          !isRealActingCredit(actor)
-        ) {
-          continue;
-        }
-
-
-        if (!neighbors.has(actor.id)) {
-
-          neighbors.set(
-            actor.id,
-            {
-              actor: {
-                id: actor.id,
-                name: actor.name,
-                popularity:
-                  actor.popularity || 0
-              },
-
-              movie: {
-                id: movie.id,
-                title: movie.title
-              }
-            }
-          );
-
-        }
-
-      }
-
-    }
-
-
-    return Array.from(
-      neighbors.values()
-    )
-
-      .sort(
-        (a, b) =>
-          (b.actor.popularity || 0) -
-          (a.actor.popularity || 0)
-      )
-
-      .slice(0, 28);
-  }
-
-
-  async function expandFrontier(
-    frontier,
-    ownVisited,
-    otherVisited
-  ) {
-
-    const next = [];
-    const meetings = [];
-
-
-    for (
-      const person of
-      frontier.slice(0, 14)
-    ) {
-
-      const current =
-        ownVisited.get(person.id);
-
-      if (!current) {
+  for (const item of castLists) {
+    for (const person of item.cast) {
+      if (person.id === actor.id) {
         continue;
       }
 
-
-      const neighbors =
-        await getNeighbors(person);
-
-
-      for (
-        const connection of
-        neighbors
-      ) {
-
-        const actor =
-          connection.actor;
-
-
-        if (
-          ownVisited.has(actor.id)
-        ) {
-          continue;
-        }
-
-
-        ownVisited.set(
-          actor.id,
-          {
-            id: actor.id,
-            name: actor.name,
-            depth:
-              current.depth + 1,
-
-            parent:
-              person.id,
-
-            parentName:
-              person.name,
-
-            movieId:
-              connection.movie.id,
-
-            movieTitle:
-              connection.movie.title,
-
-            popularity:
-              actor.popularity || 0
+      if (!neighbors.has(person.id)) {
+        neighbors.set(person.id, {
+          actor: {
+            id: person.id,
+            name: person.name,
+            profile_path: person.profile_path || null,
+            popularity: Number(person.popularity || 0)
+          },
+          movie: {
+            id: item.movie.id,
+            title: item.movie.title,
+            poster_path: item.movie.poster_path || null,
+            year: item.movie.release_date
+              ? item.movie.release_date.slice(0, 4)
+              : ""
           }
-        );
-
-
-        next.push({
-          id: actor.id,
-          name: actor.name,
-          popularity:
-            actor.popularity || 0
         });
-
-
-        if (
-          otherVisited.has(actor.id)
-        ) {
-
-          meetings.push(actor.id);
-
-        }
-
       }
-
     }
+  }
 
-
-    next.sort(
+  return Array.from(neighbors.values())
+    .sort(
       (a, b) =>
-        (b.popularity || 0) -
-        (a.popularity || 0)
-    );
+        b.actor.popularity -
+        a.actor.popularity
+    )
+    .slice(0, 80);
+}
 
 
-    return {
-      next:
-        next.slice(0, 20),
+function buildChain(
+  startActor,
+  endActor,
+  parents,
+  meetingId
+) {
+  const pieces = [];
 
-      meetings
-    };
-  }
+  let currentId = meetingId;
 
+  while (currentId !== startActor.id) {
+    const step = parents.get(currentId);
 
-  function buildEdges(
-    visitedA,
-    visitedB,
-    meetingId
-  ) {
-
-    const left = [];
-    let current = meetingId;
-
-
-    while (
-      visitedA.get(current)?.parent
-    ) {
-
-      const node =
-        visitedA.get(current);
-
-      left.unshift({
-
-        from:
-          node.parentName,
-
-        fromId:
-          node.parent,
-
-        movie:
-          node.movieTitle,
-
-        movieId:
-          node.movieId,
-
-        to:
-          node.name,
-
-        toId:
-          current
-
-      });
-
-      current =
-        node.parent;
+    if (!step) {
+      return null;
     }
 
-
-    const right = [];
-    current = meetingId;
-
-
-    while (
-      visitedB.get(current)?.parent
-    ) {
-
-      const node =
-        visitedB.get(current);
-
-      right.push({
-
-        from:
-          node.name,
-
-        fromId:
-          current,
-
-        movie:
-          node.movieTitle,
-
-        movieId:
-          node.movieId,
-
-        to:
-          node.parentName,
-
-        toId:
-          node.parent
-
-      });
-
-      current =
-        node.parent;
-    }
-
-
-    return [
-      ...left,
-      ...right
-    ];
-  }
-
-
-  async function pathIsValid(edges) {
-
-    for (const edge of edges) {
-
-      if (
-        !(await validMovie(
-          edge.movieId
-        ))
-      ) {
-        return false;
-      }
-
-    }
-
-    return true;
-  }
-
-
-  function formatEdges(
-    personB,
-    edges
-  ) {
-
-    const path =
-      edges.map(edge => ({
-
-        actor:
-          edge.from,
-
-        actorId:
-          edge.fromId,
-
-        movie:
-          edge.movie,
-
-        movieId:
-          edge.movieId
-
-      }));
-
-
-    path.push({
-
-      actor:
-        personB.name,
-
-      actorId:
-        personB.id
-
+    pieces.unshift({
+      type: "person",
+      id: step.actor.id,
+      name: step.actor.name,
+      profile_path:
+        step.actor.profile_path || null
     });
 
+    pieces.unshift({
+      type: "movie",
+      id: step.movie.id,
+      title: step.movie.title,
+      poster_path:
+        step.movie.poster_path || null,
+      year: step.movie.year || ""
+    });
 
-    return path;
+    currentId = step.parentId;
   }
 
+  pieces.unshift({
+    type: "person",
+    id: startActor.id,
+    name: startActor.name,
+    profile_path:
+      startActor.profile_path || null
+  });
 
-  try {
+  if (
+    pieces[pieces.length - 1].id !==
+    endActor.id
+  ) {
+    pieces.push({
+      type: "person",
+      id: endActor.id,
+      name: endActor.name,
+      profile_path:
+        endActor.profile_path || null
+    });
+  }
 
-    const [
-      personA,
-      personB
-    ] = await Promise.all([
-
-      searchPerson(actor1),
-      searchPerson(actor2)
-
-    ]);
+  return pieces;
+}
 
 
-    if (!personA || !personB) {
+async function breadthFirstSearch(
+  startActor,
+  targetActor,
+  deadline
+) {
+  const queue = [
+    {
+      actor: startActor,
+      depth: 0
+    }
+  ];
 
-      return res.status(404).json({
-        error:
-          "One or both actors could not be found"
-      });
+  const visited = new Set([
+    startActor.id
+  ]);
 
+  const parents = new Map();
+
+  while (queue.length) {
+    if (Date.now() > deadline) {
+      break;
     }
 
+    const current = queue.shift();
 
-    if (personA.id === personB.id) {
-
-      return res.status(200).json({
-
-        found: true,
-        degrees: 0,
-        actor1: personA,
-        actor2: personB,
-        path: []
-
-      });
-
+    if (current.depth >= 6) {
+      continue;
     }
 
+    let neighbors;
 
-    const [
-      allMoviesA,
-      allMoviesB
-    ] = await Promise.all([
+    try {
+      neighbors = await getNeighbors(
+        current.actor
+      );
+    } catch {
+      continue;
+    }
 
-      getPersonCredits(personA.id),
+    for (const connection of neighbors) {
+      const nextActor =
+        connection.actor;
 
-      getPersonCredits(personB.id)
+      if (visited.has(nextActor.id)) {
+        continue;
+      }
 
-    ]);
+      visited.add(nextActor.id);
 
-
-    /*
-      CHECK 1 DEGREE FIRST
-    */
-
-    const direct =
-      await findDirectConnection(
-        personA,
-        personB,
-        allMoviesA,
-        allMoviesB
+      parents.set(
+        nextActor.id,
+        {
+          parentId: current.actor.id,
+          actor: nextActor,
+          movie: connection.movie
+        }
       );
 
-
-    if (direct) {
-
-      return res.status(200).json({
-
-        ...direct,
-        actor1: personA,
-        actor2: personB
-
-      });
-
-    }
-
-
-    /*
-      CHECK 2 DEGREES SECOND
-    */
-
-    const twoDegree =
-      await findTwoDegreeConnection(
-        personA,
-        personB,
-        allMoviesA,
-        allMoviesB
-      );
-
-
-    if (twoDegree) {
-
-      return res.status(200).json({
-
-        ...twoDegree,
-        actor1: personA,
-        actor2: personB
-
-      });
-
-    }
-
-
-    /*
-      ONLY NOW SEARCH 3–6
-    */
-
-    const visitedA =
-      new Map();
-
-    const visitedB =
-      new Map();
-
-
-    visitedA.set(
-      personA.id,
-      {
-        id: personA.id,
-        name: personA.name,
-        depth: 0,
-        parent: null
-      }
-    );
-
-
-    visitedB.set(
-      personB.id,
-      {
-        id: personB.id,
-        name: personB.name,
-        depth: 0,
-        parent: null
-      }
-    );
-
-
-    let frontierA = [
-      {
-        id: personA.id,
-        name: personA.name
-      }
-    ];
-
-
-    let frontierB = [
-      {
-        id: personB.id,
-        name: personB.name
-      }
-    ];
-
-
-    let bestPath = null;
-
-
-    for (
-      let round = 1;
-      round <= 3;
-      round++
-    ) {
-
-      const resultA =
-        await expandFrontier(
-          frontierA,
-          visitedA,
-          visitedB
-        );
-
-      frontierA =
-        resultA.next;
-
-
-      const resultB =
-        await expandFrontier(
-          frontierB,
-          visitedB,
-          visitedA
-        );
-
-      frontierB =
-        resultB.next;
-
-
-      const meetings = [
-        ...resultA.meetings,
-        ...resultB.meetings
-      ];
-
-
-      for (
-        const meetingId of meetings
+      if (
+        nextActor.id ===
+        targetActor.id
       ) {
-
-        const edges =
-          buildEdges(
-            visitedA,
-            visitedB,
-            meetingId
-          );
-
-
-        if (
-          edges.length < 3 ||
-          edges.length > 6
-        ) {
-          continue;
-        }
-
-
-        if (
-          !(await pathIsValid(edges))
-        ) {
-          continue;
-        }
-
-
-        if (
-          !bestPath ||
-          edges.length <
-            bestPath.length
-        ) {
-
-          bestPath = edges;
-
-        }
-
+        return {
+          parents,
+          meetingId: nextActor.id,
+          depth: current.depth + 1
+        };
       }
-
 
       /*
-        Once a valid path is found at
-        this depth, return the shortest
-        one from that search level.
+        Keep later levels focused on recognizable
+        performers so the serverless search does
+        not explode into thousands of requests.
       */
-
-      if (bestPath) {
-
-        return res.status(200).json({
-
-          found: true,
-
-          degrees:
-            bestPath.length,
-
-          actor1:
-            personA,
-
-          actor2:
-            personB,
-
-          path:
-            formatEdges(
-              personB,
-              bestPath
-            )
-
-        });
-
-      }
-
-
       if (
-        !frontierA.length &&
-        !frontierB.length
+        current.depth < 2 ||
+        nextActor.popularity > 2
       ) {
-        break;
+        queue.push({
+          actor: nextActor,
+          depth: current.depth + 1
+        });
       }
-
     }
 
+    /*
+      Safety valve for Vercel/serverless execution.
+    */
+    if (visited.size > 450) {
+      break;
+    }
+  }
+
+  return null;
+}
+
+
+export default async function handler(
+  req,
+  res
+) {
+  try {
+    const actorOne =
+      String(
+        req.query.actor1 || ""
+      ).trim();
+
+    const actorTwo =
+      String(
+        req.query.actor2 || ""
+      ).trim();
+
+    if (!actorOne || !actorTwo) {
+      return res.status(400).json({
+        error:
+          "Please enter two actor names."
+      });
+    }
+
+    const [first, second] =
+      await Promise.all([
+        findActor(actorOne),
+        findActor(actorTwo)
+      ]);
+
+    if (!first) {
+      return res.status(404).json({
+        error:
+          `Could not find ${actorOne}.`
+      });
+    }
+
+    if (!second) {
+      return res.status(404).json({
+        error:
+          `Could not find ${actorTwo}.`
+      });
+    }
+
+    if (first.id === second.id) {
+      return res.status(200).json({
+        found: true,
+        degrees: 0,
+        actors: {
+          first,
+          second
+        },
+        chain: [
+          {
+            type: "person",
+            id: first.id,
+            name: first.name,
+            profile_path:
+              first.profile_path || null
+          }
+        ]
+      });
+    }
+
+    /*
+      Check the easiest and fastest case first:
+      both actors appeared in the same movie.
+    */
+    const direct =
+      await directConnection(
+        first,
+        second
+      );
+
+    if (direct) {
+      return res.status(200).json({
+        found: true,
+        actors: {
+          first,
+          second
+        },
+        ...direct
+      });
+    }
+
+    /*
+      Allow roughly eight seconds of graph searching.
+    */
+    const deadline =
+      Date.now() + 8000;
+
+    const result =
+      await breadthFirstSearch(
+        first,
+        second,
+        deadline
+      );
+
+    if (!result) {
+      return res.status(200).json({
+        found: false,
+        actors: {
+          first,
+          second
+        },
+        message:
+          "Reelwise could not find a connection within six degrees in the current search window. Try another pair."
+      });
+    }
+
+    const chain =
+      buildChain(
+        first,
+        second,
+        result.parents,
+        result.meetingId
+      );
+
+    if (!chain) {
+      throw new Error(
+        "The connection could not be assembled."
+      );
+    }
+
+    const degrees =
+      chain.filter(
+        item =>
+          item.type === "movie"
+      ).length;
 
     return res.status(200).json({
-
-      found: false,
-
-      actor1:
-        personA,
-
-      actor2:
-        personB,
-
-      message:
-        "Reelwise searched up to six degrees but did not find a strong movie connection."
-
+      found: true,
+      degrees,
+      actors: {
+        first,
+        second
+      },
+      chain
     });
 
-
   } catch (error) {
-
     console.error(
       "Six Degrees error:",
       error
     );
 
-
     return res.status(500).json({
-
       error:
-        "Six Degrees search failed"
-
+        error.message ||
+        "Six Degrees search failed."
     });
-
   }
-
 }
