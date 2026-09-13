@@ -59,8 +59,36 @@ const starwiseData = {
       "Lt. Daniel Kaffee — A Few Good Men",
       "Vincent — Collateral"
     ]
-  }
+  },
+  11701: {
+    name: "Angelina Jolie",
 
+    knownFor: [
+      "Lara Croft",
+      "Maleficent",
+      "Mrs. Smith"
+    ],
+
+    highlights: [
+      "Jolie became one of Hollywood's most recognizable stars through a mix of action films, dramas and major studio franchises.",
+      "Her performance in Girl, Interrupted earned her the Academy Award for Best Supporting Actress.",
+      "She later became closely associated with large-scale films including Tomb Raider, Mr. & Mrs. Smith and Maleficent."
+    ],
+
+    facts: [
+      "Jolie won an Academy Award for Girl, Interrupted.",
+      "She played video-game icon Lara Croft in Lara Croft: Tomb Raider.",
+      "Her career has included acting, directing and producing."
+    ],
+
+    roles: [
+      "Lara Croft — Lara Croft: Tomb Raider",
+      "Maleficent — Maleficent",
+      "Jane Smith — Mr. & Mrs. Smith",
+      "Lisa Rowe — Girl, Interrupted",
+      "Evelyn Salt — Salt"
+    ]
+  }
 };
 
 
