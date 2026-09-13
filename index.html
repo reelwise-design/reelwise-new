@@ -127,9 +127,7 @@ nav{
   border-color:var(--orange);
 }
 
-button{
-  font-family:inherit;
-}
+button{font-family:inherit}
 
 .search button,
 .back-button,
@@ -471,12 +469,6 @@ main{
   border-radius:16px;
   padding:27px;
   cursor:pointer;
-  transition:.2s ease;
-}
-
-.big-quote-card:hover{
-  transform:translateY(-4px);
-  border-color:var(--orange);
 }
 
 .quote-mark{
@@ -523,9 +515,7 @@ main{
   color:var(--orange);
 }
 
-.degrees-hero p{
-  color:var(--muted);
-}
+.degrees-hero p{color:var(--muted)}
 
 .degrees-form{
   display:grid;
@@ -616,13 +606,9 @@ footer{
 
   nav{flex-direction:column}
 
-  .features{
-    grid-template-columns:1fr;
-  }
+  .features{grid-template-columns:1fr}
 
-  .search{
-    flex-direction:column;
-  }
+  .search{flex-direction:column}
 
   .movie-detail,
   .person-detail{
@@ -659,21 +645,13 @@ REEL<span>WISE</span>
 
 <div class="nav-links">
 
-<a href="#" onclick="showHome();return false;">
-Movies
-</a>
+<a href="#" onclick="showHome();return false;">Movies</a>
 
-<a href="#" onclick="showStars();return false;">
-Stars
-</a>
+<a href="#" onclick="showStars();return false;">Stars</a>
 
-<a href="#" onclick="showQuotes();return false;">
-Quotes
-</a>
+<a href="#" onclick="showQuotes();return false;">Quotes</a>
 
-<a href="#" onclick="showDegrees();return false;">
-Six Degrees
-</a>
+<a href="#" onclick="showDegrees();return false;">Six Degrees</a>
 
 </div>
 
@@ -735,13 +713,15 @@ What makes Reelwise different?
 </div>
 
 <h2 class="section-title" id="movieSearchTitle">
-Movie Search
+Popular Movies
 </h2>
 
 <div id="results">
+
 <div class="message">
-Search for a movie above to get started.
+Loading popular movies...
 </div>
+
 </div>
 
 </div>
@@ -816,83 +796,32 @@ Featured Quotes
 
 <div class="quotes-grid">
 
-<div class="big-quote-card"
-onclick="openMovie(1371,'quotes')">
-
+<div class="big-quote-card" onclick="openMovie(1371,'quotes')">
 <div class="quote-mark">“</div>
-
-<div class="big-quote-text">
-There is no tomorrow!
+<div class="big-quote-text">There is no tomorrow!</div>
+<div class="quote-movie">ROCKY III</div>
+<div class="quote-hint">Open the Reelwise movie page →</div>
 </div>
 
-<div class="quote-movie">
-ROCKY III
-</div>
-
-<div class="quote-hint">
-Open the Reelwise movie page →
-</div>
-
-</div>
-
-
-<div class="big-quote-card"
-onclick="openMovie(1371,'quotes')">
-
+<div class="big-quote-card" onclick="openMovie(1371,'quotes')">
 <div class="quote-mark">“</div>
-
-<div class="big-quote-text">
-I pity the fool.
+<div class="big-quote-text">I pity the fool.</div>
+<div class="quote-movie">ROCKY III</div>
+<div class="quote-hint">Open the Reelwise movie page →</div>
 </div>
 
-<div class="quote-movie">
-ROCKY III
-</div>
-
-<div class="quote-hint">
-Open the Reelwise movie page →
-</div>
-
-</div>
-
-
-<div class="big-quote-card"
-onclick="openMovie(744,'quotes')">
-
+<div class="big-quote-card" onclick="openMovie(744,'quotes')">
 <div class="quote-mark">“</div>
-
-<div class="big-quote-text">
-I feel the need... the need for speed.
+<div class="big-quote-text">I feel the need... the need for speed.</div>
+<div class="quote-movie">TOP GUN</div>
+<div class="quote-hint">Open the Reelwise movie page →</div>
 </div>
 
-<div class="quote-movie">
-TOP GUN
-</div>
-
-<div class="quote-hint">
-Open the Reelwise movie page →
-</div>
-
-</div>
-
-
-<div class="big-quote-card"
-onclick="openMovie(881,'quotes')">
-
+<div class="big-quote-card" onclick="openMovie(881,'quotes')">
 <div class="quote-mark">“</div>
-
-<div class="big-quote-text">
-You can't handle the truth!
-</div>
-
-<div class="quote-movie">
-A FEW GOOD MEN
-</div>
-
-<div class="quote-hint">
-Open the Reelwise movie page →
-</div>
-
+<div class="big-quote-text">You can't handle the truth!</div>
+<div class="quote-movie">A FEW GOOD MEN</div>
+<div class="quote-hint">Open the Reelwise movie page →</div>
 </div>
 
 </div>
@@ -965,8 +894,7 @@ placeholder="Second actor — e.g. Tom Cruise">
 
 <div class="degrees-button-wrap">
 
-<button class="primary-button"
-onclick="findDegrees()">
+<button class="primary-button" onclick="findDegrees()">
 Find Connection
 </button>
 
@@ -991,40 +919,11 @@ let movieBackTarget="home";
 let personBackTarget="movie";
 
 
-async function searchMovies(){
+function renderMovies(movies){
 
-const query=
-document.getElementById("searchInput").value.trim();
+const results=document.getElementById("results");
 
-const results=
-document.getElementById("results");
-
-if(!query){
-
-results.innerHTML=
-'<div class="message">Enter a movie title to search.</div>';
-
-return;
-}
-
-results.innerHTML=
-'<div class="message">Searching Reelwise...</div>';
-
-try{
-
-const response=
-await fetch(
-"/api/search?query="+encodeURIComponent(query)
-);
-
-const movies=
-await response.json();
-
-if(!response.ok){
-throw new Error();
-}
-
-if(!movies.length){
+if(!Array.isArray(movies)||!movies.length){
 
 results.innerHTML=
 '<div class="message">No movies found.</div>';
@@ -1072,6 +971,81 @@ ${year}
 `;
 
 }).join("");
+
+}
+
+
+async function loadPopularMovies(){
+
+const results=
+document.getElementById("results");
+
+document.getElementById("movieSearchTitle").textContent=
+"Popular Movies";
+
+results.innerHTML=
+'<div class="message">Loading popular movies...</div>';
+
+try{
+
+const response=
+await fetch("/api/movies");
+
+const movies=
+await response.json();
+
+if(!response.ok){
+throw new Error();
+}
+
+renderMovies(movies);
+
+}catch(e){
+
+results.innerHTML=
+'<div class="message">We could not load popular movies right now.</div>';
+
+}
+
+}
+
+
+async function searchMovies(){
+
+const query=
+document.getElementById("searchInput").value.trim();
+
+const results=
+document.getElementById("results");
+
+if(!query){
+
+loadPopularMovies();
+return;
+
+}
+
+document.getElementById("movieSearchTitle").textContent=
+"Search Results";
+
+results.innerHTML=
+'<div class="message">Searching Reelwise...</div>';
+
+try{
+
+const response=
+await fetch(
+"/api/search?query="+encodeURIComponent(query)
+);
+
+const movies=
+await response.json();
+
+if(!response.ok){
+throw new Error();
+}
+
+renderMovies(movies);
 
 document
 .getElementById("movieSearchTitle")
@@ -1125,6 +1099,10 @@ await fetch("/api/movie?id="+id);
 
 const movie=
 await response.json();
+
+if(!response.ok){
+throw new Error();
+}
 
 let reelwise={available:false};
 let verification={reviewed:false};
@@ -1323,7 +1301,7 @@ content.innerHTML=`
 
 ${poster
 ? `<img class="detail-poster" src="${poster}">`
-: ""
+: `<div class="no-photo">No Poster</div>`
 }
 
 </div>
@@ -1408,10 +1386,15 @@ window.scrollTo(0,0);
 
 try{
 
+const response=
+await fetch("/api/person?id="+id);
+
 const person=
-await(
-await fetch("/api/person?id="+id)
-).json();
+await response.json();
+
+if(!response.ok){
+throw new Error();
+}
 
 let starwise={available:false};
 
@@ -1668,8 +1651,7 @@ return;
 container.innerHTML=
 stars.map(person=>`
 
-<div
-class="star-card"
+<div class="star-card"
 onclick="openPerson(${person.id},'stars')">
 
 <img
@@ -1934,6 +1916,10 @@ hideAllPages();
 document.getElementById("homePage").style.display="block";
 document.getElementById("hero").style.display="block";
 
+document.getElementById("searchInput").value="";
+
+loadPopularMovies();
+
 window.scrollTo(0,0);
 
 }
@@ -1981,6 +1967,9 @@ findDegrees();
 }
 
 });
+
+
+loadPopularMovies();
 
 </script>
 
