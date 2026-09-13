@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Reelwise — Movies. Stars. Stories.</title>
 
 <style>
@@ -18,13 +17,11 @@
   --orange2:#ff7a45;
   --gold:#f2b84b;
 }
-
 *{box-sizing:border-box}
 
 body{
   margin:0;
-  background:
-    radial-gradient(circle at top,#1b1c20 0%,#0b0c10 38%,#08090c 70%);
+  background:radial-gradient(circle at top,#1b1c20 0%,#0b0c10 38%,#08090c 70%);
   color:var(--text);
   font-family:Arial,Helvetica,sans-serif;
 }
@@ -81,7 +78,8 @@ nav{
 
 .hero h1,
 .stars-hero h1,
-.quotes-hero h1{
+.quotes-hero h1,
+.discovery-hero h1{
   font-size:clamp(44px,8vw,78px);
   line-height:1;
   margin:0;
@@ -90,13 +88,15 @@ nav{
 
 .hero h1 span,
 .stars-hero h1 span,
-.quotes-hero h1 span{
+.quotes-hero h1 span,
+.discovery-hero h1 span{
   color:var(--orange);
 }
 
 .hero p,
 .stars-hero p,
-.quotes-hero p{
+.quotes-hero p,
+.discovery-hero p{
   color:var(--muted);
   font-size:19px;
   line-height:1.55;
@@ -226,9 +226,7 @@ main{
   padding:30px;
 }
 
-.search-section{
-  margin-bottom:45px;
-}
+.search-section{margin-bottom:45px}
 
 .search-star-grid{
   display:grid;
@@ -252,13 +250,8 @@ main{
   display:block;
 }
 
-.search-star-info{
-  padding:14px;
-}
-
-.search-star-name{
-  font-weight:900;
-}
+.search-star-info{padding:14px}
+.search-star-name{font-weight:900}
 
 .search-star-label{
   color:var(--gold);
@@ -271,7 +264,8 @@ main{
 #personPage,
 #degreesPage,
 #starsPage,
-#quotesPage{
+#quotesPage,
+#discoveryPage{
   display:none;
 }
 
@@ -334,9 +328,7 @@ main{
 }
 
 .cast-section,
-.credits-section{
-  margin-top:55px;
-}
+.credits-section{margin-top:55px}
 
 .cast-grid{
   display:grid;
@@ -362,14 +354,10 @@ main{
 }
 
 .cast-info,
-.credit-info{
-  padding:13px;
-}
+.credit-info{padding:13px}
 
 .cast-name,
-.credit-title{
-  font-weight:bold;
-}
+.credit-title{font-weight:bold}
 
 .cast-character,
 .credit-year{
@@ -388,9 +376,7 @@ main{
   color:#777b84;
 }
 
-.reelwise-section{
-  margin-top:45px;
-}
+.reelwise-section{margin-top:45px}
 
 .reelwise-grid{
   display:grid;
@@ -460,7 +446,8 @@ main{
 /* STARS */
 
 .stars-hero,
-.quotes-hero{
+.quotes-hero,
+.discovery-hero{
   text-align:center;
   max-width:850px;
   margin:10px auto 55px;
@@ -508,6 +495,70 @@ main{
   font-size:12px;
   font-weight:800;
   letter-spacing:1px;
+}
+
+/* DISCOVERY */
+
+.discovery-grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(260px,1fr));
+  gap:24px;
+}
+
+.discovery-card{
+  background:linear-gradient(180deg,#181a20,#111319);
+  border:1px solid var(--line);
+  border-radius:16px;
+  overflow:hidden;
+  cursor:pointer;
+  transition:.2s ease;
+}
+
+.discovery-card:hover{
+  transform:translateY(-4px);
+  border-color:var(--orange);
+}
+
+.discovery-card img{
+  width:100%;
+  aspect-ratio:16/10;
+  object-fit:cover;
+  display:block;
+}
+
+.discovery-copy{padding:22px}
+
+.discovery-title{
+  font-size:23px;
+  font-weight:900;
+  margin:8px 0 13px;
+}
+
+.discovery-fact{
+  color:#b9bcc3;
+  line-height:1.6;
+}
+
+.discovery-link{
+  color:var(--gold);
+  font-size:13px;
+  font-weight:900;
+  margin-top:18px;
+}
+
+.discovery-badge{
+  display:inline-block;
+  color:var(--orange);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1px;
+}
+
+.discovery-verified{
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+  margin-top:8px;
 }
 
 /* QUOTES */
@@ -562,14 +613,8 @@ main{
 
 .degrees-hero{text-align:center}
 
-.degrees-hero h1{
-  font-size:60px;
-}
-
-.degrees-hero h1 span{
-  color:var(--orange);
-}
-
+.degrees-hero h1{font-size:60px}
+.degrees-hero h1 span{color:var(--orange)}
 .degrees-hero p{color:var(--muted)}
 
 .degrees-form{
@@ -614,9 +659,7 @@ main{
   text-align:center;
 }
 
-.chain-actor{
-  background:#20232a;
-}
+.chain-actor{background:#20232a}
 
 .chain-actor-name{
   font-size:22px;
@@ -658,11 +701,8 @@ footer{
 }
 
 @media(max-width:700px){
-
   nav{flex-direction:column}
-
   .features{grid-template-columns:1fr}
-
   .search{flex-direction:column}
 
   .movie-detail,
@@ -681,9 +721,7 @@ footer{
     grid-template-columns:repeat(2,1fr);
   }
 
-  .degrees-form{
-    grid-template-columns:1fr;
-  }
+  .degrees-form{grid-template-columns:1fr}
 }
 </style>
 </head>
@@ -699,15 +737,10 @@ REEL<span>WISE</span>
 </div>
 
 <div class="nav-links">
-
 <a href="#" onclick="showHome();return false;">Movies</a>
-
 <a href="#" onclick="showStars();return false;">Stars</a>
-
 <a href="#" onclick="showQuotes();return false;">Quotes</a>
-
 <a href="#" onclick="showDegrees();return false;">Six Degrees</a>
-
 </div>
 
 </nav>
@@ -761,11 +794,11 @@ What makes Reelwise different?
 <div class="feature-action">EXPLORE STARS →</div>
 </div>
 
-<div class="feature" onclick="openMovie(1371,'home')">
+<div class="feature" onclick="showDiscovery()">
 <div class="feature-icon">🔥</div>
 <h3>You Probably Didn’t Know</h3>
 <p>Discover casting stories, memorable facts and movie connections.</p>
-<div class="feature-action">DISCOVER A STORY →</div>
+<div class="feature-action">DISCOVER STORIES →</div>
 </div>
 
 </div>
@@ -775,11 +808,42 @@ Popular Movies
 </h2>
 
 <div id="results">
-
-<div class="message">
-Loading popular movies...
+<div class="message">Loading popular movies...</div>
 </div>
 
+</div>
+
+
+<div id="discoveryPage">
+
+<button class="back-button" onclick="showHome()">
+← Back to Reelwise
+</button>
+
+<div class="discovery-hero">
+
+<div class="eyebrow">
+REELWISE DISCOVERY
+</div>
+
+<h1>
+You probably<br>
+<span>didn’t know.</span>
+</h1>
+
+<p>
+The stories, casting decisions, music and memorable details
+that make great movies even more interesting.
+</p>
+
+</div>
+
+<h2 class="section-title">
+Discover Something New
+</h2>
+
+<div id="discoveryGrid" class="discovery-grid">
+<div class="message">Finding movie stories...</div>
 </div>
 
 </div>
@@ -814,11 +878,7 @@ Popular Stars
 </h2>
 
 <div id="featuredStars" class="stars-grid">
-
-<div class="message">
-Loading movie stars...
-</div>
-
+<div class="message">Loading movie stars...</div>
 </div>
 
 </div>
@@ -889,10 +949,7 @@ Featured Quotes
 
 <div id="moviePage">
 
-<button
-id="movieBackButton"
-class="back-button"
-onclick="goBackFromMovie()">
+<button id="movieBackButton" class="back-button" onclick="goBackFromMovie()">
 ← Back
 </button>
 
@@ -903,10 +960,7 @@ onclick="goBackFromMovie()">
 
 <div id="personPage">
 
-<button
-id="personBackButton"
-class="back-button"
-onclick="goBackFromPerson()">
+<button id="personBackButton" class="back-button" onclick="goBackFromPerson()">
 ← Back
 </button>
 
@@ -976,16 +1030,26 @@ let currentMovieId=null;
 let movieBackTarget="home";
 let personBackTarget="movie";
 
+const discoveryMovieIds=[
+744,
+1366,
+1367,
+1371,
+1374,
+881,
+14534,
+11635,
+18785,
+274167
+];
+
 
 function renderMovies(movies){
 
 const results=document.getElementById("results");
 
 if(!Array.isArray(movies)||!movies.length){
-
-results.innerHTML=
-'<div class="message">No movies found.</div>';
-
+results.innerHTML='<div class="message">No movies found.</div>';
 return;
 }
 
@@ -1004,8 +1068,7 @@ movie.release_date
 
 return `
 
-<div class="movie"
-onclick="openMovie(${movie.id},'home')">
+<div class="movie" onclick="openMovie(${movie.id},'home')">
 
 ${poster
 ? `<img src="${poster}">`
@@ -1035,8 +1098,7 @@ ${year}
 
 async function loadPopularMovies(){
 
-const results=
-document.getElementById("results");
+const results=document.getElementById("results");
 
 document.getElementById("movieSearchTitle").textContent=
 "Popular Movies";
@@ -1046,11 +1108,8 @@ results.innerHTML=
 
 try{
 
-const response=
-await fetch("/api/movies");
-
-const movies=
-await response.json();
+const response=await fetch("/api/movies");
+const movies=await response.json();
 
 if(!response.ok){
 throw new Error();
@@ -1077,10 +1136,8 @@ const results=
 document.getElementById("results");
 
 if(!query){
-
 loadPopularMovies();
 return;
-
 }
 
 document.getElementById("movieSearchTitle").textContent=
@@ -1097,11 +1154,8 @@ fetch("/api/search?query="+encodeURIComponent(query)),
 fetch("/api/search-stars?query="+encodeURIComponent(query))
 ]);
 
-const movies=
-await responses[0].json();
-
-const stars=
-await responses[1].json();
+const movies=await responses[0].json();
+const stars=await responses[1].json();
 
 if(!responses[0].ok && !responses[1].ok){
 throw new Error();
@@ -1113,8 +1167,7 @@ if(Array.isArray(stars) && stars.length){
 
 html+=`
 
-<div class="search-section"
-style="grid-column:1/-1">
+<div class="search-section" style="grid-column:1/-1">
 
 <h2 class="section-title">
 ⭐ Stars
@@ -1127,8 +1180,7 @@ ${stars.slice(0,10).map(person=>`
 <div class="search-star-card"
 onclick="openPerson(${person.id},'home')">
 
-<img
-src="https://image.tmdb.org/t/p/w500${person.profile_path}">
+<img src="https://image.tmdb.org/t/p/w500${person.profile_path}">
 
 <div class="search-star-info">
 
@@ -1164,8 +1216,7 @@ html+=`
 🎬 Movies
 </h2>
 
-<div
-style="
+<div style="
 display:grid;
 grid-template-columns:repeat(auto-fill,minmax(170px,1fr));
 gap:22px;
@@ -1251,6 +1302,150 @@ document
 }
 
 
+async function showDiscovery(){
+
+hideAllPages();
+
+document.getElementById("discoveryPage").style.display="block";
+document.getElementById("hero").style.display="none";
+
+window.scrollTo(0,0);
+
+const container=
+document.getElementById("discoveryGrid");
+
+container.innerHTML=
+'<div class="message">Finding movie stories...</div>';
+
+try{
+
+const shuffled=
+[...discoveryMovieIds].sort(()=>Math.random()-.5);
+
+const cards=
+await Promise.all(
+shuffled.map(async id=>{
+
+try{
+
+const responses=
+await Promise.all([
+fetch("/api/movie?id="+id),
+fetch("/api/reelwise?id="+id),
+fetch("/api/verify?id="+id)
+]);
+
+const movie=await responses[0].json();
+const reelwise=await responses[1].json();
+const verification=await responses[2].json();
+
+if(!responses[0].ok || !reelwise.available){
+return null;
+}
+
+const fact=
+(reelwise.facts && reelwise.facts.length)
+? reelwise.facts[0]
+: (
+(reelwise.casting && reelwise.casting.length)
+? reelwise.casting[0]
+: ""
+);
+
+if(!fact){
+return null;
+}
+
+return {
+id,
+title:movie.title,
+backdrop:movie.backdrop_path,
+poster:movie.poster_path,
+fact,
+verified:verification.reviewed===true
+};
+
+}catch(e){
+return null;
+}
+
+})
+);
+
+const available=
+cards.filter(Boolean);
+
+if(!available.length){
+
+container.innerHTML=
+'<div class="message">No stories are available right now.</div>';
+
+return;
+}
+
+container.innerHTML=
+available.map(item=>{
+
+const image=
+item.backdrop
+? "https://image.tmdb.org/t/p/w780"+item.backdrop
+: (
+item.poster
+? "https://image.tmdb.org/t/p/w500"+item.poster
+: ""
+);
+
+return `
+
+<div class="discovery-card"
+onclick="openMovie(${item.id},'discovery')">
+
+${image
+? `<img src="${image}">`
+: ""
+}
+
+<div class="discovery-copy">
+
+<div class="discovery-badge">
+🔥 YOU PROBABLY DIDN'T KNOW
+</div>
+
+${item.verified
+? `<div class="discovery-verified">✓ REELWISE VERIFIED</div>`
+: ""
+}
+
+<div class="discovery-title">
+${escapeHtml(item.title)}
+</div>
+
+<div class="discovery-fact">
+${escapeHtml(item.fact)}
+</div>
+
+<div class="discovery-link">
+DISCOVER THE FULL STORY →
+</div>
+
+</div>
+
+</div>
+
+`;
+
+}).join("");
+
+}catch(e){
+
+container.innerHTML=
+'<div class="message">We could not load Reelwise stories right now.</div>';
+
+}
+
+}
+
+
 async function openMovie(id,returnTo="home"){
 
 currentMovieId=id;
@@ -1270,6 +1465,8 @@ button.textContent="← Back to Six Degrees";
 button.textContent="← Back to Star";
 }else if(returnTo==="quotes"){
 button.textContent="← Back to Quotes";
+}else if(returnTo==="discovery"){
+button.textContent="← Back to Discovery";
 }else{
 button.textContent="← Back to Movies";
 }
@@ -1613,12 +1810,8 @@ person.place_of_birth
 const credits=
 (person.movie_credits?.cast||[])
 .filter(x=>x.poster_path)
-.filter(
-(x,i,a)=>a.findIndex(y=>y.id===x.id)===i
-)
-.sort(
-(a,b)=>(b.popularity||0)-(a.popularity||0)
-)
+.filter((x,i,a)=>a.findIndex(y=>y.id===x.id)===i)
+.sort((a,b)=>(b.popularity||0)-(a.popularity||0))
 .slice(0,18);
 
 const creditsHtml=
@@ -2075,6 +2268,10 @@ document.getElementById("personPage").style.display="block";
 
 document.getElementById("quotesPage").style.display="block";
 
+}else if(movieBackTarget==="discovery"){
+
+document.getElementById("discoveryPage").style.display="block";
+
 }else{
 
 document.getElementById("homePage").style.display="block";
@@ -2092,6 +2289,7 @@ function hideAllPages(){
 document.getElementById("homePage").style.display="none";
 document.getElementById("starsPage").style.display="none";
 document.getElementById("quotesPage").style.display="none";
+document.getElementById("discoveryPage").style.display="none";
 document.getElementById("moviePage").style.display="none";
 document.getElementById("personPage").style.display="none";
 document.getElementById("degreesPage").style.display="none";
