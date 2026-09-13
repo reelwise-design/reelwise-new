@@ -18,9 +18,7 @@
   --gold:#e4b34d;
 }
 
-*{
-  box-sizing:border-box;
-}
+*{box-sizing:border-box;}
 
 body{
   margin:0;
@@ -29,14 +27,8 @@ body{
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
 
-button,
-input{
-  font:inherit;
-}
-
-button{
-  cursor:pointer;
-}
+button,input{font:inherit;}
+button{cursor:pointer;}
 
 header{
   background:rgba(9,11,15,.96);
@@ -60,9 +52,7 @@ nav{
   cursor:pointer;
 }
 
-.logo span{
-  color:var(--accent);
-}
+.logo span{color:var(--accent);}
 
 .nav-links{
   display:flex;
@@ -76,9 +66,7 @@ nav{
   padding:8px;
 }
 
-.nav-links button:hover{
-  color:#fff;
-}
+.nav-links button:hover{color:#fff;}
 
 .hero{
   max-width:1120px;
@@ -104,9 +92,7 @@ nav{
   margin:12px 0 18px;
 }
 
-.hero h1 span{
-  color:var(--accent);
-}
+.hero h1 span{color:var(--accent);}
 
 .hero p{
   color:var(--muted);
@@ -149,9 +135,7 @@ nav{
   outline:none;
 }
 
-.search input:focus{
-  border-color:var(--accent);
-}
+.search input:focus{border-color:var(--accent);}
 
 .search button,
 .cta{
@@ -255,9 +239,7 @@ main{
   font-size:45px;
 }
 
-.card-info{
-  padding:13px;
-}
+.card-info{padding:13px;}
 
 .card-info strong{
   display:block;
@@ -265,9 +247,7 @@ main{
   margin-bottom:4px;
 }
 
-.card-info small{
-  color:var(--muted);
-}
+.card-info small{color:var(--muted);}
 
 .type{
   color:var(--gold);
@@ -287,9 +267,7 @@ main{
   color:var(--muted);
 }
 
-.detail{
-  grid-column:1/-1;
-}
+.detail{grid-column:1/-1;}
 
 .detail-layout{
   display:grid;
@@ -337,9 +315,7 @@ main{
   padding:9px 11px;
 }
 
-.cast button:hover{
-  border-color:var(--accent);
-}
+.cast button:hover{border-color:var(--accent);}
 
 .section-page{
   grid-column:1/-1;
@@ -415,6 +391,17 @@ main{
   font-weight:800;
 }
 
+.connection-story{
+  margin:14px 0 22px;
+  padding:15px;
+  background:#151a22;
+  border-left:3px solid var(--gold);
+  border-radius:8px;
+  color:#d7dce5;
+  line-height:1.6;
+  font-size:16px;
+}
+
 footer{
   border-top:1px solid var(--line);
   color:#737d8b;
@@ -424,48 +411,28 @@ footer{
 
 @media(max-width:800px){
 
-  .hero{
-    grid-template-columns:1fr;
-  }
+  .hero{grid-template-columns:1fr;}
 
-  .nav-links{
-    display:none;
-  }
+  .nav-links{display:none;}
 
-  .features{
-    grid-template-columns:1fr;
-  }
+  .features{grid-template-columns:1fr;}
 
-  .detail-layout{
-    grid-template-columns:1fr;
-  }
+  .detail-layout{grid-template-columns:1fr;}
 
-  .detail-image{
-    max-width:260px;
-  }
+  .detail-image{max-width:260px;}
 
-  .degree-inputs{
-    grid-template-columns:1fr;
-  }
+  .degree-inputs{grid-template-columns:1fr;}
 
-  .section-page{
-    padding-top:20px;
-  }
+  .section-page{padding-top:20px;}
 
-  .back-button{
-    padding-bottom:30px;
-  }
+  .back-button{padding-bottom:30px;}
 }
 
 @media(max-width:520px){
 
-  .hero{
-    padding-top:40px;
-  }
+  .hero{padding-top:40px;}
 
-  .hero h1{
-    letter-spacing:-2px;
-  }
+  .hero h1{letter-spacing:-2px;}
 
   .search,
   .big-search{
@@ -487,22 +454,13 @@ reel<span>wise</span>
 
 <div class="nav-links">
 
-<button onclick="openSection('movies')">
-Movies
-</button>
-
-<button onclick="openSection('stars')">
-Stars
-</button>
-
-<button onclick="openSection('six')">
-Six Degrees
-</button>
+<button onclick="openSection('movies')">Movies</button>
+<button onclick="openSection('stars')">Stars</button>
+<button onclick="openSection('six')">Six Degrees</button>
 
 </div>
 
 </nav>
-
 
 <div class="hero" id="hero">
 
@@ -532,14 +490,11 @@ placeholder="Search movies or stars..."
 autocomplete="off"
 >
 
-<button type="submit">
-Search
-</button>
+<button type="submit">Search</button>
 
 </form>
 
 </div>
-
 
 <div class="hero-card">
 
@@ -561,7 +516,6 @@ Follow the stars, the stories and the connections behind it.
 
 </header>
 
-
 <main>
 
 <div id="homeContent">
@@ -572,19 +526,11 @@ Explore Reelwise
 
 <div class="features">
 
+<div class="feature" onclick="openSection('movies')">
 
-<div
-class="feature"
-onclick="openSection('movies')"
->
+<div class="feature-icon">🎬</div>
 
-<div class="feature-icon">
-🎬
-</div>
-
-<h3>
-Movies
-</h3>
+<h3>Movies</h3>
 
 <p>
 Search movies from every era and explore their casts,
@@ -597,19 +543,11 @@ Explore Movies →
 
 </div>
 
+<div class="feature" onclick="openSection('stars')">
 
-<div
-class="feature"
-onclick="openSection('stars')"
->
+<div class="feature-icon">⭐</div>
 
-<div class="feature-icon">
-⭐
-</div>
-
-<h3>
-Movie Stars
-</h3>
+<h3>Movie Stars</h3>
 
 <p>
 Search actors and discover biographies,
@@ -622,19 +560,11 @@ Explore Stars →
 
 </div>
 
+<div class="feature" onclick="openSection('six')">
 
-<div
-class="feature"
-onclick="openSection('six')"
->
+<div class="feature-icon">🔗</div>
 
-<div class="feature-icon">
-🔗
-</div>
-
-<h3>
-Six Degrees
-</h3>
+<h3>Six Degrees</h3>
 
 <p>
 Choose any two actors and discover how their movie careers connect.
@@ -650,14 +580,9 @@ Play Six Degrees →
 
 </div>
 
-
-<h2
-class="section-title"
-id="resultsTitle"
->
+<h2 class="section-title" id="resultsTitle">
 Movie & Star Search
 </h2>
-
 
 <div id="results">
 
@@ -669,11 +594,9 @@ Search for any movie or actor above.
 
 </main>
 
-
 <footer>
 Reelwise · Know the movie. Know the story.
 </footer>
-
 
 <script>
 
@@ -693,9 +616,7 @@ const homeContent =
 document.getElementById("homeContent");
 
 let searchMode = "all";
-
 let lastQuery = "";
-
 
 searchForm.addEventListener(
 "submit",
@@ -712,11 +633,9 @@ searchInput.value
 }
 );
 
-
 function showHome(){
 
-homeContent.style.display =
-"block";
+homeContent.style.display = "block";
 
 resultsTitle.textContent =
 "Movie & Star Search";
@@ -731,36 +650,25 @@ behavior:"smooth"
 
 }
 
-
 function openSection(section){
 
-homeContent.style.display =
-"none";
+homeContent.style.display = "none";
 
 if(section === "movies"){
-
 showMovieSection();
-
 return;
-
 }
 
 if(section === "stars"){
-
 showStarSection();
-
 return;
-
 }
 
 if(section === "six"){
-
 showSixDegrees();
-
 }
 
 }
-
 
 function showMovieSection(){
 
@@ -809,7 +717,6 @@ Search Movies
 
 }
 
-
 function showStarSection(){
 
 resultsTitle.textContent =
@@ -856,7 +763,6 @@ Search Stars
 `;
 
 }
-
 
 function showSixDegrees(){
 
@@ -918,7 +824,6 @@ style="margin-top:18px;color:var(--muted)"
 `;
 
 }
-
 
 async function sixDegreesComingNext(){
 
@@ -1033,9 +938,7 @@ align-items:center;
 justify-content:center;
 font-size:24px;
 "
->
-⭐
-</div>`
+>⭐</div>`
 }
 
 <div>
@@ -1066,7 +969,6 @@ ${escapeHTML(item.name)}
 `;
 
 }
-
 
 if(item.type === "movie"){
 
@@ -1114,9 +1016,7 @@ display:flex;
 align-items:center;
 justify-content:center;
 "
->
-🎬
-</div>`
+>🎬</div>`
 }
 
 <div>
@@ -1131,11 +1031,7 @@ font-size:12px;
 MOVIE
 </div>
 
-<div
-style="
-font-weight:800;
-"
->
+<div style="font-weight:800">
 ${escapeHTML(item.title)}
 </div>
 
@@ -1160,6 +1056,39 @@ return "";
 
 }).join("");
 
+const storyParts = [];
+
+for(let i = 0; i < chain.length - 2; i += 2){
+
+const actorA = chain[i];
+const movie = chain[i + 1];
+const actorB = chain[i + 2];
+
+if(
+actorA &&
+movie &&
+actorB &&
+actorA.type === "person" &&
+movie.type === "movie" &&
+actorB.type === "person"
+){
+
+storyParts.push(
+escapeHTML(actorA.name) +
+" was in <strong>" +
+escapeHTML(movie.title) +
+"</strong> with " +
+escapeHTML(actorB.name)
+);
+
+}
+
+}
+
+const connectionStory =
+storyParts.length
+? storyParts.join(", who ")
+: "";
 
 box.innerHTML = `
 
@@ -1194,6 +1123,16 @@ ${data.degrees}
 ${data.degrees === 1 ? " degree" : " degrees"} of separation
 </div>
 
+${
+connectionStory
+?
+`<div class="connection-story">
+${connectionStory}.
+</div>`
+:
+""
+}
+
 ${chainHTML}
 
 <button
@@ -1226,44 +1165,35 @@ escapeHTML(error.message);
 
 }
 
-
 function searchMoviesOnly(){
 
 const input =
 document.getElementById("movieSearch");
 
-if(!input){
-return;
-}
+if(!input){return;}
 
-searchMode =
-"movie";
+searchMode = "movie";
 
 searchReelwise(
 input.value
 );
 
 }
-
 
 function searchStarsOnly(){
 
 const input =
 document.getElementById("starSearch");
 
-if(!input){
-return;
-}
+if(!input){return;}
 
-searchMode =
-"person";
+searchMode = "person";
 
 searchReelwise(
 input.value
 );
 
 }
-
 
 async function searchReelwise(queryValue){
 
@@ -1281,8 +1211,7 @@ return;
 
 }
 
-lastQuery =
-query;
+lastQuery = query;
 
 homeContent.style.display =
 "none";
@@ -1369,7 +1298,6 @@ escapeHTML(error.message) +
 
 }
 
-
 function makeCard(item){
 
 const isMovie =
@@ -1443,7 +1371,6 @@ ${escapeHTML(subtitle)}
 
 }
 
-
 function attachCardEvents(){
 
 document
@@ -1477,7 +1404,6 @@ showPerson(id);
 });
 
 }
-
 
 async function showMovie(id){
 
@@ -1588,9 +1514,7 @@ ${cast.map(person => `
 <button
 onclick="showPerson('${person.id}')"
 >
-
 ${escapeHTML(person.name)}
-
 </button>
 
 `).join("")}
@@ -1616,7 +1540,6 @@ escapeHTML(error.message) +
 }
 
 }
-
 
 async function showPerson(id){
 
@@ -1735,13 +1658,11 @@ ${movies.map(movie => `
 <button
 onclick="showMovie('${movie.id}')"
 >
-
 ${escapeHTML(
 movie.title ||
 movie.original_title ||
 "Movie"
 )}
-
 </button>
 
 `).join("")}
@@ -1768,7 +1689,6 @@ escapeHTML(error.message) +
 
 }
 
-
 function returnToSearch(){
 
 if(lastQuery){
@@ -1785,7 +1705,6 @@ showHome();
 }
 
 }
-
 
 function escapeHTML(value){
 
