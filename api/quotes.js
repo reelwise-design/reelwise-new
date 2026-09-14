@@ -44,9 +44,7 @@ async function wikiquote(params) {
   });
 
   if (!response.ok) {
-    throw new Error(
-      `Wikiquote request failed: ${response.status}`
-    );
+    throw new Error(`Wikiquote request failed: ${response.status}`);
   }
 
   return response.json();
@@ -68,14 +66,9 @@ function stripTemplates(value) {
   let text = String(value || "");
 
   for (let i = 0; i < 10; i++) {
-    const next = text.replace(
-      /\{\{[^{}]*\}\}/g,
-      " "
-    );
+    const next = text.replace(/\{\{[^{}]*\}\}/g, " ");
 
-    if (next === text) {
-      break;
-    }
+    if (next === text) break;
 
     text = next;
   }
@@ -88,55 +81,25 @@ function cleanWikiText(value) {
 
   text = text
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(
-      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
-      " "
-    )
-    .replace(
-      /<ref[^/>]*\/>/gi,
-      " "
-    );
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, " ")
+    .replace(/<ref[^/>]*\/>/gi, " ");
 
   text = stripTemplates(text);
 
   text = text
-    .replace(
-      /\[\[(?:File|Image|Media):[\s\S]*?\]\]/gi,
-      " "
-    )
-    .replace(
-      /\[\[([^|\]]+)\|([^\]]+)\]\]/g,
-      "$2"
-    )
-    .replace(
-      /\[\[([^\]]+)\]\]/g,
-      "$1"
-    )
-    .replace(
-      /\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g,
-      "$1"
-    )
-    .replace(
-      /\[https?:\/\/[^\]]+\]/g,
-      " "
-    )
-    .replace(
-      /'{2,5}/g,
-      ""
-    )
-    .replace(
-      /^=+.*?=+$/gm,
-      " "
-    )
+    .replace(/\[\[(?:File|Image|Media):[\s\S]*?\]\]/gi, " ")
+    .replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, "$2")
+    .replace(/\[\[([^\]]+)\]\]/g, "$1")
+    .replace(/\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g, "$1")
+    .replace(/\[https?:\/\/[^\]]+\]/g, " ")
+    .replace(/'{2,5}/g, "")
+    .replace(/^=+.*?=+$/gm, " ")
     .replace(/\s+/g, " ");
 
   return cleanText(text);
 }
 
-async function findWikiquotePage(
-  title,
-  year
-) {
+async function findWikiquotePage(title, year) {
   const searches = [
     `"${title}" film`,
     `${title} ${year || ""} film`,
@@ -152,64 +115,41 @@ async function findWikiquotePage(
       srnamespace: "0"
     });
 
-    const results =
-      data?.query?.search || [];
+    const results = data?.query?.search || [];
 
-    if (!results.length) {
-      continue;
-    }
+    if (!results.length) continue;
 
-    const normalized =
-      String(title)
-        .toLowerCase()
-        .trim();
+    const normalized = String(title)
+      .toLowerCase()
+      .trim();
 
-    const ranked =
-      results
-        .map(result => {
-          const candidate =
-            String(
-              result.title || ""
-            );
+    const ranked = results
+      .map(result => {
+        const candidate = String(result.title || "");
+        const lower = candidate.toLowerCase();
 
-          const lower =
-            candidate.toLowerCase();
+        let score = 0;
 
-          let score = 0;
+        if (lower === normalized) score += 30;
 
-          if (lower === normalized) {
-            score += 30;
-          }
+        if (lower.startsWith(normalized + " (")) {
+          score += 25;
+        }
 
-          if (
-            lower.startsWith(
-              normalized + " ("
-            )
-          ) {
-            score += 25;
-          }
+        if (lower.includes(normalized)) {
+          score += 15;
+        }
 
-          if (
-            lower.includes(normalized)
-          ) {
-            score += 15;
-          }
+        if (lower.includes("film")) {
+          score += 5;
+        }
 
-          if (
-            lower.includes("film")
-          ) {
-            score += 5;
-          }
-
-          return {
-            ...result,
-            score
-          };
-        })
-        .sort(
-          (a, b) =>
-            b.score - a.score
-        );
+        return {
+          ...result,
+          score
+        };
+      })
+      .sort((a, b) => b.score - a.score);
 
     if (ranked.length) {
       return ranked[0].title;
@@ -219,24 +159,18 @@ async function findWikiquotePage(
   return null;
 }
 
-async function getPageWikiText(
-  pageTitle
-) {
+async function getPageWikiText(pageTitle) {
   const data = await wikiquote({
     action: "parse",
     page: pageTitle,
     prop: "wikitext"
   });
 
-  return (
-    data?.parse?.wikitext || ""
-  );
+  return data?.parse?.wikitext || "";
 }
 
 function looksLikeMetadata(line) {
-  const lower =
-    String(line || "")
-      .toLowerCase();
+  const lower = String(line || "").toLowerCase();
 
   const blocked = [
     "tagline",
@@ -256,24 +190,58 @@ function looksLikeMetadata(line) {
     "image:"
   ];
 
-  return blocked.some(
-    term =>
-      lower.includes(term)
-  );
+  return blocked.some(term => lower.includes(term));
+}
+
+function looksLikeCastEntry(line) {
+  const text = String(line || "").trim();
+
+  /*
+    Reject entries such as:
+    Tom Cruise – LT Pete 'Maverick' Mitchell
+    Anthony Edwards - LTJG Nick 'Goose' Bradshaw
+    Val Kilmer – LT Tom 'Iceman' Kazansky
+  */
+
+  if (/^[A-Z][A-Za-z.' -]{2,45}\s+[–—-]\s+.{2,70}$/.test(text)) {
+    return true;
+  }
+
+  const lower = text.toLowerCase();
+
+  const rankTerms = [
+    " lt ",
+    " ltjg ",
+    " lieutenant ",
+    " captain ",
+    " commander ",
+    " admiral ",
+    " colonel ",
+    " sergeant ",
+    " officer "
+  ];
+
+  const hasDash = /\s[–—-]\s/.test(text);
+
+  if (
+    hasDash &&
+    rankTerms.some(term =>
+      ` ${lower} `.includes(term)
+    )
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function parseQuoteLine(rawLine) {
-  let line =
-    String(rawLine || "")
-      .trim();
+  let line = String(rawLine || "").trim();
 
   if (!line) {
     return null;
   }
 
-  /*
-    Wikiquote commonly uses bullet points for quotes.
-  */
   if (
     !line.startsWith("*") &&
     !line.startsWith("#")
@@ -281,11 +249,7 @@ function parseQuoteLine(rawLine) {
     return null;
   }
 
-  line = line.replace(
-    /^[*#:;]+\s*/,
-    ""
-  );
-
+  line = line.replace(/^[*#:;]+\s*/, "");
   line = cleanWikiText(line);
 
   if (!line) {
@@ -296,9 +260,16 @@ function parseQuoteLine(rawLine) {
     return null;
   }
 
+  if (looksLikeCastEntry(line)) {
+    return null;
+  }
+
   /*
-    Avoid large dialogue exchanges.
+    Keep quotes short.
+    Reelwise is not reproducing scripts
+    or long dialogue exchanges.
   */
+
   if (
     line.length < 8 ||
     line.length > 140
@@ -306,14 +277,8 @@ function parseQuoteLine(rawLine) {
     return null;
   }
 
-  /*
-    Skip lines that look like paragraphs
-    rather than memorable quotes.
-  */
   const sentenceCount =
-    (
-      line.match(/[.!?]/g) || []
-    ).length;
+    (line.match(/[.!?]/g) || []).length;
 
   if (sentenceCount > 2) {
     return null;
@@ -326,25 +291,16 @@ function parseQuoteLine(rawLine) {
     Common Wikiquote format:
     Maverick: I feel the need...
   */
-  const colonMatch =
-    line.match(
-      /^([^:]{2,40}):\s*(.+)$/
-    );
+
+  const colonMatch = line.match(
+    /^([^:]{2,40}):\s*(.+)$/
+  );
 
   if (colonMatch) {
-    speaker =
-      colonMatch[1].trim();
+    speaker = colonMatch[1].trim();
+    quote = colonMatch[2].trim();
 
-    quote =
-      colonMatch[2].trim();
-
-    /*
-      Don't mistake normal prose for
-      a speaker label.
-    */
-    if (
-      speaker.split(" ").length > 6
-    ) {
+    if (speaker.split(" ").length > 6) {
       speaker = null;
       quote = line;
     }
@@ -362,6 +318,10 @@ function parseQuoteLine(rawLine) {
     return null;
   }
 
+  if (looksLikeCastEntry(quote)) {
+    return null;
+  }
+
   return {
     text: quote,
     speaker
@@ -372,13 +332,9 @@ function uniqueQuotes(quotes) {
   const seen = new Set();
 
   return quotes.filter(item => {
-    const key =
-      item.text
-        .toLowerCase()
-        .replace(
-          /[^a-z0-9]/g,
-          ""
-        );
+    const key = item.text
+      .toLowerCase()
+      .replace(/[^a-z0-9]/g, "");
 
     if (
       key.length < 6 ||
@@ -393,36 +349,25 @@ function uniqueQuotes(quotes) {
   });
 }
 
-export default async function handler(
-  req,
-  res
-) {
+export default async function handler(req, res) {
   try {
-    const movieId =
-      req.query.id;
+    const movieId = req.query.id;
 
     if (!movieId) {
       return res.status(400).json({
-        error:
-          "Movie ID is required."
+        error: "Movie ID is required."
       });
     }
 
-    const movie =
-      await tmdb(
-        `/movie/${movieId}`
-      );
+    const movie = await tmdb(
+      `/movie/${movieId}`
+    );
 
-    const title =
-      movie.title;
+    const title = movie.title;
 
-    const year =
-      movie.release_date
-        ? movie.release_date.slice(
-            0,
-            4
-          )
-        : "";
+    const year = movie.release_date
+      ? movie.release_date.slice(0, 4)
+      : "";
 
     const pageTitle =
       await findWikiquotePage(
@@ -451,38 +396,27 @@ export default async function handler(
       );
 
     const lines =
-      String(raw || "")
-        .split("\n");
+      String(raw || "").split("\n");
 
-    let quotes =
-      lines
-        .map(parseQuoteLine)
-        .filter(Boolean);
+    let quotes = lines
+      .map(parseQuoteLine)
+      .filter(Boolean);
 
     quotes =
       uniqueQuotes(quotes)
-        /*
-          Keep the selection deliberately small.
-        */
         .slice(0, 6);
 
     const sourceUrl =
       "https://en.wikiquote.org/wiki/" +
       encodeURIComponent(
-        pageTitle.replace(
-          / /g,
-          "_"
-        )
+        pageTitle.replace(/ /g, "_")
       );
 
-    quotes =
-      quotes.map(item => ({
-        ...item,
-        sourceName:
-          "Wikiquote",
-        source:
-          sourceUrl
-      }));
+    quotes = quotes.map(item => ({
+      ...item,
+      sourceName: "Wikiquote",
+      source: sourceUrl
+    }));
 
     res.setHeader(
       "Cache-Control",
@@ -497,12 +431,9 @@ export default async function handler(
       },
 
       source: {
-        name:
-          "Wikiquote",
-        page:
-          pageTitle,
-        url:
-          sourceUrl
+        name: "Wikiquote",
+        page: pageTitle,
+        url: sourceUrl
       },
 
       quotes,
