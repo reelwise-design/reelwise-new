@@ -84,22 +84,18 @@ function cleanWikiText(text) {
 
   value = value
     .replace(/<!--[\s\S]*?-->/g, " ")
-
     .replace(
       /<ref[^>]*>[\s\S]*?<\/ref>/gi,
       " "
     )
-
     .replace(
       /<ref[^/>]*\/>/gi,
       " "
     )
-
     .replace(
       /\{\|[\s\S]*?\|\}/g,
       " "
     )
-
     .replace(
       /<gallery[^>]*>[\s\S]*?<\/gallery>/gi,
       " "
@@ -107,11 +103,6 @@ function cleanWikiText(text) {
 
   value = stripTemplates(value);
 
-  /*
-    Remove Wikipedia image/file/media links BEFORE
-    processing normal links. This fixes text such as:
-    thumb|284x284px|Martin Scorsese...
-  */
   for (let i = 0; i < 8; i++) {
     const cleaned = value.replace(
       /\[\[(?:File|Image|Media):[\s\S]*?\]\]/gi,
@@ -130,47 +121,38 @@ function cleanWikiText(text) {
       /\[\[(?:Category|Help|Portal|Template):[^\]]+\]\]/gi,
       " "
     )
-
     .replace(
       /\[\[([^|\]]+)\|([^\]]+)\]\]/g,
       "$2"
     )
-
     .replace(
       /\[\[([^\]]+)\]\]/g,
       "$1"
     )
-
     .replace(
       /\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g,
       "$1"
     )
-
     .replace(
       /\[https?:\/\/[^\]]+\]/g,
       " "
     )
-
     .replace(
       /'{2,5}/g,
       ""
     )
-
     .replace(
       /^=+.*?=+$/gm,
       " "
     )
-
     .replace(
       /^[*#:;]+/gm,
       " "
     )
-
     .replace(
       /<[^>]+>/g,
       " "
     )
-
     .replace(
       /\s+/g,
       " "
@@ -214,6 +196,46 @@ function containsBrokenWikiFormatting(sentence) {
 
   return garbage.some(item =>
     text.includes(item)
+  );
+}
+
+function lacksContext(sentence) {
+  const text =
+    String(sentence || "")
+      .trim()
+      .toLowerCase();
+
+  const vagueStarts = [
+    "it was ",
+    "it is ",
+    "it had ",
+    "it also ",
+    "this was ",
+    "this is ",
+    "this had ",
+    "this also ",
+    "that was ",
+    "that is ",
+    "the scene was ",
+    "the scene is ",
+    "the role was ",
+    "the role is ",
+    "he was ",
+    "he had ",
+    "he also ",
+    "she was ",
+    "she had ",
+    "she also ",
+    "they were ",
+    "they had ",
+    "they also ",
+    "his role ",
+    "her role ",
+    "their role "
+  ];
+
+  return vagueStarts.some(start =>
+    text.startsWith(start)
   );
 }
 
@@ -280,20 +302,20 @@ function interestingSentence(sentence) {
 
   if (
     text.length < 60 ||
-    text.length > 330
+    text.length > 300
   ) {
     return false;
   }
 
-  if (
-    containsBrokenWikiFormatting(text)
-  ) {
+  if (containsBrokenWikiFormatting(text)) {
     return false;
   }
 
-  if (
-    quotationHeavy(text)
-  ) {
+  if (lacksContext(text)) {
+    return false;
+  }
+
+  if (quotationHeavy(text)) {
     return false;
   }
 
@@ -332,15 +354,11 @@ function uniqueSentences(sentences) {
       .replace(/[^a-z0-9]/g, "")
       .slice(0, 180);
 
-    if (
-      !key ||
-      seen.has(key)
-    ) {
+    if (!key || seen.has(key)) {
       return false;
     }
 
     seen.add(key);
-
     return true;
   });
 }
@@ -348,50 +366,30 @@ function uniqueSentences(sentences) {
 function tidyTriviaSentence(sentence) {
   let text = cleanText(sentence);
 
-  /*
-    Remove dangling parenthetical fragments that
-    sometimes result from Wikipedia markup.
-  */
-  text = text.replace(
-    /\(\s*\)/g,
-    ""
-  );
+  text = text
+    .replace(/\(\s*\)/g, "")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .replace(/\s{2,}/g, " ")
+    .trim();
 
-  text = text.replace(
-    /\s+([,.;:!?])/g,
-    "$1"
-  );
-
-  text = text.replace(
-    /\s{2,}/g,
-    " "
-  );
-
-  return text.trim();
+  return text;
 }
 
-async function findWikipediaPage(
-  title,
-  year
-) {
+async function findWikipediaPage(title, year) {
   const searchTerms = [
     `"${title}" ${year || ""} film`,
     `${title} ${year || ""} film`,
     `${title} film`
   ];
 
-  for (
-    const searchTerm
-    of searchTerms
-  ) {
-    const data =
-      await wikipedia({
-        action: "query",
-        list: "search",
-        srsearch: searchTerm,
-        srlimit: "8",
-        srnamespace: "0"
-      });
+  for (const searchTerm of searchTerms) {
+    const data = await wikipedia({
+      action: "query",
+      list: "search",
+      srsearch: searchTerm,
+      srlimit: "8",
+      srnamespace: "0"
+    });
 
     const results =
       data?.query?.search || [];
@@ -409,19 +407,14 @@ async function findWikipediaPage(
       results
         .map(result => {
           const candidate =
-            String(
-              result.title || ""
-            );
+            String(result.title || "");
 
           const lower =
             candidate.toLowerCase();
 
           let score = 0;
 
-          if (
-            lower ===
-            normalizedTitle
-          ) {
+          if (lower === normalizedTitle) {
             score += 20;
           }
 
@@ -434,24 +427,18 @@ async function findWikipediaPage(
           }
 
           if (
-            lower.includes(
-              normalizedTitle
-            )
+            lower.includes(normalizedTitle)
           ) {
             score += 10;
           }
 
-          if (
-            lower.includes("film")
-          ) {
+          if (lower.includes("film")) {
             score += 6;
           }
 
           if (
             year &&
-            lower.includes(
-              String(year)
-            )
+            lower.includes(String(year))
           ) {
             score += 8;
           }
@@ -474,34 +461,26 @@ async function findWikipediaPage(
   return null;
 }
 
-async function getSections(
-  pageTitle
-) {
-  const data =
-    await wikipedia({
-      action: "parse",
-      page: pageTitle,
-      prop: "sections"
-    });
+async function getSections(pageTitle) {
+  const data = await wikipedia({
+    action: "parse",
+    page: pageTitle,
+    prop: "sections"
+  });
 
-  return (
-    data?.parse?.sections || []
-  );
+  return data?.parse?.sections || [];
 }
 
 async function getSectionText(
   pageTitle,
   sectionIndex
 ) {
-  const data =
-    await wikipedia({
-      action: "parse",
-      page: pageTitle,
-      prop: "wikitext",
-      section: String(
-        sectionIndex
-      )
-    });
+  const data = await wikipedia({
+    action: "parse",
+    page: pageTitle,
+    prop: "wikitext",
+    section: String(sectionIndex)
+  });
 
   const raw =
     data?.parse?.wikitext || "";
@@ -509,9 +488,7 @@ async function getSectionText(
   return cleanWikiText(raw);
 }
 
-function chooseRelevantSections(
-  sections
-) {
+function chooseRelevantSections(sections) {
   const priority = [
     "casting",
     "filming",
@@ -525,29 +502,18 @@ function chooseRelevantSections(
 
   const chosen = [];
 
-  for (
-    const wantedName
-    of priority
-  ) {
-    for (
-      const section
-      of sections
-    ) {
+  for (const wantedName of priority) {
+    for (const section of sections) {
       const name =
-        String(
-          section.line || ""
-        )
+        String(section.line || "")
           .toLowerCase()
           .trim();
 
       if (
-        name.includes(
-          wantedName
-        ) &&
+        name.includes(wantedName) &&
         !chosen.some(
           item =>
-            item.index ===
-            section.index
+            item.index === section.index
         )
       ) {
         chosen.push(section);
@@ -568,8 +534,7 @@ export default async function handler(
 
     if (!movieId) {
       return res.status(400).json({
-        error:
-          "Movie ID is required."
+        error: "Movie ID is required."
       });
     }
 
@@ -583,10 +548,7 @@ export default async function handler(
 
     const year =
       movie.release_date
-        ? movie.release_date.slice(
-            0,
-            4
-          )
+        ? movie.release_date.slice(0, 4)
         : "";
 
     const pageTitle =
@@ -609,21 +571,14 @@ export default async function handler(
     }
 
     const sections =
-      await getSections(
-        pageTitle
-      );
+      await getSections(pageTitle);
 
     const relevantSections =
-      chooseRelevantSections(
-        sections
-      );
+      chooseRelevantSections(sections);
 
     let candidates = [];
 
-    for (
-      const section
-      of relevantSections
-    ) {
+    for (const section of relevantSections) {
       try {
         const text =
           await getSectionText(
@@ -634,26 +589,19 @@ export default async function handler(
         const sentences =
           splitSentences(text);
 
-        for (
-          const sentence
-          of sentences
-        ) {
+        for (const sentence of sentences) {
           if (
-            interestingSentence(
-              sentence
-            )
+            interestingSentence(sentence)
           ) {
             candidates.push({
               text:
                 tidyTriviaSentence(
                   sentence
                 ),
-
               score:
                 sentenceScore(
                   sentence
                 ),
-
               section:
                 section.line
             });
@@ -668,33 +616,35 @@ export default async function handler(
       }
     }
 
-    candidates =
+    const uniqueTexts =
       uniqueSentences(
         candidates.map(
           item => item.text
         )
-      )
-      .map(text => {
+      );
 
-        const original =
-          candidates.find(
-            item =>
-              item.text === text
-          );
+    candidates =
+      uniqueTexts
+        .map(text => {
+          const original =
+            candidates.find(
+              item =>
+                item.text === text
+            );
 
-        return {
-          text,
-          score:
-            original?.score || 0,
-          section:
-            original?.section || ""
-        };
-      })
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      )
-      .slice(0, 6);
+          return {
+            text,
+            score:
+              original?.score || 0,
+            section:
+              original?.section || ""
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.score - a.score
+        )
+        .slice(0, 6);
 
     const sourceUrl =
       "https://en.wikipedia.org/wiki/" +
@@ -732,12 +682,9 @@ export default async function handler(
       },
 
       source: {
-        name:
-          "Wikipedia",
-        page:
-          pageTitle,
-        url:
-          sourceUrl
+        name: "Wikipedia",
+        page: pageTitle,
+        url: sourceUrl
       },
 
       trivia,
@@ -749,7 +696,6 @@ export default async function handler(
     });
 
   } catch (error) {
-
     console.error(
       "Trivia API error:",
       error
