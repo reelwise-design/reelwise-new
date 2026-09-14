@@ -406,6 +406,56 @@ main{
   margin:0;
 }
 
+.fact-grid{
+  display:grid;
+  gap:12px;
+  margin-top:16px;
+}
+
+.fact-item{
+  background:#10141b;
+  border:1px solid var(--line);
+  border-radius:9px;
+  padding:14px;
+  color:#cbd1da;
+  line-height:1.5;
+}
+
+.video-list{
+  display:grid;
+  gap:14px;
+  margin-top:16px;
+}
+
+.video-card{
+  display:flex;
+  gap:14px;
+  align-items:center;
+  background:#10141b;
+  border:1px solid var(--line);
+  border-radius:10px;
+  padding:12px;
+  text-decoration:none;
+  color:white;
+}
+
+.video-card:hover{
+  border-color:var(--accent);
+}
+
+.video-card img{
+  width:120px;
+  border-radius:7px;
+  display:block;
+}
+
+.video-type{
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+  margin-bottom:5px;
+}
+
 .section-page{
   grid-column:1/-1;
   padding:10px 0;
@@ -551,6 +601,14 @@ footer{
   .big-search{
     flex-direction:column;
   }
+
+  .video-card{
+    align-items:flex-start;
+  }
+
+  .video-card img{
+    width:100px;
+  }
 }
 </style>
 </head>
@@ -649,10 +707,7 @@ Explore Reelwise
 
 <div class="features">
 
-<div
-class="feature"
-onclick="openSection('movies')"
->
+<div class="feature" onclick="openSection('movies')">
 
 <div class="feature-icon">
 🎬
@@ -673,10 +728,7 @@ Explore Movies →
 
 </div>
 
-<div
-class="feature"
-onclick="openSection('stars')"
->
+<div class="feature" onclick="openSection('stars')">
 
 <div class="feature-icon">
 ⭐
@@ -697,10 +749,7 @@ Explore Stars →
 
 </div>
 
-<div
-class="feature"
-onclick="openSection('six')"
->
+<div class="feature" onclick="openSection('six')">
 
 <div class="feature-icon">
 🔗
@@ -724,10 +773,7 @@ Play Six Degrees →
 
 </div>
 
-<h2
-class="section-title"
-id="resultsTitle"
->
+<h2 class="section-title" id="resultsTitle">
 Movie & Star Search
 </h2>
 
@@ -765,6 +811,8 @@ document.getElementById("homeContent");
 let searchMode = "all";
 
 let lastQuery = "";
+
+let currentMovie = null;
 
 searchForm.addEventListener(
 "submit",
@@ -1653,6 +1701,8 @@ encodeURIComponent(id)
 const movie =
 await response.json();
 
+currentMovie = movie;
+
 if(!response.ok){
 
 throw new Error(
@@ -1805,7 +1855,7 @@ Trivia
 </h3>
 
 <p>
-Surprising facts about the movie, the stars and what happened during production.
+Interesting facts about the movie, the filmmakers and its production.
 </p>
 
 <button
@@ -1827,7 +1877,7 @@ Behind the Scenes
 </h3>
 
 <p>
-The stories, decisions and moments that happened when the cameras weren't rolling.
+Featurettes, interviews and footage from the making of the movie.
 </p>
 
 <button
@@ -1849,7 +1899,7 @@ Bloopers
 </h3>
 
 <p>
-Mistakes, outtakes and funny moments from the making of the movie.
+Available outtakes and funny moments from the making of the movie.
 </p>
 
 <button
@@ -1892,71 +1942,168 @@ document.getElementById(
 "movieFeatureView"
 );
 
-if(!view){
+if(!view || !currentMovie){
 return;
-}
-
-let title = "";
-let icon = "";
-let message = "";
-
-if(feature === "quotes"){
-
-title =
-"Quotes";
-
-icon =
-"💬";
-
-message =
-"The Reelwise quote vault for " +
-movieTitle +
-" is ready for us to fill with memorable lines and exchanges.";
-
 }
 
 if(feature === "trivia"){
 
-title =
-"Trivia";
+const crew =
+currentMovie.credits &&
+Array.isArray(
+currentMovie.credits.crew
+)
+? currentMovie.credits.crew
+: [];
 
-icon =
-"🧠";
+const director =
+crew.find(
+person =>
+person.job === "Director"
+);
 
-message =
-"The Reelwise trivia vault for " +
-movieTitle +
-" will collect the most interesting facts about the movie and its stars.";
+const writers =
+crew
+.filter(
+person =>
+person.department === "Writing" &&
+(
+person.job === "Screenplay" ||
+person.job === "Writer" ||
+person.job === "Story"
+)
+)
+.map(person => person.name)
+.filter(
+(name,index,array) =>
+array.indexOf(name) === index
+)
+.slice(0,4);
+
+const companies =
+Array.isArray(
+currentMovie.production_companies
+)
+? currentMovie.production_companies
+.map(company => company.name)
+.slice(0,3)
+: [];
+
+const genres =
+Array.isArray(
+currentMovie.genres
+)
+? currentMovie.genres
+.map(genre => genre.name)
+.slice(0,4)
+: [];
+
+const countries =
+Array.isArray(
+currentMovie.production_countries
+)
+? currentMovie.production_countries
+.map(country => country.name)
+.slice(0,4)
+: [];
+
+const facts = [];
+
+if(director){
+
+facts.push(
+"<strong>Director:</strong> " +
+escapeHTML(director.name)
+);
 
 }
 
-if(feature === "behind"){
+if(writers.length){
 
-title =
-"Behind the Scenes";
-
-icon =
-"🎥";
-
-message =
-"This is where Reelwise will tell the stories behind the making of " +
-movieTitle +
-" — casting decisions, unexpected moments and stories from the set.";
+facts.push(
+"<strong>Written by:</strong> " +
+writers
+.map(escapeHTML)
+.join(", ")
+);
 
 }
 
-if(feature === "bloopers"){
+if(genres.length){
 
-title =
-"Bloopers";
+facts.push(
+"<strong>Genres:</strong> " +
+genres
+.map(escapeHTML)
+.join(", ")
+);
 
-icon =
-"😂";
+}
 
-message =
-"This section will collect bloopers, outtakes and funny moments connected to " +
-movieTitle +
-".";
+if(currentMovie.runtime){
+
+facts.push(
+"<strong>Runtime:</strong> " +
+escapeHTML(
+currentMovie.runtime
+) +
+" minutes"
+);
+
+}
+
+if(currentMovie.budget){
+
+facts.push(
+"<strong>Budget:</strong> $" +
+Number(
+currentMovie.budget
+).toLocaleString()
+);
+
+}
+
+if(currentMovie.revenue){
+
+facts.push(
+"<strong>Worldwide revenue:</strong> $" +
+Number(
+currentMovie.revenue
+).toLocaleString()
+);
+
+}
+
+if(companies.length){
+
+facts.push(
+"<strong>Production companies:</strong> " +
+companies
+.map(escapeHTML)
+.join(", ")
+);
+
+}
+
+if(countries.length){
+
+facts.push(
+"<strong>Production countries:</strong> " +
+countries
+.map(escapeHTML)
+.join(", ")
+);
+
+}
+
+if(currentMovie.release_date){
+
+facts.push(
+"<strong>Release date:</strong> " +
+escapeHTML(
+currentMovie.release_date
+)
+);
 
 }
 
@@ -1964,17 +2111,295 @@ view.innerHTML = `
 
 <div class="feature-view">
 
+<div class="eyebrow">
+REELWISE MOVIE FACTS
+</div>
+
 <h3>
-${icon} ${escapeHTML(title)}
+🧠 ${escapeHTML(movieTitle)} Trivia
+</h3>
+
+${
+facts.length
+?
+`<div class="fact-grid">
+
+${facts.map(fact => `
+
+<div class="fact-item">
+${fact}
+</div>
+
+`).join("")}
+
+</div>`
+:
+`
+
+<p>
+Detailed movie facts are not available for this title yet.
+</p>
+
+`
+}
+
+</div>
+
+`;
+
+}
+
+else if(feature === "behind"){
+
+const videos =
+currentMovie.videos &&
+Array.isArray(
+currentMovie.videos.results
+)
+? currentMovie.videos.results
+: [];
+
+let behindVideos =
+videos.filter(video =>
+
+video.site === "YouTube" &&
+
+(
+video.type === "Behind the Scenes" ||
+video.type === "Featurette"
+)
+
+);
+
+if(!behindVideos.length){
+
+behindVideos =
+videos.filter(video =>
+
+video.site === "YouTube" &&
+
+(
+String(video.name)
+.toLowerCase()
+.includes("behind") ||
+
+String(video.name)
+.toLowerCase()
+.includes("making") ||
+
+String(video.name)
+.toLowerCase()
+.includes("featurette") ||
+
+String(video.name)
+.toLowerCase()
+.includes("interview")
+
+)
+
+);
+
+}
+
+behindVideos =
+behindVideos.slice(0,6);
+
+view.innerHTML = `
+
+<div class="feature-view">
+
+<div class="eyebrow">
+FROM THE MAKING OF THE MOVIE
+</div>
+
+<h3>
+🎥 Behind the Scenes of ${escapeHTML(movieTitle)}
+</h3>
+
+${
+behindVideos.length
+?
+`
+
+<p style="margin-bottom:18px;">
+Watch available featurettes, interviews and behind-the-scenes footage connected to the movie.
+</p>
+
+<div class="video-list">
+
+${behindVideos.map(video => `
+
+<a
+class="video-card"
+href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
+target="_blank"
+rel="noopener noreferrer"
+>
+
+<img
+src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg"
+alt=""
+>
+
+<div>
+
+<div class="video-type">
+${escapeHTML(
+video.type ||
+"VIDEO"
+)}
+</div>
+
+<strong>
+${escapeHTML(video.name)}
+</strong>
+
+</div>
+
+</a>
+
+`).join("")}
+
+</div>
+
+`
+:
+`
+
+<p>
+There isn't any official behind-the-scenes video available for ${escapeHTML(movieTitle)} in the current Reelwise movie data yet.
+</p>
+
+`
+}
+
+</div>
+
+`;
+
+}
+
+else if(feature === "quotes"){
+
+view.innerHTML = `
+
+<div class="feature-view">
+
+<div class="eyebrow">
+MEMORABLE LINES
+</div>
+
+<h3>
+💬 Quotes from ${escapeHTML(movieTitle)}
 </h3>
 
 <p>
-${escapeHTML(message)}
+The Reelwise quote collection is the next part of the Vault we're going to build.
 </p>
 
 </div>
 
 `;
+
+}
+
+else if(feature === "bloopers"){
+
+const videos =
+currentMovie.videos &&
+Array.isArray(
+currentMovie.videos.results
+)
+? currentMovie.videos.results
+: [];
+
+const bloopers =
+videos
+.filter(video =>
+
+video.site === "YouTube" &&
+
+(
+String(video.name)
+.toLowerCase()
+.includes("blooper") ||
+
+String(video.name)
+.toLowerCase()
+.includes("outtake")
+
+)
+
+)
+.slice(0,6);
+
+view.innerHTML = `
+
+<div class="feature-view">
+
+<div class="eyebrow">
+OUTTAKES & MISTAKES
+</div>
+
+<h3>
+😂 ${escapeHTML(movieTitle)} Bloopers
+</h3>
+
+${
+bloopers.length
+?
+`
+
+<div class="video-list">
+
+${bloopers.map(video => `
+
+<a
+class="video-card"
+href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
+target="_blank"
+rel="noopener noreferrer"
+>
+
+<img
+src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg"
+alt=""
+>
+
+<div>
+
+<div class="video-type">
+VIDEO
+</div>
+
+<strong>
+${escapeHTML(video.name)}
+</strong>
+
+</div>
+
+</a>
+
+`).join("")}
+
+</div>
+
+`
+:
+`
+
+<p>
+No official bloopers or outtakes are available for this movie in the current Reelwise data.
+</p>
+
+`
+}
+
+</div>
+
+`;
+
+}
 
 view.scrollIntoView({
 behavior:"smooth",
