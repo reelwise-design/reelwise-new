@@ -54,61 +54,250 @@ async function wikipedia(params) {
 
 function cleanText(value) {
   return String(value || "")
-    .replace(/\[[^\]]*\]/g, "")
+    .replace(/\[[0-9]+\]/g, "")
     .replace(/\s+/g, " ")
     .replace(/\u00a0/g, " ")
     .trim();
 }
 
+function stripTemplates(value) {
+  let text = String(value || "");
+
+  for (let i = 0; i < 8; i++) {
+    const cleaned = text.replace(
+      /\{\{[^{}]*\}\}/g,
+      " "
+    );
+
+    if (cleaned === text) {
+      break;
+    }
+
+    text = cleaned;
+  }
+
+  return text;
+}
+
+function cleanWikiText(text) {
+  let value = String(text || "");
+
+  value = value
+    .replace(/<!--[\s\S]*?-->/g, " ")
+
+    .replace(
+      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
+      " "
+    )
+
+    .replace(
+      /<ref[^/>]*\/>/gi,
+      " "
+    )
+
+    .replace(
+      /\{\|[\s\S]*?\|\}/g,
+      " "
+    )
+
+    .replace(
+      /<gallery[^>]*>[\s\S]*?<\/gallery>/gi,
+      " "
+    );
+
+  value = stripTemplates(value);
+
+  /*
+    Remove Wikipedia image/file/media links BEFORE
+    processing normal links. This fixes text such as:
+    thumb|284x284px|Martin Scorsese...
+  */
+  for (let i = 0; i < 8; i++) {
+    const cleaned = value.replace(
+      /\[\[(?:File|Image|Media):[\s\S]*?\]\]/gi,
+      " "
+    );
+
+    if (cleaned === value) {
+      break;
+    }
+
+    value = cleaned;
+  }
+
+  value = value
+    .replace(
+      /\[\[(?:Category|Help|Portal|Template):[^\]]+\]\]/gi,
+      " "
+    )
+
+    .replace(
+      /\[\[([^|\]]+)\|([^\]]+)\]\]/g,
+      "$2"
+    )
+
+    .replace(
+      /\[\[([^\]]+)\]\]/g,
+      "$1"
+    )
+
+    .replace(
+      /\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g,
+      "$1"
+    )
+
+    .replace(
+      /\[https?:\/\/[^\]]+\]/g,
+      " "
+    )
+
+    .replace(
+      /'{2,5}/g,
+      ""
+    )
+
+    .replace(
+      /^=+.*?=+$/gm,
+      " "
+    )
+
+    .replace(
+      /^[*#:;]+/gm,
+      " "
+    )
+
+    .replace(
+      /<[^>]+>/g,
+      " "
+    )
+
+    .replace(
+      /\s+/g,
+      " "
+    );
+
+  return cleanText(value);
+}
+
 function splitSentences(text) {
   return String(text || "")
     .replace(/\n+/g, " ")
-    .split(/(?<=[.!?])\s+(?=[A-Z0-9])/)
+    .split(
+      /(?<=[.!?])\s+(?=[A-Z0-9“"'(])/
+    )
     .map(cleanText)
     .filter(Boolean);
 }
 
-function interestingSentence(sentence) {
-  const text = sentence.toLowerCase();
+function containsBrokenWikiFormatting(sentence) {
+  const text =
+    String(sentence || "").toLowerCase();
 
-  if (sentence.length < 55 || sentence.length > 320) {
+  const garbage = [
+    "thumb|",
+    "px|",
+    "upright|",
+    "alt=",
+    "caption=",
+    "file:",
+    "image:",
+    "frameless|",
+    "border|",
+    "thumbtime=",
+    "{{",
+    "}}",
+    "[[",
+    "]]",
+    "|right",
+    "|left"
+  ];
+
+  return garbage.some(item =>
+    text.includes(item)
+  );
+}
+
+function quotationHeavy(sentence) {
+  const quoteCharacters =
+    (
+      String(sentence || "").match(
+        /["“”]/g
+      ) || []
+    ).length;
+
+  return quoteCharacters >= 4;
+}
+
+function sentenceScore(sentence) {
+  const text =
+    String(sentence || "").toLowerCase();
+
+  const weights = [
+    ["improvised", 10],
+    ["improvisation", 10],
+    ["originally", 8],
+    ["initially", 8],
+    ["casting", 8],
+    ["cast as", 8],
+    ["audition", 8],
+    ["offered the role", 9],
+    ["turned down", 9],
+    ["rejected", 7],
+    ["replaced", 7],
+    ["considered", 6],
+    ["filming", 7],
+    ["filmed", 7],
+    ["shot", 5],
+    ["scene", 6],
+    ["stunt", 8],
+    ["location", 5],
+    ["screenplay", 5],
+    ["script", 6],
+    ["director", 4],
+    ["production", 4],
+    ["development", 5],
+    ["writer", 4],
+    ["role", 4]
+  ];
+
+  let score = 0;
+
+  for (const [term, value] of weights) {
+    if (text.includes(term)) {
+      score += value;
+    }
+  }
+
+  return score;
+}
+
+function interestingSentence(sentence) {
+  const text =
+    String(sentence || "").trim();
+
+  const lower =
+    text.toLowerCase();
+
+  if (
+    text.length < 60 ||
+    text.length > 330
+  ) {
     return false;
   }
 
-  const interestingWords = [
-    "cast",
-    "casting",
-    "actor",
-    "actress",
-    "role",
-    "audition",
-    "director",
-    "filming",
-    "filmed",
-    "shot",
-    "production",
-    "scene",
-    "script",
-    "screenplay",
-    "wrote",
-    "writer",
-    "originally",
-    "initially",
-    "original choice",
-    "considered",
-    "offered",
-    "rejected",
-    "replaced",
-    "hired",
-    "improvised",
-    "improvisation",
-    "location",
-    "stunt",
-    "studio",
-    "development"
-  ];
+  if (
+    containsBrokenWikiFormatting(text)
+  ) {
+    return false;
+  }
 
-  const unwantedWords = [
+  if (
+    quotationHeavy(text)
+  ) {
+    return false;
+  }
+
+  const unwanted = [
     "box office",
     "grossed",
     "review aggregator",
@@ -116,20 +305,22 @@ function interestingSentence(sentence) {
     "metacritic",
     "critical response",
     "awards and nominations",
-    "soundtrack album"
+    "soundtrack album",
+    "home media",
+    "references",
+    "external links",
+    "bibliography"
   ];
 
   if (
-    unwantedWords.some(word =>
-      text.includes(word)
+    unwanted.some(term =>
+      lower.includes(term)
     )
   ) {
     return false;
   }
 
-  return interestingWords.some(word =>
-    text.includes(word)
-  );
+  return sentenceScore(text) > 0;
 }
 
 function uniqueSentences(sentences) {
@@ -139,9 +330,12 @@ function uniqueSentences(sentences) {
     const key = sentence
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "")
-      .slice(0, 160);
+      .slice(0, 180);
 
-    if (!key || seen.has(key)) {
+    if (
+      !key ||
+      seen.has(key)
+    ) {
       return false;
     }
 
@@ -151,21 +345,53 @@ function uniqueSentences(sentences) {
   });
 }
 
-async function findWikipediaPage(title, year) {
+function tidyTriviaSentence(sentence) {
+  let text = cleanText(sentence);
+
+  /*
+    Remove dangling parenthetical fragments that
+    sometimes result from Wikipedia markup.
+  */
+  text = text.replace(
+    /\(\s*\)/g,
+    ""
+  );
+
+  text = text.replace(
+    /\s+([,.;:!?])/g,
+    "$1"
+  );
+
+  text = text.replace(
+    /\s{2,}/g,
+    " "
+  );
+
+  return text.trim();
+}
+
+async function findWikipediaPage(
+  title,
+  year
+) {
   const searchTerms = [
     `"${title}" ${year || ""} film`,
     `${title} ${year || ""} film`,
     `${title} film`
   ];
 
-  for (const searchTerm of searchTerms) {
-    const data = await wikipedia({
-      action: "query",
-      list: "search",
-      srsearch: searchTerm,
-      srlimit: "8",
-      srnamespace: "0"
-    });
+  for (
+    const searchTerm
+    of searchTerms
+  ) {
+    const data =
+      await wikipedia({
+        action: "query",
+        list: "search",
+        srsearch: searchTerm,
+        srlimit: "8",
+        srnamespace: "0"
+      });
 
     const results =
       data?.query?.search || [];
@@ -175,60 +401,70 @@ async function findWikipediaPage(title, year) {
     }
 
     const normalizedTitle =
-      String(title).toLowerCase();
+      String(title)
+        .toLowerCase()
+        .trim();
 
-    const scored = results
-      .map(result => {
-        const candidate =
-          String(result.title || "");
+    const scored =
+      results
+        .map(result => {
+          const candidate =
+            String(
+              result.title || ""
+            );
 
-        const lower =
-          candidate.toLowerCase();
+          const lower =
+            candidate.toLowerCase();
 
-        let score = 0;
+          let score = 0;
 
-        if (lower === normalizedTitle) {
-          score += 20;
-        }
-
-        if (
-          lower.startsWith(
-            normalizedTitle + " ("
-          )
-        ) {
-          score += 18;
-        }
-
-        if (
-          lower.includes(
+          if (
+            lower ===
             normalizedTitle
-          )
-        ) {
-          score += 10;
-        }
+          ) {
+            score += 20;
+          }
 
-        if (
-          lower.includes("film")
-        ) {
-          score += 6;
-        }
+          if (
+            lower.startsWith(
+              normalizedTitle + " ("
+            )
+          ) {
+            score += 18;
+          }
 
-        if (
-          year &&
-          lower.includes(String(year))
-        ) {
-          score += 8;
-        }
+          if (
+            lower.includes(
+              normalizedTitle
+            )
+          ) {
+            score += 10;
+          }
 
-        return {
-          ...result,
-          score
-        };
-      })
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      );
+          if (
+            lower.includes("film")
+          ) {
+            score += 6;
+          }
+
+          if (
+            year &&
+            lower.includes(
+              String(year)
+            )
+          ) {
+            score += 8;
+          }
+
+          return {
+            ...result,
+            score
+          };
+        })
+        .sort(
+          (a, b) =>
+            b.score - a.score
+        );
 
     if (scored.length) {
       return scored[0].title;
@@ -238,26 +474,34 @@ async function findWikipediaPage(title, year) {
   return null;
 }
 
-async function getSections(pageTitle) {
-  const data = await wikipedia({
-    action: "parse",
-    page: pageTitle,
-    prop: "sections"
-  });
+async function getSections(
+  pageTitle
+) {
+  const data =
+    await wikipedia({
+      action: "parse",
+      page: pageTitle,
+      prop: "sections"
+    });
 
-  return data?.parse?.sections || [];
+  return (
+    data?.parse?.sections || []
+  );
 }
 
 async function getSectionText(
   pageTitle,
   sectionIndex
 ) {
-  const data = await wikipedia({
-    action: "parse",
-    page: pageTitle,
-    prop: "wikitext",
-    section: String(sectionIndex)
-  });
+  const data =
+    await wikipedia({
+      action: "parse",
+      page: pageTitle,
+      prop: "wikitext",
+      section: String(
+        sectionIndex
+      )
+    });
 
   const raw =
     data?.parse?.wikitext || "";
@@ -265,88 +509,53 @@ async function getSectionText(
   return cleanWikiText(raw);
 }
 
-function cleanWikiText(text) {
-  let value = String(text || "");
-
-  value = value
-    .replace(
-      /<!--[\s\S]*?-->/g,
-      " "
-    )
-    .replace(
-      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
-      " "
-    )
-    .replace(
-      /<ref[^/>]*\/>/gi,
-      " "
-    )
-    .replace(
-      /\{\{[\s\S]*?\}\}/g,
-      " "
-    )
-    .replace(
-      /\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g,
-      "$1"
-    )
-    .replace(
-      /\[https?:\/\/[^\s\]]+\s*([^\]]*)\]/g,
-      "$1"
-    )
-    .replace(
-      /'{2,5}/g,
-      ""
-    )
-    .replace(
-      /^=+.*?=+$/gm,
-      " "
-    )
-    .replace(
-      /<[^>]+>/g,
-      " "
-    )
-    .replace(
-      /\s+/g,
-      " "
-    );
-
-  return cleanText(value);
-}
-
 function chooseRelevantSections(
   sections
 ) {
-  const wanted = [
-    "development",
-    "pre-production",
-    "preproduction",
-    "production",
+  const priority = [
     "casting",
     "filming",
+    "development",
+    "production",
+    "pre-production",
+    "preproduction",
     "writing",
     "screenplay"
   ];
 
   const chosen = [];
 
-  for (const section of sections) {
-    const name =
-      String(
-        section.line || ""
-      )
-        .toLowerCase()
-        .trim();
-
-    if (
-      wanted.some(wantedName =>
-        name.includes(wantedName)
-      )
+  for (
+    const wantedName
+    of priority
+  ) {
+    for (
+      const section
+      of sections
     ) {
-      chosen.push(section);
+      const name =
+        String(
+          section.line || ""
+        )
+          .toLowerCase()
+          .trim();
+
+      if (
+        name.includes(
+          wantedName
+        ) &&
+        !chosen.some(
+          item =>
+            item.index ===
+            section.index
+        )
+      ) {
+        chosen.push(section);
+      }
     }
   }
 
-  return chosen.slice(0, 6);
+  return chosen.slice(0, 7);
 }
 
 export default async function handler(
@@ -409,7 +618,7 @@ export default async function handler(
         sections
       );
 
-    let sentences = [];
+    let candidates = [];
 
     for (
       const section
@@ -422,15 +631,35 @@ export default async function handler(
             section.index
           );
 
-        const sectionSentences =
-          splitSentences(text)
-            .filter(
-              interestingSentence
-            );
+        const sentences =
+          splitSentences(text);
 
-        sentences.push(
-          ...sectionSentences
-        );
+        for (
+          const sentence
+          of sentences
+        ) {
+          if (
+            interestingSentence(
+              sentence
+            )
+          ) {
+            candidates.push({
+              text:
+                tidyTriviaSentence(
+                  sentence
+                ),
+
+              score:
+                sentenceScore(
+                  sentence
+                ),
+
+              section:
+                section.line
+            });
+          }
+        }
+
       } catch (error) {
         console.error(
           "Wikipedia section error:",
@@ -439,9 +668,33 @@ export default async function handler(
       }
     }
 
-    sentences =
-      uniqueSentences(sentences)
-        .slice(0, 8);
+    candidates =
+      uniqueSentences(
+        candidates.map(
+          item => item.text
+        )
+      )
+      .map(text => {
+
+        const original =
+          candidates.find(
+            item =>
+              item.text === text
+          );
+
+        return {
+          text,
+          score:
+            original?.score || 0,
+          section:
+            original?.section || ""
+        };
+      })
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      )
+      .slice(0, 6);
 
     const sourceUrl =
       "https://en.wikipedia.org/wiki/" +
@@ -453,9 +706,12 @@ export default async function handler(
       );
 
     const trivia =
-      sentences.map(
-        sentence => ({
-          text: sentence,
+      candidates.map(
+        item => ({
+          text: item.text,
+          category:
+            item.section ||
+            "Production",
           source:
             sourceUrl,
           sourceName:
@@ -476,19 +732,24 @@ export default async function handler(
       },
 
       source: {
-        name: "Wikipedia",
-        page: pageTitle,
-        url: sourceUrl
+        name:
+          "Wikipedia",
+        page:
+          pageTitle,
+        url:
+          sourceUrl
       },
 
       trivia,
 
       message:
         trivia.length
-          ? `Found ${trivia.length} trivia items.`
+          ? `Found ${trivia.length} movie trivia items.`
           : "No suitable production trivia was found for this movie."
     });
+
   } catch (error) {
+
     console.error(
       "Trivia API error:",
       error
