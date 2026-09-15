@@ -69,10 +69,7 @@ function stripTemplates(value) {
       " "
     );
 
-    if (cleaned === text) {
-      break;
-    }
-
+    if (cleaned === text) break;
     text = cleaned;
   }
 
@@ -84,18 +81,9 @@ function cleanWikiText(text) {
 
   value = value
     .replace(/<!--[\s\S]*?-->/g, " ")
-    .replace(
-      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
-      " "
-    )
-    .replace(
-      /<ref[^/>]*\/>/gi,
-      " "
-    )
-    .replace(
-      /\{\|[\s\S]*?\|\}/g,
-      " "
-    )
+    .replace(/<ref[^>]*>[\s\S]*?<\/ref>/gi, " ")
+    .replace(/<ref[^/>]*\/>/gi, " ")
+    .replace(/\{\|[\s\S]*?\|\}/g, " ")
     .replace(
       /<gallery[^>]*>[\s\S]*?<\/gallery>/gi,
       " "
@@ -109,10 +97,7 @@ function cleanWikiText(text) {
       " "
     );
 
-    if (cleaned === value) {
-      break;
-    }
-
+    if (cleaned === value) break;
     value = cleaned;
   }
 
@@ -137,26 +122,11 @@ function cleanWikiText(text) {
       /\[https?:\/\/[^\]]+\]/g,
       " "
     )
-    .replace(
-      /'{2,5}/g,
-      ""
-    )
-    .replace(
-      /^=+.*?=+$/gm,
-      " "
-    )
-    .replace(
-      /^[*#:;]+/gm,
-      " "
-    )
-    .replace(
-      /<[^>]+>/g,
-      " "
-    )
-    .replace(
-      /\s+/g,
-      " "
-    );
+    .replace(/'{2,5}/g, "")
+    .replace(/^=+.*?=+$/gm, " ")
+    .replace(/^[*#:;]+/gm, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ");
 
   return cleanText(value);
 }
@@ -239,6 +209,64 @@ function lacksContext(sentence) {
   );
 }
 
+/*
+  Reject sentences that technically survived Wikipedia
+  cleanup but are too dependent on a larger paragraph
+  to make sense as a standalone Reelwise trivia card.
+*/
+function isContextHeavy(sentence) {
+  const text = String(sentence || "").trim();
+
+  const commas =
+    (text.match(/,/g) || []).length;
+
+  const semicolons =
+    (text.match(/;/g) || []).length;
+
+  /*
+    Long sentences with many clauses are much more likely
+    to become confusing after Wikipedia markup is removed.
+  */
+  if (
+    text.length > 220 &&
+    commas >= 4
+  ) {
+    return true;
+  }
+
+  /*
+    "After..." and "Following..." constructions often
+    refer back to people/events introduced in a previous
+    sentence. Be stricter with these.
+  */
+  if (
+    /^(after|following|subsequently|meanwhile)\b/i.test(text) &&
+    commas >= 3
+  ) {
+    return true;
+  }
+
+  if (
+    text.length > 200 &&
+    semicolons >= 2
+  ) {
+    return true;
+  }
+
+  /*
+    A sentence ending in punctuation should still contain
+    enough ordinary words to stand on its own.
+  */
+  const words =
+    text.match(/[A-Za-z]{2,}/g) || [];
+
+  if (words.length < 10) {
+    return true;
+  }
+
+  return false;
+}
+
 function quotationHeavy(sentence) {
   const quoteCharacters =
     (
@@ -312,6 +340,10 @@ function interestingSentence(sentence) {
   }
 
   if (lacksContext(text)) {
+    return false;
+  }
+
+  if (isContextHeavy(text)) {
     return false;
   }
 
@@ -655,20 +687,6 @@ export default async function handler(
         )
       );
 
-    const trivia =
-      candidates.map(
-        item => ({
-          text: item.text,
-          category:
-            item.section ||
-            "Production",
-          source:
-            sourceUrl,
-          sourceName:
-            "Wikipedia"
-        })
-      );
-
     res.setHeader(
       "Cache-Control",
       "s-maxage=86400, stale-while-revalidate=604800"
@@ -680,30 +698,32 @@ export default async function handler(
         title,
         year
       },
-
       source: {
         name: "Wikipedia",
         page: pageTitle,
         url: sourceUrl
       },
-
-      trivia,
-
+      trivia: candidates.map(
+        item => ({
+          text: item.text,
+          section: item.section
+        })
+      ),
       message:
-        trivia.length
-          ? `Found ${trivia.length} movie trivia items.`
-          : "No suitable production trivia was found for this movie."
+        candidates.length
+          ? undefined
+          : "No suitable trivia was found for this movie."
     });
 
   } catch (error) {
     console.error(
-      "Trivia API error:",
+      "Reelwise trivia error:",
       error
     );
 
     return res.status(500).json({
       error:
-        "Unable to load Reelwise trivia."
+        "Trivia could not be loaded."
     });
   }
 }
