@@ -5,15 +5,14 @@ async function tmdb(path) {
   let url = "https://api.themoviedb.org/3" + path;
 
   const options = {
-    headers: {
-      accept: "application/json"
-    }
+    headers: { accept: "application/json" }
   };
 
   if (TOKEN) {
     options.headers.Authorization = "Bearer " + TOKEN;
   } else if (API_KEY) {
-    url += (url.includes("?") ? "&" : "?") +
+    url +=
+      (url.includes("?") ? "&" : "?") +
       "api_key=" +
       encodeURIComponent(API_KEY);
   } else {
@@ -69,27 +68,149 @@ function cleanWikiText(value) {
 }
 
 function normalizeQuote(value) {
-  let text = cleanWikiText(value);
-
-  text = text
+  return cleanWikiText(value)
     .replace(/^[*#:;]+\s*/, "")
     .replace(/^["“”'‘’]+/, "")
     .replace(/["“”'‘’]+$/, "")
     .trim();
-
-  return text;
 }
 
-function looksLikeCastEntry(line) {
-  const text = String(line || "").trim();
+function isStageDirection(text) {
+  const value = String(text || "").trim();
 
-  if (/^[A-Z][A-Za-z.' -]{2,45}\s+[–—-]\s+.{2,70}$/.test(text)) {
+  if (/^\[.*\]$/.test(value)) {
     return true;
   }
 
-  const lower = " " + text.toLowerCase() + " ";
+  if (/^\(.*\)$/.test(value)) {
+    const lower = value.toLowerCase();
 
-  const rankTerms = [
+    if (
+      lower.includes("scene") ||
+      lower.includes("enters") ||
+      lower.includes("leaves") ||
+      lower.includes("walks") ||
+      lower.includes("goes") ||
+      lower.includes("looks") ||
+      lower.includes("laughs") ||
+      lower.includes("fighting") ||
+      lower.includes("fight") ||
+      lower.includes("ring")
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function isNoteOrCommentary(text) {
+  const lower = String(text || "").trim().toLowerCase();
+
+  const blockedStarts = [
+    "note:",
+    "note ",
+    "notes:",
+    "editor's note",
+    "editor’s note",
+    "the bolded",
+    "bolded portion",
+    "this quote",
+    "this line",
+    "this quotation"
+  ];
+
+  if (blockedStarts.some(item => lower.startsWith(item))) {
+    return true;
+  }
+
+  const blockedContent = [
+    "american film institute",
+    "afi's list",
+    "afi’s list",
+    "top 100 movie quotations",
+    "ranked #",
+    "ranked number",
+    "quotation in american cinema"
+  ];
+
+  return blockedContent.some(item => lower.includes(item));
+}
+
+function looksLikeNavigation(text, movieTitle) {
+  const value = String(text || "").trim();
+  const lower = value.toLowerCase();
+  const title = String(movieTitle || "").trim().toLowerCase();
+
+  const blocked = [
+    "film series",
+    "filmsite.org",
+    "wikipedia",
+    "wikiquote",
+    "external links",
+    "external link",
+    "references",
+    "reference",
+    "see also",
+    "official website",
+    "official site",
+    "internet movie database",
+    "imdb",
+    "rotten tomatoes",
+    "metacritic",
+    "allmovie",
+    "box office mojo",
+    "retrieved from",
+    "category:",
+    "categories"
+  ];
+
+  if (blocked.some(item => lower.includes(item))) {
+    return true;
+  }
+
+  if (
+    /\b(?:www\.|https?:\/\/)/i.test(value) ||
+    /\b[a-z0-9-]+\.(?:com|org|net|edu|gov|io)\b/i.test(value)
+  ) {
+    return true;
+  }
+
+  if (title && lower === title) {
+    return true;
+  }
+
+  if (title) {
+    const base = title
+      .replace(/\s*\(\d{4}\)\s*$/, "")
+      .trim();
+
+    if (
+      lower.startsWith(base + " ") &&
+      (
+        /\b(?:ii|iii|iv|v|vi|vii|viii|ix|x)\b/i.test(value) ||
+        /\b(?:2|3|4|5|6|7|8|9|10)\b/.test(value)
+      )
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function looksLikeCastEntry(text) {
+  const value = String(text || "").trim();
+
+  if (
+    /^[A-Z][A-Za-z.' -]{2,45}\s+[–—-]\s+.{2,70}$/.test(value)
+  ) {
+    return true;
+  }
+
+  const lower = " " + value.toLowerCase() + " ";
+
+  const ranks = [
     " lt ",
     " ltjg ",
     " lieutenant ",
@@ -102,103 +223,12 @@ function looksLikeCastEntry(line) {
   ];
 
   return (
-    /\s[–—-]\s/.test(text) &&
-    rankTerms.some(term => lower.includes(term))
+    /\s[–—-]\s/.test(value) &&
+    ranks.some(rank => lower.includes(rank))
   );
 }
 
-function looksLikeNavigationOrReference(text, movieTitle) {
-  const value = String(text || "").trim();
-  const lower = value.toLowerCase();
-  const title = String(movieTitle || "").toLowerCase().trim();
-
-  if (!value) return true;
-
-  // Wikiquote/Wikipedia navigation and page furniture
-  const blockedPhrases = [
-    "film series",
-    "filmsite.org",
-    "wikipedia",
-    "wikiquote",
-    "external links",
-    "external link",
-    "see also",
-    "references",
-    "reference",
-    "official website",
-    "official site",
-    "internet movie database",
-    "imdb",
-    "rotten tomatoes",
-    "metacritic",
-    "allmovie",
-    "box office mojo",
-    "categories",
-    "category:",
-    "retrieved from",
-    "navigation menu",
-    "related quotes",
-    "quotes about",
-    "quotes from",
-    "cast",
-    "starring",
-    "directed by",
-    "written by",
-    "produced by",
-    "release date"
-  ];
-
-  if (blockedPhrases.some(term => lower.includes(term))) {
-    return true;
-  }
-
-  // Website/domain names
-  if (
-    /\b(?:www\.|https?:\/\/)/i.test(value) ||
-    /\b[a-z0-9-]+\.(?:com|org|net|edu|gov|io)\b/i.test(value)
-  ) {
-    return true;
-  }
-
-  // A bare movie title is not a quote.
-  if (title && lower === title) {
-    return true;
-  }
-
-  // Reject obvious sequel/navigation titles such as:
-  // Rocky II, Rocky III, Rocky IV, Top Gun: Maverick, etc.
-  if (title) {
-    const baseTitle = title
-      .replace(/\s*\(\d{4}\)\s*$/, "")
-      .trim();
-
-    if (
-      lower.startsWith(baseTitle + " ") &&
-      (
-        /\b(?:ii|iii|iv|v|vi|vii|viii|ix|x)\b/i.test(value) ||
-        /\b(?:2|3|4|5|6|7|8|9|10)\b/.test(value)
-      )
-    ) {
-      return true;
-    }
-  }
-
-  // Very short title-like strings with no sentence punctuation
-  // are usually links/headings rather than dialogue.
-  const words = value.split(/\s+/).filter(Boolean);
-
-  if (
-    words.length <= 7 &&
-    !/[.!?]/.test(value) &&
-    /^[A-Z0-9][A-Za-z0-9:'’"&., -]+$/.test(value)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function looksLikeRealQuote(text, movieTitle) {
+function isValidQuote(text, movieTitle) {
   const value = String(text || "").trim();
 
   if (!value) return false;
@@ -207,46 +237,33 @@ function looksLikeRealQuote(text, movieTitle) {
     return false;
   }
 
+  if (isStageDirection(value)) {
+    return false;
+  }
+
+  if (isNoteOrCommentary(value)) {
+    return false;
+  }
+
+  if (looksLikeNavigation(value, movieTitle)) {
+    return false;
+  }
+
   if (looksLikeCastEntry(value)) {
     return false;
   }
 
-  if (looksLikeNavigationOrReference(value, movieTitle)) {
+  if (
+    /^(dialogue|taglines?|quotes?|characters?|cast|notes?|about)$/i.test(
+      value
+    )
+  ) {
     return false;
   }
 
-  // Reject section headings / labels.
-  if (/^(dialogue|taglines?|quotes?|characters?|about|notes?)$/i.test(value)) {
-    return false;
-  }
-
-  // Reject metadata-style labels.
-  if (/^[A-Za-z ]{2,30}:\s*$/.test(value)) {
-    return false;
-  }
-
-  // Reject obvious bullet/reference fragments.
-  if (/^\d+\.\s/.test(value)) {
-    return false;
-  }
-
-  // A quote should contain enough natural language.
   const words = value.split(/\s+/).filter(Boolean);
 
   if (words.length < 3) {
-    return false;
-  }
-
-  // Reject strings that are mostly title-cased proper nouns.
-  const titleCaseWords = words.filter(word =>
-    /^[A-Z][a-z]+$/.test(word.replace(/[.,!?;:'"]/g, ""))
-  );
-
-  if (
-    words.length <= 8 &&
-    titleCaseWords.length >= Math.ceil(words.length * 0.75) &&
-    !/[!?]/.test(value)
-  ) {
     return false;
   }
 
@@ -258,11 +275,12 @@ function parseQuoteLine(rawLine, movieTitle) {
 
   if (!line) return null;
 
-  if (looksLikeCastEntry(line)) {
-    return null;
-  }
-
-  if (looksLikeNavigationOrReference(line, movieTitle)) {
+  if (
+    isStageDirection(line) ||
+    isNoteOrCommentary(line) ||
+    looksLikeNavigation(line, movieTitle) ||
+    looksLikeCastEntry(line)
+  ) {
     return null;
   }
 
@@ -270,20 +288,27 @@ function parseQuoteLine(rawLine, movieTitle) {
   let text = line;
 
   /*
-    Wikiquote frequently formats dialogue as:
-    Maverick: I feel the need...
+    Recognize dialogue such as:
+    Rocky: It was what?
+    Adrian: But it was Thanksgiving.
   */
-  const speakerMatch = line.match(
-    /^([A-Za-z0-9 .'’"-]{2,40}):\s+(.{5,})$/
+  const match = line.match(
+    /^([A-Za-z0-9 .'’"-]{2,40}):\s*(.+)$/
   );
 
-  if (speakerMatch) {
-    const possibleSpeaker = speakerMatch[1].trim();
-    const possibleQuote = speakerMatch[2].trim();
+  if (match) {
+    const possibleSpeaker = match[1].trim();
+    const possibleQuote = match[2].trim();
 
+    /*
+      Don't treat things such as "Note:" or
+      "Director:" as character names.
+    */
     if (
-      !looksLikeNavigationOrReference(possibleSpeaker, movieTitle) &&
-      looksLikeRealQuote(possibleQuote, movieTitle)
+      !/^(note|notes|director|writer|producer|source|reference|cast)$/i.test(
+        possibleSpeaker
+      ) &&
+      isValidQuote(possibleQuote, movieTitle)
     ) {
       speaker = possibleSpeaker;
       text = possibleQuote;
@@ -292,11 +317,7 @@ function parseQuoteLine(rawLine, movieTitle) {
 
   text = normalizeQuote(text);
 
-  if (!looksLikeRealQuote(text, movieTitle)) {
-    return null;
-  }
-
-  if (looksLikeCastEntry(text)) {
+  if (!isValidQuote(text, movieTitle)) {
     return null;
   }
 
@@ -370,9 +391,9 @@ async function findWikiquotePage(title, year) {
         if (lower.includes("film")) score += 20;
         if (year && lower.includes(String(year))) score += 20;
 
-        if (lower.includes("film series")) score -= 100;
-        if (lower.includes("franchise")) score -= 80;
-        if (lower.includes("character")) score -= 40;
+        if (lower.includes("film series")) score -= 120;
+        if (lower.includes("franchise")) score -= 100;
+        if (lower.includes("character")) score -= 50;
 
         return {
           title: candidate,
@@ -414,20 +435,20 @@ function extractQuotes(wikitext, movieTitle) {
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
 
-    // Track Wikiquote sections so we don't read reference/navigation areas.
-    const headingMatch = trimmed.match(/^={2,}\s*(.*?)\s*={2,}$/);
+    const heading = trimmed.match(
+      /^={2,}\s*(.*?)\s*={2,}$/
+    );
 
-    if (headingMatch) {
-      const heading = cleanWikiText(headingMatch[1]).toLowerCase();
+    if (heading) {
+      const name = cleanWikiText(heading[1]).toLowerCase();
 
       blockedSection =
-        heading.includes("cast") ||
-        heading.includes("external") ||
-        heading.includes("reference") ||
-        heading.includes("see also") ||
-        heading.includes("link") ||
-        heading.includes("about") ||
-        heading.includes("bibliography");
+        name.includes("cast") ||
+        name.includes("external") ||
+        name.includes("reference") ||
+        name.includes("see also") ||
+        name.includes("link") ||
+        name.includes("bibliography");
 
       continue;
     }
@@ -436,12 +457,18 @@ function extractQuotes(wikitext, movieTitle) {
       continue;
     }
 
-    // Actual Wikiquote material is normally in bullet/list lines.
+    /*
+      Wikiquote's actual quote/dialogue content is
+      normally stored as list items.
+    */
     if (!/^[*#:]/.test(trimmed)) {
       continue;
     }
 
-    const parsed = parseQuoteLine(trimmed, movieTitle);
+    const parsed = parseQuoteLine(
+      trimmed,
+      movieTitle
+    );
 
     if (parsed) {
       quotes.push(parsed);
@@ -467,11 +494,14 @@ export default async function handler(req, res) {
       "?language=en-US"
     );
 
-    const title = movie.title || movie.original_title;
+    const title =
+      movie.title ||
+      movie.original_title;
 
-    const year = movie.release_date
-      ? movie.release_date.slice(0, 4)
-      : "";
+    const year =
+      movie.release_date
+        ? movie.release_date.slice(0, 4)
+        : "";
 
     if (!title) {
       return res.status(404).json({
@@ -479,7 +509,8 @@ export default async function handler(req, res) {
       });
     }
 
-    const pageTitle = await findWikiquotePage(title, year);
+    const pageTitle =
+      await findWikiquotePage(title, year);
 
     if (!pageTitle) {
       return res.status(200).json({
@@ -491,9 +522,11 @@ export default async function handler(req, res) {
       });
     }
 
-    const wikitext = await getPageWikitext(pageTitle);
+    const wikitext =
+      await getPageWikitext(pageTitle);
 
-    const quotes = extractQuotes(wikitext, title);
+    const quotes =
+      extractQuotes(wikitext, title);
 
     res.setHeader(
       "Cache-Control",
@@ -507,14 +540,20 @@ export default async function handler(req, res) {
       sourceName: "Wikiquote",
       source:
         "https://en.wikiquote.org/wiki/" +
-        encodeURIComponent(pageTitle.replace(/ /g, "_"))
+        encodeURIComponent(
+          pageTitle.replace(/ /g, "_")
+        )
     });
 
   } catch (error) {
-    console.error("Quotes API error:", error);
+    console.error(
+      "Quotes API error:",
+      error
+    );
 
     return res.status(500).json({
-      error: "Reelwise could not load quotes right now."
+      error:
+        "Reelwise could not load quotes right now."
     });
   }
 }
