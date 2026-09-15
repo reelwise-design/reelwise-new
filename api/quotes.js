@@ -67,7 +67,7 @@ function cleanWikiText(value) {
     .trim();
 }
 
-function normalizeQuote(value) {
+function normalizeLine(value) {
   return cleanWikiText(value)
     .replace(/^[*#:;]+\s*/, "")
     .replace(/^["“”'‘’]+/, "")
@@ -78,25 +78,29 @@ function normalizeQuote(value) {
 function isStageDirection(text) {
   const value = String(text || "").trim();
 
-  if (/^\[.*\]$/.test(value)) {
-    return true;
-  }
+  if (/^\[.*\]$/.test(value)) return true;
 
   if (/^\(.*\)$/.test(value)) {
     const lower = value.toLowerCase();
 
-    if (
-      lower.includes("scene") ||
-      lower.includes("enters") ||
-      lower.includes("leaves") ||
-      lower.includes("walks") ||
-      lower.includes("goes") ||
-      lower.includes("looks") ||
-      lower.includes("laughs") ||
-      lower.includes("fighting") ||
-      lower.includes("fight") ||
-      lower.includes("ring")
-    ) {
+    const actions = [
+      "scene",
+      "enters",
+      "leaves",
+      "walks",
+      "walk",
+      "goes",
+      "looks",
+      "laughs",
+      "laugh",
+      "fighting",
+      "fight",
+      "ring",
+      "cuts to",
+      "camera"
+    ];
+
+    if (actions.some(word => lower.includes(word))) {
       return true;
     }
   }
@@ -104,40 +108,73 @@ function isStageDirection(text) {
   return false;
 }
 
-function isNoteOrCommentary(text) {
+function isCreditOrMetadata(text) {
   const lower = String(text || "").trim().toLowerCase();
 
-  const blockedStarts = [
-    "note:",
-    "note ",
-    "notes:",
-    "editor's note",
-    "editor’s note",
-    "the bolded",
-    "bolded portion",
-    "this quote",
-    "this line",
-    "this quotation"
+  const starts = [
+    "directed by",
+    "written by",
+    "screenplay by",
+    "story by",
+    "produced by",
+    "executive producer",
+    "starring ",
+    "music by",
+    "cinematography by",
+    "edited by",
+    "distributed by",
+    "release date",
+    "running time",
+    "budget:",
+    "box office:",
+    "based on"
   ];
 
-  if (blockedStarts.some(item => lower.startsWith(item))) {
+  if (starts.some(item => lower.startsWith(item))) {
     return true;
   }
 
-  const blockedContent = [
+  /*
+    Also catch combined credits such as:
+    "Directed by John G. Avildsen. Written by Sylvester Stallone."
+  */
+  if (
+    lower.includes("directed by") ||
+    lower.includes("written by") ||
+    lower.includes("screenplay by") ||
+    lower.includes("produced by")
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function isNoteOrReference(text) {
+  const lower = String(text || "").trim().toLowerCase();
+
+  const blocked = [
+    "note:",
+    "notes:",
+    "editor's note",
+    "editor’s note",
+    "bolded portion",
     "american film institute",
     "afi's list",
     "afi’s list",
     "top 100 movie quotations",
     "ranked #",
-    "ranked number",
-    "quotation in american cinema"
+    "this quote",
+    "this quotation",
+    "this line",
+    "reference:",
+    "source:"
   ];
 
-  return blockedContent.some(item => lower.includes(item));
+  return blocked.some(item => lower.includes(item));
 }
 
-function looksLikeNavigation(text, movieTitle) {
+function isNavigation(text, movieTitle) {
   const value = String(text || "").trim();
   const lower = value.toLowerCase();
   const title = String(movieTitle || "").trim().toLowerCase();
@@ -150,7 +187,6 @@ function looksLikeNavigation(text, movieTitle) {
     "external links",
     "external link",
     "references",
-    "reference",
     "see also",
     "official website",
     "official site",
@@ -228,30 +264,20 @@ function looksLikeCastEntry(text) {
   );
 }
 
-function isValidQuote(text, movieTitle) {
+function validSpokenText(text, movieTitle) {
   const value = String(text || "").trim();
 
   if (!value) return false;
 
-  if (value.length < 8 || value.length > 180) {
+  if (value.length < 3 || value.length > 220) {
     return false;
   }
 
-  if (isStageDirection(value)) {
-    return false;
-  }
-
-  if (isNoteOrCommentary(value)) {
-    return false;
-  }
-
-  if (looksLikeNavigation(value, movieTitle)) {
-    return false;
-  }
-
-  if (looksLikeCastEntry(value)) {
-    return false;
-  }
+  if (isStageDirection(value)) return false;
+  if (isCreditOrMetadata(value)) return false;
+  if (isNoteOrReference(value)) return false;
+  if (isNavigation(value, movieTitle)) return false;
+  if (looksLikeCastEntry(value)) return false;
 
   if (
     /^(dialogue|taglines?|quotes?|characters?|cast|notes?|about)$/i.test(
@@ -261,89 +287,103 @@ function isValidQuote(text, movieTitle) {
     return false;
   }
 
-  const words = value.split(/\s+/).filter(Boolean);
-
-  if (words.length < 3) {
-    return false;
-  }
-
   return true;
 }
 
-function parseQuoteLine(rawLine, movieTitle) {
-  let line = normalizeQuote(rawLine);
+function parseLine(rawLine, movieTitle) {
+  const line = normalizeLine(rawLine);
 
   if (!line) return null;
 
   if (
     isStageDirection(line) ||
-    isNoteOrCommentary(line) ||
-    looksLikeNavigation(line, movieTitle) ||
+    isCreditOrMetadata(line) ||
+    isNoteOrReference(line) ||
+    isNavigation(line, movieTitle) ||
     looksLikeCastEntry(line)
   ) {
     return null;
   }
 
-  let speaker = "";
-  let text = line;
-
   /*
-    Recognize dialogue such as:
+    Character dialogue:
     Rocky: It was what?
     Adrian: But it was Thanksgiving.
   */
-  const match = line.match(
+  const dialogueMatch = line.match(
     /^([A-Za-z0-9 .'’"-]{2,40}):\s*(.+)$/
   );
 
-  if (match) {
-    const possibleSpeaker = match[1].trim();
-    const possibleQuote = match[2].trim();
+  if (dialogueMatch) {
+    const speaker = dialogueMatch[1].trim();
+    const text = dialogueMatch[2].trim();
 
-    /*
-      Don't treat things such as "Note:" or
-      "Director:" as character names.
-    */
+    const invalidSpeakers = [
+      "note",
+      "notes",
+      "director",
+      "writer",
+      "producer",
+      "source",
+      "reference",
+      "cast",
+      "film",
+      "movie"
+    ];
+
     if (
-      !/^(note|notes|director|writer|producer|source|reference|cast)$/i.test(
-        possibleSpeaker
-      ) &&
-      isValidQuote(possibleQuote, movieTitle)
+      invalidSpeakers.includes(speaker.toLowerCase())
     ) {
-      speaker = possibleSpeaker;
-      text = possibleQuote;
+      return null;
     }
+
+    if (!validSpokenText(text, movieTitle)) {
+      return null;
+    }
+
+    return {
+      type: "dialogue",
+      speaker,
+      text
+    };
   }
 
-  text = normalizeQuote(text);
-
-  if (!isValidQuote(text, movieTitle)) {
+  if (!validSpokenText(line, movieTitle)) {
     return null;
   }
 
   return {
-    text,
-    speaker
+    type: "quote",
+    speaker: "",
+    text: line
   };
 }
 
-function dedupeQuotes(quotes) {
+function dedupeItems(items) {
   const seen = new Set();
   const output = [];
 
-  for (const quote of quotes) {
-    const key = quote.text
+  for (const item of items) {
+    let sourceText = "";
+
+    if (item.type === "dialogue") {
+      sourceText = item.lines
+        .map(line => line.speaker + " " + line.text)
+        .join(" ");
+    } else {
+      sourceText = item.text || "";
+    }
+
+    const key = sourceText
       .toLowerCase()
       .replace(/[“”"'‘’.,!?;:—–-]/g, "")
       .replace(/\s+/g, " ")
       .trim();
 
-    if (!key || seen.has(key)) {
-      continue;
-    }
+    if (!key || seen.has(key)) continue;
 
     seen.add(key);
-    output.push(quote);
+    output.push(item);
   }
 
   return output;
@@ -372,9 +412,7 @@ async function findWikiquotePage(title, year) {
         ? data.query.search
         : [];
 
-    if (!results.length) {
-      continue;
-    }
+    if (!results.length) continue;
 
     const titleLower = title.toLowerCase();
 
@@ -427,12 +465,39 @@ async function getPageWikitext(pageTitle) {
 }
 
 function extractQuotes(wikitext, movieTitle) {
-  const lines = String(wikitext || "").split("\n");
-  const quotes = [];
+  const rawLines = String(wikitext || "").split("\n");
 
+  const finalItems = [];
+
+  let dialogueBuffer = [];
   let blockedSection = false;
 
-  for (const rawLine of lines) {
+  function flushDialogue() {
+    if (!dialogueBuffer.length) return;
+
+    /*
+      Two or more consecutive spoken lines become
+      one Reelwise dialogue exchange.
+    */
+    if (dialogueBuffer.length >= 2) {
+      finalItems.push({
+        type: "dialogue",
+        lines: dialogueBuffer.slice(0, 8)
+      });
+    } else {
+      const only = dialogueBuffer[0];
+
+      finalItems.push({
+        type: "quote",
+        text: only.text,
+        speaker: only.speaker
+      });
+    }
+
+    dialogueBuffer = [];
+  }
+
+  for (const rawLine of rawLines) {
     const trimmed = rawLine.trim();
 
     const heading = trimmed.match(
@@ -440,7 +505,10 @@ function extractQuotes(wikitext, movieTitle) {
     );
 
     if (heading) {
-      const name = cleanWikiText(heading[1]).toLowerCase();
+      flushDialogue();
+
+      const name =
+        cleanWikiText(heading[1]).toLowerCase();
 
       blockedSection =
         name.includes("cast") ||
@@ -453,29 +521,63 @@ function extractQuotes(wikitext, movieTitle) {
       continue;
     }
 
-    if (blockedSection) {
+    if (blockedSection) continue;
+
+    /*
+      A blank line ends a dialogue exchange.
+    */
+    if (!trimmed) {
+      flushDialogue();
       continue;
     }
 
     /*
-      Wikiquote's actual quote/dialogue content is
-      normally stored as list items.
+      Ignore lines that aren't Wikiquote list material.
     */
     if (!/^[*#:]/.test(trimmed)) {
+      flushDialogue();
       continue;
     }
 
-    const parsed = parseQuoteLine(
+    const parsed = parseLine(
       trimmed,
       movieTitle
     );
 
-    if (parsed) {
-      quotes.push(parsed);
+    if (!parsed) {
+      /*
+        Stage directions often appear between dialogue
+        lines. We ignore them without turning them into
+        quote cards.
+      */
+      if (!isStageDirection(normalizeLine(trimmed))) {
+        flushDialogue();
+      }
+
+      continue;
     }
+
+    if (parsed.type === "dialogue") {
+      dialogueBuffer.push({
+        speaker: parsed.speaker,
+        text: parsed.text
+      });
+
+      continue;
+    }
+
+    flushDialogue();
+
+    finalItems.push({
+      type: "quote",
+      text: parsed.text,
+      speaker: parsed.speaker || ""
+    });
   }
 
-  return dedupeQuotes(quotes).slice(0, 8);
+  flushDialogue();
+
+  return dedupeItems(finalItems).slice(0, 8);
 }
 
 export default async function handler(req, res) {
@@ -546,10 +648,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-    console.error(
-      "Quotes API error:",
-      error
-    );
+    console.error("Quotes API error:", error);
 
     return res.status(500).json({
       error:
