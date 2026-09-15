@@ -37,6 +37,83 @@ function year(date) {
   return date ? String(date).slice(0, 4) : "";
 }
 
+/*
+  Normalize text so searches are compared fairly.
+*/
+
+function normalize(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[^\p{L}\p{N}\s]/gu, "")
+    .replace(/\s+/g, " ");
+}
+
+/*
+  Give exact and close matches priority over popularity.
+*/
+
+function relevanceScore(item, query) {
+  const search = normalize(query);
+
+  const title = normalize(
+    item.display_title ||
+    item.title ||
+    item.original_title ||
+    item.name
+  );
+
+  let score = Number(item.popularity || 0);
+
+  /*
+    Exact match:
+    Rocky III → Rocky III
+  */
+  if (title === search) {
+    score += 1000000;
+  }
+
+  /*
+    Starts with the complete search:
+    Rocky → Rocky III
+  */
+  else if (title.startsWith(search)) {
+    score += 100000;
+  }
+
+  /*
+    Contains the complete search phrase.
+  */
+  else if (title.includes(search)) {
+    score += 10000;
+  }
+
+  /*
+    Give additional credit when all search words
+    appear somewhere in the title.
+  */
+  else {
+    const words = search
+      .split(" ")
+      .filter(Boolean);
+
+    const matchingWords = words.filter(word =>
+      title.includes(word)
+    ).length;
+
+    if (
+      words.length &&
+      matchingWords === words.length
+    ) {
+      score += 5000;
+    } else {
+      score += matchingWords * 250;
+    }
+  }
+
+  return score;
+}
+
 export default async function handler(req, res) {
   try {
     const {
@@ -164,7 +241,15 @@ export default async function handler(req, res) {
       }));
 
     /*
-      Put the most relevant TMDB results first.
+      REELWISE SMART SEARCH
+
+      Exact title/name matches come first.
+
+      Then titles/names beginning with the search.
+
+      Then titles containing the search phrase.
+
+      Popularity is used as a secondary ranking signal.
     */
 
     const results = [
@@ -172,8 +257,8 @@ export default async function handler(req, res) {
       ...personResults
     ].sort((a, b) => {
       return (
-        Number(b.popularity || 0) -
-        Number(a.popularity || 0)
+        relevanceScore(b, query) -
+        relevanceScore(a, query)
       );
     });
 
