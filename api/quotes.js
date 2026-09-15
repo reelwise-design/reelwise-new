@@ -1,6 +1,25 @@
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 const API_KEY = process.env.TMDB_API_KEY;
 
+/*
+  REELWISE EDITOR'S PICKS
+
+  This is the quality layer.
+
+  When Reelwise has hand-selected quotes for a movie,
+  these are shown instead of trying to fill the page
+  with random dialogue.
+
+  The key is the TMDB movie ID.
+*/
+const CURATED_QUOTES = {
+  "1366": [
+    "Yo, Adrian!",
+    "All I wanna do is go the distance.",
+    "I just wanna prove somethin'—I ain't no bum."
+  ]
+};
+
 async function tmdb(path) {
   let url = `https://api.themoviedb.org/3${path}`;
   const headers = { accept: "application/json" };
@@ -54,6 +73,12 @@ function cleanWikiText(text) {
     .replace(/&amp;/gi, "&")
     .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
+
+    // Remove stage directions even when they appear
+    // inside an otherwise usable quote.
+    .replace(/\[[^\]]{1,120}\]/g, "")
+    .replace(/\([^)]{1,100}\)/g, "")
+
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -77,16 +102,38 @@ function isLikelyMoviePage(title, movieTitle, year) {
   );
 }
 
+function removeSpeaker(text) {
+  const value = String(text || "").trim();
+
+  const match = value.match(
+    /^([A-Za-z0-9 .,'’"\-]{1,40}):\s*(.+)$/
+  );
+
+  if (!match) return value;
+
+  const speaker = match[1].trim();
+  const spoken = match[2].trim();
+
+  if (
+    /^(note|notes|source|sources|reference|references)$/i.test(
+      speaker
+    )
+  ) {
+    return "";
+  }
+
+  return spoken;
+}
+
 function looksLikeJunk(text, movieTitle) {
   const value = String(text || "").trim();
   const lower = value.toLowerCase();
   const movie = String(movieTitle || "").toLowerCase();
 
   if (!value) return true;
-  if (value.length < 8) return true;
-  if (value.length > 180) return true;
+  if (value.length < 12) return true;
+  if (value.length > 125) return true;
 
-  // Production credits
   if (
     /\b(directed|written|produced|screenplay|music|cinematography|distributed)\s+by\b/i.test(
       value
@@ -95,7 +142,6 @@ function looksLikeJunk(text, movieTitle) {
     return true;
   }
 
-  // Notes, references and Wikiquote navigation
   if (
     /^(note|notes|source|sources|reference|references|see also|external links?|cast|about|links)\b/i.test(
       value
@@ -118,7 +164,6 @@ function looksLikeJunk(text, movieTitle) {
     return true;
   }
 
-  // Related movie pages
   if (lower.includes("(film series)")) return true;
 
   if (
@@ -130,7 +175,6 @@ function looksLikeJunk(text, movieTitle) {
     return true;
   }
 
-  // Sequel titles such as Rocky II / Rocky III
   if (
     /^[A-Z][A-Za-z0-9 '&:.-]{1,50}\s+(?:II|III|IV|V|VI|VII|VIII|IX|X)$/i.test(
       value
@@ -139,76 +183,54 @@ function looksLikeJunk(text, movieTitle) {
     return true;
   }
 
-  // URLs
   if (/^https?:\/\//i.test(value)) return true;
-
-  // Stage directions
-  if (/^\([^)]{2,160}\)$/.test(value)) return true;
-  if (/^\[[^\]]{2,160}\]$/.test(value)) return true;
-
-  // Cast-style entries
-  if (
-    /\s+[–—-]\s+(?:lt\.?|ltjg|capt\.?|captain|cmdr\.?|commander|sgt\.?|sergeant|dr\.?|colonel|col\.?|major|gen\.?|general|officer|agent)\b/i.test(
-      value
-    )
-  ) {
-    return true;
-  }
 
   return false;
 }
 
-function removeSpeaker(text) {
-  const value = String(text || "").trim();
+/*
+  Automatic quotes now have to pass a MUCH higher bar.
 
-  /*
-    If Wikiquote stores a spoken line as:
-    Rocky: Yo, Adrian!
-    keep only:
-    Yo, Adrian!
-  */
-  const match = value.match(
-    /^([A-Za-z0-9 .,'’"()\-]{1,40}):\s*(.+)$/
-  );
-
-  if (!match) return value;
-
-  const speaker = match[1].trim();
-  const spoken = match[2].trim();
-
-  if (
-    /^(note|notes|source|sources|reference|references)$/i.test(
-      speaker
-    )
-  ) {
-    return "";
-  }
-
-  return spoken;
-}
-
-function quoteScore(text) {
+  We intentionally return only a few.
+*/
+function confidenceScore(text) {
   const value = String(text || "");
   let score = 0;
 
-  // Strong preference for concise lines.
-  if (value.length >= 15 && value.length <= 90) {
-    score += 10;
-  } else if (value.length <= 130) {
-    score += 6;
-  } else {
-    score += 2;
+  if (value.length >= 20 && value.length <= 85) {
+    score += 5;
   }
 
-  if (/[!?]/.test(value)) score += 2;
+  if (/[!?]/.test(value)) {
+    score += 1;
+  }
 
-  // Spoken-language clues.
   if (
-    /\b(I|I'm|I've|you|you're|we|we're|don't|can't|won't|gonna|gotta|yeah|hey|look|listen)\b/i.test(
+    /\b(I|I'm|I've|you|you're|we|don't|can't|won't|gonna|gotta|never|always|want|know|think|believe)\b/i.test(
       value
     )
   ) {
-    score += 3;
+    score += 2;
+  }
+
+  /*
+    Penalize lines that look like ordinary conversational
+    fragments rather than self-contained movie quotes.
+  */
+  if (
+    /^(yeah|yes|no|well|okay|ok|right|sure|what|who|where|when|why|how)\b/i.test(
+      value
+    )
+  ) {
+    score -= 3;
+  }
+
+  if (
+    /\b(what do you think about|how about|how 'bout|I beg your pardon)\b/i.test(
+      value
+    )
+  ) {
+    score -= 5;
   }
 
   return score;
@@ -230,16 +252,15 @@ function dedupeQuotes(quotes) {
   });
 }
 
-function extractQuotes(wikitext, movieTitle) {
+function extractHighConfidenceQuotes(wikitext, movieTitle) {
   const lines = String(wikitext || "").split("\n");
-  const quotes = [];
+  const candidates = [];
 
   for (const rawLine of lines) {
     const trimmed = rawLine.trim();
 
     if (!trimmed) continue;
 
-    // Skip headings/templates/navigation.
     if (
       /^=+/.test(trimmed) ||
       /^\{\{/.test(trimmed) ||
@@ -248,9 +269,6 @@ function extractQuotes(wikitext, movieTitle) {
       continue;
     }
 
-    /*
-      Only consider Wikiquote bullet/indented content.
-    */
     const bulletMatch = trimmed.match(/^[:*#]+\s*(.+)$/);
 
     if (!bulletMatch) continue;
@@ -260,6 +278,7 @@ function extractQuotes(wikitext, movieTitle) {
     if (!cleaned) continue;
 
     cleaned = removeSpeaker(cleaned);
+    cleaned = cleanWikiText(cleaned);
 
     if (!cleaned) continue;
 
@@ -267,32 +286,27 @@ function extractQuotes(wikitext, movieTitle) {
       continue;
     }
 
-    /*
-      A Reelwise quote should look like an actual spoken line,
-      not metadata or a page link.
-    */
-    if (
-      cleaned.length < 8 ||
-      cleaned.length > 180 ||
-      !/[a-z]{3}/i.test(cleaned)
-    ) {
-      continue;
-    }
+    const score = confidenceScore(cleaned);
 
-    quotes.push({
+    /*
+      If we're not confident, don't show it.
+      This is the key difference from the old system.
+    */
+    if (score < 7) continue;
+
+    candidates.push({
       type: "quote",
       text: cleaned,
-      score: quoteScore(cleaned)
+      score
     });
   }
 
-  /*
-    Rank the strongest short quotes first.
-    No dialogue objects are returned.
-  */
-  return dedupeQuotes(quotes)
+  return dedupeQuotes(candidates)
     .sort((a, b) => b.score - a.score)
-    .slice(0, 8)
+
+    // Maximum of THREE automatic quotes.
+    .slice(0, 3)
+
     .map(({ score, ...item }) => item);
 }
 
@@ -401,13 +415,12 @@ export default async function handler(req, res) {
       ? movie.release_date.slice(0, 4)
       : "";
 
-    const wikiquoteTitle =
-      await findExactWikiquotePage(
-        movieTitle,
-        year
-      );
+    /*
+      FIRST: check Reelwise Editor's Picks.
+    */
+    const curated = CURATED_QUOTES[id];
 
-    if (!wikiquoteTitle) {
+    if (Array.isArray(curated) && curated.length) {
       res.setHeader(
         "Cache-Control",
         "s-maxage=3600, stale-while-revalidate=86400"
@@ -416,9 +429,31 @@ export default async function handler(req, res) {
       return res.status(200).json({
         movie: movieTitle,
         year,
+        source: "Reelwise Editor's Picks",
+        curated: true,
+        quotes: curated.map(text => ({
+          type: "quote",
+          text
+        }))
+      });
+    }
+
+    /*
+      SECOND: automatic fallback for the rest of the catalog.
+    */
+    const wikiquoteTitle =
+      await findExactWikiquotePage(
+        movieTitle,
+        year
+      );
+
+    if (!wikiquoteTitle) {
+      return res.status(200).json({
+        movie: movieTitle,
+        year,
         quotes: [],
         message:
-          "No reliable quotes were found for this movie."
+          "No memorable quotes are available for this movie yet."
       });
     }
 
@@ -426,7 +461,10 @@ export default async function handler(req, res) {
       await getWikiText(wikiquoteTitle);
 
     const quotes =
-      extractQuotes(wikitext, movieTitle);
+      extractHighConfidenceQuotes(
+        wikitext,
+        movieTitle
+      );
 
     res.setHeader(
       "Cache-Control",
@@ -438,10 +476,11 @@ export default async function handler(req, res) {
       year,
       source: "Wikiquote",
       source_page: wikiquoteTitle,
+      curated: false,
       quotes,
       message: quotes.length
         ? undefined
-        : "No suitable short quotes were found for this movie."
+        : "No memorable quotes are available for this movie yet."
     });
   } catch (error) {
     console.error("Reelwise quotes error:", error);
