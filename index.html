@@ -20,6 +20,8 @@
 
 *{box-sizing:border-box;}
 
+html{scroll-behavior:smooth;}
+
 body{
   margin:0;
   background:var(--bg);
@@ -162,7 +164,7 @@ main{
   display:grid;
   grid-template-columns:repeat(3,1fr);
   gap:18px;
-  margin-bottom:55px;
+  margin-bottom:20px;
 }
 
 .feature{
@@ -200,6 +202,10 @@ main{
   margin-top:16px;
   color:var(--gold);
   font-weight:800;
+}
+
+#searchArea{
+  display:none;
 }
 
 #results{
@@ -393,7 +399,8 @@ main{
 .feature-view h3{margin:0 0 8px;}
 .feature-view p{margin:0;}
 
-.fact-grid{
+.fact-grid,
+.quote-grid{
   display:grid;
   gap:12px;
   margin-top:16px;
@@ -406,12 +413,6 @@ main{
   padding:14px;
   color:#cbd1da;
   line-height:1.5;
-}
-
-.quote-grid{
-  display:grid;
-  gap:12px;
-  margin-top:16px;
 }
 
 .quote-item{
@@ -559,24 +560,141 @@ footer{
   text-align:center;
 }
 
+/* MOBILE REELWISE HOMEPAGE */
 @media(max-width:800px){
-  .hero{grid-template-columns:1fr;}
-  .nav-links{display:none;}
-  .features{grid-template-columns:1fr;}
-  .detail-layout{grid-template-columns:1fr;}
-  .detail-image{max-width:260px;}
-  .degree-inputs{grid-template-columns:1fr;}
-  .movie-extras{grid-template-columns:1fr;}
-  .section-page{padding-top:20px;}
-  .back-button{padding-bottom:30px;}
+
+  nav{
+    padding:14px 18px;
+  }
+
+  .logo{
+    font-size:26px;
+  }
+
+  .nav-links{
+    display:none;
+  }
+
+  .hero{
+    display:block;
+    padding:28px 18px 22px;
+  }
+
+  .hero-card{
+    display:none;
+  }
+
+  .hero .eyebrow{
+    font-size:10px;
+    letter-spacing:1.1px;
+  }
+
+  .hero h1{
+    font-size:42px;
+    line-height:1;
+    letter-spacing:-2px;
+    margin:9px 0 10px;
+  }
+
+  .hero p{
+    font-size:15px;
+    line-height:1.45;
+    margin:0;
+  }
+
+  .search{
+    margin-top:17px;
+  }
+
+  main{
+    padding:18px 14px 55px;
+  }
+
+  .section-title{
+    font-size:19px;
+    margin-bottom:11px;
+  }
+
+  .features{
+    grid-template-columns:repeat(3,1fr);
+    gap:8px;
+    margin-bottom:0;
+  }
+
+  .feature{
+    min-width:0;
+    padding:13px 7px;
+    text-align:center;
+    border-radius:11px;
+  }
+
+  .feature:hover{
+    transform:none;
+  }
+
+  .feature-icon{
+    font-size:25px;
+    margin-bottom:6px;
+  }
+
+  .feature h3{
+    font-size:13px;
+    margin:0;
+    line-height:1.2;
+  }
+
+  .feature p,
+  .feature .go{
+    display:none;
+  }
+
+  .detail-layout{
+    grid-template-columns:1fr;
+  }
+
+  .detail-image{
+    max-width:260px;
+  }
+
+  .degree-inputs{
+    grid-template-columns:1fr;
+  }
+
+  .movie-extras{
+    grid-template-columns:1fr;
+  }
+
+  .section-page{
+    padding-top:20px;
+  }
+
+  .back-button{
+    padding-bottom:30px;
+  }
 }
 
 @media(max-width:520px){
-  .hero{padding-top:40px;}
-  .hero h1{letter-spacing:-2px;}
-  .search,.big-search{flex-direction:column;}
-  .video-card{align-items:flex-start;}
-  .video-card img{width:100px;}
+
+  .search,
+  .big-search{
+    flex-direction:column;
+  }
+
+  .search input{
+    padding:13px;
+  }
+
+  .search button{
+    padding:12px;
+  }
+
+  .video-card{
+    align-items:flex-start;
+  }
+
+  .video-card img{
+    width:100px;
+  }
 }
 </style>
 </head>
@@ -606,9 +724,8 @@ Know the movie.<br>
 </h1>
 
 <p>
-Search movies and stars from across film history,
-follow careers, discover casts and explore the connections
-that make movies interesting.
+Search movies and stars, explore casts, quotes, trivia
+and the stories behind them.
 </p>
 
 <form class="search" id="searchForm">
@@ -624,6 +741,7 @@ that make movies interesting.
 </div>
 
 </div>
+
 </header>
 
 <main>
@@ -658,22 +776,22 @@ that make movies interesting.
 </div>
 </div>
 
-<h2 class="section-title" id="resultsTitle">Movie & Star Search</h2>
-
-<div id="results">
-<div class="message">Search for any movie or actor above.</div>
+<div id="searchArea">
+<h2 class="section-title" id="resultsTitle"></h2>
+<div id="results"></div>
 </div>
 
 </main>
 
 <footer>
-Reelwise · Know the movie. Know the story.
+Reelwise
 </footer>
 
 <script>
 
 const results=document.getElementById("results");
 const resultsTitle=document.getElementById("resultsTitle");
+const searchArea=document.getElementById("searchArea");
 const searchInput=document.getElementById("searchInput");
 const searchForm=document.getElementById("searchForm");
 const homeContent=document.getElementById("homeContent");
@@ -688,10 +806,25 @@ searchForm.addEventListener("submit",function(event){
   searchReelwise(searchInput.value);
 });
 
+function revealResults(){
+  searchArea.style.display="block";
+}
+
+function goToResults(){
+  setTimeout(()=>{
+    searchArea.scrollIntoView({
+      behavior:"smooth",
+      block:"start"
+    });
+  },50);
+}
+
 function showHome(){
+
   homeContent.style.display="block";
-  resultsTitle.textContent="Movie & Star Search";
-  results.innerHTML='<div class="message">Search for any movie or actor above.</div>';
+  searchArea.style.display="none";
+  results.innerHTML="";
+  resultsTitle.textContent="";
 
   window.scrollTo({
     top:0,
@@ -700,7 +833,9 @@ function showHome(){
 }
 
 function openSection(section){
+
   homeContent.style.display="none";
+  revealResults();
 
   if(section==="movies"){
     showMovieSection();
@@ -718,6 +853,7 @@ function openSection(section){
 }
 
 function showMovieSection(){
+
   resultsTitle.textContent="Explore Movies";
 
   results.innerHTML=`
@@ -741,9 +877,12 @@ function showMovieSection(){
 
   </div>
   `;
+
+  goToResults();
 }
 
 function showStarSection(){
+
   resultsTitle.textContent="Explore Movie Stars";
 
   results.innerHTML=`
@@ -767,9 +906,12 @@ function showStarSection(){
 
   </div>
   `;
+
+  goToResults();
 }
 
 function showSixDegrees(){
+
   resultsTitle.textContent="Six Degrees";
 
   results.innerHTML=`
@@ -801,6 +943,8 @@ function showSixDegrees(){
 
   </div>
   `;
+
+  goToResults();
 }
 
 async function sixDegreesComingNext(){
@@ -828,10 +972,7 @@ async function sixDegreesComingNext(){
     const data=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Six Degrees search failed."
-      );
+      throw new Error(data.error || "Six Degrees search failed.");
     }
 
     if(!data.found){
@@ -841,9 +982,7 @@ async function sixDegreesComingNext(){
       return;
     }
 
-    const chain=Array.isArray(data.chain)
-      ? data.chain
-      : [];
+    const chain=Array.isArray(data.chain) ? data.chain : [];
 
     const chainHTML=chain.map(item=>{
 
@@ -893,19 +1032,9 @@ async function sixDegreesComingNext(){
         }
 
         <div>
-
-          <div style="color:var(--accent);font-weight:900;font-size:12px;">
-          MOVIE
-          </div>
-
-          <div style="font-weight:800">
-          ${escapeHTML(item.title)}
-          </div>
-
-          <div style="color:var(--muted);font-size:13px;">
-          ${escapeHTML(item.year || "")}
-          </div>
-
+          <div style="color:var(--accent);font-weight:900;font-size:12px;">MOVIE</div>
+          <div style="font-weight:800">${escapeHTML(item.title)}</div>
+          <div style="color:var(--muted);font-size:13px;">${escapeHTML(item.year || "")}</div>
         </div>
 
         </div>
@@ -992,8 +1121,7 @@ async function sixDegreesComingNext(){
     </div>
     `;
 
-  }
-  catch(error){
+  }catch(error){
 
     box.innerHTML=
     '<strong style="color:var(--accent)">Something went wrong.</strong><br>'+
@@ -1002,22 +1130,20 @@ async function sixDegreesComingNext(){
 }
 
 function searchMoviesOnly(){
+
   const input=document.getElementById("movieSearch");
 
-  if(!input){
-    return;
-  }
+  if(!input) return;
 
   searchMode="movie";
   searchReelwise(input.value);
 }
 
 function searchStarsOnly(){
+
   const input=document.getElementById("starSearch");
 
-  if(!input){
-    return;
-  }
+  if(!input) return;
 
   searchMode="person";
   searchReelwise(input.value);
@@ -1027,36 +1153,29 @@ async function searchReelwise(queryValue){
 
   const query=String(queryValue || "").trim();
 
-  if(!query){
-    results.innerHTML='<div class="message">Enter something to search.</div>';
-    return;
-  }
+  if(!query) return;
 
   lastQuery=query;
+
   homeContent.style.display="none";
+  revealResults();
 
-  resultsTitle.textContent=
-  'Results for "'+
-  query+
-  '"';
+  resultsTitle.textContent='Results for "'+query+'"';
 
-  results.innerHTML=
-  '<div class="message">Searching Reelwise...</div>';
+  results.innerHTML='<div class="message">Searching Reelwise...</div>';
+
+  goToResults();
 
   try{
 
     const response=await fetch(
-      "/api/search?q="+
-      encodeURIComponent(query)
+      "/api/search?q="+encodeURIComponent(query)
     );
 
     const data=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Search failed."
-      );
+      throw new Error(data.error || "Search failed.");
     }
 
     let items=Array.isArray(data.results)
@@ -1064,20 +1183,15 @@ async function searchReelwise(queryValue){
       : [];
 
     if(searchMode==="movie"){
-      items=items.filter(
-        item=>item.result_type==="movie"
-      );
+      items=items.filter(item=>item.result_type==="movie");
     }
 
     if(searchMode==="person"){
-      items=items.filter(
-        item=>item.result_type==="person"
-      );
+      items=items.filter(item=>item.result_type==="person");
     }
 
     if(!items.length){
-      results.innerHTML=
-      '<div class="message">No results found.</div>';
+      results.innerHTML='<div class="message">No results found.</div>';
       return;
     }
 
@@ -1089,8 +1203,9 @@ async function searchReelwise(queryValue){
 
     attachCardEvents();
 
-  }
-  catch(error){
+    goToResults();
+
+  }catch(error){
 
     results.innerHTML=
     '<div class="message">'+
@@ -1101,8 +1216,7 @@ async function searchReelwise(queryValue){
 
 function makeCard(item){
 
-  const isMovie=
-  item.result_type==="movie";
+  const isMovie=item.result_type==="movie";
 
   const name=
   item.display_title ||
@@ -1145,13 +1259,9 @@ function makeCard(item){
       ${isMovie ? "MOVIE" : "STAR"}
       </div>
 
-      <strong>
-      ${escapeHTML(name)}
-      </strong>
+      <strong>${escapeHTML(name)}</strong>
 
-      <small>
-      ${escapeHTML(subtitle)}
-      </small>
+      <small>${escapeHTML(subtitle)}</small>
 
     </div>
 
@@ -1170,8 +1280,7 @@ function attachCardEvents(){
 
       if(type==="movie"){
         showMovie(id);
-      }
-      else{
+      }else{
         showPerson(id);
       }
     });
@@ -1181,26 +1290,23 @@ function attachCardEvents(){
 async function showMovie(id){
 
   homeContent.style.display="none";
+  revealResults();
 
   resultsTitle.textContent="Movie";
+  results.innerHTML='<div class="message">Loading movie...</div>';
 
-  results.innerHTML=
-  '<div class="message">Loading movie...</div>';
+  goToResults();
 
   try{
 
     const response=await fetch(
-      "/api/search?type=movie-details&id="+
-      encodeURIComponent(id)
+      "/api/search?type=movie-details&id="+encodeURIComponent(id)
     );
 
     const movie=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        movie.error ||
-        "Movie could not be loaded."
-      );
+      throw new Error(movie.error || "Movie could not be loaded.");
     }
 
     currentMovie=movie;
@@ -1225,12 +1331,7 @@ async function showMovie(id){
 
     <div class="detail">
 
-      <button
-        class="back-button"
-        onclick="returnToSearch()"
-      >
-      ← Back
-      </button>
+      <button class="back-button" onclick="returnToSearch()">← Back</button>
 
       <div class="detail-layout">
 
@@ -1246,28 +1347,20 @@ async function showMovie(id){
 
         <div>
 
-          <div class="eyebrow">
-          ${escapeHTML(year)}
-          </div>
+          <div class="eyebrow">${escapeHTML(year)}</div>
 
-          <h1>
-          ${escapeHTML(movie.title || "Movie")}
-          </h1>
+          <h1>${escapeHTML(movie.title || "Movie")}</h1>
 
-          <p>
-          ${escapeHTML(movie.overview || "No description available.")}
-          </p>
+          <p>${escapeHTML(movie.overview || "No description available.")}</p>
 
           <h2>The Stars</h2>
 
           <div class="cast">
 
           ${cast.map(person=>`
-
             <button onclick="showPerson('${person.id}')">
             ${escapeHTML(person.name)}
             </button>
-
           `).join("")}
 
           </div>
@@ -1280,13 +1373,9 @@ async function showMovie(id){
 
         <div class="movie-vault-heading">
 
-          <div class="eyebrow">
-          THE REELWISE VAULT
-          </div>
+          <div class="eyebrow">THE REELWISE VAULT</div>
 
-          <h2>
-          Go beyond the movie.
-          </h2>
+          <h2>Go beyond the movie.</h2>
 
           <p>
           Quotes, stats, trivia and the stories you usually have to search
@@ -1298,103 +1387,38 @@ async function showMovie(id){
         <div class="movie-extras">
 
           <div class="extra-card">
-
-            <div class="extra-icon">
-            💬
-            </div>
-
-            <h3>
-            Quotes
-            </h3>
-
-            <p>
-            Memorable lines, classic exchanges and the quotes fans remember.
-            </p>
-
-            <button onclick="showMovieFeature('quotes')">
-            Explore Quotes →
-            </button>
-
+            <div class="extra-icon">💬</div>
+            <h3>Quotes</h3>
+            <p>Memorable lines and the quotes fans remember.</p>
+            <button onclick="showMovieFeature('quotes')">Explore Quotes →</button>
           </div>
 
           <div class="extra-card">
-
-            <div class="extra-icon">
-            📊
-            </div>
-
-            <h3>
-            Movie Stats
-            </h3>
-
-            <p>
-            Director, writers, runtime, budget, box office and production details.
-            </p>
-
-            <button onclick="showMovieFeature('stats')">
-            Explore Movie Stats →
-            </button>
-
+            <div class="extra-icon">📊</div>
+            <h3>Movie Stats</h3>
+            <p>Director, writers, runtime, budget, box office and production details.</p>
+            <button onclick="showMovieFeature('stats')">Explore Movie Stats →</button>
           </div>
 
           <div class="extra-card">
-
-            <div class="extra-icon">
-            🧠
-            </div>
-
-            <h3>
-            Trivia
-            </h3>
-
-            <p>
-            Casting stories, surprising details and interesting stories behind the movie.
-            </p>
-
-            <button onclick="showMovieFeature('trivia')">
-            Explore Trivia →
-            </button>
-
+            <div class="extra-icon">🧠</div>
+            <h3>Trivia</h3>
+            <p>Casting stories, surprising details and stories behind the movie.</p>
+            <button onclick="showMovieFeature('trivia')">Explore Trivia →</button>
           </div>
 
           <div class="extra-card">
-
-            <div class="extra-icon">
-            🎥
-            </div>
-
-            <h3>
-            Behind the Scenes
-            </h3>
-
-            <p>
-            Featurettes, interviews and footage from the making of the movie.
-            </p>
-
-            <button onclick="showMovieFeature('behind')">
-            Go Behind the Scenes →
-            </button>
-
+            <div class="extra-icon">🎥</div>
+            <h3>Behind the Scenes</h3>
+            <p>Featurettes, interviews and footage from the making of the movie.</p>
+            <button onclick="showMovieFeature('behind')">Go Behind the Scenes →</button>
           </div>
 
           <div class="extra-card">
-
-            <div class="extra-icon">
-            😂
-            </div>
-
-            <h3>
-            Bloopers
-            </h3>
-
-            <p>
-            Available outtakes and funny moments from the making of the movie.
-            </p>
-
-            <button onclick="showMovieFeature('bloopers')">
-            Explore Bloopers →
-            </button>
-
+            <div class="extra-icon">😂</div>
+            <h3>Bloopers</h3>
+            <p>Available outtakes and funny moments from the making of the movie.</p>
+            <button onclick="showMovieFeature('bloopers')">Explore Bloopers →</button>
           </div>
 
         </div>
@@ -1406,8 +1430,9 @@ async function showMovie(id){
     </div>
     `;
 
-  }
-  catch(error){
+    goToResults();
+
+  }catch(error){
 
     results.innerHTML=
     '<div class="message">'+
@@ -1418,79 +1443,47 @@ async function showMovie(id){
 
 async function showMovieFeature(feature){
 
-  const view=
-  document.getElementById(
-    "movieFeatureView"
-  );
+  const view=document.getElementById("movieFeatureView");
 
-  if(!view || !currentMovie){
-    return;
-  }
+  if(!view || !currentMovie) return;
 
-  const movieTitle=
-  currentMovie.title ||
-  "Movie";
+  const movieTitle=currentMovie.title || "Movie";
 
   if(feature==="quotes"){
 
     view.innerHTML=`
-
     <div class="feature-view">
-
-      <div class="eyebrow">
-      REELWISE QUOTES
-      </div>
-
-      <h3>
-      💬 Quotes from ${escapeHTML(movieTitle)}
-      </h3>
-
-      <p>
-      Loading memorable quotes...
-      </p>
-
+      <div class="eyebrow">REELWISE QUOTES</div>
+      <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
+      <p>Loading memorable quotes...</p>
     </div>
     `;
 
     try{
 
       const response=await fetch(
-        "/api/quotes?id="+
-        encodeURIComponent(currentMovie.id)
+        "/api/quotes?id="+encodeURIComponent(currentMovie.id)
       );
 
       const data=await response.json();
 
       if(!response.ok){
-        throw new Error(
-          data.error ||
-          "Quotes could not be loaded."
-        );
+        throw new Error(data.error || "Quotes could not be loaded.");
       }
 
-      const quotes=
-      Array.isArray(data.quotes)
-      ? data.quotes
-      : [];
+      const quotes=Array.isArray(data.quotes) ? data.quotes : [];
 
       if(quotes.length){
 
         view.innerHTML=`
-
         <div class="feature-view">
 
-          <div class="eyebrow">
-          REELWISE QUOTES
-          </div>
-
-          <h3>
-          💬 Quotes from ${escapeHTML(movieTitle)}
-          </h3>
+          <div class="eyebrow">REELWISE QUOTES</div>
+          <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
 
           <div class="quote-grid">
 
           ${quotes.map(item=>`
-
             <div class="quote-item">
 
               <div class="quote-text">
@@ -1499,68 +1492,35 @@ async function showMovieFeature(feature){
 
               ${
                 item.speaker
-                ? `
-                <div class="quote-speaker">
-                — ${escapeHTML(item.speaker)}
-                </div>
-                `
+                ? `<div class="quote-speaker">— ${escapeHTML(item.speaker)}</div>`
                 : ""
               }
 
             </div>
-
           `).join("")}
 
           </div>
-
         </div>
         `;
 
-      }
-      else{
+      }else{
 
         view.innerHTML=`
-
         <div class="feature-view">
-
-          <div class="eyebrow">
-          REELWISE QUOTES
-          </div>
-
-          <h3>
-          💬 Quotes from ${escapeHTML(movieTitle)}
-          </h3>
-
-          <p>
-          ${escapeHTML(
-            data.message ||
-            "No suitable short quotes were found for this movie."
-          )}
-          </p>
-
+          <div class="eyebrow">REELWISE QUOTES</div>
+          <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
+          <p>${escapeHTML(data.message || "No suitable short quotes were found for this movie.")}</p>
         </div>
         `;
       }
 
-    }
-    catch(error){
+    }catch(error){
 
       view.innerHTML=`
-
       <div class="feature-view">
-
-        <div class="eyebrow">
-        REELWISE QUOTES
-        </div>
-
-        <h3>
-        💬 Quotes from ${escapeHTML(movieTitle)}
-        </h3>
-
-        <p>
-        ${escapeHTML(error.message)}
-        </p>
-
+        <div class="eyebrow">REELWISE QUOTES</div>
+        <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
+        <p>${escapeHTML(error.message)}</p>
       </div>
       `;
     }
@@ -1574,10 +1534,7 @@ async function showMovieFeature(feature){
     ? currentMovie.credits.crew
     : [];
 
-    const director=
-    crew.find(
-      person=>person.job==="Director"
-    );
+    const director=crew.find(person=>person.job==="Director");
 
     const writers=
     crew
@@ -1590,133 +1547,76 @@ async function showMovieFeature(feature){
       )
     )
     .map(person=>person.name)
-    .filter(
-      (name,index,array)=>
-      array.indexOf(name)===index
-    )
+    .filter((name,index,array)=>array.indexOf(name)===index)
     .slice(0,4);
 
     const companies=
     Array.isArray(currentMovie.production_companies)
-    ? currentMovie.production_companies
-      .map(company=>company.name)
-      .slice(0,3)
+    ? currentMovie.production_companies.map(company=>company.name).slice(0,3)
     : [];
 
     const genres=
     Array.isArray(currentMovie.genres)
-    ? currentMovie.genres
-      .map(genre=>genre.name)
-      .slice(0,4)
+    ? currentMovie.genres.map(genre=>genre.name).slice(0,4)
     : [];
 
     const countries=
     Array.isArray(currentMovie.production_countries)
-    ? currentMovie.production_countries
-      .map(country=>country.name)
-      .slice(0,4)
+    ? currentMovie.production_countries.map(country=>country.name).slice(0,4)
     : [];
 
     const facts=[];
 
     if(director){
-      facts.push(
-        "<strong>Director:</strong> "+
-        escapeHTML(director.name)
-      );
+      facts.push("<strong>Director:</strong> "+escapeHTML(director.name));
     }
 
     if(writers.length){
-      facts.push(
-        "<strong>Written by:</strong> "+
-        writers.map(escapeHTML).join(", ")
-      );
+      facts.push("<strong>Written by:</strong> "+writers.map(escapeHTML).join(", "));
     }
 
     if(genres.length){
-      facts.push(
-        "<strong>Genres:</strong> "+
-        genres.map(escapeHTML).join(", ")
-      );
+      facts.push("<strong>Genres:</strong> "+genres.map(escapeHTML).join(", "));
     }
 
     if(currentMovie.runtime){
-      facts.push(
-        "<strong>Runtime:</strong> "+
-        escapeHTML(currentMovie.runtime)+
-        " minutes"
-      );
+      facts.push("<strong>Runtime:</strong> "+escapeHTML(currentMovie.runtime)+" minutes");
     }
 
     if(currentMovie.budget){
-      facts.push(
-        "<strong>Budget:</strong> $"+
-        Number(currentMovie.budget)
-        .toLocaleString()
-      );
+      facts.push("<strong>Budget:</strong> $"+Number(currentMovie.budget).toLocaleString());
     }
 
     if(currentMovie.revenue){
-      facts.push(
-        "<strong>Worldwide revenue:</strong> $"+
-        Number(currentMovie.revenue)
-        .toLocaleString()
-      );
+      facts.push("<strong>Worldwide revenue:</strong> $"+Number(currentMovie.revenue).toLocaleString());
     }
 
     if(companies.length){
-      facts.push(
-        "<strong>Production companies:</strong> "+
-        companies.map(escapeHTML).join(", ")
-      );
+      facts.push("<strong>Production companies:</strong> "+companies.map(escapeHTML).join(", "));
     }
 
     if(countries.length){
-      facts.push(
-        "<strong>Production countries:</strong> "+
-        countries.map(escapeHTML).join(", ")
-      );
+      facts.push("<strong>Production countries:</strong> "+countries.map(escapeHTML).join(", "));
     }
 
     if(currentMovie.release_date){
-      facts.push(
-        "<strong>Release date:</strong> "+
-        escapeHTML(currentMovie.release_date)
-      );
+      facts.push("<strong>Release date:</strong> "+escapeHTML(currentMovie.release_date));
     }
 
     view.innerHTML=`
-
     <div class="feature-view">
 
-      <div class="eyebrow">
-      REELWISE MOVIE STATS
-      </div>
-
-      <h3>
-      📊 ${escapeHTML(movieTitle)} Movie Stats
-      </h3>
+      <div class="eyebrow">REELWISE MOVIE STATS</div>
+      <h3>📊 ${escapeHTML(movieTitle)} Movie Stats</h3>
 
       ${
         facts.length
         ? `
         <div class="fact-grid">
-
-        ${facts.map(fact=>`
-
-          <div class="fact-item">
-          ${fact}
-          </div>
-
-        `).join("")}
-
+        ${facts.map(fact=>`<div class="fact-item">${fact}</div>`).join("")}
         </div>
         `
-        : `
-        <p>
-        Movie statistics are not available for this title yet.
-        </p>
-        `
+        : `<p>Movie statistics are not available for this title yet.</p>`
       }
 
     </div>
@@ -1726,75 +1626,45 @@ async function showMovieFeature(feature){
   else if(feature==="trivia"){
 
     view.innerHTML=`
-
     <div class="feature-view">
-
-      <div class="eyebrow">
-      REELWISE TRIVIA
-      </div>
-
-      <h3>
-      🧠 ${escapeHTML(movieTitle)} Trivia
-      </h3>
-
-      <p>
-      Loading trivia...
-      </p>
-
+      <div class="eyebrow">REELWISE TRIVIA</div>
+      <h3>🧠 ${escapeHTML(movieTitle)} Trivia</h3>
+      <p>Loading trivia...</p>
     </div>
     `;
 
     try{
 
       const response=await fetch(
-        "/api/trivia?id="+
-        encodeURIComponent(currentMovie.id)
+        "/api/trivia?id="+encodeURIComponent(currentMovie.id)
       );
 
       const data=await response.json();
 
       if(!response.ok){
-        throw new Error(
-          data.error ||
-          "Trivia could not be loaded."
-        );
+        throw new Error(data.error || "Trivia could not be loaded.");
       }
 
-      const trivia=
-      Array.isArray(data.trivia)
-      ? data.trivia
-      : [];
+      const trivia=Array.isArray(data.trivia) ? data.trivia : [];
 
       if(trivia.length){
 
         view.innerHTML=`
-
         <div class="feature-view">
 
-          <div class="eyebrow">
-          REELWISE TRIVIA
-          </div>
-
-          <h3>
-          🧠 ${escapeHTML(movieTitle)} Trivia
-          </h3>
+          <div class="eyebrow">REELWISE TRIVIA</div>
+          <h3>🧠 ${escapeHTML(movieTitle)} Trivia</h3>
 
           <div class="fact-grid">
 
           ${trivia.map(item=>`
-
             <div class="fact-item">
             ${
               typeof item==="string"
               ? escapeHTML(item)
-              : escapeHTML(
-                  item.text ||
-                  item.fact ||
-                  ""
-                )
+              : escapeHTML(item.text || item.fact || "")
             }
             </div>
-
           `).join("")}
 
           </div>
@@ -1802,51 +1672,24 @@ async function showMovieFeature(feature){
         </div>
         `;
 
-      }
-      else{
+      }else{
 
         view.innerHTML=`
-
         <div class="feature-view">
-
-          <div class="eyebrow">
-          REELWISE TRIVIA
-          </div>
-
-          <h3>
-          🧠 ${escapeHTML(movieTitle)} Trivia
-          </h3>
-
-          <p>
-          ${escapeHTML(
-            data.message ||
-            "No suitable production trivia was found for this movie."
-          )}
-          </p>
-
+          <div class="eyebrow">REELWISE TRIVIA</div>
+          <h3>🧠 ${escapeHTML(movieTitle)} Trivia</h3>
+          <p>${escapeHTML(data.message || "No suitable production trivia was found for this movie.")}</p>
         </div>
         `;
       }
 
-    }
-    catch(error){
+    }catch(error){
 
       view.innerHTML=`
-
       <div class="feature-view">
-
-        <div class="eyebrow">
-        REELWISE TRIVIA
-        </div>
-
-        <h3>
-        🧠 ${escapeHTML(movieTitle)} Trivia
-        </h3>
-
-        <p>
-        ${escapeHTML(error.message)}
-        </p>
-
+        <div class="eyebrow">REELWISE TRIVIA</div>
+        <h3>🧠 ${escapeHTML(movieTitle)} Trivia</h3>
+        <p>${escapeHTML(error.message)}</p>
       </div>
       `;
     }
@@ -1856,17 +1699,13 @@ async function showMovieFeature(feature){
 
     const videos=
     currentMovie.videos &&
-    Array.isArray(
-      currentMovie.videos.results
-    )
+    Array.isArray(currentMovie.videos.results)
     ? currentMovie.videos.results
     : [];
 
     let behindVideos=
     videos.filter(video=>
-
       video.site==="YouTube" &&
-
       (
         video.type==="Behind the Scenes" ||
         video.type==="Featurette"
@@ -1877,48 +1716,28 @@ async function showMovieFeature(feature){
 
       behindVideos=
       videos.filter(video=>
-
         video.site==="YouTube" &&
-
         (
-          String(video.name)
-          .toLowerCase()
-          .includes("behind") ||
-
-          String(video.name)
-          .toLowerCase()
-          .includes("making") ||
-
-          String(video.name)
-          .toLowerCase()
-          .includes("featurette") ||
-
-          String(video.name)
-          .toLowerCase()
-          .includes("interview")
+          String(video.name).toLowerCase().includes("behind") ||
+          String(video.name).toLowerCase().includes("making") ||
+          String(video.name).toLowerCase().includes("featurette") ||
+          String(video.name).toLowerCase().includes("interview")
         )
       );
     }
 
-    behindVideos=
-    behindVideos.slice(0,6);
+    behindVideos=behindVideos.slice(0,6);
 
     view.innerHTML=`
-
     <div class="feature-view">
 
-      <div class="eyebrow">
-      FROM THE MAKING OF THE MOVIE
-      </div>
+      <div class="eyebrow">FROM THE MAKING OF THE MOVIE</div>
 
-      <h3>
-      🎥 Behind the Scenes of ${escapeHTML(movieTitle)}
-      </h3>
+      <h3>🎥 Behind the Scenes of ${escapeHTML(movieTitle)}</h3>
 
       ${
         behindVideos.length
         ? `
-
         <p style="margin-bottom:18px;">
         Watch available featurettes, interviews and behind-the-scenes footage connected to the movie.
         </p>
@@ -1926,7 +1745,6 @@ async function showMovieFeature(feature){
         <div class="video-list">
 
         ${behindVideos.map(video=>`
-
           <a
             class="video-card"
             href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
@@ -1940,19 +1758,11 @@ async function showMovieFeature(feature){
             >
 
             <div>
-
-              <div class="video-type">
-              ${escapeHTML(video.type || "VIDEO")}
-              </div>
-
-              <strong>
-              ${escapeHTML(video.name)}
-              </strong>
-
+              <div class="video-type">${escapeHTML(video.type || "VIDEO")}</div>
+              <strong>${escapeHTML(video.name)}</strong>
             </div>
 
           </a>
-
         `).join("")}
 
         </div>
@@ -1973,50 +1783,33 @@ async function showMovieFeature(feature){
 
     const videos=
     currentMovie.videos &&
-    Array.isArray(
-      currentMovie.videos.results
-    )
+    Array.isArray(currentMovie.videos.results)
     ? currentMovie.videos.results
     : [];
 
     const bloopers=
     videos
     .filter(video=>
-
       video.site==="YouTube" &&
-
       (
-        String(video.name)
-        .toLowerCase()
-        .includes("blooper") ||
-
-        String(video.name)
-        .toLowerCase()
-        .includes("outtake")
+        String(video.name).toLowerCase().includes("blooper") ||
+        String(video.name).toLowerCase().includes("outtake")
       )
     )
     .slice(0,6);
 
     view.innerHTML=`
-
     <div class="feature-view">
 
-      <div class="eyebrow">
-      OUTTAKES & MISTAKES
-      </div>
-
-      <h3>
-      😂 ${escapeHTML(movieTitle)} Bloopers
-      </h3>
+      <div class="eyebrow">OUTTAKES & MISTAKES</div>
+      <h3>😂 ${escapeHTML(movieTitle)} Bloopers</h3>
 
       ${
         bloopers.length
         ? `
-
         <div class="video-list">
 
         ${bloopers.map(video=>`
-
           <a
             class="video-card"
             href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
@@ -2030,19 +1823,11 @@ async function showMovieFeature(feature){
             >
 
             <div>
-
-              <div class="video-type">
-              VIDEO
-              </div>
-
-              <strong>
-              ${escapeHTML(video.name)}
-              </strong>
-
+              <div class="video-type">VIDEO</div>
+              <strong>${escapeHTML(video.name)}</strong>
             </div>
 
           </a>
-
         `).join("")}
 
         </div>
@@ -2068,50 +1853,39 @@ async function showMovieFeature(feature){
 async function showPerson(id){
 
   homeContent.style.display="none";
+  revealResults();
 
-  resultsTitle.textContent=
-  "Movie Star";
+  resultsTitle.textContent="Movie Star";
+  results.innerHTML='<div class="message">Loading star...</div>';
 
-  results.innerHTML=
-  '<div class="message">Loading star...</div>';
+  goToResults();
 
   try{
 
     const response=await fetch(
-      "/api/search?type=person-details&id="+
-      encodeURIComponent(id)
+      "/api/search?type=person-details&id="+encodeURIComponent(id)
     );
 
-    const person=
-    await response.json();
+    const person=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        person.error ||
-        "Actor could not be loaded."
-      );
+      throw new Error(person.error || "Actor could not be loaded.");
     }
 
     const photo=
     person.profile_path
-    ? "https://image.tmdb.org/t/p/w500"+
-      person.profile_path
+    ? "https://image.tmdb.org/t/p/w500"+person.profile_path
     : "";
 
     const credits=
     person.combined_credits &&
-    Array.isArray(
-      person.combined_credits.cast
-    )
+    Array.isArray(person.combined_credits.cast)
     ? person.combined_credits.cast
     : [];
 
     const movies=
     credits
-    .filter(
-      item=>
-      item.media_type==="movie"
-    )
+    .filter(item=>item.media_type==="movie")
     .sort(
       (a,b)=>
       Number(b.popularity || 0)-
@@ -2123,12 +1897,7 @@ async function showPerson(id){
 
     <div class="detail">
 
-      <button
-        class="back-button"
-        onclick="returnToSearch()"
-      >
-      ← Back
-      </button>
+      <button class="back-button" onclick="returnToSearch()">← Back</button>
 
       <div class="detail-layout">
 
@@ -2144,13 +1913,9 @@ async function showPerson(id){
 
         <div>
 
-          <div class="eyebrow">
-          REELWISE STAR
-          </div>
+          <div class="eyebrow">REELWISE STAR</div>
 
-          <h1>
-          ${escapeHTML(person.name || "Movie Star")}
-          </h1>
+          <h1>${escapeHTML(person.name || "Movie Star")}</h1>
 
           <p>
           ${escapeHTML(
@@ -2159,22 +1924,14 @@ async function showPerson(id){
           )}
           </p>
 
-          <h2>
-          Movies
-          </h2>
+          <h2>Movies</h2>
 
           <div class="cast">
 
           ${movies.map(movie=>`
-
             <button onclick="showMovie('${movie.id}')">
-            ${escapeHTML(
-              movie.title ||
-              movie.original_title ||
-              "Movie"
-            )}
+            ${escapeHTML(movie.title || movie.original_title || "Movie")}
             </button>
-
           `).join("")}
 
           </div>
@@ -2186,8 +1943,9 @@ async function showPerson(id){
     </div>
     `;
 
-  }
-  catch(error){
+    goToResults();
+
+  }catch(error){
 
     results.innerHTML=
     '<div class="message">'+
@@ -2200,8 +1958,7 @@ function returnToSearch(){
 
   if(lastQuery){
     searchReelwise(lastQuery);
-  }
-  else{
+  }else{
     showHome();
   }
 }
