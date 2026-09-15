@@ -24,7 +24,10 @@ html{scroll-behavior:smooth;}
 
 body{
   margin:0;
-  background:var(--bg);
+  background:
+    radial-gradient(circle at 85% 8%,rgba(255,90,54,.08),transparent 26%),
+    radial-gradient(circle at 10% 20%,rgba(228,179,77,.045),transparent 25%),
+    var(--bg);
   color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
 }
@@ -33,7 +36,8 @@ button,input{font:inherit;}
 button{cursor:pointer;}
 
 header{
-  background:rgba(9,11,15,.96);
+  background:
+    linear-gradient(180deg,rgba(9,11,15,.94),rgba(9,11,15,.98));
   border-bottom:1px solid var(--line);
 }
 
@@ -130,7 +134,7 @@ nav{
 .search input{
   flex:1;
   padding:15px;
-  border-radius:9px;
+  border-radius:10px;
   border:1px solid #303846;
   background:var(--panel2);
   color:white;
@@ -144,7 +148,7 @@ nav{
   border:0;
   background:var(--accent);
   color:#fff;
-  border-radius:9px;
+  border-radius:10px;
   padding:14px 18px;
   font-weight:800;
 }
@@ -168,7 +172,7 @@ main{
 }
 
 .feature{
-  background:var(--panel);
+  background:linear-gradient(145deg,#131820,#0f1319);
   border:1px solid var(--line);
   border-radius:15px;
   padding:25px;
@@ -204,9 +208,7 @@ main{
   font-weight:800;
 }
 
-#searchArea{
-  display:none;
-}
+#searchArea{display:none;}
 
 #results{
   display:grid;
@@ -435,6 +437,46 @@ main{
   font-weight:900;
 }
 
+/* NEW GROUPED DIALOGUE */
+
+.dialogue-card{
+  background:#10141b;
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:18px;
+}
+
+.dialogue-label{
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:1.3px;
+  margin-bottom:15px;
+}
+
+.dialogue-line{
+  padding:11px 0;
+  border-bottom:1px solid rgba(255,255,255,.06);
+}
+
+.dialogue-line:last-child{
+  border-bottom:0;
+  padding-bottom:0;
+}
+
+.dialogue-speaker{
+  color:var(--gold);
+  font-size:13px;
+  font-weight:900;
+  margin-bottom:4px;
+}
+
+.dialogue-text{
+  color:#f0f2f6;
+  font-size:17px;
+  line-height:1.5;
+}
+
 .video-list{
   display:grid;
   gap:14px;
@@ -556,19 +598,28 @@ main{
 footer{
   border-top:1px solid var(--line);
   color:#737d8b;
-  padding:30px 20px;
+  padding:22px 20px;
   text-align:center;
 }
 
-/* MOBILE REELWISE HOMEPAGE */
+/* CLEAN CINEMATIC MOBILE HOMEPAGE */
+
 @media(max-width:800px){
 
+  header{
+    min-height:auto;
+    background:
+      radial-gradient(circle at 80% 10%,rgba(255,90,54,.12),transparent 32%),
+      linear-gradient(180deg,#0c1016 0%,#090b0f 100%);
+  }
+
   nav{
-    padding:14px 18px;
+    padding:14px 18px 8px;
+    border-bottom:0;
   }
 
   .logo{
-    font-size:26px;
+    font-size:28px;
   }
 
   .nav-links{
@@ -577,7 +628,7 @@ footer{
 
   .hero{
     display:block;
-    padding:28px 18px 22px;
+    padding:18px 18px 20px;
   }
 
   .hero-card{
@@ -585,47 +636,66 @@ footer{
   }
 
   .hero .eyebrow{
-    font-size:10px;
-    letter-spacing:1.1px;
+    font-size:9px;
+    letter-spacing:1.2px;
   }
 
   .hero h1{
-    font-size:42px;
-    line-height:1;
+    font-size:39px;
+    line-height:1.02;
     letter-spacing:-2px;
-    margin:9px 0 10px;
+    margin:8px 0 10px;
   }
 
   .hero p{
-    font-size:15px;
-    line-height:1.45;
+    font-size:14px;
+    line-height:1.4;
     margin:0;
+    max-width:360px;
   }
 
   .search{
-    margin-top:17px;
+    margin-top:16px;
+    display:grid;
+    grid-template-columns:1fr auto;
+    gap:8px;
+  }
+
+  .search input{
+    min-width:0;
+    padding:13px;
+  }
+
+  .search button{
+    padding:12px 15px;
   }
 
   main{
-    padding:18px 14px 55px;
+    padding:14px 14px 45px;
   }
 
   .section-title{
-    font-size:19px;
-    margin-bottom:11px;
+    font-size:13px;
+    text-transform:uppercase;
+    letter-spacing:1.3px;
+    color:var(--gold);
+    margin:0 0 10px;
   }
 
   .features{
     grid-template-columns:repeat(3,1fr);
     gap:8px;
-    margin-bottom:0;
+    margin:0;
   }
 
   .feature{
     min-width:0;
-    padding:13px 7px;
+    padding:13px 6px 12px;
     text-align:center;
-    border-radius:11px;
+    border-radius:12px;
+    background:
+      linear-gradient(145deg,#151a22,#0e1218);
+    border-color:#29313d;
   }
 
   .feature:hover{
@@ -633,12 +703,12 @@ footer{
   }
 
   .feature-icon{
-    font-size:25px;
-    margin-bottom:6px;
+    font-size:24px;
+    margin-bottom:7px;
   }
 
   .feature h3{
-    font-size:13px;
+    font-size:12px;
     margin:0;
     line-height:1.2;
   }
@@ -665,27 +735,37 @@ footer{
   }
 
   .section-page{
-    padding-top:20px;
+    padding-top:18px;
   }
 
   .back-button{
-    padding-bottom:30px;
+    padding-bottom:26px;
+  }
+
+  .feature-view{
+    padding:16px;
+  }
+
+  .quote-item,
+  .dialogue-card{
+    padding:16px;
+  }
+
+  .dialogue-text,
+  .quote-text{
+    font-size:17px;
+  }
+
+  footer{
+    padding:18px;
+    font-size:13px;
   }
 }
 
 @media(max-width:520px){
 
-  .search,
   .big-search{
     flex-direction:column;
-  }
-
-  .search input{
-    padding:13px;
-  }
-
-  .search button{
-    padding:12px;
   }
 
   .video-card{
@@ -716,7 +796,8 @@ footer{
 <div class="hero" id="hero">
 
 <div>
-<div class="eyebrow">MOVIES, CELEBRITIES & THE STORIES BEHIND THEM</div>
+
+<div class="eyebrow">MOVIES · STARS · STORIES</div>
 
 <h1>
 Know the movie.<br>
@@ -724,20 +805,20 @@ Know the movie.<br>
 </h1>
 
 <p>
-Search movies and stars, explore casts, quotes, trivia
-and the stories behind them.
+Search movies and stars and discover the stories behind them.
 </p>
 
 <form class="search" id="searchForm">
 <input id="searchInput" type="text" placeholder="Search movies or stars..." autocomplete="off">
 <button type="submit">Search</button>
 </form>
+
 </div>
 
 <div class="hero-card">
-<div class="eyebrow">🔥 THE REELWISE DIFFERENCE</div>
+<div class="eyebrow">THE REELWISE DIFFERENCE</div>
 <strong>The movie is only the beginning.</strong>
-<p>Follow the stars, the stories and the connections behind it.</p>
+<p>Follow the stars, stories and connections behind it.</p>
 </div>
 
 </div>
@@ -755,25 +836,26 @@ and the stories behind them.
 <div class="feature" onclick="openSection('movies')">
 <div class="feature-icon">🎬</div>
 <h3>Movies</h3>
-<p>Search movies from every era and explore their casts, stories and connections.</p>
+<p>Search movies from every era and explore their casts and stories.</p>
 <span class="go">Explore Movies →</span>
 </div>
 
 <div class="feature" onclick="openSection('stars')">
 <div class="feature-icon">⭐</div>
 <h3>Movie Stars</h3>
-<p>Search actors and discover biographies, filmographies and the movies that connect them.</p>
+<p>Discover biographies, filmographies and movie connections.</p>
 <span class="go">Explore Stars →</span>
 </div>
 
 <div class="feature" onclick="openSection('six')">
 <div class="feature-icon">🔗</div>
 <h3>Six Degrees</h3>
-<p>Choose any two actors and discover how their movie careers connect.</p>
+<p>Choose two actors and discover how their careers connect.</p>
 <span class="go">Play Six Degrees →</span>
 </div>
 
 </div>
+
 </div>
 
 <div id="searchArea">
@@ -783,9 +865,7 @@ and the stories behind them.
 
 </main>
 
-<footer>
-Reelwise
-</footer>
+<footer>Reelwise</footer>
 
 <script>
 
@@ -1164,6 +1244,7 @@ async function searchReelwise(queryValue){
 
   results.innerHTML='<div class="message">Searching Reelwise...</div>';
 
+  /* Automatically take the user to the results */
   goToResults();
 
   try{
@@ -1389,7 +1470,7 @@ async function showMovie(id){
           <div class="extra-card">
             <div class="extra-icon">💬</div>
             <h3>Quotes</h3>
-            <p>Memorable lines and the quotes fans remember.</p>
+            <p>Memorable lines and classic dialogue from the movie.</p>
             <button onclick="showMovieFeature('quotes')">Explore Quotes →</button>
           </div>
 
@@ -1441,6 +1522,72 @@ async function showMovie(id){
   }
 }
 
+function renderQuoteItem(item){
+
+  /*
+    New dialogue format from api/quotes.js.
+    Several character lines appear together in one card.
+  */
+
+  if(
+    item &&
+    item.type==="dialogue" &&
+    Array.isArray(item.lines) &&
+    item.lines.length
+  ){
+
+    return `
+    <div class="dialogue-card">
+
+      <div class="dialogue-label">DIALOGUE</div>
+
+      ${item.lines.map(line=>`
+
+        <div class="dialogue-line">
+
+          ${
+            line.speaker
+            ? `<div class="dialogue-speaker">${escapeHTML(line.speaker)}</div>`
+            : ""
+          }
+
+          <div class="dialogue-text">
+          “${escapeHTML(line.text || "")}”
+          </div>
+
+        </div>
+
+      `).join("")}
+
+    </div>
+    `;
+  }
+
+  /*
+    Normal standalone quote.
+  */
+
+  if(!item || !item.text){
+    return "";
+  }
+
+  return `
+  <div class="quote-item">
+
+    <div class="quote-text">
+    “${escapeHTML(item.text)}”
+    </div>
+
+    ${
+      item.speaker
+      ? `<div class="quote-speaker">— ${escapeHTML(item.speaker)}</div>`
+      : ""
+    }
+
+  </div>
+  `;
+}
+
 async function showMovieFeature(feature){
 
   const view=document.getElementById("movieFeatureView");
@@ -1455,7 +1602,7 @@ async function showMovieFeature(feature){
     <div class="feature-view">
       <div class="eyebrow">REELWISE QUOTES</div>
       <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
-      <p>Loading memorable quotes...</p>
+      <p>Loading memorable quotes and dialogue...</p>
     </div>
     `;
 
@@ -1473,7 +1620,13 @@ async function showMovieFeature(feature){
 
       const quotes=Array.isArray(data.quotes) ? data.quotes : [];
 
-      if(quotes.length){
+      const quoteHTML=
+      quotes
+      .map(renderQuoteItem)
+      .filter(Boolean)
+      .join("");
+
+      if(quoteHTML){
 
         view.innerHTML=`
         <div class="feature-view">
@@ -1482,24 +1635,9 @@ async function showMovieFeature(feature){
           <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
 
           <div class="quote-grid">
-
-          ${quotes.map(item=>`
-            <div class="quote-item">
-
-              <div class="quote-text">
-              “${escapeHTML(item.text || "")}”
-              </div>
-
-              ${
-                item.speaker
-                ? `<div class="quote-speaker">— ${escapeHTML(item.speaker)}</div>`
-                : ""
-              }
-
-            </div>
-          `).join("")}
-
+          ${quoteHTML}
           </div>
+
         </div>
         `;
 
@@ -1509,7 +1647,7 @@ async function showMovieFeature(feature){
         <div class="feature-view">
           <div class="eyebrow">REELWISE QUOTES</div>
           <h3>💬 Quotes from ${escapeHTML(movieTitle)}</h3>
-          <p>${escapeHTML(data.message || "No suitable short quotes were found for this movie.")}</p>
+          <p>${escapeHTML(data.message || "No suitable quotes were found for this movie.")}</p>
         </div>
         `;
       }
