@@ -48,13 +48,6 @@ const ICONIC_QUOTES = {
     "If I can change, and you can change, everybody can change!"
   ],
 
-  /*
-    ROCKY BALBOA (2006)
-
-    Keep these to the memorable lines rather
-    than random dialogue from Wikiquote.
-  */
-
   "rocky balboa": [
     "It ain't about how hard you hit.",
     "It's about how hard you can get hit and keep moving forward.",
@@ -79,6 +72,14 @@ const ICONIC_QUOTES = {
     "Your ego is writing checks your body can't cash."
   ],
 
+  "top gun: maverick": [
+    "It's not the plane, it's the pilot.",
+    "Don't think. Just do.",
+    "Talk to me, Goose.",
+    "It's time to let go.",
+    "You'll know when I'm gone."
+  ],
+
   "a few good men": [
     "You can't handle the truth!",
     "I want the truth!",
@@ -98,6 +99,13 @@ const ICONIC_QUOTES = {
     "Leave the gun. Take the cannoli.",
     "It's not personal, Sonny. It's strictly business.",
     "A man who doesn't spend time with his family can never be a real man."
+  ],
+
+  "the godfather part ii": [
+    "Keep your friends close, but your enemies closer.",
+    "I know it was you, Fredo. You broke my heart.",
+    "We're both part of the same hypocrisy, Senator.",
+    "If anything in this life is certain, if history has taught us anything, it is that you can kill anyone."
   ],
 
   "goodfellas": [
@@ -120,6 +128,87 @@ const ICONIC_QUOTES = {
     "Once it hits your lips, it's so good!",
     "Just ring the bell, you pansy.",
     "I have a nice little Saturday planned."
+  ],
+
+  "forrest gump": [
+    "Life was like a box of chocolates.",
+    "Run, Forrest, run!",
+    "Stupid is as stupid does.",
+    "I'm not a smart man, but I know what love is."
+  ],
+
+  "the sixth sense": [
+    "I see dead people.",
+    "They don't know they're dead.",
+    "They only see what they want to see."
+  ],
+
+  "fight club": [
+    "The first rule of Fight Club is: you do not talk about Fight Club.",
+    "The second rule of Fight Club is: you do not talk about Fight Club.",
+    "It's only after we've lost everything that we're free to do anything.",
+    "This is your life, and it's ending one minute at a time."
+  ],
+
+  "jerry maguire": [
+    "Show me the money!",
+    "You complete me.",
+    "You had me at hello.",
+    "Help me help you."
+  ],
+
+  "dirty harry": [
+    "You've got to ask yourself one question: Do I feel lucky?",
+    "Well, do ya, punk?"
+  ],
+
+  "taxi driver": [
+    "You talkin' to me?",
+    "Well, I'm the only one here.",
+    "Someday a real rain will come and wash all this scum off the streets."
+  ],
+
+  "scream": [
+    "What's your favorite scary movie?",
+    "Movies don't create psychos. Movies make psychos more creative.",
+    "There are certain rules that one must abide by in order to successfully survive a horror movie."
+  ],
+
+  "dirty dancing": [
+    "Nobody puts Baby in a corner.",
+    "I carried a watermelon.",
+    "I'm scared of walking out of this room and never feeling the rest of my whole life the way I feel when I'm with you."
+  ],
+
+  "the sandlot": [
+    "You're killing me, Smalls!",
+    "Heroes get remembered, but legends never die.",
+    "For-ev-er."
+  ],
+
+  "airplane!": [
+    "Surely you can't be serious.",
+    "I am serious. And don't call me Shirley.",
+    "Looks like I picked the wrong week to quit smoking.",
+    "Roger, Roger. What's our vector, Victor?"
+  ],
+
+  "groundhog day": [
+    "Well, what if there is no tomorrow? There wasn't one today.",
+    "Don't drive angry!",
+    "I'm a god. I'm not the God... I don't think."
+  ],
+
+  "when harry met sally...": [
+    "I'll have what she's having.",
+    "You made a woman meow?",
+    "Men and women can't be friends because the sex part always gets in the way."
+  ],
+
+  "rudy": [
+    "You're five-foot-nothin', a hundred-and-nothin'.",
+    "In this lifetime, you don't have to prove nothin' to nobody except yourself.",
+    "I've been ready for this my whole life."
   ]
 };
 
@@ -223,8 +312,8 @@ function usableQuote(line) {
     line.toLowerCase();
 
   /*
-    Never allow Wikiquote section headings
-    to appear as movie quotes.
+    Reject Wikiquote headings and
+    obvious non-dialogue material.
   */
 
   if (
@@ -235,16 +324,29 @@ function usableQuote(line) {
     return false;
   }
 
+  const badStarts = [
+    "see also",
+    "external links",
+    "external link",
+    "references",
+    "reference",
+    "cast",
+    "about ",
+    "tagline",
+    "taglines",
+    "dialogue",
+    "quotes",
+    "quote",
+    "sources",
+    "source",
+    "wikipedia",
+    "wikiquote"
+  ];
+
   if (
-    lower.startsWith("see also") ||
-    lower.startsWith("external links") ||
-    lower.startsWith("references") ||
-    lower.startsWith("cast") ||
-    lower.startsWith("about ") ||
-    lower.startsWith("tagline") ||
-    lower.startsWith("dialogue") ||
-    lower.startsWith("quotes") ||
-    lower.startsWith("external link")
+    badStarts.some(term =>
+      lower.startsWith(term)
+    )
   ) {
     return false;
   }
@@ -252,6 +354,23 @@ function usableQuote(line) {
   if (
     line.includes("[") ||
     line.includes("]")
+  ) {
+    return false;
+  }
+
+  /*
+    Reject lines that look like
+    article descriptions instead of quotes.
+  */
+
+  if (
+    lower.includes("is a film") ||
+    lower.includes("is a movie") ||
+    lower.includes("directed by") ||
+    lower.includes("starring ") ||
+    lower.includes("released in") ||
+    lower.includes("written by") ||
+    lower.includes("produced by")
   ) {
     return false;
   }
@@ -273,6 +392,13 @@ function extractFallbackQuotes(text) {
 
   for (let line of lines) {
 
+    /*
+      Remove a speaker name when Wikiquote
+      formats dialogue as:
+
+      Rocky: Some quote here
+    */
+
     const speaker =
       line.match(
         /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
@@ -284,6 +410,18 @@ function extractFallbackQuotes(text) {
     }
 
     if (!usableQuote(line)) {
+      continue;
+    }
+
+    /*
+      Avoid dialogue fragments that are
+      obviously incomplete.
+    */
+
+    if (
+      line.endsWith(":") ||
+      line.endsWith("—")
+    ) {
       continue;
     }
 
@@ -344,6 +482,9 @@ export default async function handler(req, res) {
 
     /*
       REELWISE CURATED VAULT
+
+      Curated movies never use the
+      automatic fallback.
     */
 
     if (curated.length) {
@@ -361,16 +502,16 @@ export default async function handler(req, res) {
     /*
       AUTOMATIC FALLBACK
 
-      Movies without a curated Reelwise
-      entry still receive quotes.
+      This keeps Reelwise useful for movies
+      that have not been manually curated yet.
     */
 
     const possibleTitles = [
-      title,
-      `${title} (film)`,
       year
         ? `${title} (${year} film)`
-        : ""
+        : "",
+      `${title} (film)`,
+      title
     ].filter(Boolean);
 
     let extract = "";
