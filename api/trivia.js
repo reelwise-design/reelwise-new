@@ -23,7 +23,7 @@ const CURATED_TRIVIA = {
     "The movie's success transformed Rocky Balboa into one of cinema's most recognizable characters and launched a franchise that continued for decades."
   ],
 
-    "rocky ii": [
+  "rocky ii": [
     "Sylvester Stallone returned as Rocky Balboa and also directed Rocky II, taking over directing duties from John G. Avildsen, who directed the original Rocky.",
 
     "Stallone suffered a chest injury while training for Rocky II, and the injury influenced how some of the boxing action was staged.",
@@ -35,7 +35,6 @@ const CURATED_TRIVIA = {
     "Future world champion Roberto Durán appears in the film as one of Rocky's sparring partners.",
 
     "Rocky's Philadelphia training-run sequence used hundreds of local schoolchildren, creating the large crowd that follows him through the city."
-    
   ],
 
   "rocky iii": [
@@ -291,66 +290,198 @@ async function getWikipediaExtract(title) {
   }
 }
 
+/*
+  SITE-WIDE TRIVIA QUALITY FILTER
+
+  The goal is to favor production, casting,
+  filming, performance, music, effects and
+  historical facts while rejecting plot recap.
+*/
+
 function triviaScore(sentence) {
   const lower =
     sentence.toLowerCase();
 
   let score = 0;
 
-  /*
-    Favor the kinds of facts Reelwise
-    users are more likely to enjoy.
-  */
-
   const strongTerms = [
     "filmed",
     "filming",
+    "production",
+    "producer",
+    "director",
+    "directed",
+    "screenplay",
+    "script",
+    "writer",
+    "written",
     "cast",
     "casting",
+    "audition",
     "actor",
     "actress",
-    "director",
-    "production",
-    "screenplay",
     "role",
-    "scene",
-    "sequence",
     "performance",
-    "audition",
-    "camera",
     "stunt",
-    "effects",
+    "injury",
+    "injured",
+    "camera",
+    "cinematography",
+    "visual effects",
+    "special effects",
+    "practical effects",
+    "makeup",
+    "costume",
     "soundtrack",
+    "score",
+    "composer",
+    "song",
+    "location",
+    "shot in",
     "academy award",
-    "box office"
+    "oscar",
+    "golden globe",
+    "box office",
+    "budget",
+    "based on",
+    "adapted from",
+    "originally cast",
+    "originally planned",
+    "recast",
+    "improvised",
+    "improvisation",
+    "behind the scenes"
   ];
 
   for (const term of strongTerms) {
     if (lower.includes(term)) {
-      score += 20;
+      score += 22;
+    }
+  }
+
+  const veryStrongTerms = [
+    "was filmed",
+    "were filmed",
+    "during filming",
+    "during production",
+    "was cast",
+    "were cast",
+    "was originally cast",
+    "was directed by",
+    "was written by",
+    "was shot",
+    "filming took place",
+    "won the academy award",
+    "nominated for",
+    "grossed",
+    "budget of"
+  ];
+
+  for (const term of veryStrongTerms) {
+    if (lower.includes(term)) {
+      score += 25;
     }
   }
 
   /*
-    Reduce generic plot-summary material.
+    Plot-summary language gets heavily penalized.
   */
 
   const plotTerms = [
     "the story follows",
     "the film follows",
+    "the movie follows",
     "the plot follows",
+    "the story centers on",
+    "the film centers on",
+    "the movie centers on",
+    "the plot centers on",
+    "the story revolves around",
+    "the film revolves around",
+    "the movie revolves around",
+    "the plot revolves around",
     "must find",
     "attempts to",
-    "falls in love",
+    "tries to",
     "sets out to",
+    "falls in love",
     "returns home",
-    "discovers that"
+    "discovers that",
+    "learns that",
+    "realizes that",
+    "decides to",
+    "agrees to",
+    "plans to",
+    "travels to",
+    "goes to",
+    "escapes",
+    "is killed",
+    "is murdered",
+    "dies",
+    "defeats",
+    "wins the",
+    "loses the",
+    "faces off",
+    "fights",
+    "battles",
+    "confronts",
+    "rescues",
+    "reveals that",
+    "ends with",
+    "the ending",
+    "in the climax",
+    "the climax",
+    "after he",
+    "after she",
+    "after they",
+    "before he",
+    "before she",
+    "before they"
   ];
 
   for (const term of plotTerms) {
     if (lower.includes(term)) {
-      score -= 30;
+      score -= 45;
     }
+  }
+
+  /*
+    Character-heavy sentences are more likely
+    to be synopsis unless they also contain
+    clear production language.
+  */
+
+  const productionSignal =
+    strongTerms.some(term =>
+      lower.includes(term)
+    );
+
+  const characterActionTerms = [
+    "character",
+    "hero",
+    "villain",
+    "protagonist",
+    "friend",
+    "wife",
+    "husband",
+    "son",
+    "daughter",
+    "brother",
+    "sister",
+    "father",
+    "mother",
+    "team",
+    "police",
+    "detective"
+  ];
+
+  if (
+    !productionSignal &&
+    characterActionTerms.some(term =>
+      lower.includes(term)
+    )
+  ) {
+    score -= 18;
   }
 
   return score;
@@ -393,13 +524,29 @@ function extractTrivia(text) {
           lower.startsWith("the film is a") ||
           lower.startsWith("the film was released") ||
           lower.startsWith("the film stars") ||
-          lower.startsWith("the movie is a")
+          lower.startsWith("the movie is a") ||
+          lower.startsWith("the story follows") ||
+          lower.startsWith("the film follows") ||
+          lower.startsWith("the movie follows") ||
+          lower.startsWith("the plot follows") ||
+          lower.startsWith("the film centers on") ||
+          lower.startsWith("the movie centers on") ||
+          lower.startsWith("the story centers on") ||
+          lower.startsWith("the plot centers on")
         );
       })
       .map(sentence => ({
         sentence,
         score: triviaScore(sentence)
       }))
+      /*
+        A sentence must show at least some
+        evidence that it is trivia rather
+        than ordinary plot description.
+      */
+      .filter(item =>
+        item.score >= 18
+      )
       .sort(
         (a, b) =>
           b.score - a.score
