@@ -9,6 +9,48 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
 const CURATED_TRIVIA = {
 
+  "rocky": [
+    "Sylvester Stallone wrote the screenplay for Rocky and insisted on playing Rocky Balboa himself, even though there was interest in casting a more established actor in the lead role.",
+
+    "The famous training sequence on the steps of the Philadelphia Museum of Art helped turn the location into one of the most recognizable movie landmarks in Philadelphia.",
+
+    "Rocky's dog Butkus was Sylvester Stallone's real dog. Stallone had owned the bullmastiff before making the film.",
+
+    "The ice-rink scene between Rocky and Adrian was filmed with the characters alone in the arena, helping create one of the movie's most intimate and memorable sequences.",
+
+    "Rocky was made on a relatively modest budget but became a major box-office success and won the Academy Award for Best Picture.",
+
+    "The movie's success transformed Rocky Balboa into one of cinema's most recognizable characters and launched a franchise that continued for decades."
+  ],
+
+  "rocky ii": [
+    "Sylvester Stallone returned not only as Rocky Balboa but also directed Rocky II, taking over directing duties from Rocky director John G. Avildsen.",
+
+    "Rocky II begins immediately after the first film's championship fight, with Rocky and Apollo Creed being taken to the hospital following their brutal fifteen-round bout.",
+
+    "The sequel centers on Apollo Creed's determination to prove that Rocky's performance in their first fight was not simply a lucky result.",
+
+    "Rocky's training run through Philadelphia ends with a large group of children following him up the steps of the Philadelphia Museum of Art.",
+
+    "The climactic rematch ends with both Rocky and Apollo falling to the canvas, forcing them to race the referee's ten-count to get back to their feet.",
+
+    "Rocky's victory over Apollo gives the series one of its defining endings, with Rocky addressing Adrian on television after becoming heavyweight champion."
+  ],
+
+  "rocky iii": [
+    "Mr. T made his major film breakthrough as Clubber Lang in Rocky III. The role turned him into one of the most recognizable personalities of the 1980s.",
+
+    "Professional wrestler Hulk Hogan appears as Thunderlips, the enormous wrestler who faces Rocky in a charity exhibition match early in the film.",
+
+    "Rocky III dramatically changes the relationship between Rocky and Apollo Creed. After Mickey's death and Rocky's loss to Clubber Lang, Apollo becomes Rocky's trainer.",
+
+    "The beach-training sequence between Rocky and Apollo became one of the series' most recognizable training scenes and represents Rocky regaining his confidence.",
+
+    "Survivor's Eye of the Tiger became closely identified with Rocky III and went on to become one of the most famous songs associated with the Rocky franchise.",
+
+    "The movie ends with Rocky and Apollo privately beginning a third fight, fulfilling Rocky's promise to give Apollo a personal rematch."
+  ],
+
   "rocky iv": [
     "Sylvester Stallone wanted the Rocky–Drago fight to look unusually realistic. Stallone has said he asked Dolph Lundgren to hit him for real during filming. The resulting blows were so severe that Stallone later required hospital treatment.",
 
@@ -21,8 +63,147 @@ const CURATED_TRIVIA = {
     "The film contrasts Drago's highly technological training with Rocky's old-fashioned workouts in the snow, mountains and barn. The visual contrast is one of the movie's central themes.",
 
     "Rocky IV became one of the biggest commercial successes of the Rocky series and remains closely associated with its 1980s soundtrack, training montages and Cold War setting."
-  ]
+  ],
 
+  "jaws": [
+    "The mechanical shark used during production was nicknamed Bruce, a name associated with Steven Spielberg's lawyer Bruce Ramer.",
+
+    "Problems with the mechanical shark forced Steven Spielberg to show the shark less frequently than originally planned. The limitation helped create the movie's suspense by keeping the threat largely unseen during much of the film.",
+
+    "The shark's point-of-view shots, John Williams' music and the use of floating barrels allowed the filmmakers to suggest the shark's presence without constantly showing it.",
+
+    "Much of Jaws was filmed on and around Martha's Vineyard, Massachusetts, which stood in for the fictional community of Amity Island.",
+
+    "Robert Shaw's character Quint delivers the famous USS Indianapolis speech, one of the movie's most memorable scenes and a crucial explanation of Quint's fear and hatred of sharks.",
+
+    "John Williams' famous two-note shark theme became one of the most recognizable pieces of suspense music in movie history."
+  ],
+
+  "top gun": [
+    "Top Gun was made with cooperation from the United States Navy, allowing the production to photograph real aircraft and flight operations.",
+
+    "Many of the aerial sequences used real Navy aircraft. The actors were also filmed in cockpit environments to help give the flying scenes a more authentic appearance.",
+
+    "The Navy's real Fighter Weapons School inspired the Top Gun setting, although the movie dramatized the school and its competition for entertainment.",
+
+    "Val Kilmer initially had reservations about appearing in Top Gun but ultimately played Tom 'Iceman' Kazansky, one of the defining roles of his career.",
+
+    "The soundtrack became a major part of the movie's identity, with songs including Danger Zone and Take My Breath Away becoming strongly associated with the film.",
+
+    "Top Gun became a major box-office success and helped establish Tom Cruise as one of Hollywood's biggest movie stars."
+  ],
+
+  "top gun: maverick": [
+    "Top Gun: Maverick arrived more than three decades after the original Top Gun, with Tom Cruise returning as Pete 'Maverick' Mitchell.",
+
+    "The production placed actors in aircraft during filming so their faces could be photographed while experiencing real forces of flight rather than relying entirely on studio simulations.",
+
+    "The actors underwent extensive preparation for the aerial filming so they could operate cameras and perform while flying in military aircraft.",
+
+    "Val Kilmer returned as Iceman, giving the sequel a direct emotional connection to Maverick's relationship with his former rival and longtime friend.",
+
+    "Miles Teller plays Bradley 'Rooster' Bradshaw, the son of Maverick's late friend and radar intercept officer Nick 'Goose' Bradshaw.",
+
+    "The movie became a major theatrical success and introduced the Top Gun story to a new generation while continuing Maverick's relationship with characters from the original film."
+  ],
+
+  "back to the future": [
+    "Michael J. Fox was the filmmakers' preferred choice to play Marty McFly, but his television schedule initially prevented him from taking the role.",
+
+    "Eric Stoltz was originally cast as Marty and filming began with him in the role. The filmmakers later decided the performance was not the right fit for the movie's comic tone and recast the part with Michael J. Fox.",
+
+    "The time machine was originally conceived differently during development before the DeLorean became the movie's famous time-travel vehicle.",
+
+    "Christopher Lloyd's Doc Brown became one of the movie's defining characters, with his wild appearance and energetic personality helping establish the film's eccentric sense of humor.",
+
+    "The Hill Valley clock tower becomes central to the climax, when Doc and Marty attempt to harness a precisely timed lightning strike to send Marty back to 1985.",
+
+    "Back to the Future became a major success and launched a trilogy that continued the adventures of Marty McFly and Doc Brown."
+  ],
+
+  "the godfather": [
+    "Marlon Brando transformed his appearance for Don Vito Corleone by altering the shape of his jaw, creating the character's distinctive heavy-jowled look.",
+
+    "The studio initially had concerns about casting both Marlon Brando and the relatively unknown Al Pacino, but director Francis Ford Coppola strongly supported his casting choices.",
+
+    "The opening wedding sequence introduces much of the Corleone family while Don Vito conducts family business inside his office.",
+
+    "The horse-head sequence became one of the film's most infamous images and demonstrates the Corleone family's ability to intimidate powerful people.",
+
+    "Al Pacino's Michael Corleone begins the movie distancing himself from his family's criminal business before gradually becoming its leader.",
+
+    "The Godfather won the Academy Award for Best Picture and became one of the most influential American films of its era."
+  ],
+
+  "goodfellas": [
+    "Goodfellas was based on Nicholas Pileggi's nonfiction book Wiseguy, which told the story of mob associate Henry Hill.",
+
+    "Martin Scorsese and Nicholas Pileggi collaborated on the screenplay, adapting events from Henry Hill's life into the film's fast-moving narrative.",
+
+    "The famous Copacabana sequence follows Henry and Karen through the club in a long continuous moving shot, visually demonstrating the privileged world Henry can access through his mob connections.",
+
+    "Joe Pesci's performance as Tommy DeVito earned him the Academy Award for Best Supporting Actor.",
+
+    "The movie frequently uses popular music to establish time period and mood, with its soundtrack changing as Henry Hill's life moves through different decades.",
+
+    "Henry Hill's narration allows the audience to experience both the attraction of gangster life and the paranoia and consequences that eventually consume it."
+  ],
+
+  "forrest gump": [
+    "Forrest Gump places its fictional main character into recreated footage of major historical events and meetings with famous public figures.",
+
+    "Tom Hanks won the Academy Award for Best Actor for his performance as Forrest Gump.",
+
+    "The visual-effects team used digital techniques to place Forrest into historical footage and to remove Lieutenant Dan's legs after the character becomes a double amputee.",
+
+    "The bench where Forrest tells much of his story became one of the film's most recognizable visual settings.",
+
+    "The film follows Forrest through several decades of American history while repeatedly bringing him into contact with significant cultural and political events.",
+
+    "Forrest Gump won the Academy Award for Best Picture and became one of the biggest theatrical successes of 1994."
+  ],
+
+  "the sixth sense": [
+    "The Sixth Sense was written and directed by M. Night Shyamalan and became widely known for the revelation near the end of the film.",
+
+    "Haley Joel Osment received an Academy Award nomination for his performance as Cole Sear.",
+
+    "The line 'I see dead people' became one of the movie's most recognizable pieces of dialogue and one of the most frequently referenced movie lines of its era.",
+
+    "The movie uses visual clues throughout the story that take on a different meaning once the audience understands what has actually been happening.",
+
+    "Bruce Willis plays child psychologist Malcolm Crowe in a restrained dramatic performance that differed from many of the action roles for which he was already famous.",
+
+    "The Sixth Sense became a major box-office success and received multiple Academy Award nominations, including Best Picture."
+  ],
+
+  "the hangover": [
+    "The Hangover was filmed extensively in Las Vegas, using the city itself as a major part of the comedy's setting.",
+
+    "The story is structured around the characters reconstructing a night they cannot remember, with each new discovery revealing another piece of what happened.",
+
+    "Zach Galifianakis' performance as Alan became one of the movie's breakout elements and significantly increased his mainstream recognition.",
+
+    "Mike Tyson appears as himself in one of the film's most memorable surprise appearances.",
+
+    "The photographs shown during the end credits reveal events from the missing night that the characters spent the entire movie trying to reconstruct.",
+
+    "The Hangover became a major box-office hit and led to two sequels featuring the central group of characters."
+  ],
+
+  "old school": [
+    "Old School stars Luke Wilson, Will Ferrell and Vince Vaughn as three friends whose attempt to recapture their college years leads them to create a fraternity.",
+
+    "Will Ferrell's Frank 'The Tank' became one of the film's most recognizable characters and helped establish Ferrell as a major movie-comedy star.",
+
+    "The streaking sequence became one of the movie's signature scenes and produced the often-quoted line 'We're going streaking!'",
+
+    "The film was directed by Todd Phillips, who later directed The Hangover trilogy.",
+
+    "The character Blue became a cult favorite despite his relatively limited screen time, leading to the frequently quoted line 'You're my boy, Blue!'",
+
+    "Old School developed a strong following after its theatrical release and became one of the defining R-rated comedies of the early 2000s."
+  ]
 };
 
 function normalizeTitle(value) {
@@ -69,6 +250,7 @@ async function getWikipediaExtract(title) {
       "?action=query" +
       "&prop=extracts" +
       "&explaintext=1" +
+      "&exsectionformat=plain" +
       "&redirects=1" +
       "&format=json" +
       "&origin=*" +
@@ -108,17 +290,77 @@ async function getWikipediaExtract(title) {
   }
 }
 
+function triviaScore(sentence) {
+  const lower =
+    sentence.toLowerCase();
+
+  let score = 0;
+
+  /*
+    Favor the kinds of facts Reelwise
+    users are more likely to enjoy.
+  */
+
+  const strongTerms = [
+    "filmed",
+    "filming",
+    "cast",
+    "casting",
+    "actor",
+    "actress",
+    "director",
+    "production",
+    "screenplay",
+    "role",
+    "scene",
+    "sequence",
+    "performance",
+    "audition",
+    "camera",
+    "stunt",
+    "effects",
+    "soundtrack",
+    "academy award",
+    "box office"
+  ];
+
+  for (const term of strongTerms) {
+    if (lower.includes(term)) {
+      score += 20;
+    }
+  }
+
+  /*
+    Reduce generic plot-summary material.
+  */
+
+  const plotTerms = [
+    "the story follows",
+    "the film follows",
+    "the plot follows",
+    "must find",
+    "attempts to",
+    "falls in love",
+    "sets out to",
+    "returns home",
+    "discovers that"
+  ];
+
+  for (const term of plotTerms) {
+    if (lower.includes(term)) {
+      score -= 30;
+    }
+  }
+
+  return score;
+}
+
 function extractTrivia(text) {
   if (!text) return [];
 
-  /*
-    Split Wikipedia prose into sentences,
-    then keep substantial self-contained
-    facts rather than tiny fragments.
-  */
-
   const cleaned =
     text
+      .replace(/==+[^=]+==+/g, " ")
       .replace(/\n+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -145,14 +387,30 @@ function extractTrivia(text) {
           lower.includes("references") ||
           lower.includes("external links") ||
           lower.includes("see also") ||
-          lower.includes("bibliography")
+          lower.includes("bibliography") ||
+          lower.includes("citation needed") ||
+          lower.startsWith("the film is a") ||
+          lower.startsWith("the film was released") ||
+          lower.startsWith("the film stars") ||
+          lower.startsWith("the movie is a")
         );
-      });
+      })
+      .map(sentence => ({
+        sentence,
+        score: triviaScore(sentence)
+      }))
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      );
 
   const results = [];
   const seen = new Set();
 
-  for (const sentence of candidates) {
+  for (const item of candidates) {
+
+    const sentence =
+      item.sentence;
 
     const key =
       sentence
@@ -208,7 +466,10 @@ export default async function handler(req, res) {
 
     /*
       STEP 1:
-      Reelwise curated trivia.
+      REELWISE CURATED TRIVIA
+
+      Curated movies never use the
+      automatic fallback.
     */
 
     const curated =
@@ -228,16 +489,19 @@ export default async function handler(req, res) {
 
     /*
       STEP 2:
-      Automatic fallback for movies
-      not yet curated by Reelwise.
+      AUTOMATIC FALLBACK
+
+      Try the year-specific Wikipedia
+      movie page first to reduce the
+      chance of retrieving the wrong film.
     */
 
     const possibleTitles = [
-      title,
-      `${title} (film)`,
       year
         ? `${title} (${year} film)`
-        : ""
+        : "",
+      `${title} (film)`,
+      title
     ].filter(Boolean);
 
     let extract = "";
