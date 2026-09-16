@@ -452,6 +452,38 @@ function triviaScore(sentence) {
     but they should rank below production trivia.
   */
 
+  /*
+    Reviews, awards and box-office facts are valid,
+    but Reelwise should prefer behind-the-scenes
+    material whenever better production trivia exists.
+  */
+
+  const genericRecognitionTerms = [
+    "positive reviews",
+    "mixed reviews",
+    "negative reviews",
+    "critical acclaim",
+    "critics praised",
+    "critics criticized",
+    "grossed",
+    "box office",
+    "opening weekend",
+    "top film at the box office",
+    "nominated for",
+    "academy award",
+    "academy awards",
+    "golden globe",
+    "teen choice award",
+    "people's choice award",
+    "critics choice award"
+  ];
+
+  for (const term of genericRecognitionTerms) {
+    if (lower.includes(term)) {
+      score -= 30;
+    }
+  }
+
   const legacyTerms = [
     "anniversary",
     "re-release",
