@@ -480,7 +480,7 @@ function triviaScore(sentence) {
 
   for (const term of genericRecognitionTerms) {
     if (lower.includes(term)) {
-      score -= 30;
+      score -= 45;
     }
   }
 
@@ -690,6 +690,141 @@ function looksLikeBrokenFragment(sentence) {
   return false;
 }
 
+
+/*
+  UNIVERSAL TRIVIA CONTENT GUARD
+
+  This runs on BOTH curated and automatic trivia.
+  It removes plot recap, critic/review material,
+  generic commercial-success facts, and sequel/
+  franchise-summary language before anything is shown.
+*/
+function isWeakTriviaContent(sentence) {
+  const lower = String(sentence || "").toLowerCase().trim();
+
+  if (!lower) return true;
+
+  const rejectStarts = [
+    "the story is structured",
+    "the story follows",
+    "the film follows",
+    "the movie follows",
+    "the plot follows",
+    "the story centers on",
+    "the film centers on",
+    "the movie centers on",
+    "the plot centers on",
+    "the story revolves around",
+    "the film revolves around",
+    "the movie revolves around",
+    "the plot revolves around"
+  ];
+
+  if (rejectStarts.some(term => lower.startsWith(term))) {
+    return true;
+  }
+
+  const rejectAnywhere = [
+    "on metacritic",
+    "on rotten tomatoes",
+    "critics consensus",
+    "positive reviews",
+    "mixed reviews",
+    "negative reviews",
+    "generally favorable reviews",
+    "generally unfavourable reviews",
+    "wrote the performances were",
+    "critic wrote",
+    "critics praised",
+    "critics criticized",
+    "opening weekend",
+    "top film at the box office",
+    "major box-office hit",
+    "major box office hit",
+    "became a box-office hit",
+    "became a box office hit",
+    "led to two sequels",
+    "led to a sequel",
+    "launched a franchise",
+    "continued the adventures of",
+    "the photographs shown during the end credits reveal",
+    "the photos shown during the end credits reveal",
+    "the ending reveals",
+    "the climax reveals"
+  ];
+
+  if (rejectAnywhere.some(term => lower.includes(term))) {
+    return true;
+  }
+
+  /*
+    Scene description is usually plot, unless it clearly
+    explains how the scene was made.
+  */
+  const sceneDescription = [
+    "the movie ends with",
+    "the film ends with",
+    "the sequence shows",
+    "the scene shows",
+    "the scene reveals",
+    "the sequence reveals",
+    "becomes the event that drives",
+    "begins the movie",
+    "ends the movie"
+  ];
+
+  const productionWords = [
+    "filmed", "filming", "shot", "camera", "director", "directed",
+    "producer", "production", "screenplay", "script", "writer",
+    "cast", "casting", "audition", "recast", "improvised",
+    "stunt", "effects", "makeup", "costume", "choreography",
+    "location", "set was", "built", "designed", "created"
+  ];
+
+  const hasProductionWord =
+    productionWords.some(term => lower.includes(term));
+
+  if (
+    !hasProductionWord &&
+    sceneDescription.some(term => lower.includes(term))
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+function selectBestTrivia(list, maxItems = 6) {
+  const candidates = (Array.isArray(list) ? list : [])
+    .map(item => String(item || "").trim())
+    .filter(Boolean)
+    .filter(item => !looksLikeBrokenFragment(item))
+    .filter(item => !isWeakTriviaContent(item))
+    .map(item => ({
+      sentence: item,
+      score: triviaScore(item)
+    }))
+    .sort((a, b) => b.score - a.score);
+
+  const results = [];
+
+  for (const item of candidates) {
+    if (
+      results.some(existing =>
+        triviaSimilarity(item.sentence, existing) >= 0.48
+      )
+    ) {
+      continue;
+    }
+
+    results.push(item.sentence);
+
+    if (results.length >= maxItems) break;
+  }
+
+  return results;
+}
+
 function extractTrivia(text) {
   if (!text) return [];
 
@@ -722,6 +857,9 @@ function extractTrivia(text) {
       )
       .filter(sentence =>
         !looksLikeBrokenFragment(sentence)
+      )
+      .filter(sentence =>
+        !isWeakTriviaContent(sentence)
       )
       .filter(sentence => {
         const lower =
@@ -849,17 +987,8 @@ export default async function handler(req, res) {
     const curated =
       CURATED_TRIVIA[key] || [];
 
-    if (curated.length) {
-
-      return res.status(200).json({
-        movie: title,
-        year,
-        trivia: curated,
-        source: "Reelwise Vault",
-        curated: true
-      });
-
-    }
+    const cleanedCurated =
+      selectBestTrivia(curated, 6);
 
     /*
       STEP 2:
@@ -894,18 +1023,32 @@ export default async function handler(req, res) {
       }
     }
 
-    const trivia =
+    const automaticTrivia =
       extractTrivia(extract);
+
+    /*
+      Curated movies are no longer exempt from the
+      same quality rules. Strong curated facts stay,
+      weak plot/review facts are removed, and the
+      automatic source can fill any empty slots.
+    */
+    const trivia =
+      selectBestTrivia(
+        [...cleanedCurated, ...automaticTrivia],
+        6
+      );
 
     return res.status(200).json({
       movie: title,
       year,
       trivia,
       source:
-        trivia.length
-          ? "Wikipedia"
-          : "No trivia source found",
-      curated: false
+        cleanedCurated.length
+          ? "Reelwise Vault + quality filter"
+          : trivia.length
+            ? "Wikipedia"
+            : "No trivia source found",
+      curated: cleanedCurated.length > 0
     });
 
   } catch (error) {
