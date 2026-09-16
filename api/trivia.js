@@ -487,6 +487,97 @@ function triviaScore(sentence) {
   return score;
 }
 
+function triviaWords(sentence) {
+  const stopWords = new Set([
+    "the", "a", "an", "and", "or", "but", "of", "to", "in", "on",
+    "for", "with", "by", "from", "at", "as", "is", "was", "were",
+    "be", "been", "being", "that", "this", "it", "its", "his", "her",
+    "their", "he", "she", "they", "which", "who", "into", "after",
+    "before", "during", "while", "movie", "film"
+  ]);
+
+  return new Set(
+    String(sentence || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .filter(word =>
+        word.length >= 3 &&
+        !stopWords.has(word)
+      )
+  );
+}
+
+function triviaSimilarity(a, b) {
+  const wordsA = triviaWords(a);
+  const wordsB = triviaWords(b);
+
+  if (!wordsA.size || !wordsB.size) {
+    return 0;
+  }
+
+  let shared = 0;
+
+  for (const word of wordsA) {
+    if (wordsB.has(word)) {
+      shared += 1;
+    }
+  }
+
+  const smaller =
+    Math.min(wordsA.size, wordsB.size);
+
+  /*
+    Using the smaller sentence as the base catches
+    repeated facts even when one version contains
+    extra detail.
+  */
+  return shared / smaller;
+}
+
+function looksLikeBrokenFragment(sentence) {
+  const trimmed =
+    String(sentence || "").trim();
+
+  if (!trimmed) {
+    return true;
+  }
+
+  /*
+    Reject fragments such as:
+    " is a wink to the fact...
+    that can appear when Wikipedia prose is split
+    around quoted text.
+  */
+  if (/^[“"'‘’]\s*[a-z]/u.test(trimmed)) {
+    return true;
+  }
+
+  if (/^[,;:)\]}]/u.test(trimmed)) {
+    return true;
+  }
+
+  const firstWord =
+    trimmed
+      .replace(/^[“"'‘’(\[]+/u, "")
+      .split(/\s+/)[0] || "";
+
+  const weakStarts = new Set([
+    "and", "but", "or", "because", "although",
+    "however", "which", "while", "whereas"
+  ]);
+
+  if (
+    weakStarts.has(
+      firstWord.toLowerCase()
+    )
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
 function extractTrivia(text) {
   if (!text) return [];
 
@@ -510,6 +601,9 @@ function extractTrivia(text) {
       .filter(sentence =>
         sentence.length >= 70 &&
         sentence.length <= 300
+      )
+      .filter(sentence =>
+        !looksLikeBrokenFragment(sentence)
       )
       .filter(sentence => {
         const lower =
@@ -569,6 +663,18 @@ function extractTrivia(text) {
       !key ||
       seen.has(key)
     ) {
+      continue;
+    }
+
+    const nearDuplicate =
+      results.some(existing =>
+        triviaSimilarity(
+          sentence,
+          existing
+        ) >= 0.48
+      );
+
+    if (nearDuplicate) {
       continue;
     }
 
