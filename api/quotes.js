@@ -2,9 +2,9 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
 /*
   REELWISE ICONIC QUOTE VAULT
+
   Curated quotes always appear first.
-  IMPORTANT: Each quote belongs ONLY
-  to the exact movie listed.
+  Each quote must belong to the exact movie.
 */
 
 const ICONIC_QUOTES = {
@@ -28,8 +28,8 @@ const ICONIC_QUOTES = {
 
   "rocky ii": [
     "Yo, Adrian! I did it!",
-    "There's one thing I want you to do for me.",
-    "Win.",
+    "You're gonna eat lightning and you're gonna crap thunder!",
+    "There's one thing I want you to do for me. Win.",
     "I just gotta be around you.",
     "I never asked you to stop being a woman. Please don't ask me to stop being a man."
   ],
@@ -38,14 +38,12 @@ const ICONIC_QUOTES = {
     "I don't hate Balboa. I pity the fool.",
     "There is no tomorrow!",
     "You ain't so bad!",
-    "You're gonna eat lightning and you're gonna crap thunder!",
     "Nothing is real if you don't believe in who you are."
   ],
 
   "rocky iv": [
     "I must break you.",
     "If he dies, he dies.",
-    "I fight all my life and I never lose.",
     "He's not a machine. He's a man!",
     "I guess what I'm trying to say is, if I can change, and you can change, everybody can change!"
   ],
@@ -69,15 +67,13 @@ const ICONIC_QUOTES = {
     "You can't handle the truth!",
     "I want the truth!",
     "You want answers?",
-    "You don't need to wear a patch on your arm to have honor.",
-    "I have neither the time nor the inclination to explain myself to a man who rises and sleeps under the blanket of the very freedom that I provide."
+    "You don't need to wear a patch on your arm to have honor."
   ],
 
   "back to the future": [
     "Where we're going, we don't need roads.",
     "Great Scott!",
     "Nobody calls me chicken.",
-    "Roads? Where we're going, we don't need roads.",
     "If my calculations are correct, when this baby hits 88 miles per hour, you're gonna see some serious stuff."
   ],
 
@@ -99,9 +95,7 @@ const ICONIC_QUOTES = {
   "the hangover": [
     "What happens in Vegas stays in Vegas. Except herpes.",
     "I'm not supposed to be within two hundred feet of a school.",
-    "You guys might not know this, but I consider myself a bit of a loner.",
-    "Paging Dr. Faggot!",
-    "It's not illegal. It's frowned upon, like masturbating on an airplane."
+    "You guys might not know this, but I consider myself a bit of a loner."
   ],
 
   "old school": [
@@ -123,7 +117,9 @@ function normalizeTitle(value) {
 
 async function getMovie(id) {
   if (!TOKEN) {
-    throw new Error("TMDB token is not configured");
+    throw new Error(
+      "TMDB token is not configured"
+    );
   }
 
   const response = await fetch(
@@ -140,7 +136,8 @@ async function getMovie(id) {
 
   if (!response.ok) {
     throw new Error(
-      data.status_message || "Movie lookup failed"
+      data.status_message ||
+      "Movie lookup failed"
     );
   }
 
@@ -167,13 +164,22 @@ async function getWikiquotePage(title) {
       }
     });
 
-    if (!response.ok) return "";
+    if (!response.ok) {
+      return "";
+    }
 
     const data = await response.json();
-    const pages = data?.query?.pages || {};
-    const page = Object.values(pages)[0];
 
-    if (!page || page.missing !== undefined) {
+    const pages =
+      data?.query?.pages || {};
+
+    const page =
+      Object.values(pages)[0];
+
+    if (
+      !page ||
+      page.missing !== undefined
+    ) {
       return "";
     }
 
@@ -197,7 +203,8 @@ function usableQuote(line) {
   if (line.length < 15) return false;
   if (line.length > 150) return false;
 
-  const lower = line.toLowerCase();
+  const lower =
+    line.toLowerCase();
 
   if (
     lower.startsWith("see also") ||
@@ -210,7 +217,10 @@ function usableQuote(line) {
     return false;
   }
 
-  if (line.includes("[") || line.includes("]")) {
+  if (
+    line.includes("[") ||
+    line.includes("]")
+  ) {
     return false;
   }
 
@@ -220,43 +230,60 @@ function usableQuote(line) {
 function extractFallbackQuotes(text) {
   if (!text) return [];
 
-  const lines = text
-    .split(/\r?\n/)
-    .map(cleanLine)
-    .filter(usableQuote);
+  const lines =
+    text
+      .split(/\r?\n/)
+      .map(cleanLine)
+      .filter(usableQuote);
 
   const results = [];
   const seen = new Set();
 
   for (let line of lines) {
-    const speaker = line.match(
-      /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
-    );
+
+    const speaker =
+      line.match(
+        /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
+      );
 
     if (speaker) {
-      line = cleanLine(speaker[1]);
+      line =
+        cleanLine(speaker[1]);
     }
 
-    if (!usableQuote(line)) continue;
+    if (!usableQuote(line)) {
+      continue;
+    }
 
-    const key = line
-      .toLowerCase()
-      .replace(/[^\p{L}\p{N}]/gu, "");
+    const key =
+      line
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]/gu, "");
 
-    if (!key || seen.has(key)) continue;
+    if (
+      !key ||
+      seen.has(key)
+    ) {
+      continue;
+    }
 
     seen.add(key);
     results.push(line);
 
-    if (results.length >= 5) break;
+    if (results.length >= 5) {
+      break;
+    }
   }
 
   return results;
 }
 
 export default async function handler(req, res) {
+
   try {
-    const id = String(req.query?.id || "").trim();
+
+    const id =
+      String(req.query?.id || "").trim();
 
     if (!id) {
       return res.status(400).json({
@@ -264,23 +291,31 @@ export default async function handler(req, res) {
       });
     }
 
-    const movie = await getMovie(id);
+    const movie =
+      await getMovie(id);
 
     const title =
-      movie.title || movie.original_title || "";
+      movie.title ||
+      movie.original_title ||
+      "";
 
-    const year = movie.release_date
-      ? movie.release_date.slice(0, 4)
-      : "";
+    const year =
+      movie.release_date
+        ? movie.release_date.slice(0, 4)
+        : "";
 
-    const key = normalizeTitle(title);
-    const curated = ICONIC_QUOTES[key] || [];
+    const key =
+      normalizeTitle(title);
+
+    const curated =
+      ICONIC_QUOTES[key] || [];
 
     /*
-      Curated Reelwise quotes always win.
+      REELWISE CURATED VAULT
     */
 
     if (curated.length) {
+
       return res.status(200).json({
         movie: title,
         year,
@@ -288,25 +323,36 @@ export default async function handler(req, res) {
         source: "Reelwise Vault",
         curated: true
       });
+
     }
 
     /*
-      Automatic fallback for the rest
-      of the TMDB movie database.
+      AUTOMATIC FALLBACK
+
+      Movies without a curated Reelwise
+      entry still receive quotes.
     */
 
     const possibleTitles = [
       title,
       `${title} (film)`,
-      year ? `${title} (${year} film)` : ""
+      year
+        ? `${title} (${year} film)`
+        : ""
     ].filter(Boolean);
 
     let extract = "";
 
-    for (const pageTitle of possibleTitles) {
-      extract = await getWikiquotePage(pageTitle);
+    for (
+      const pageTitle of possibleTitles
+    ) {
 
-      if (extract) break;
+      extract =
+        await getWikiquotePage(pageTitle);
+
+      if (extract) {
+        break;
+      }
     }
 
     const fallback =
@@ -316,13 +362,15 @@ export default async function handler(req, res) {
       movie: title,
       year,
       quotes: fallback,
-      source: fallback.length
-        ? "Wikiquote"
-        : "No quote source found",
+      source:
+        fallback.length
+          ? "Wikiquote"
+          : "No quote source found",
       curated: false
     });
 
   } catch (error) {
+
     console.error(
       "Reelwise quotes error:",
       error
@@ -334,5 +382,6 @@ export default async function handler(req, res) {
         "Quotes could not be loaded.",
       quotes: []
     });
+
   }
 }
