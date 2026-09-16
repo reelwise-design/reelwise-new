@@ -178,10 +178,7 @@ main{
   font-size:44px;
 }
 .card-info{padding:13px}
-.card-info strong{
-  display:block;
-  margin:3px 0 5px;
-}
+.card-info strong{display:block;margin:3px 0 5px}
 .card-info small{color:var(--muted)}
 .type{
   color:var(--gold);
@@ -199,10 +196,7 @@ main{
   color:var(--muted);
 }
 
-/* DISCOVERY */
-
 .discovery-page{grid-column:1/-1}
-
 .discovery-hero{
   background:
     radial-gradient(circle at 92% 5%,rgba(255,90,54,.13),transparent 32%),
@@ -224,25 +218,15 @@ main{
   max-width:650px;
   margin:0;
 }
-
-.browse-section{
-  margin:0 0 34px;
-}
+.browse-section{margin:0 0 34px}
 .browse-heading{
   display:flex;
   justify-content:space-between;
   align-items:end;
   margin-bottom:12px;
 }
-.browse-heading h2{
-  margin:4px 0 0;
-  font-size:23px;
-}
-.browse-heading span{
-  color:var(--muted);
-  font-size:12px;
-}
-
+.browse-heading h2{margin:4px 0 0;font-size:23px}
+.browse-heading span{color:var(--muted);font-size:12px}
 .visual-row{
   display:flex;
   gap:14px;
@@ -270,28 +254,16 @@ main{
   display:block;
 }
 .visual-info{padding:11px}
-.visual-info strong{
-  display:block;
-  font-size:14px;
-  line-height:1.3;
-}
+.visual-info strong{display:block;font-size:14px;line-height:1.3}
 .visual-info small{
-  display:block;
-  color:var(--gold);
-  margin-top:4px;
-  font-size:11px;
-  font-weight:800;
+  display:block;color:var(--gold);margin-top:4px;
+  font-size:11px;font-weight:800;
 }
-
-/* MOVIE DETAILS */
 
 .detail{grid-column:1/-1}
 .back-button{
-  background:none;
-  border:0;
-  color:var(--muted);
-  padding:0 0 22px;
-  font-weight:700;
+  background:none;border:0;color:var(--muted);
+  padding:0 0 22px;font-weight:700;
 }
 .detail-layout{
   display:grid;
@@ -302,295 +274,149 @@ main{
   border:1px solid var(--line);
   border-radius:20px;
 }
-.detail-image{
-  width:100%;
-  border-radius:14px;
-  display:block;
-}
+.detail-image{width:100%;border-radius:14px;display:block}
 .detail h1{
   font-size:clamp(38px,6vw,60px);
-  line-height:1;
-  letter-spacing:-2px;
-  margin:6px 0 15px;
+  line-height:1;letter-spacing:-2px;margin:6px 0 15px;
 }
-.detail p{
-  color:var(--muted);
-  line-height:1.65;
-}
-.cast{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-}
+.detail p{color:var(--muted);line-height:1.65}
+.cast{display:flex;flex-wrap:wrap;gap:8px}
 .cast button{
-  background:#151b24;
-  border:1px solid #303846;
-  color:white;
-  border-radius:999px;
-  padding:8px 12px;
+  background:#151b24;border:1px solid #303846;
+  color:white;border-radius:999px;padding:8px 12px;
 }
-
-/* STAR DETAILS */
 
 .star-hero{
-  display:grid;
-  grid-template-columns:275px 1fr;
-  gap:38px;
-  padding:28px;
-  background:linear-gradient(145deg,#131922,#0c1016);
-  border:1px solid var(--line);
-  border-radius:20px;
+  display:grid;grid-template-columns:275px 1fr;gap:38px;
+  padding:28px;background:linear-gradient(145deg,#131922,#0c1016);
+  border:1px solid var(--line);border-radius:20px;
 }
-.star-photo{
-  width:100%;
-  border-radius:15px;
-}
+.star-photo{width:100%;border-radius:15px}
 .star-name{
-  font-size:clamp(42px,6vw,66px);
-  line-height:.96;
-  letter-spacing:-3px;
-  margin:7px 0 17px;
+  font-size:clamp(42px,6vw,66px);line-height:.96;
+  letter-spacing:-3px;margin:7px 0 17px;
 }
 .star-bio{
-  color:#b2bbc8;
-  font-size:16px;
-  line-height:1.7;
-  max-width:720px;
+  color:#b2bbc8;font-size:16px;line-height:1.7;max-width:720px;
 }
 .star-section{margin-top:32px}
 .star-section h2{font-size:28px}
 .known-row{
-  display:flex;
-  gap:13px;
-  overflow-x:auto;
-  padding:2px 1px 10px;
+  display:flex;gap:13px;overflow-x:auto;padding:2px 1px 10px;
 }
-.known-card{
-  flex:0 0 145px;
-  cursor:pointer;
-}
+.known-card{flex:0 0 145px;cursor:pointer}
 .known-card img{
-  width:145px;
-  aspect-ratio:2/3;
-  object-fit:cover;
-  border-radius:10px;
-  border:1px solid var(--line);
+  width:145px;aspect-ratio:2/3;object-fit:cover;
+  border-radius:10px;border:1px solid var(--line);
 }
-.known-card strong{
-  display:block;
-  font-size:13px;
-  margin-top:8px;
-}
+.known-card strong{display:block;font-size:13px;margin-top:8px}
 .known-card small{color:var(--muted)}
 .filmography{
-  display:grid;
-  grid-template-columns:repeat(auto-fill,minmax(180px,1fr));
-  gap:9px;
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:9px;
 }
 .filmography button{
-  text-align:left;
-  background:#11161e;
-  color:#e8ebef;
-  border:1px solid var(--line);
-  border-radius:9px;
-  padding:11px 12px;
+  text-align:left;background:#11161e;color:#e8ebef;
+  border:1px solid var(--line);border-radius:9px;padding:11px 12px;
 }
 
-/* VAULT */
-
 .movie-vault{
-  margin-top:31px;
-  padding-top:27px;
-  border-top:1px solid var(--line);
+  margin-top:31px;padding-top:27px;border-top:1px solid var(--line);
 }
 .movie-vault-heading h2{font-size:32px}
 .movie-extras{
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
-  gap:10px;
+  display:grid;grid-template-columns:repeat(5,1fr);gap:10px;
 }
 .extra-card{
-  background:#11161e;
-  border:1px solid var(--line);
-  border-radius:13px;
-  padding:15px;
+  background:#11161e;border:1px solid var(--line);
+  border-radius:13px;padding:15px;
 }
 .extra-icon{font-size:24px}
 .extra-card h3{font-size:15px}
 .extra-card button{
-  background:none;
-  border:0;
-  padding:0;
-  color:var(--gold);
-  font-weight:850;
-  font-size:12px;
+  background:none;border:0;padding:0;color:var(--gold);
+  font-weight:850;font-size:12px;
 }
 .feature-view{
-  background:var(--panel2);
-  border:1px solid var(--line);
-  border-left:3px solid var(--accent);
-  border-radius:12px;
-  padding:20px;
-  margin-top:20px;
+  background:var(--panel2);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:12px;
+  padding:20px;margin-top:20px;
 }
 .fact-grid{display:grid;gap:12px;margin-top:16px}
 .fact-item{
-  background:#10141b;
-  border:1px solid var(--line);
-  border-radius:10px;
-  padding:15px;
+  background:#10141b;border:1px solid var(--line);
+  border-radius:10px;padding:15px;
 }
-.video-list{
-  display:grid;
-  gap:14px;
-  margin-top:16px;
-}
+.video-list{display:grid;gap:14px;margin-top:16px}
 .video-card{
-  display:flex;
-  gap:14px;
-  align-items:center;
-  background:#10141b;
-  border:1px solid var(--line);
-  border-radius:10px;
-  padding:12px;
-  text-decoration:none;
-  color:white;
+  display:flex;gap:14px;align-items:center;background:#10141b;
+  border:1px solid var(--line);border-radius:10px;padding:12px;
+  text-decoration:none;color:white;
 }
-.video-card img{
-  width:120px;
-  border-radius:7px;
-}
-
-/* SIX DEGREES */
+.video-card img{width:120px;border-radius:7px}
 
 .section-page{grid-column:1/-1}
 .degree-box{
-  background:var(--panel);
-  border:1px solid var(--line);
-  border-radius:15px;
-  padding:26px;
-  max-width:750px;
+  background:var(--panel);border:1px solid var(--line);
+  border-radius:15px;padding:26px;max-width:750px;
 }
 .degree-inputs{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-  margin:20px 0;
+  display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:20px 0;
 }
 
 footer{
-  border-top:1px solid var(--line);
-  color:#737d8b;
-  padding:24px;
-  text-align:center;
+  border-top:1px solid var(--line);color:#737d8b;
+  padding:24px;text-align:center;
 }
 
 @media(max-width:800px){
   nav{padding:14px 18px 8px}
   .logo{font-size:27px}
   .nav-links{display:none}
-
   .hero{padding:19px 18px 20px}
   .hero h1{
-    font-size:39px;
-    line-height:1.01;
-    letter-spacing:-2px;
-    margin:8px 0 10px;
+    font-size:39px;line-height:1.01;letter-spacing:-2px;margin:8px 0 10px;
   }
   .hero p{font-size:14px;margin:0}
-
   .search{
-    margin-top:16px;
-    display:grid;
-    grid-template-columns:1fr auto;
-    gap:8px;
+    margin-top:16px;display:grid;grid-template-columns:1fr auto;gap:8px;
   }
-
   main{padding:14px 14px 45px}
-
   .section-title{
-    font-size:13px;
-    text-transform:uppercase;
-    letter-spacing:1.3px;
-    color:var(--gold);
+    font-size:13px;text-transform:uppercase;
+    letter-spacing:1.3px;color:var(--gold);
   }
-
-  .features{
-    grid-template-columns:repeat(3,1fr);
-    gap:8px;
-  }
-  .feature{
-    padding:13px 5px;
-    text-align:center;
-  }
+  .features{grid-template-columns:repeat(3,1fr);gap:8px}
+  .feature{padding:13px 5px;text-align:center}
   .feature:before{display:none}
   .feature-icon{font-size:23px;margin-bottom:6px}
   .feature h3{font-size:12px;margin:0}
   .feature p,.feature .go{display:none}
-
-  .discovery-hero{
-    padding:18px;
-    border-radius:15px;
-    margin-bottom:25px;
-  }
-  .discovery-hero h1{
-    font-size:31px;
-    letter-spacing:-1px;
-  }
+  .discovery-hero{padding:18px;border-radius:15px;margin-bottom:25px}
+  .discovery-hero h1{font-size:31px;letter-spacing:-1px}
   .discovery-hero p{font-size:13px}
-
   .browse-section{margin-bottom:27px}
   .browse-heading h2{font-size:20px}
   .browse-heading span{display:none}
-
   .visual-row{gap:10px}
   .visual-card{flex-basis:122px}
   .visual-info{padding:9px}
   .visual-info strong{font-size:12px}
-
-  .detail-layout{
-    grid-template-columns:105px 1fr;
-    gap:16px;
-    padding:15px;
-  }
+  .detail-layout{grid-template-columns:105px 1fr;gap:16px;padding:15px}
   .detail-image{width:105px}
   .detail h1{font-size:30px}
-  .detail-layout p{
-    font-size:14px;
-    line-height:1.45;
-  }
-  .cast button{
-    font-size:11px;
-    padding:6px 9px;
-  }
-
-  .star-hero{
-    grid-template-columns:110px 1fr;
-    gap:16px;
-    padding:15px;
-  }
+  .detail-layout p{font-size:14px;line-height:1.45}
+  .cast button{font-size:11px;padding:6px 9px}
+  .star-hero{grid-template-columns:110px 1fr;gap:16px;padding:15px}
   .star-photo{width:110px}
-  .star-name{
-    font-size:30px;
-    letter-spacing:-1.3px;
-  }
+  .star-name{font-size:30px;letter-spacing:-1.3px}
   .star-bio{
-    font-size:13px;
-    line-height:1.48;
-    max-height:150px;
-    overflow:auto;
+    font-size:13px;line-height:1.48;max-height:150px;overflow:auto;
   }
   .known-card{flex-basis:112px}
   .known-card img{width:112px}
   .filmography{grid-template-columns:1fr 1fr}
-
-  .movie-extras{
-    display:flex;
-    overflow-x:auto;
-    gap:8px;
-  }
+  .movie-extras{display:flex;overflow-x:auto;gap:8px}
   .extra-card{flex:0 0 112px}
-
   .degree-inputs{grid-template-columns:1fr}
 }
 </style>
@@ -601,7 +427,6 @@ footer{
 <header>
 <nav>
   <div class="logo" onclick="showHome()">reel<span>wise</span></div>
-
   <div class="nav-links">
     <button onclick="openSection('movies')">Movies</button>
     <button onclick="openSection('stars')">Stars</button>
@@ -611,63 +436,40 @@ footer{
 
 <div class="hero">
   <div class="eyebrow">MOVIES · STARS · STORIES</div>
-
-  <h1>
-    Know the movie.<br>
-    <span>Know the story.</span>
-  </h1>
-
+  <h1>Know the movie.<br><span>Know the story.</span></h1>
   <p>
     Search movies and stars and discover the stories,
     people and connections behind them.
   </p>
-
   <form class="search" id="searchForm">
-    <input
-      id="searchInput"
-      placeholder="Search movies or stars..."
-      autocomplete="off"
-    >
+    <input id="searchInput" placeholder="Search movies or stars..." autocomplete="off">
     <button type="submit">Search</button>
   </form>
 </div>
 </header>
 
 <main>
-
 <div id="homeContent">
-
   <h2 class="section-title">Explore Reelwise</h2>
-
   <div class="features">
-
     <div class="feature" onclick="openSection('movies')">
       <div class="feature-icon">🎬</div>
       <h3>Movies</h3>
-      <p>
-        Browse genres, eras, franchises,
-        classics and movies worth discovering.
-      </p>
+      <p>Browse genres, eras, franchises, classics and movies worth discovering.</p>
       <span class="go">Explore Movies →</span>
     </div>
-
     <div class="feature" onclick="openSection('stars')">
       <div class="feature-icon">⭐</div>
       <h3>Movie Stars</h3>
-      <p>
-        Discover legends, action stars,
-        comedy stars and today's biggest names.
-      </p>
+      <p>Discover legends, action stars, comedy stars and today's biggest names.</p>
       <span class="go">Explore Stars →</span>
     </div>
-
     <div class="feature" onclick="openSection('six')">
       <div class="feature-icon">🔗</div>
       <h3>Six Degrees</h3>
       <p>Connect any two movie stars.</p>
       <span class="go">Play →</span>
     </div>
-
   </div>
 </div>
 
@@ -675,15 +477,11 @@ footer{
   <h2 class="section-title" id="resultsTitle"></h2>
   <div id="results"></div>
 </div>
-
 </main>
 
-<footer>
-  Reelwise · Know the movie. Know the story.
-</footer>
+<footer>Reelwise · Know the movie. Know the story.</footer>
 
 <script>
-
 const results=document.getElementById("results");
 const resultsTitle=document.getElementById("resultsTitle");
 const searchArea=document.getElementById("searchArea");
@@ -699,16 +497,11 @@ searchForm.addEventListener("submit",event=>{
   searchReelwise(searchInput.value);
 });
 
-function revealResults(){
-  searchArea.style.display="block";
-}
+function revealResults(){searchArea.style.display="block"}
 
 function goToResults(){
   setTimeout(()=>{
-    searchArea.scrollIntoView({
-      behavior:"smooth",
-      block:"start"
-    });
+    searchArea.scrollIntoView({behavior:"smooth",block:"start"});
   },50);
 }
 
@@ -717,103 +510,40 @@ function showHome(){
   searchArea.style.display="none";
   results.innerHTML="";
   resultsTitle.textContent="";
-
-  window.scrollTo({
-    top:0,
-    behavior:"smooth"
-  });
+  window.scrollTo({top:0,behavior:"smooth"});
 }
 
 function openSection(section){
   homeContent.style.display="none";
   revealResults();
-
-  if(section==="movies"){
-    showMovieSection();
-    return;
-  }
-
-  if(section==="stars"){
-    showStarSection();
-    return;
-  }
-
+  if(section==="movies"){showMovieSection();return}
+  if(section==="stars"){showStarSection();return}
   showSixDegrees();
 }
 
-/* =========================
-   MOVIE DISCOVERY
-========================= */
-
 async function showMovieSection(){
-
   resultsTitle.textContent="Explore Movies";
-
   results.innerHTML=`
     <div class="discovery-page">
-
-      <button class="back-button"
-        onclick="showHome()">
-        ← Home
-      </button>
-
+      <button class="back-button" onclick="showHome()">← Home</button>
       <div class="discovery-hero">
-        <div class="eyebrow">
-          EXPLORE THE MOVIES
-        </div>
-
-        <h1>
-          Find your next movie.
-        </h1>
-
+        <div class="eyebrow">EXPLORE THE MOVIES</div>
+        <h1>Find your next movie.</h1>
         <p>
           Browse movies by what you're in the mood for,
           revisit the classics, explore different eras
           and discover great movie franchises.
         </p>
       </div>
-
-      ${movieBrowseSection(
-        "trendingMovies",
-        "WHAT PEOPLE ARE WATCHING",
-        "Trending Movies"
-      )}
-
-      ${movieBrowseSection(
-        "franchiseMovies",
-        "MOVIE MARATHON",
-        "Great Franchises"
-      )}
-
-      ${movieBrowseSection(
-        "actionMovies",
-        "HIGH OCTANE",
-        "Action"
-      )}
-
-      ${movieBrowseSection(
-        "comedyMovies",
-        "MAKE ME LAUGH",
-        "Comedy"
-      )}
-
-      ${movieBrowseSection(
-        "classicMovies",
-        "ESSENTIAL VIEWING",
-        "Movie Classics"
-      )}
-
-      ${movieBrowseSection(
-        "retroMovies",
-        "BACK IN TIME",
-        "80s & 90s"
-      )}
-
+      ${movieBrowseSection("trendingMovies","WHAT PEOPLE ARE WATCHING","Trending Movies")}
+      ${movieBrowseSection("franchiseMovies","MOVIE MARATHON","Great Franchises")}
+      ${movieBrowseSection("actionMovies","HIGH OCTANE","Action")}
+      ${movieBrowseSection("comedyMovies","MAKE ME LAUGH","Comedy")}
+      ${movieBrowseSection("classicMovies","ESSENTIAL VIEWING","Movie Classics")}
+      ${movieBrowseSection("retroMovies","BACK IN TIME","80s & 90s")}
     </div>
   `;
-
   goToResults();
-
   await Promise.all([
     loadMovieRow("trendingMovies","trending"),
     loadMovieRow("franchiseMovies","franchises"),
@@ -825,189 +555,85 @@ async function showMovieSection(){
 }
 
 function movieBrowseSection(id,eyebrow,title){
-
   return `
     <section class="browse-section">
-
       <div class="browse-heading">
-
         <div>
-          <div class="eyebrow">
-            ${eyebrow}
-          </div>
-
+          <div class="eyebrow">${eyebrow}</div>
           <h2>${title}</h2>
         </div>
-
-        <span>
-          Swipe to explore →
-        </span>
-
+        <span>Swipe to explore →</span>
       </div>
-
       <div id="${id}" class="visual-row">
-        <div class="message">
-          Loading...
-        </div>
+        <div class="message">Loading...</div>
       </div>
-
     </section>
   `;
 }
 
 async function loadMovieRow(elementId,category){
-
   const box=document.getElementById(elementId);
-
   if(!box)return;
-
   try{
-
-    const response=await fetch(
-      "/api/movies?category="+
-      encodeURIComponent(category)
-    );
-
+    const response=await fetch("/api/movies?category="+encodeURIComponent(category));
     const data=await response.json();
-
-    if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Movies could not be loaded."
-      );
-    }
+    if(!response.ok)throw new Error(data.error || "Movies could not be loaded.");
 
     const movies=Array.isArray(data)
       ? data
-      : Array.isArray(data.movies)
-        ? data.movies
-        : [];
+      : Array.isArray(data.movies) ? data.movies : [];
 
     if(!movies.length){
-      box.innerHTML=
-        '<div class="message">No movies available.</div>';
+      box.innerHTML='<div class="message">No movies available.</div>';
       return;
     }
 
-    box.innerHTML=movies
-      .slice(0,18)
-      .map(movie=>{
+    box.innerHTML=movies.slice(0,18).map(movie=>{
+      const poster=movie.poster_path
+        ? "https://image.tmdb.org/t/p/w342"+movie.poster_path
+        : "";
+      const movieYear=movie.release_date ? movie.release_date.slice(0,4) : "";
 
-        const poster=movie.poster_path
-          ? "https://image.tmdb.org/t/p/w342"+
-            movie.poster_path
-          : "";
-
-        const movieYear=movie.release_date
-          ? movie.release_date.slice(0,4)
-          : "";
-
-        return `
-          <div class="visual-card"
-            onclick="showMovie('${movie.id}')">
-
-            ${
-              poster
-              ? `<img
-                  src="${poster}"
-                  alt="${escapeHTML(movie.title)}"
-                >`
-              : `<div class="no-poster">🎬</div>`
-            }
-
-            <div class="visual-info">
-              <strong>
-                ${escapeHTML(movie.title)}
-              </strong>
-
-              <small>
-                ${escapeHTML(movieYear)}
-              </small>
-            </div>
-
+      return `
+        <div class="visual-card" onclick="showMovie('${movie.id}')">
+          ${
+            poster
+            ? `<img src="${poster}" alt="${escapeHTML(movie.title)}">`
+            : `<div class="no-poster">🎬</div>`
+          }
+          <div class="visual-info">
+            <strong>${escapeHTML(movie.title)}</strong>
+            <small>${escapeHTML(movieYear)}</small>
           </div>
-        `;
-      })
-      .join("");
-
+        </div>
+      `;
+    }).join("");
   }catch(error){
-
-    box.innerHTML=
-      '<div class="message">'+
-      escapeHTML(error.message)+
-      '</div>';
+    box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>';
   }
 }
 
-/* =========================
-   STAR DISCOVERY
-========================= */
-
 async function showStarSection(){
-
   resultsTitle.textContent="Explore Movie Stars";
-
   results.innerHTML=`
     <div class="discovery-page">
-
-      <button class="back-button"
-        onclick="showHome()">
-        ← Home
-      </button>
-
+      <button class="back-button" onclick="showHome()">← Home</button>
       <div class="discovery-hero">
-
-        <div class="eyebrow">
-          THE PEOPLE BEHIND THE MOVIES
-        </div>
-
-        <h1>
-          Meet the stars.
-        </h1>
-
+        <div class="eyebrow">THE PEOPLE BEHIND THE MOVIES</div>
+        <h1>Meet the stars.</h1>
         <p>
-          Explore movie legends, unforgettable
-          performers and the stars behind the
-          movies you love.
+          Explore movie legends, unforgettable performers
+          and the stars behind the movies you love.
         </p>
-
       </div>
-
-      ${starBrowseSection(
-        "popularStars",
-        "IN THE SPOTLIGHT",
-        "Popular Movie Stars"
-      )}
-
-      ${starBrowseSection(
-        "legendStars",
-        "ICONIC CAREERS",
-        "Hollywood Legends"
-      )}
-
-      ${starBrowseSection(
-        "actionStars",
-        "SCREEN HEROES",
-        "Action Stars"
-      )}
-
-      ${starBrowseSection(
-        "comedyStars",
-        "FUNNY PEOPLE",
-        "Comedy Stars"
-      )}
-
-      ${starBrowseSection(
-        "retroStars",
-        "THE FACES OF AN ERA",
-        "80s & 90s Stars"
-      )}
-
+      ${starBrowseSection("popularStars","IN THE SPOTLIGHT","Popular Movie Stars")}
+      ${starBrowseSection("legendStars","ICONIC CAREERS","Hollywood Legends")}
+      ${starBrowseSection("actionStars","SCREEN HEROES","Action Stars")}
+      ${starBrowseSection("comedyStars","FUNNY PEOPLE","Comedy Stars")}
+      ${starBrowseSection("retroStars","THE FACES OF AN ERA","80s & 90s Stars")}
     </div>
   `;
-
   goToResults();
-
   await Promise.all([
     loadStarRow("popularStars","popular"),
     loadStarRow("legendStars","legends"),
@@ -1018,522 +644,282 @@ async function showStarSection(){
 }
 
 function starBrowseSection(id,eyebrow,title){
-
   return `
     <section class="browse-section">
-
       <div class="browse-heading">
-
         <div>
-          <div class="eyebrow">
-            ${eyebrow}
-          </div>
-
+          <div class="eyebrow">${eyebrow}</div>
           <h2>${title}</h2>
         </div>
-
-        <span>
-          Swipe to explore →
-        </span>
-
+        <span>Swipe to explore →</span>
       </div>
-
       <div id="${id}" class="visual-row">
-        <div class="message">
-          Loading...
-        </div>
+        <div class="message">Loading...</div>
       </div>
-
     </section>
   `;
 }
 
 async function loadStarRow(elementId,category){
-
   const box=document.getElementById(elementId);
-
   if(!box)return;
 
   try{
-
-    const response=await fetch(
-      "/api/stars?category="+
-      encodeURIComponent(category)
-    );
-
+    const response=await fetch("/api/stars?category="+encodeURIComponent(category));
     const data=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Movie stars could not be loaded."
-      );
+      throw new Error(data.error || "Movie stars could not be loaded.");
     }
 
     const stars=Array.isArray(data)
       ? data
-      : Array.isArray(data.stars)
-        ? data.stars
-        : [];
+      : Array.isArray(data.stars) ? data.stars : [];
 
     if(!stars.length){
-      box.innerHTML=
-        '<div class="message">No stars available.</div>';
+      box.innerHTML='<div class="message">No stars available.</div>';
       return;
     }
 
-    box.innerHTML=stars
-      .slice(0,18)
-      .map(person=>{
+    box.innerHTML=stars.slice(0,18).map(person=>{
+      const photo=person.profile_path
+        ? "https://image.tmdb.org/t/p/w342"+person.profile_path
+        : "";
 
-        const photo=person.profile_path
-          ? "https://image.tmdb.org/t/p/w342"+
-            person.profile_path
-          : "";
-
-        return `
-          <div class="visual-card"
-            onclick="showPerson('${person.id}')">
-
-            ${
-              photo
-              ? `<img
-                  src="${photo}"
-                  alt="${escapeHTML(person.name)}"
-                >`
-              : `<div class="no-poster">⭐</div>`
-            }
-
-            <div class="visual-info">
-              <strong>
-                ${escapeHTML(person.name)}
-              </strong>
-
-              <small>
-                View Profile →
-              </small>
-            </div>
-
+      return `
+        <div class="visual-card" onclick="showPerson('${person.id}')">
+          ${
+            photo
+            ? `<img src="${photo}" alt="${escapeHTML(person.name)}">`
+            : `<div class="no-poster">⭐</div>`
+          }
+          <div class="visual-info">
+            <strong>${escapeHTML(person.name)}</strong>
+            <small>View Profile →</small>
           </div>
-        `;
-      })
-      .join("");
-
+        </div>
+      `;
+    }).join("");
   }catch(error){
-
-    box.innerHTML=
-      '<div class="message">'+
-      escapeHTML(error.message)+
-      '</div>';
+    box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>';
   }
 }
 
-/* =========================
-   UNIVERSAL SEARCH
-========================= */
-
 async function searchReelwise(queryValue){
-
   const query=String(queryValue || "").trim();
-
   if(!query)return;
 
   lastQuery=query;
-
   homeContent.style.display="none";
   revealResults();
-
-  resultsTitle.textContent=
-    'Results for "'+query+'"';
-
-  results.innerHTML=
-    '<div class="message">Searching Reelwise...</div>';
-
+  resultsTitle.textContent='Results for "'+query+'"';
+  results.innerHTML='<div class="message">Searching Reelwise...</div>';
   goToResults();
 
   try{
-
-    const response=await fetch(
-      "/api/search?q="+
-      encodeURIComponent(query)
-    );
-
+    const response=await fetch("/api/search?q="+encodeURIComponent(query));
     const data=await response.json();
 
-    if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Search failed."
-      );
-    }
+    if(!response.ok)throw new Error(data.error || "Search failed.");
 
-    /*
-      IMPORTANT:
-
-      We deliberately do NOT remove results
-      simply because an exact title exists.
-
-      That allows search.js to return a real
-      franchise together:
-
-      Rocky
-      Rocky II
-      Rocky III
-      Rocky IV
-      Rocky V
-      Rocky Balboa
-    */
-
-    const items=
-      Array.isArray(data.results)
-        ? data.results
-        : [];
+    const items=Array.isArray(data.results) ? data.results : [];
 
     if(!items.length){
-
-      results.innerHTML=
-        '<div class="message">No results found.</div>';
-
+      results.innerHTML='<div class="message">No results found.</div>';
       return;
     }
 
-    results.innerHTML=
-      items
-        .slice(0,30)
-        .map(makeCard)
-        .join("");
-
+    results.innerHTML=items.slice(0,30).map(makeCard).join("");
     attachCardEvents();
     goToResults();
-
   }catch(error){
-
-    results.innerHTML=
-      '<div class="message">'+
-      escapeHTML(error.message)+
-      '</div>';
+    results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>';
   }
 }
 
 function makeCard(item){
-
-  const isMovie=
-    item.result_type==="movie";
-
-  const name=
-    item.display_title ||
-    item.title ||
-    item.name ||
-    "Unknown";
-
-  const image=
-    isMovie
-      ? item.poster_path
-      : item.profile_path;
-
-  const imageURL=
-    image
-      ? "https://image.tmdb.org/t/p/w500"+image
-      : "";
-
-  const subtitle=
-    isMovie
-      ? item.year || "Movie"
-      : item.known_for_department || "Actor";
+  const isMovie=item.result_type==="movie";
+  const name=item.display_title || item.title || item.name || "Unknown";
+  const image=isMovie ? item.poster_path : item.profile_path;
+  const imageURL=image ? "https://image.tmdb.org/t/p/w500"+image : "";
+  const subtitle=isMovie
+    ? item.year || "Movie"
+    : item.known_for_department || "Actor";
 
   return `
-    <div
-      class="card"
-      data-type="${item.result_type}"
-      data-id="${item.id}"
-    >
-
+    <div class="card" data-type="${item.result_type}" data-id="${item.id}">
       ${
         imageURL
-        ? `<img
-            class="poster"
-            src="${imageURL}"
-            alt="${escapeHTML(name)}"
-          >`
-        : `<div class="no-poster">
-            ${isMovie ? "🎬" : "⭐"}
-          </div>`
+        ? `<img class="poster" src="${imageURL}" alt="${escapeHTML(name)}">`
+        : `<div class="no-poster">${isMovie ? "🎬" : "⭐"}</div>`
       }
-
       <div class="card-info">
-
-        <div class="type">
-          ${isMovie ? "MOVIE" : "STAR"}
-        </div>
-
-        <strong>
-          ${escapeHTML(name)}
-        </strong>
-
-        <small>
-          ${escapeHTML(subtitle)}
-        </small>
-
+        <div class="type">${isMovie ? "MOVIE" : "STAR"}</div>
+        <strong>${escapeHTML(name)}</strong>
+        <small>${escapeHTML(subtitle)}</small>
       </div>
-
     </div>
   `;
 }
 
 function attachCardEvents(){
-
-  document
-    .querySelectorAll(".card")
-    .forEach(card=>{
-
-      card.addEventListener("click",()=>{
-
-        if(card.dataset.type==="movie"){
-          showMovie(card.dataset.id);
-        }else{
-          showPerson(card.dataset.id);
-        }
-
-      });
+  document.querySelectorAll(".card").forEach(card=>{
+    card.addEventListener("click",()=>{
+      if(card.dataset.type==="movie"){
+        showMovie(card.dataset.id);
+      }else{
+        showPerson(card.dataset.id);
+      }
     });
+  });
 }
 
-/* =========================
-   MOVIE PROFILE
-========================= */
-
 async function showMovie(id){
-
   homeContent.style.display="none";
   revealResults();
-
   resultsTitle.textContent="Movie";
-
-  results.innerHTML=
-    '<div class="message">Loading movie...</div>';
+  results.innerHTML='<div class="message">Loading movie...</div>';
 
   try{
-
     const response=await fetch(
-      "/api/search?type=movie-details&id="+
-      encodeURIComponent(id)
+      "/api/search?type=movie-details&id="+encodeURIComponent(id)
     );
-
     const movie=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        movie.error ||
-        "Movie could not be loaded."
-      );
+      throw new Error(movie.error || "Movie could not be loaded.");
     }
 
     currentMovie=movie;
 
-    const poster=
-      movie.poster_path
-        ? "https://image.tmdb.org/t/p/w500"+
-          movie.poster_path
-        : "";
+    const poster=movie.poster_path
+      ? "https://image.tmdb.org/t/p/w500"+movie.poster_path
+      : "";
 
-    const cast=
-      movie.credits &&
-      Array.isArray(movie.credits.cast)
-        ? movie.credits.cast.slice(0,20)
-        : [];
+    const cast=movie.credits && Array.isArray(movie.credits.cast)
+      ? movie.credits.cast.slice(0,20)
+      : [];
 
-    const movieYear=
-      movie.release_date
-        ? movie.release_date.slice(0,4)
-        : "";
+    const movieYear=movie.release_date
+      ? movie.release_date.slice(0,4)
+      : "";
 
     results.innerHTML=`
       <div class="detail">
-
-        <button class="back-button"
-          onclick="returnToSearch()">
-          ← Back
-        </button>
+        <button class="back-button" onclick="returnToSearch()">← Back</button>
 
         <div class="detail-layout">
-
           <div>
             ${
               poster
-              ? `<img
-                  class="detail-image"
-                  src="${poster}"
-                >`
+              ? `<img class="detail-image" src="${poster}">`
               : `<div class="no-poster">🎬</div>`
             }
           </div>
 
           <div>
-
             <div class="eyebrow">
-              REELWISE MOVIE ·
-              ${escapeHTML(movieYear)}
+              REELWISE MOVIE · ${escapeHTML(movieYear)}
             </div>
 
-            <h1>
-              ${escapeHTML(movie.title)}
-            </h1>
+            <h1>${escapeHTML(movie.title)}</h1>
 
             <p>
-              ${escapeHTML(
-                movie.overview ||
-                "No description available."
-              )}
+              ${escapeHTML(movie.overview || "No description available.")}
             </p>
 
             <h2>The Stars</h2>
 
             <div class="cast">
-
               ${cast.map(person=>`
-                <button
-                  onclick="showPerson('${person.id}')">
+                <button onclick="showPerson('${person.id}')">
                   ${escapeHTML(person.name)}
                 </button>
               `).join("")}
-
             </div>
-
           </div>
         </div>
 
         <div class="movie-vault">
-
           <div class="movie-vault-heading">
-
-            <div class="eyebrow">
-              THE REELWISE VAULT
-            </div>
-
-            <h2>
-              Go beyond the movie.
-            </h2>
-
-            <p>
-              Quotes, stats, trivia and stories
-              from behind the movie.
-            </p>
-
+            <div class="eyebrow">THE REELWISE VAULT</div>
+            <h2>Go beyond the movie.</h2>
+            <p>Quotes, stats, trivia and stories from behind the movie.</p>
           </div>
 
           <div class="movie-extras">
-
             <div class="extra-card">
               <div class="extra-icon">💬</div>
               <h3>Quotes</h3>
-              <button onclick="showMovieFeature('quotes')">
-                Explore →
-              </button>
+              <button onclick="showMovieFeature('quotes')">Explore →</button>
             </div>
 
             <div class="extra-card">
               <div class="extra-icon">📊</div>
               <h3>Movie Stats</h3>
-              <button onclick="showMovieFeature('stats')">
-                Explore →
-              </button>
+              <button onclick="showMovieFeature('stats')">Explore →</button>
             </div>
 
             <div class="extra-card">
               <div class="extra-icon">🧠</div>
               <h3>Trivia</h3>
-              <button onclick="showMovieFeature('trivia')">
-                Explore →
-              </button>
+              <button onclick="showMovieFeature('trivia')">Explore →</button>
             </div>
 
             <div class="extra-card">
               <div class="extra-icon">🎥</div>
               <h3>Behind the Scenes</h3>
-              <button onclick="showMovieFeature('behind')">
-                Explore →
-              </button>
+              <button onclick="showMovieFeature('behind')">Explore →</button>
             </div>
 
             <div class="extra-card">
               <div class="extra-icon">😂</div>
               <h3>Bloopers</h3>
-              <button onclick="showMovieFeature('bloopers')">
-                Explore →
-              </button>
+              <button onclick="showMovieFeature('bloopers')">Explore →</button>
             </div>
-
           </div>
 
           <div id="movieFeatureView"></div>
-
         </div>
-
       </div>
     `;
-
   }catch(error){
-
-    results.innerHTML=
-      '<div class="message">'+
-      escapeHTML(error.message)+
-      '</div>';
+    results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>';
   }
 }
 
 async function showMovieFeature(feature){
-
-  const view=
-    document.getElementById("movieFeatureView");
-
+  const view=document.getElementById("movieFeatureView");
   if(!view || !currentMovie)return;
 
   if(feature==="quotes" || feature==="trivia"){
+    const endpoint=feature==="quotes" ? "quotes" : "trivia";
 
-    const endpoint=
-      feature==="quotes"
-        ? "quotes"
-        : "trivia";
-
-    view.innerHTML=
-      '<div class="feature-view"><p>Loading...</p></div>';
+    view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';
 
     try{
-
       const response=await fetch(
-        "/api/"+endpoint+
-        "?id="+
-        encodeURIComponent(currentMovie.id)
+        "/api/"+endpoint+"?id="+encodeURIComponent(currentMovie.id)
       );
-
       const data=await response.json();
 
-      const list=
-        feature==="quotes"
-          ? data.quotes
-          : data.trivia;
+      if(!response.ok){
+        throw new Error(data.error || "Information could not be loaded.");
+      }
+
+      const list=feature==="quotes" ? data.quotes : data.trivia;
 
       view.innerHTML=`
         <div class="feature-view">
-
           <div class="eyebrow">
-            ${
-              feature==="quotes"
-              ? "REELWISE QUOTES"
-              : "REELWISE TRIVIA"
-            }
+            ${feature==="quotes" ? "REELWISE QUOTES" : "REELWISE TRIVIA"}
           </div>
 
           <h3>
-            ${
-              feature==="quotes"
-              ? "💬 Quotes"
-              : "🧠 Trivia"
-            }
+            ${feature==="quotes" ? "💬 Quotes" : "🧠 Trivia"}
           </h3>
 
           <div class="fact-grid">
-
             ${
               (Array.isArray(list) ? list : [])
               .map(item=>`
@@ -1541,9 +927,7 @@ async function showMovieFeature(feature){
                   ${escapeHTML(
                     typeof item==="string"
                       ? item
-                      : item.text ||
-                        item.fact ||
-                        ""
+                      : item.text || item.fact || ""
                   )}
                 </div>
               `)
@@ -1551,14 +935,10 @@ async function showMovieFeature(feature){
               ||
               "<p>No information available yet.</p>"
             }
-
           </div>
-
         </div>
       `;
-
     }catch(error){
-
       view.innerHTML=
         '<div class="feature-view"><p>'+
         escapeHTML(error.message)+
@@ -1569,25 +949,16 @@ async function showMovieFeature(feature){
   }
 
   if(feature==="stats"){
-
-    const genres=
-      Array.isArray(currentMovie.genres)
-        ? currentMovie.genres
-            .map(g=>g.name)
-            .join(", ")
-        : "";
+    const genres=Array.isArray(currentMovie.genres)
+      ? currentMovie.genres.map(g=>g.name).join(", ")
+      : "";
 
     view.innerHTML=`
       <div class="feature-view">
-
-        <div class="eyebrow">
-          REELWISE MOVIE STATS
-        </div>
-
+        <div class="eyebrow">REELWISE MOVIE STATS</div>
         <h3>📊 Movie Stats</h3>
 
         <div class="fact-grid">
-
           ${
             currentMovie.release_date
             ? `<div class="fact-item">
@@ -1601,8 +972,7 @@ async function showMovieFeature(feature){
             currentMovie.runtime
             ? `<div class="fact-item">
                 <strong>Runtime:</strong>
-                ${escapeHTML(currentMovie.runtime)}
-                minutes
+                ${escapeHTML(currentMovie.runtime)} minutes
               </div>`
             : ""
           }
@@ -1633,7 +1003,6 @@ async function showMovieFeature(feature){
               </div>`
             : ""
           }
-
         </div>
       </div>
     `;
@@ -1641,122 +1010,115 @@ async function showMovieFeature(feature){
     return;
   }
 
-  const videos=
-    currentMovie.videos &&
-    Array.isArray(currentMovie.videos.results)
-      ? currentMovie.videos.results
-      : [];
+  if(feature==="behind" || feature==="bloopers"){
+    view.innerHTML=
+      '<div class="feature-view"><p>Loading...</p></div>';
 
-  const selected=
-    videos
-      .filter(video=>{
+    try{
+      const response=await fetch(
+        "/api/extras?id="+
+        encodeURIComponent(currentMovie.id)+
+        "&feature="+
+        encodeURIComponent(feature)
+      );
 
-        const name=
-          String(video.name || "")
-            .toLowerCase();
+      const data=await response.json();
 
-        if(feature==="bloopers"){
-
-          return (
-            video.site==="YouTube" &&
-            (
-              name.includes("blooper") ||
-              name.includes("outtake")
-            )
-          );
-        }
-
-        return (
-          video.site==="YouTube" &&
-          (
-            video.type==="Behind the Scenes" ||
-            video.type==="Featurette" ||
-            name.includes("behind") ||
-            name.includes("making")
-          )
+      if(!response.ok){
+        throw new Error(
+          data.error ||
+          "Movie extras could not be loaded."
         );
-      })
-      .slice(0,6);
-
-  view.innerHTML=`
-    <div class="feature-view">
-
-      <h3>
-        ${
-          feature==="behind"
-          ? "🎥 Behind the Scenes"
-          : "😂 Bloopers"
-        }
-      </h3>
-
-      ${
-        selected.length
-        ? `
-          <div class="video-list">
-
-            ${selected.map(video=>`
-              <a
-                class="video-card"
-                href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-
-                <img
-                  src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg"
-                >
-
-                <strong>
-                  ${escapeHTML(video.name)}
-                </strong>
-
-              </a>
-            `).join("")}
-
-          </div>
-        `
-        : "<p>No videos available yet.</p>"
       }
 
-    </div>
-  `;
+      const selected=Array.isArray(data.videos)
+        ? data.videos
+        : [];
+
+      const emptyMessage=
+        feature==="bloopers"
+          ? "No verified bloopers or outtakes are available for this movie yet."
+          : "No behind-the-scenes videos are available for this movie yet.";
+
+      view.innerHTML=`
+        <div class="feature-view">
+
+          <div class="eyebrow">
+            ${
+              feature==="behind"
+                ? "BEHIND THE MOVIE"
+                : "OUTTAKES & BLOOPERS"
+            }
+          </div>
+
+          <h3>
+            ${
+              feature==="behind"
+                ? "🎥 Behind the Scenes"
+                : "😂 Bloopers"
+            }
+          </h3>
+
+          ${
+            selected.length
+            ? `
+              <div class="video-list">
+                ${selected.map(video=>`
+                  <a
+                    class="video-card"
+                    href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    <img
+                      src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg"
+                      alt=""
+                    >
+                    <strong>
+                      ${escapeHTML(video.name)}
+                    </strong>
+                  </a>
+                `).join("")}
+              </div>
+            `
+            : `<p>${escapeHTML(emptyMessage)}</p>`
+          }
+
+        </div>
+      `;
+    }catch(error){
+      view.innerHTML=
+        '<div class="feature-view"><p>'+
+        escapeHTML(
+          error.message ||
+          "Movie extras could not be loaded."
+        )+
+        '</p></div>';
+    }
+
+    return;
+  }
 }
 
-/* =========================
-   STAR PROFILE
-========================= */
-
 async function showPerson(id){
-
   homeContent.style.display="none";
   revealResults();
-
   resultsTitle.textContent="Movie Star";
-
-  results.innerHTML=
-    '<div class="message">Loading star...</div>';
+  results.innerHTML='<div class="message">Loading star...</div>';
 
   try{
-
     const response=await fetch(
-      "/api/search?type=person-details&id="+
-      encodeURIComponent(id)
+      "/api/search?type=person-details&id="+encodeURIComponent(id)
     );
-
     const person=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        person.error ||
-        "Actor could not be loaded."
-      );
+      throw new Error(person.error || "Actor could not be loaded.");
     }
 
-    const photo=
-      person.profile_path
-        ? "https://image.tmdb.org/t/p/w500"+
-          person.profile_path
-        : "";
+    const photo=person.profile_path
+      ? "https://image.tmdb.org/t/p/w500"+person.profile_path
+      : "";
 
     const credits=
       person.combined_credits &&
@@ -1764,105 +1126,57 @@ async function showPerson(id){
         ? person.combined_credits.cast
         : [];
 
-    const movies=
-      credits
-        .filter(item=>
-          item.media_type==="movie" &&
-          item.title
-        )
-        .filter((movie,index,array)=>
-          array.findIndex(x=>x.id===movie.id)
-          === index
-        );
+    const movies=credits
+      .filter(item=>item.media_type==="movie" && item.title)
+      .filter((movie,index,array)=>
+        array.findIndex(x=>x.id===movie.id)===index
+      );
 
-    const known=
-      [...movies]
-        .filter(movie=>movie.poster_path)
-        .sort((a,b)=>
-          Number(b.popularity || 0) -
-          Number(a.popularity || 0)
-        )
-        .slice(0,8);
+    const known=[...movies]
+      .filter(movie=>movie.poster_path)
+      .sort((a,b)=>Number(b.popularity || 0)-Number(a.popularity || 0))
+      .slice(0,8);
 
-    const filmography=
-      [...movies]
-        .sort((a,b)=>
-          (b.release_date || "")
-            .localeCompare(
-              a.release_date || ""
-            )
-        )
-        .slice(0,40);
+    const filmography=[...movies]
+      .sort((a,b)=>
+        (b.release_date || "").localeCompare(a.release_date || "")
+      )
+      .slice(0,40);
 
     results.innerHTML=`
       <div class="detail">
-
-        <button
-          class="back-button"
-          onclick="returnToSearch()">
-          ← Back
-        </button>
+        <button class="back-button" onclick="returnToSearch()">← Back</button>
 
         <div class="star-hero">
-
           <div>
-
             ${
               photo
-              ? `<img
-                  class="star-photo"
-                  src="${photo}"
-                >`
+              ? `<img class="star-photo" src="${photo}">`
               : `<div class="no-poster">⭐</div>`
             }
-
           </div>
 
           <div>
-
-            <div class="eyebrow">
-              REELWISE STAR PROFILE
-            </div>
-
-            <h1 class="star-name">
-              ${escapeHTML(person.name)}
-            </h1>
-
+            <div class="eyebrow">REELWISE STAR PROFILE</div>
+            <h1 class="star-name">${escapeHTML(person.name)}</h1>
             <div class="star-bio">
               ${escapeHTML(
                 person.biography ||
                 "Biography information is not available."
               )}
             </div>
-
           </div>
-
         </div>
 
         <div class="star-section">
-
-          <div class="eyebrow">
-            CAREER HIGHLIGHTS
-          </div>
-
+          <div class="eyebrow">CAREER HIGHLIGHTS</div>
           <h2>Known For</h2>
 
           <div class="known-row">
-
             ${known.map(movie=>`
-              <div
-                class="known-card"
-                onclick="showMovie('${movie.id}')"
-              >
-
-                <img
-                  src="https://image.tmdb.org/t/p/w342${movie.poster_path}"
-                >
-
-                <strong>
-                  ${escapeHTML(movie.title)}
-                </strong>
-
+              <div class="known-card" onclick="showMovie('${movie.id}')">
+                <img src="https://image.tmdb.org/t/p/w342${movie.poster_path}">
+                <strong>${escapeHTML(movie.title)}</strong>
                 <small>
                   ${escapeHTML(
                     movie.release_date
@@ -1870,33 +1184,19 @@ async function showPerson(id){
                       : ""
                   )}
                 </small>
-
               </div>
             `).join("")}
-
           </div>
-
         </div>
 
         <div class="star-section">
-
-          <div class="eyebrow">
-            THE MOVIES
-          </div>
-
+          <div class="eyebrow">THE MOVIES</div>
           <h2>Filmography</h2>
 
           <div class="filmography">
-
             ${filmography.map(movie=>`
-              <button
-                onclick="showMovie('${movie.id}')"
-              >
-
-                <strong>
-                  ${escapeHTML(movie.title)}
-                </strong>
-
+              <button onclick="showMovie('${movie.id}')">
+                <strong>${escapeHTML(movie.title)}</strong>
                 ${
                   movie.release_date
                   ? `<span style="color:var(--muted)">
@@ -1904,50 +1204,28 @@ async function showPerson(id){
                     </span>`
                   : ""
                 }
-
               </button>
             `).join("")}
-
           </div>
-
         </div>
-
       </div>
     `;
-
   }catch(error){
-
     results.innerHTML=
-      '<div class="message">'+
-      escapeHTML(error.message)+
-      '</div>';
+      '<div class="message">'+escapeHTML(error.message)+'</div>';
   }
 }
 
-/* =========================
-   SIX DEGREES
-========================= */
-
 function showSixDegrees(){
-
   resultsTitle.textContent="Six Degrees";
 
   results.innerHTML=`
     <div class="section-page">
+      <button class="back-button" onclick="showHome()">← Home</button>
 
-      <button
-        class="back-button"
-        onclick="showHome()">
-        ← Home
-      </button>
+      <div class="eyebrow">SIX DEGREES</div>
 
-      <div class="eyebrow">
-        SIX DEGREES
-      </div>
-
-      <h1>
-        How are two movie stars connected?
-      </h1>
+      <h1>How are two movie stars connected?</h1>
 
       <p>
         Enter any two actors. Reelwise will
@@ -1955,32 +1233,18 @@ function showSixDegrees(){
       </p>
 
       <div class="degree-box">
-
         <div class="degree-inputs">
-
-          <input
-            id="actorOne"
-            placeholder="First actor — Tom Cruise"
-          >
-
-          <input
-            id="actorTwo"
-            placeholder="Second actor — Robert De Niro"
-          >
-
+          <input id="actorOne" placeholder="First actor — Tom Cruise">
+          <input id="actorTwo" placeholder="Second actor — Robert De Niro">
         </div>
 
-        <button onclick="findSixDegrees()">
-          Find Connection
-        </button>
+        <button onclick="findSixDegrees()">Find Connection</button>
 
         <div
           id="degreeMessage"
           style="margin-top:18px;color:var(--muted)"
         ></div>
-
       </div>
-
     </div>
   `;
 
@@ -1988,35 +1252,18 @@ function showSixDegrees(){
 }
 
 async function findSixDegrees(){
-
-  const one=
-    document
-      .getElementById("actorOne")
-      .value
-      .trim();
-
-  const two=
-    document
-      .getElementById("actorTwo")
-      .value
-      .trim();
-
-  const box=
-    document.getElementById("degreeMessage");
+  const one=document.getElementById("actorOne").value.trim();
+  const two=document.getElementById("actorTwo").value.trim();
+  const box=document.getElementById("degreeMessage");
 
   if(!one || !two){
-
-    box.textContent=
-      "Enter two actor names.";
-
+    box.textContent="Enter two actor names.";
     return;
   }
 
-  box.textContent=
-    "Finding the connection...";
+  box.textContent="Finding the connection...";
 
   try{
-
     const response=await fetch(
       "/api/degrees?actor1="+
       encodeURIComponent(one)+
@@ -2027,37 +1274,24 @@ async function findSixDegrees(){
     const data=await response.json();
 
     if(!response.ok){
-      throw new Error(
-        data.error ||
-        "Six Degrees search failed."
-      );
+      throw new Error(data.error || "Six Degrees search failed.");
     }
 
     if(!data.found){
-
-      box.textContent=
-        data.message ||
-        "No connection found.";
-
+      box.textContent=data.message || "No connection found.";
       return;
     }
 
     box.innerHTML=`
       <div class="feature-view">
-
         <strong style="color:var(--gold)">
           Connection found —
-          ${escapeHTML(data.degrees)}
-          degrees
+          ${escapeHTML(data.degrees)} degrees
         </strong>
 
         <div style="margin-top:15px">
-
           ${
-            (Array.isArray(data.chain)
-              ? data.chain
-              : []
-            )
+            (Array.isArray(data.chain) ? data.chain : [])
             .map(item=>`
               <div
                 style="
@@ -2065,40 +1299,21 @@ async function findSixDegrees(){
                   border-bottom:1px solid var(--line)
                 "
               >
-                ${
-                  item.type==="movie"
-                  ? "🎬 "
-                  : "⭐ "
-                }
-
-                ${escapeHTML(
-                  item.title ||
-                  item.name ||
-                  ""
-                )}
+                ${item.type==="movie" ? "🎬 " : "⭐ "}
+                ${escapeHTML(item.title || item.name || "")}
               </div>
             `)
             .join("")
           }
-
         </div>
-
       </div>
     `;
-
   }catch(error){
-
-    box.textContent=
-      error.message;
+    box.textContent=error.message;
   }
 }
 
-/* =========================
-   NAVIGATION
-========================= */
-
 function returnToSearch(){
-
   if(lastQuery){
     searchReelwise(lastQuery);
   }else{
@@ -2106,12 +1321,7 @@ function returnToSearch(){
   }
 }
 
-/* =========================
-   SECURITY
-========================= */
-
 function escapeHTML(value){
-
   return String(value || "")
     .replaceAll("&","&amp;")
     .replaceAll("<","&lt;")
@@ -2119,7 +1329,6 @@ function escapeHTML(value){
     .replaceAll('"',"&quot;")
     .replaceAll("'","&#039;");
 }
-
 </script>
 
 </body>
