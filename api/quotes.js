@@ -1,8 +1,76 @@
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
+/*
+  REELWISE ICONIC QUOTE VAULT
+
+  These are intentionally curated.
+  They always appear before automatically
+  sourced quotes.
+*/
+
+const ICONIC_QUOTES = {
+
+  "it's a wonderful life": [
+    "Every time a bell rings, an angel gets his wings.",
+    "No man is a failure who has friends.",
+    "I want to live again!",
+    "You want the moon? Just say the word and I'll throw a lasso around it and pull it down.",
+    "Merry Christmas, you wonderful old Building and Loan!",
+    "To my big brother George, the richest man in town."
+  ],
+
+  "jaws": [
+    "You're gonna need a bigger boat.",
+    "Smile, you son of a—",
+    "That's some bad hat, Harry.",
+    "Here's to swimmin' with bow-legged women."
+  ],
+
+  "rocky": [
+    "Yo, Adrian!",
+    "It really don't matter if I lose this fight.",
+    "All I wanna do is go the distance.",
+    "Nobody's ever gone the distance with Creed.",
+    "I must break you."
+  ],
+
+  "top gun": [
+    "I feel the need—the need for speed!",
+    "You can be my wingman any time.",
+    "That's right, Iceman. I am dangerous.",
+    "Talk to me, Goose.",
+    "Your ego is writing checks your body can't cash."
+  ],
+
+  "the godfather": [
+    "I'm gonna make him an offer he can't refuse.",
+    "Leave the gun. Take the cannoli.",
+    "It's not personal, Sonny. It's strictly business.",
+    "A man who doesn't spend time with his family can never be a real man."
+  ],
+
+  "back to the future": [
+    "Where we're going, we don't need roads.",
+    "Great Scott!",
+    "Nobody calls me chicken.",
+    "If my calculations are correct, when this baby hits 88 miles per hour, you're gonna see some serious stuff."
+  ]
+
+};
+
+function normalizeTitle(value) {
+  return String(value || "")
+    .toLowerCase()
+    .trim()
+    .replace(/[’]/g, "'")
+    .replace(/\s+/g, " ");
+}
+
 async function getMovie(id) {
   if (!TOKEN) {
-    throw new Error("TMDB token is not configured");
+    throw new Error(
+      "TMDB token is not configured"
+    );
   }
 
   const response = await fetch(
@@ -28,41 +96,49 @@ async function getMovie(id) {
 }
 
 async function getWikiquotePage(title) {
-  const url =
-    "https://en.wikiquote.org/w/api.php" +
-    "?action=query" +
-    "&prop=extracts" +
-    "&explaintext=1" +
-    "&redirects=1" +
-    "&format=json" +
-    "&origin=*" +
-    "&titles=" +
-    encodeURIComponent(title);
+  try {
+    const url =
+      "https://en.wikiquote.org/w/api.php" +
+      "?action=query" +
+      "&prop=extracts" +
+      "&explaintext=1" +
+      "&redirects=1" +
+      "&format=json" +
+      "&origin=*" +
+      "&titles=" +
+      encodeURIComponent(title);
 
-  const response = await fetch(url, {
-    headers: {
-      "User-Agent":
-        "Reelwise/1.0 movie quote discovery"
+    const response = await fetch(url, {
+      headers: {
+        "User-Agent":
+          "Reelwise/1.0 movie quote discovery"
+      }
+    });
+
+    if (!response.ok) {
+      return "";
     }
-  });
 
-  if (!response.ok) {
+    const data = await response.json();
+
+    const pages =
+      data?.query?.pages || {};
+
+    const page =
+      Object.values(pages)[0];
+
+    if (
+      !page ||
+      page.missing !== undefined
+    ) {
+      return "";
+    }
+
+    return page.extract || "";
+
+  } catch {
     return "";
   }
-
-  const data = await response.json();
-
-  const pages =
-    data?.query?.pages || {};
-
-  const page =
-    Object.values(pages)[0];
-
-  if (!page || page.missing !== undefined) {
-    return "";
-  }
-
-  return page.extract || "";
 }
 
 function cleanLine(line) {
@@ -73,16 +149,14 @@ function cleanLine(line) {
     .trim();
 }
 
-function isBadLine(line) {
-  const lower = line.toLowerCase();
+function usableQuote(line) {
+  if (!line) return false;
 
-  if (!line) return true;
+  if (line.length < 15) return false;
+  if (line.length > 150) return false;
 
-  if (line.length < 12) return true;
-
-  if (line.length > 180) return true;
-
-  if (/^=+.*=+$/.test(line)) return true;
+  const lower =
+    line.toLowerCase();
 
   if (
     lower.startsWith("see also") ||
@@ -90,197 +164,76 @@ function isBadLine(line) {
     lower.startsWith("references") ||
     lower.startsWith("cast") ||
     lower.startsWith("about ") ||
-    lower.startsWith("tagline") ||
-    lower.startsWith("taglines") ||
-    lower.startsWith("dialogue") ||
-    lower.startsWith("quotes")
+    lower.startsWith("tagline")
   ) {
-    return true;
-  }
-
-  if (
-    lower.includes("wikipedia") ||
-    lower.includes("imdb") ||
-    lower.includes("official website")
-  ) {
-    return true;
-  }
-
-  /*
-    Reject lines that look primarily like
-    speaker labels or screenplay directions.
-  */
-
-  if (
-    /^[A-Z][A-Za-z .'-]{1,30}:$/.test(line)
-  ) {
-    return true;
-  }
-
-  if (
-    /^\[[^\]]+\]$/.test(line) ||
-    /^\([^)]+\)$/.test(line)
-  ) {
-    return true;
-  }
-
-  return false;
-}
-
-function quoteScore(line) {
-  let score = 0;
-
-  const length = line.length;
-
-  /*
-    Memorable movie quotes are frequently
-    compact. Favor roughly 25–110 characters.
-  */
-
-  if (length >= 25 && length <= 110) {
-    score += 45;
-  } else if (
-    length >= 15 &&
-    length <= 140
-  ) {
-    score += 25;
-  }
-
-  /*
-    Favor lines that read like complete,
-    quotable statements.
-  */
-
-  if (/[.!?]$/.test(line)) {
-    score += 15;
-  }
-
-  if (line.includes("!")) {
-    score += 6;
-  }
-
-  if (line.includes("?")) {
-    score += 3;
-  }
-
-  /*
-    First-person / direct-address language
-    often corresponds to actual memorable
-    spoken dialogue.
-  */
-
-  if (
-    /\b(I|I'm|I'll|I've|you|you're|we|we're|my|your)\b/i
-      .test(line)
-  ) {
-    score += 8;
-  }
-
-  /*
-    Penalize formatting that looks like
-    transcripts rather than standalone quotes.
-  */
-
-  const colonCount =
-    (line.match(/:/g) || []).length;
-
-  if (colonCount >= 2) {
-    score -= 25;
+    return false;
   }
 
   if (
     line.includes("[") ||
     line.includes("]")
   ) {
-    score -= 15;
+    return false;
   }
 
-  return score;
+  return true;
 }
 
-function extractQuotes(text) {
+function extractFallbackQuotes(text) {
   if (!text) return [];
 
   const lines =
     text
       .split(/\r?\n/)
       .map(cleanLine)
-      .filter(line => !isBadLine(line));
+      .filter(usableQuote);
 
-  const candidates = [];
+  const results = [];
+  const seen = new Set();
 
-  for (const line of lines) {
-    /*
-      Wikiquote often formats dialogue as:
+  for (let line of lines) {
 
-      George Bailey: Some line here.
-
-      Keep the spoken portion but remove
-      the character label.
-    */
-
-    const speakerMatch =
+    const speaker =
       line.match(
         /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
       );
 
-    let quote =
-      speakerMatch
-        ? cleanLine(speakerMatch[1])
-        : line;
+    if (speaker) {
+      line =
+        cleanLine(speaker[1]);
+    }
 
-    if (isBadLine(quote)) {
+    if (!usableQuote(line)) {
       continue;
     }
 
-    /*
-      Avoid obvious descriptive prose.
-    */
+    const key =
+      line
+        .toLowerCase()
+        .replace(/[^\p{L}\p{N}]/gu, "");
 
     if (
-      /^(the film|the movie|this film|this movie|released|directed|written|starring)\b/i
-        .test(quote)
+      !key ||
+      seen.has(key)
     ) {
       continue;
     }
 
-    candidates.push({
-      text: quote,
-      score: quoteScore(quote)
-    });
-  }
-
-  /*
-    Remove duplicates.
-  */
-
-  const unique = [];
-  const seen = new Set();
-
-  for (const item of candidates) {
-    const key =
-      item.text
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}]/gu, "");
-
-    if (!key || seen.has(key)) {
-      continue;
-    }
-
     seen.add(key);
-    unique.push(item);
+    results.push(line);
+
+    if (results.length >= 5) {
+      break;
+    }
   }
 
-  return unique
-    .sort((a, b) =>
-      b.score - a.score
-    )
-    .slice(0, 8)
-    .map(item => item.text);
+  return results;
 }
 
 export default async function handler(req, res) {
+
   try {
+
     const id =
       String(req.query?.id || "").trim();
 
@@ -295,18 +248,44 @@ export default async function handler(req, res) {
 
     const title =
       movie.title ||
-      movie.original_title;
+      movie.original_title ||
+      "";
 
     const year =
       movie.release_date
         ? movie.release_date.slice(0, 4)
         : "";
 
-    /*
-      Try the normal movie title first.
+    const key =
+      normalizeTitle(title);
 
-      If Wikiquote does not have that exact
-      page, try common disambiguation formats.
+    /*
+      STEP 1:
+      Check Reelwise's curated quote vault.
+    */
+
+    const curated =
+      ICONIC_QUOTES[key] || [];
+
+    if (curated.length) {
+
+      return res.status(200).json({
+        movie: title,
+        year,
+        quotes: curated,
+        source: "Reelwise Vault",
+        curated: true
+      });
+
+    }
+
+    /*
+      STEP 2:
+      No curated entry yet.
+
+      Use Wikiquote as the automatic
+      fallback so Reelwise still works
+      across the movie database.
     */
 
     const possibleTitles = [
@@ -319,7 +298,10 @@ export default async function handler(req, res) {
 
     let extract = "";
 
-    for (const pageTitle of possibleTitles) {
+    for (
+      const pageTitle of possibleTitles
+    ) {
+
       extract =
         await getWikiquotePage(pageTitle);
 
@@ -328,20 +310,21 @@ export default async function handler(req, res) {
       }
     }
 
-    const quotes =
-      extractQuotes(extract);
+    const fallback =
+      extractFallbackQuotes(extract);
 
     return res.status(200).json({
       movie: title,
       year,
-      quotes,
-      source:
-        quotes.length
-          ? "Wikiquote"
-          : "No quote source found"
+      quotes: fallback,
+      source: fallback.length
+        ? "Wikiquote"
+        : "No quote source found",
+      curated: false
     });
 
   } catch (error) {
+
     console.error(
       "Reelwise quotes error:",
       error
@@ -353,5 +336,6 @@ export default async function handler(req, res) {
         "Quotes could not be loaded.",
       quotes: []
     });
+
   }
 }
