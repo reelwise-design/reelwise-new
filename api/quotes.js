@@ -220,11 +220,17 @@ function normalizeTitle(value) {
     .replace(/\s+/g, " ");
 }
 
+function looseTitle(value) {
+  return normalizeTitle(value)
+    .replace(/\(\d{4}\s+film\)/g, "")
+    .replace(/\(film\)/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
 async function getMovie(id) {
   if (!TOKEN) {
-    throw new Error(
-      "TMDB token is not configured"
-    );
+    throw new Error("TMDB token is not configured");
   }
 
   const response = await fetch(
@@ -240,59 +246,130 @@ async function getMovie(id) {
   const data = await response.json();
 
   if (!response.ok) {
-    throw new Error(
-      data.status_message ||
-      "Movie lookup failed"
-    );
+    throw new Error(data.status_message || "Movie lookup failed");
   }
 
   return data;
 }
 
-async function getWikiquotePage(title) {
+async function wikiquoteRequest(params) {
   try {
-    const url =
-      "https://en.wikiquote.org/w/api.php" +
-      "?action=query" +
-      "&prop=extracts" +
-      "&explaintext=1" +
-      "&redirects=1" +
-      "&format=json" +
-      "&origin=*" +
-      "&titles=" +
-      encodeURIComponent(title);
-
-    const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Reelwise/1.0 movie quote discovery"
-      }
+    const query = new URLSearchParams({
+      format: "json",
+      origin: "*",
+      ...params
     });
 
-    if (!response.ok) {
-      return "";
-    }
+    const response = await fetch(
+      `https://en.wikiquote.org/w/api.php?${query.toString()}`,
+      {
+        headers: {
+          "User-Agent": "Reelwise/1.0 movie quote discovery"
+        }
+      }
+    );
 
-    const data = await response.json();
-
-    const pages =
-      data?.query?.pages || {};
-
-    const page =
-      Object.values(pages)[0];
-
-    if (
-      !page ||
-      page.missing !== undefined
-    ) {
-      return "";
-    }
-
-    return page.extract || "";
-
+    if (!response.ok) return null;
+    return await response.json();
   } catch {
-    return "";
+    return null;
   }
+}
+
+async function getWikiquotePage(title) {
+  const data = await wikiquoteRequest({
+    action: "query",
+    prop: "extracts",
+    explaintext: "1",
+    redirects: "1",
+    titles: title
+  });
+
+  const pages = data?.query?.pages || {};
+  const page = Object.values(pages)[0];
+
+  if (!page || page.missing !== undefined) {
+    return { title: "", extract: "" };
+  }
+
+  return {
+    title: page.title || title,
+    extract: page.extract || ""
+  };
+}
+
+/*
+  SITE-WIDE SEARCH FALLBACK
+
+  If the obvious Wikiquote page names fail, search Wikiquote
+  itself for the movie. This does not add another Vercel
+  function or another paid API.
+*/
+async function searchWikiquote(title, year) {
+  const searches = [
+    year ? `"${title}" ${year} film` : "",
+    `"${title}" film`,
+    title
+  ].filter(Boolean);
+
+  const found = [];
+  const seen = new Set();
+
+  for (const searchText of searches) {
+    const data = await wikiquoteRequest({
+      action: "query",
+      list: "search",
+      srnamespace: "0",
+      srlimit: "8",
+      srsearch: searchText
+    });
+
+    const results = data?.query?.search || [];
+
+    for (const result of results) {
+      const candidate = String(result?.title || "").trim();
+      const key = candidate.toLowerCase();
+
+      if (!candidate || seen.has(key)) continue;
+
+      seen.add(key);
+      found.push(candidate);
+    }
+
+    if (found.length >= 12) break;
+  }
+
+  return found;
+}
+
+function likelyMoviePage(candidate, title, year) {
+  const wanted = looseTitle(title);
+  const got = looseTitle(candidate);
+
+  if (!wanted || !got) return false;
+
+  // Exact/near-exact title is safest.
+  if (got === wanted) return true;
+
+  // Accept a Wikiquote disambiguation title that still begins
+  // with the complete movie title, but reject unrelated pages.
+  if (
+    got.startsWith(`${wanted} `) &&
+    got.length <= wanted.length + 18
+  ) {
+    return true;
+  }
+
+  // Year in the candidate is another strong signal.
+  if (
+    year &&
+    normalizeTitle(candidate).includes(String(year)) &&
+    got.includes(wanted)
+  ) {
+    return true;
+  }
+
+  return false;
 }
 
 function cleanLine(line) {
@@ -308,13 +385,7 @@ function usableQuote(line) {
   if (line.length < 15) return false;
   if (line.length > 150) return false;
 
-  const lower =
-    line.toLowerCase();
-
-  /*
-    Reject Wikiquote headings and
-    obvious non-dialogue material.
-  */
+  const lower = line.toLowerCase();
 
   if (
     /^=+.*=+$/.test(line) ||
@@ -343,25 +414,13 @@ function usableQuote(line) {
     "wikiquote"
   ];
 
-  if (
-    badStarts.some(term =>
-      lower.startsWith(term)
-    )
-  ) {
+  if (badStarts.some(term => lower.startsWith(term))) {
     return false;
   }
 
-  if (
-    line.includes("[") ||
-    line.includes("]")
-  ) {
+  if (line.includes("[") || line.includes("]")) {
     return false;
   }
-
-  /*
-    Reject lines that look like
-    article descriptions instead of quotes.
-  */
 
   if (
     lower.includes("is a film") ||
@@ -381,42 +440,24 @@ function usableQuote(line) {
 function extractFallbackQuotes(text) {
   if (!text) return [];
 
-  const lines =
-    text
-      .split(/\r?\n/)
-      .map(cleanLine)
-      .filter(usableQuote);
+  const lines = text
+    .split(/\r?\n/)
+    .map(cleanLine)
+    .filter(usableQuote);
 
   const results = [];
   const seen = new Set();
 
   for (let line of lines) {
-
-    /*
-      Remove a speaker name when Wikiquote
-      formats dialogue as:
-
-      Rocky: Some quote here
-    */
-
-    const speaker =
-      line.match(
-        /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
-      );
+    const speaker = line.match(
+      /^[A-Za-z0-9 .'-]{1,40}:\s+(.+)$/
+    );
 
     if (speaker) {
-      line =
-        cleanLine(speaker[1]);
+      line = cleanLine(speaker[1]);
     }
 
-    if (!usableQuote(line)) {
-      continue;
-    }
-
-    /*
-      Avoid dialogue fragments that are
-      obviously incomplete.
-    */
+    if (!usableQuote(line)) continue;
 
     if (
       line.endsWith(":") ||
@@ -425,35 +466,24 @@ function extractFallbackQuotes(text) {
       continue;
     }
 
-    const key =
-      line
-        .toLowerCase()
-        .replace(/[^\p{L}\p{N}]/gu, "");
+    const key = line
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}]/gu, "");
 
-    if (
-      !key ||
-      seen.has(key)
-    ) {
-      continue;
-    }
+    if (!key || seen.has(key)) continue;
 
     seen.add(key);
     results.push(line);
 
-    if (results.length >= 5) {
-      break;
-    }
+    if (results.length >= 5) break;
   }
 
   return results;
 }
 
 export default async function handler(req, res) {
-
   try {
-
-    const id =
-      String(req.query?.id || "").trim();
+    const id = String(req.query?.id || "").trim();
 
     if (!id) {
       return res.status(400).json({
@@ -461,34 +491,24 @@ export default async function handler(req, res) {
       });
     }
 
-    const movie =
-      await getMovie(id);
+    const movie = await getMovie(id);
 
     const title =
       movie.title ||
       movie.original_title ||
       "";
 
-    const year =
-      movie.release_date
-        ? movie.release_date.slice(0, 4)
-        : "";
+    const year = movie.release_date
+      ? movie.release_date.slice(0, 4)
+      : "";
 
-    const key =
-      normalizeTitle(title);
-
-    const curated =
-      ICONIC_QUOTES[key] || [];
+    const key = normalizeTitle(title);
+    const curated = ICONIC_QUOTES[key] || [];
 
     /*
       REELWISE CURATED VAULT
-
-      Curated movies never use the
-      automatic fallback.
     */
-
     if (curated.length) {
-
       return res.status(200).json({
         movie: title,
         year,
@@ -496,54 +516,78 @@ export default async function handler(req, res) {
         source: "Reelwise Vault",
         curated: true
       });
-
     }
 
     /*
-      AUTOMATIC FALLBACK
-
-      This keeps Reelwise useful for movies
-      that have not been manually curated yet.
+      FALLBACK 1:
+      Try the most likely exact Wikiquote page names.
     */
-
     const possibleTitles = [
-      year
-        ? `${title} (${year} film)`
-        : "",
+      year ? `${title} (${year} film)` : "",
       `${title} (film)`,
       title
     ].filter(Boolean);
 
+    let pageUsed = "";
     let extract = "";
+    let fallback = [];
 
-    for (
-      const pageTitle of possibleTitles
-    ) {
+    for (const pageTitle of possibleTitles) {
+      const page = await getWikiquotePage(pageTitle);
 
-      extract =
-        await getWikiquotePage(pageTitle);
+      if (!page.extract) continue;
 
-      if (extract) {
+      const quotes = extractFallbackQuotes(page.extract);
+
+      if (quotes.length) {
+        pageUsed = page.title || pageTitle;
+        extract = page.extract;
+        fallback = quotes;
         break;
       }
     }
 
-    const fallback =
-      extractFallbackQuotes(extract);
+    /*
+      FALLBACK 2:
+      Search Wikiquote when exact page names do not work.
+      Only inspect candidates that closely match the TMDB
+      movie title, which helps prevent unrelated quotes.
+    */
+    if (!fallback.length) {
+      const candidates = await searchWikiquote(title, year);
+
+      for (const candidate of candidates) {
+        if (!likelyMoviePage(candidate, title, year)) {
+          continue;
+        }
+
+        const page = await getWikiquotePage(candidate);
+
+        if (!page.extract) continue;
+
+        const quotes = extractFallbackQuotes(page.extract);
+
+        if (quotes.length) {
+          pageUsed = page.title || candidate;
+          extract = page.extract;
+          fallback = quotes;
+          break;
+        }
+      }
+    }
 
     return res.status(200).json({
       movie: title,
       year,
       quotes: fallback,
-      source:
-        fallback.length
-          ? "Wikiquote"
-          : "No quote source found",
-      curated: false
+      source: fallback.length
+        ? "Wikiquote"
+        : "No quote source found",
+      curated: false,
+      page: fallback.length ? pageUsed : undefined
     });
 
   } catch (error) {
-
     console.error(
       "Reelwise quotes error:",
       error
@@ -555,6 +599,5 @@ export default async function handler(req, res) {
         "Quotes could not be loaded.",
       quotes: []
     });
-
   }
 }
