@@ -35,9 +35,7 @@ async function tmdb(path) {
 }
 
 function year(date) {
-  return date
-    ? String(date).slice(0, 4)
-    : "";
+  return date ? String(date).slice(0, 4) : "";
 }
 
 function normalize(value) {
@@ -65,8 +63,7 @@ function personResult(person) {
     ...person,
     result_type: "person",
     display_title:
-      person.name ||
-      "Unknown"
+      person.name || "Unknown"
   };
 }
 
@@ -80,8 +77,7 @@ function relevanceScore(item, query) {
     item.name
   );
 
-  let score =
-    Number(item.popularity || 0);
+  let score = Number(item.popularity || 0);
 
   if (title === search) {
     score += 1000000;
@@ -113,12 +109,10 @@ function relevanceScore(item, query) {
 
 function releaseSort(a, b) {
   const dateA =
-    a.release_date ||
-    "9999-99-99";
+    a.release_date || "9999-99-99";
 
   const dateB =
-    b.release_date ||
-    "9999-99-99";
+    b.release_date || "9999-99-99";
 
   return dateA.localeCompare(dateB);
 }
@@ -132,7 +126,7 @@ export default async function handler(req, res) {
     } = req.query || {};
 
     /*
-      MOVIE DETAILS
+      DETAILS
     */
 
     if (type === "movie-details" && id) {
@@ -142,14 +136,8 @@ export default async function handler(req, res) {
         "&append_to_response=credits,videos"
       );
 
-      return res
-        .status(200)
-        .json(movie);
+      return res.status(200).json(movie);
     }
-
-    /*
-      PERSON DETAILS
-    */
 
     if (type === "person-details" && id) {
       const person = await tmdb(
@@ -158,14 +146,8 @@ export default async function handler(req, res) {
         "&append_to_response=combined_credits"
       );
 
-      return res
-        .status(200)
-        .json(person);
+      return res.status(200).json(person);
     }
-
-    /*
-      BASIC MOVIE LOOKUP
-    */
 
     if (type === "movie" && id) {
       const movie = await tmdb(
@@ -173,14 +155,8 @@ export default async function handler(req, res) {
         "?language=en-US"
       );
 
-      return res
-        .status(200)
-        .json(movie);
+      return res.status(200).json(movie);
     }
-
-    /*
-      BASIC PERSON LOOKUP
-    */
 
     if (type === "person" && id) {
       const person = await tmdb(
@@ -188,13 +164,14 @@ export default async function handler(req, res) {
         "?language=en-US"
       );
 
-      return res
-        .status(200)
-        .json(person);
+      return res.status(200).json(person);
     }
 
-    const query =
-      String(q).trim();
+    /*
+      SEARCH
+    */
+
+    const query = String(q).trim();
 
     if (!query) {
       return res.status(400).json({
@@ -202,10 +179,6 @@ export default async function handler(req, res) {
           "Please enter a movie or actor."
       });
     }
-
-    /*
-      SEARCH MOVIES + PEOPLE
-    */
 
     const [
       movieData,
@@ -251,11 +224,7 @@ export default async function handler(req, res) {
       normalize(query);
 
     /*
-      FIND EXACT MOVIE TITLES
-
-      Popularity helps distinguish the
-      well-known movie when several unrelated
-      films have exactly the same title.
+      FIND EXACT MOVIE TITLE MATCHES
     */
 
     const exactMovies =
@@ -265,38 +234,23 @@ export default async function handler(req, res) {
             movie.display_title
           ) === normalizedQuery
         )
-        .sort((a, b) =>
-          Number(b.popularity || 0) -
-          Number(a.popularity || 0)
+        .sort(
+          (a, b) =>
+            Number(b.popularity || 0) -
+            Number(a.popularity || 0)
         );
 
     let franchiseExpanded = false;
 
     /*
-      FRANCHISE EXPANSION
+      FRANCHISE LOGIC
 
-      If the strongest exact result belongs
-      to a TMDB collection, retrieve the
-      complete collection.
+      Only expand when the exact movie
+      searched is the FIRST released movie
+      in its TMDB collection.
 
-      We expand only when that searched movie
-      is the FIRST RELEASED MOVIE in the
-      collection.
-
-      Examples:
-
-      Rocky
-        -> expands the Rocky Collection
-
-      Rocky III
-        -> does NOT expand because Rocky III
-           is not the first released movie.
-
-      Back to the Future
-        -> can expand the trilogy.
-
-      Back to the Future Part II
-        -> stays specific.
+      Rocky -> expands
+      Rocky III -> does NOT expand
     */
 
     if (exactMovies.length) {
@@ -347,8 +301,7 @@ export default async function handler(req, res) {
             franchiseExpanded = true;
 
             const franchiseResults =
-              collectionMovies
-                .map(movieResult);
+              collectionMovies.map(movieResult);
 
             const franchiseIds =
               new Set(
@@ -364,9 +317,10 @@ export default async function handler(req, res) {
                     String(movie.id)
                   )
                 )
-                .sort((a, b) =>
-                  relevanceScore(b, query) -
-                  relevanceScore(a, query)
+                .sort(
+                  (a, b) =>
+                    relevanceScore(b, query) -
+                    relevanceScore(a, query)
                 );
 
             movieResults = [
@@ -383,18 +337,17 @@ export default async function handler(req, res) {
       }
     }
 
-    /*
-      FINAL RESULT ORDER
-    */
-
     let results;
 
-    if (franchiseExpanded) {
-      /*
-        Keep the franchise together and
-        in release order at the very top.
-      */
+    /*
+      RULE 1:
+      A base franchise title expands.
 
+      Example:
+      Rocky -> Rocky series.
+    */
+
+    if (franchiseExpanded) {
       results = [
         ...movieResults,
         ...personResults.sort(
@@ -403,13 +356,35 @@ export default async function handler(req, res) {
             relevanceScore(a, query)
         )
       ];
-    } else {
-      /*
-        Normal search:
-        exact title/name first,
-        then closest matches.
-      */
+    }
 
+    /*
+      RULE 2:
+      If an exact movie title exists
+      and this is NOT a franchise expansion,
+      return ONLY the exact movie match.
+
+      Example:
+      Rocky III -> Rocky III only.
+
+      This removes Creed III,
+      foreign titles, remakes with
+      different names, etc.
+    */
+
+    else if (exactMovies.length) {
+      results = exactMovies;
+    }
+
+    /*
+      RULE 3:
+      No exact movie title exists.
+
+      Return the best movie and actor
+      matches normally.
+    */
+
+    else {
       results = [
         ...movieResults,
         ...personResults
