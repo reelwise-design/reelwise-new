@@ -23,18 +23,19 @@ const CURATED_TRIVIA = {
     "The movie's success transformed Rocky Balboa into one of cinema's most recognizable characters and launched a franchise that continued for decades."
   ],
 
-  "rocky ii": [
-    "Sylvester Stallone returned not only as Rocky Balboa but also directed Rocky II, taking over directing duties from Rocky director John G. Avildsen.",
+    "rocky ii": [
+    "Sylvester Stallone returned as Rocky Balboa and also directed Rocky II, taking over directing duties from John G. Avildsen, who directed the original Rocky.",
 
-    "Rocky II begins immediately after the first film's championship fight, with Rocky and Apollo Creed being taken to the hospital following their brutal fifteen-round bout.",
+    "Stallone suffered a chest injury while training for Rocky II, and the injury influenced how some of the boxing action was staged.",
 
-    "The sequel centers on Apollo Creed's determination to prove that Rocky's performance in their first fight was not simply a lucky result.",
+    "Sylvester Stallone and Carl Weathers trained for roughly two and a half months with boxing adviser Al Silvani before filming the rematch scenes.",
 
-    "Rocky's training run through Philadelphia ends with a large group of children following him up the steps of the Philadelphia Museum of Art.",
+    "Stallone's real bullmastiff, Butkus, returned to appear as Rocky's dog in Rocky II.",
 
-    "The climactic rematch ends with both Rocky and Apollo falling to the canvas, forcing them to race the referee's ten-count to get back to their feet.",
+    "Future world champion Roberto Durán appears in the film as one of Rocky's sparring partners.",
 
-    "Rocky's victory over Apollo gives the series one of its defining endings, with Rocky addressing Adrian on television after becoming heavyweight champion."
+    "Rocky's Philadelphia training-run sequence used hundreds of local schoolchildren, creating the large crowd that follows him through the city."
+    
   ],
 
   "rocky iii": [
