@@ -544,16 +544,34 @@ function looksLikeBrokenFragment(sentence) {
   }
 
   /*
-    Reject fragments such as:
-    " is a wink to the fact...
-    that can appear when Wikipedia prose is split
-    around quoted text.
+    Reject malformed fragments created when
+    Wikipedia prose is split around quotes,
+    parentheticals, numbers or partial names.
   */
   if (/^[“"'‘’]\s*[a-z]/u.test(trimmed)) {
     return true;
   }
 
   if (/^[,;:)\]}]/u.test(trimmed)) {
+    return true;
+  }
+
+  /*
+    A trivia sentence should almost never begin
+    with a bare number such as:
+    "5 million, it was written..."
+  */
+  if (/^\d/u.test(trimmed)) {
+    return true;
+  }
+
+  /*
+    Catch partial-name fragments such as:
+    "Ienner, who had previously produced..."
+    A full person's name normally contains at
+    least two words before this construction.
+  */
+  if (/^[A-Z][a-zA-Z'’.-]+,\s+(who|whose|which)\b/u.test(trimmed)) {
     return true;
   }
 
@@ -564,7 +582,8 @@ function looksLikeBrokenFragment(sentence) {
 
   const weakStarts = new Set([
     "and", "but", "or", "because", "although",
-    "however", "which", "while", "whereas"
+    "however", "which", "while", "whereas",
+    "who", "whose", "also", "then"
   ]);
 
   if (
