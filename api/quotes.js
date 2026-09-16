@@ -45,7 +45,23 @@ const ICONIC_QUOTES = {
     "I must break you.",
     "If he dies, he dies.",
     "He's not a machine. He's a man!",
-    "I guess what I'm trying to say is, if I can change, and you can change, everybody can change!"
+    "If I can change, and you can change, everybody can change!"
+  ],
+
+  /*
+    ROCKY BALBOA (2006)
+
+    Keep these to the memorable lines rather
+    than random dialogue from Wikiquote.
+  */
+
+  "rocky balboa": [
+    "It ain't about how hard you hit.",
+    "It's about how hard you can get hit and keep moving forward.",
+    "That's how winning is done!",
+    "The world ain't all sunshine and rainbows.",
+    "You, me, or nobody is gonna hit as hard as life.",
+    "Until you start believing in yourself, you ain't gonna have a life."
   ],
 
   "jaws": [
@@ -206,13 +222,29 @@ function usableQuote(line) {
   const lower =
     line.toLowerCase();
 
+  /*
+    Never allow Wikiquote section headings
+    to appear as movie quotes.
+  */
+
+  if (
+    /^=+.*=+$/.test(line) ||
+    line.startsWith("==") ||
+    line.endsWith("==")
+  ) {
+    return false;
+  }
+
   if (
     lower.startsWith("see also") ||
     lower.startsWith("external links") ||
     lower.startsWith("references") ||
     lower.startsWith("cast") ||
     lower.startsWith("about ") ||
-    lower.startsWith("tagline")
+    lower.startsWith("tagline") ||
+    lower.startsWith("dialogue") ||
+    lower.startsWith("quotes") ||
+    lower.startsWith("external link")
   ) {
     return false;
   }
