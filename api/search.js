@@ -177,6 +177,63 @@ export default async function handler(req, res) {
         "&append_to_response=credits,videos"
       );
 
+      /*
+        FRANCHISE NAVIGATION
+
+        TMDB movie details already tell us whether
+        a movie belongs to a collection. If it does,
+        fetch that collection here and attach a small,
+        sorted list for the movie page.
+
+        This keeps franchise navigation inside the
+        existing /api/search function, so Reelwise
+        does not add another Vercel function.
+      */
+      const collection =
+        movie.belongs_to_collection;
+
+      if (
+        collection &&
+        collection.id
+      ) {
+        try {
+          const collectionData =
+            await tmdb(
+              `/collection/${encodeURIComponent(
+                collection.id
+              )}?language=en-US`
+            );
+
+          const parts =
+            Array.isArray(collectionData.parts)
+              ? collectionData.parts
+                  .filter(part =>
+                    part &&
+                    part.id &&
+                    part.title
+                  )
+                  .sort(releaseSort)
+                  .map(movieResult)
+              : [];
+
+          if (parts.length > 1) {
+            movie.reelwise_franchise = {
+              id: collection.id,
+              name:
+                collectionData.name ||
+                collection.name ||
+                "Movie Series",
+              parts
+            };
+          }
+        } catch (collectionError) {
+          console.error(
+            "Movie franchise lookup error:",
+            collectionError
+          );
+        }
+      }
+
       return res.status(200).json(movie);
     }
 
