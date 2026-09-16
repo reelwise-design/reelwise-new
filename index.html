@@ -930,6 +930,85 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   }
 }
 
+
+/* ===== FILMOGRAPHY HORIZONTAL ROWS ===== */
+.filmography-groups{
+  display:grid;
+  gap:22px;
+}
+.filmography-group{
+  min-width:0;
+}
+.filmography-group-heading{
+  margin-bottom:9px;
+}
+.filmography.compact{
+  display:flex;
+  gap:10px;
+  overflow-x:auto;
+  padding:1px 1px 10px;
+  -webkit-overflow-scrolling:touch;
+  scrollbar-width:thin;
+}
+.filmography.compact .filmography-card{
+  flex:0 0 92px;
+  border-radius:9px;
+  box-shadow:none;
+}
+.filmography.compact .filmography-card img,
+.filmography.compact .filmography-card .no-poster{
+  width:92px;
+  aspect-ratio:2/3;
+}
+.filmography.compact .filmography-card .no-poster{
+  font-size:25px;
+}
+.filmography.compact .filmography-card-info{
+  padding:7px 7px 8px;
+}
+.filmography.compact .filmography-card-info strong{
+  font-size:10px;
+  line-height:1.2;
+}
+.filmography.compact .filmography-card-info small{
+  font-size:9px;
+  margin-top:3px;
+}
+@media(max-width:800px){
+  .filmography-groups{
+    gap:18px;
+  }
+  .filmography-group-heading{
+    margin-bottom:7px;
+  }
+  .filmography-group-heading h3{
+    font-size:16px;
+  }
+  .filmography.compact{
+    display:flex;
+    grid-template-columns:none;
+    gap:8px;
+    overflow-x:auto;
+    padding-bottom:8px;
+  }
+  .filmography.compact .filmography-card{
+    flex:0 0 82px;
+  }
+  .filmography.compact .filmography-card img,
+  .filmography.compact .filmography-card .no-poster{
+    width:82px;
+  }
+  .filmography.compact .filmography-card-info{
+    padding:6px;
+  }
+  .filmography.compact .filmography-card-info strong{
+    font-size:9.5px;
+  }
+  .filmography.compact .filmography-card-info small{
+    font-size:8.5px;
+  }
+}
+
 </style>
 </head>
 <body>
