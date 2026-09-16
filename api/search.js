@@ -46,6 +46,47 @@ function normalize(value) {
     .replace(/\s+/g, " ");
 }
 
+/*
+  Convert a trailing sequel number into
+  a Roman numeral before searching TMDB.
+
+  Examples:
+  Rocky 2 -> Rocky II
+  Rocky 3 -> Rocky III
+  Rocky 4 -> Rocky IV
+
+  Plain "Rocky" is unchanged.
+*/
+function normalizeSequelSearch(value) {
+  const original = String(value || "").trim();
+
+  const numberToRoman = {
+    "1": "I",
+    "2": "II",
+    "3": "III",
+    "4": "IV",
+    "5": "V",
+    "6": "VI",
+    "7": "VII",
+    "8": "VIII",
+    "9": "IX",
+    "10": "X"
+  };
+
+  const match = original.match(
+    /^(.*\S)\s+(1|2|3|4|5|6|7|8|9|10)$/
+  );
+
+  if (!match) {
+    return original;
+  }
+
+  const baseTitle = match[1].trim();
+  const number = match[2];
+
+  return `${baseTitle} ${numberToRoman[number]}`;
+}
+
 function movieResult(movie) {
   return {
     ...movie,
@@ -171,14 +212,24 @@ export default async function handler(req, res) {
       SEARCH
     */
 
-    const query = String(q).trim();
+    const originalQuery =
+      String(q).trim();
 
-    if (!query) {
+    if (!originalQuery) {
       return res.status(400).json({
         error:
           "Please enter a movie or actor."
       });
     }
+
+    /*
+      This is the query we actually send
+      to TMDB.
+
+      Rocky 3 becomes Rocky III.
+    */
+    const query =
+      normalizeSequelSearch(originalQuery);
 
     const [
       movieData,
@@ -193,7 +244,7 @@ export default async function handler(req, res) {
 
       tmdb(
         "/search/person" +
-        `?query=${encodeURIComponent(query)}` +
+        `?query=${encodeURIComponent(originalQuery)}` +
         "&language=en-US" +
         "&include_adult=false"
       )
@@ -220,12 +271,14 @@ export default async function handler(req, res) {
         )
         .map(personResult);
 
+    /*
+      Exact matching uses the converted query.
+
+      Rocky 3 therefore matches the TMDB title
+      Rocky III exactly.
+    */
     const normalizedQuery =
       normalize(query);
-
-    /*
-      FIND EXACT MOVIE TITLE MATCHES
-    */
 
     const exactMovies =
       movieResults
@@ -251,6 +304,7 @@ export default async function handler(req, res) {
 
       Rocky -> expands
       Rocky III -> does NOT expand
+      Rocky 3 -> Rocky III only
     */
 
     if (exactMovies.length) {
@@ -341,9 +395,8 @@ export default async function handler(req, res) {
 
     /*
       RULE 1:
-      A base franchise title expands.
+      Base franchise title expands.
 
-      Example:
       Rocky -> Rocky series.
     */
 
@@ -352,24 +405,24 @@ export default async function handler(req, res) {
         ...movieResults,
         ...personResults.sort(
           (a, b) =>
-            relevanceScore(b, query) -
-            relevanceScore(a, query)
+            relevanceScore(
+              b,
+              originalQuery
+            ) -
+            relevanceScore(
+              a,
+              originalQuery
+            )
         )
       ];
     }
 
     /*
       RULE 2:
-      If an exact movie title exists
-      and this is NOT a franchise expansion,
-      return ONLY the exact movie match.
+      Exact sequel returns ONLY that movie.
 
-      Example:
-      Rocky III -> Rocky III only.
-
-      This removes Creed III,
-      foreign titles, remakes with
-      different names, etc.
+      Rocky III -> Rocky III
+      Rocky 3   -> Rocky III
     */
 
     else if (exactMovies.length) {
@@ -380,8 +433,7 @@ export default async function handler(req, res) {
       RULE 3:
       No exact movie title exists.
 
-      Return the best movie and actor
-      matches normally.
+      Return normal movie and actor matches.
     */
 
     else {
