@@ -676,7 +676,15 @@ function looksLikeBrokenFragment(sentence) {
   const weakStarts = new Set([
     "and", "but", "or", "because", "although",
     "however", "which", "while", "whereas",
-    "who", "whose", "also", "then"
+    "who", "whose", "also", "then",
+
+    /* Reject orphaned pronoun fragments such as:
+       "His presence and performance..."
+       when the previous sentence containing the person's
+       name is no longer attached. */
+    "he", "she", "they", "his", "her", "their",
+    "him", "them", "it", "its",
+    "this", "these", "those"
   ]);
 
   if (
@@ -727,6 +735,20 @@ function isWeakTriviaContent(sentence) {
   const rejectAnywhere = [
     "on metacritic",
     "on rotten tomatoes",
+    "rotten tomatoes",
+    "metacritic",
+    "critical response",
+    "review aggregator",
+    "review-aggregator",
+    "approval rating",
+    "average rating",
+    "holds a score of",
+    "holds a rating of",
+    "score of ",
+    "rating of ",
+    "based on reviews",
+    "based on critic reviews",
+    "based on ",
     "critics consensus",
     "positive reviews",
     "mixed reviews",
@@ -754,6 +776,15 @@ function isWeakTriviaContent(sentence) {
   ];
 
   if (rejectAnywhere.some(term => lower.includes(term))) {
+    return true;
+  }
+
+  /* Reject review-score sentences even when wording varies,
+     e.g. "holds a score of 66% ... based on 44 reviews". */
+  if (
+    /\b\d{1,3}%\b/.test(lower) &&
+    /\b(review|reviews|rating|ratings|critic|critics|score)\b/.test(lower)
+  ) {
     return true;
   }
 
