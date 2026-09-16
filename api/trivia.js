@@ -446,6 +446,67 @@ function triviaScore(sentence) {
   }
 
   /*
+    Prefer facts about making the original movie.
+    Later remakes, anniversary projects, TV shows,
+    stage versions and re-releases are still valid,
+    but they should rank below production trivia.
+  */
+
+  const legacyTerms = [
+    "anniversary",
+    "re-release",
+    "rerelease",
+    "re-released",
+    "remake",
+    "reboot",
+    "television remake",
+    "tv remake",
+    "reality tv",
+    "reality show",
+    "stage adaptation",
+    "stage musical",
+    "musical adaptation",
+    "sequel series",
+    "spin-off",
+    "spinoff",
+    "revival"
+  ];
+
+  for (const term of legacyTerms) {
+    if (lower.includes(term)) {
+      score -= 28;
+    }
+  }
+
+  const originalProductionBoost = [
+    "during filming",
+    "during production",
+    "was originally cast",
+    "was recast",
+    "auditioned",
+    "improvised",
+    "filming took place",
+    "was shot in",
+    "was filmed in",
+    "production company",
+    "director",
+    "producer",
+    "screenplay",
+    "choreography",
+    "stunt",
+    "special effects",
+    "visual effects",
+    "costume",
+    "makeup"
+  ];
+
+  for (const term of originalProductionBoost) {
+    if (lower.includes(term)) {
+      score += 18;
+    }
+  }
+
+  /*
     Character-heavy sentences are more likely
     to be synopsis unless they also contain
     clear production language.
