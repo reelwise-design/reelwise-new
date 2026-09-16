@@ -385,6 +385,126 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   }
 }
 
+
+/* ===== SIX DEGREES VISUAL CONNECTION CARDS ===== */
+.six-story{
+  margin:0 0 16px;
+  color:#d8dee7;
+  font-size:14px;
+  line-height:1.55;
+}
+.six-visual-path{
+  display:grid;
+  gap:12px;
+}
+.six-actor-card{
+  display:flex;
+  align-items:center;
+  gap:11px;
+  min-height:54px;
+  padding:8px 10px;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:12px;
+  background:rgba(255,255,255,.025);
+}
+.six-actor-photo{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  object-fit:cover;
+  border:1px solid #394352;
+  flex:0 0 38px;
+}
+.six-actor-fallback{
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  background:#171d26;
+  border:1px solid #394352;
+  flex:0 0 38px;
+}
+.six-actor-name{
+  font-weight:900;
+  font-size:16px;
+  color:#f6f7f9;
+}
+.six-movie-card{
+  display:grid;
+  grid-template-columns:72px 1fr;
+  gap:13px;
+  align-items:center;
+  margin-left:18px;
+  padding:10px;
+  border:1px solid #303947;
+  border-radius:13px;
+  background:
+    radial-gradient(circle at 100% 0,rgba(228,179,77,.06),transparent 36%),
+    #11161e;
+}
+.six-movie-poster{
+  width:72px;
+  aspect-ratio:2/3;
+  object-fit:cover;
+  border-radius:8px;
+  display:block;
+  box-shadow:0 8px 22px rgba(0,0,0,.28);
+}
+.six-movie-poster-fallback{
+  width:72px;
+  aspect-ratio:2/3;
+  border-radius:8px;
+  background:#1b222c;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size:25px;
+}
+.six-movie-label{
+  color:var(--gold);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:1.1px;
+  margin-bottom:4px;
+}
+.six-movie-title{
+  font-size:17px;
+  font-weight:900;
+  line-height:1.25;
+}
+.six-movie-year{
+  color:var(--muted);
+  font-size:12px;
+  margin-top:4px;
+}
+.six-link-line{
+  width:2px;
+  height:12px;
+  margin:-2px 0 -2px 35px;
+  background:linear-gradient(var(--gold),var(--accent));
+  opacity:.75;
+}
+@media(max-width:800px){
+  .six-result{padding:14px 12px}
+  .six-result-title{font-size:18px}
+  .six-story{font-size:13px;margin-bottom:13px}
+  .six-visual-path{gap:9px}
+  .six-actor-card{min-height:50px;padding:7px 9px}
+  .six-actor-name{font-size:15px}
+  .six-movie-card{
+    grid-template-columns:62px 1fr;
+    gap:11px;
+    margin-left:15px;
+    padding:9px;
+  }
+  .six-movie-poster,
+  .six-movie-poster-fallback{width:62px}
+  .six-movie-title{font-size:16px}
+  .six-link-line{margin-left:30px;height:10px}
+}
+
 </style>
 </head>
 <body>
@@ -608,7 +728,7 @@ function toggleFullCast(){const box=document.getElementById("movieCast"),button=
 async function showMovieFeature(feature){const view=document.getElementById("movieFeatureView");if(!view||!currentMovie)return;if(feature==="quotes"||feature==="trivia"){const endpoint=feature==="quotes"?"quotes":"trivia";view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/"+endpoint+"?id="+encodeURIComponent(currentMovie.id)),data=await response.json();if(!response.ok)throw new Error(data.error||"Information could not be loaded.");const list=feature==="quotes"?data.quotes:data.trivia;view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="quotes"?"REELWISE QUOTES":"REELWISE TRIVIA"}</div><h3>${feature==="quotes"?"💬 Quotes":"🧠 Trivia"}</h3><div class="fact-grid">${(Array.isArray(list)?list:[]).map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>'}return}if(feature==="stats"){const genres=Array.isArray(currentMovie.genres)?currentMovie.genres.map(g=>g.name).join(", "):"";view.innerHTML=`<div class="feature-view"><div class="eyebrow">REELWISE MOVIE STATS</div><h3>📊 Movie Stats</h3><div class="fact-grid">${currentMovie.release_date?`<div class="fact-item"><strong>Release:</strong> ${escapeHTML(formatDate(currentMovie.release_date))}</div>`:""}${currentMovie.runtime?`<div class="fact-item"><strong>Runtime:</strong> ${escapeHTML(currentMovie.runtime)} minutes</div>`:""}${genres?`<div class="fact-item"><strong>Genres:</strong> ${escapeHTML(genres)}</div>`:""}${currentMovie.budget?`<div class="fact-item"><strong>Budget:</strong> $${Number(currentMovie.budget).toLocaleString()}</div>`:""}${currentMovie.revenue?`<div class="fact-item"><strong>Revenue:</strong> $${Number(currentMovie.revenue).toLocaleString()}</div>`:""}</div></div>`;return}if(feature==="behind"||feature==="bloopers"){view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/extras?id="+encodeURIComponent(currentMovie.id)+"&feature="+encodeURIComponent(feature)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie extras could not be loaded.");const selected=Array.isArray(data.videos)?data.videos:[],emptyMessage=feature==="bloopers"?"No verified bloopers or outtakes are available for this movie yet.":"No movie extras are available for this movie yet.";view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="behind"?"REELWISE MOVIE EXTRAS":"OUTTAKES & BLOOPERS"}</div><h3>${feature==="behind"?"🎬 Movie Extras":"😂 Bloopers"}</h3>${selected.length?`<div class="video-list">${selected.map(video=>`<a class="video-card" href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}" target="_blank" rel="noopener noreferrer"><img src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg" alt=""><strong>${escapeHTML(video.name)}</strong></a>`).join("")}</div>`:`<p>${escapeHTML(emptyMessage)}</p>`}</div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message||"Movie extras could not be loaded.")+'</p></div>'}return}}
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||"")).slice(0,50);results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio">${escapeHTML(person.biography||"Biography information is not available.")}</div></div></div><div class="star-section"><div class="eyebrow">CAREER HIGHLIGHTS</div><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><div class="eyebrow">THE MOVIES</div><h2>Filmography</h2><div class="filmography">${filmography.length?filmography.map(movie=>`<button onclick="showMovie('${movie.id}')"><strong>${escapeHTML(movie.title)}</strong>${movie.release_date?`<span style="color:var(--muted)"> · ${escapeHTML(movie.release_date.slice(0,4))}</span>`:""}</button>`).join(""):`<div class="message">No released movie credits available.</div>`}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><input id="actorOne" placeholder="First actor — Tom Cruise"><input id="actorTwo" placeholder="Second actor — Robert De Niro"></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
-async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}const chain=Array.isArray(data.chain)?data.chain:[];box.innerHTML=`<div class="six-result"><div class="six-result-title">Connection found — ${escapeHTML(data.degrees)} degrees</div><div class="six-path">${chain.map((item,index)=>`${index?'<div class="six-connector"></div>':''}<div class="six-step ${item.type==="movie"?"movie":"actor"}"><div class="six-step-icon">${item.type==="movie"?"🎬":"⭐"}</div><div class="six-step-name">${escapeHTML(item.title||item.name||"")}</div></div>`).join("")}</div></div>`}catch(error){box.textContent=error.message}}
+async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}const chain=Array.isArray(data.chain)?data.chain:[];const storyParts=[];for(let i=0;i<chain.length-2;i+=2){const actorA=chain[i],movie=chain[i+1],actorB=chain[i+2];if(actorA&&movie&&actorB){storyParts.push(`${escapeHTML(actorA.name||"Actor")} was in <strong>${escapeHTML(movie.title||"Movie")}</strong> with ${escapeHTML(actorB.name||"Actor")}`)}}const connectionStory=storyParts.length?storyParts.join(", who ")+".":"";const visual=chain.map((item,index)=>{const isMovie=item.type==="movie";if(isMovie){const poster=item.poster_path?"https://image.tmdb.org/t/p/w185"+item.poster_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-movie-card">${poster?`<img class="six-movie-poster" src="${poster}" alt="${escapeHTML(item.title||"Movie")}">`:`<div class="six-movie-poster-fallback">🎬</div>`}<div><div class="six-movie-label">CONNECTED THROUGH</div><div class="six-movie-title">${escapeHTML(item.title||"Movie")}</div>${item.year?`<div class="six-movie-year">${escapeHTML(item.year)}</div>`:""}</div></div>`}const photo=item.profile_path?"https://image.tmdb.org/t/p/w185"+item.profile_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-actor-card">${photo?`<img class="six-actor-photo" src="${photo}" alt="${escapeHTML(item.name||"Actor")}">`:`<div class="six-actor-fallback">⭐</div>`}<div class="six-actor-name">${escapeHTML(item.name||"Actor")}</div></div>`}).join("");box.innerHTML=`<div class="six-result"><div class="six-result-title">Connection found — ${escapeHTML(data.degrees)} degrees</div>${connectionStory?`<div class="six-story">${connectionStory}</div>`:""}<div class="six-visual-path">${visual}</div></div>`}catch(error){box.textContent=error.message}}
 function returnToSearch(){lastQuery?searchReelwise(lastQuery):showHome()}
 function formatDate(dateString){if(!dateString)return "";const parts=String(dateString).split("-");if(parts.length!==3)return dateString;const date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));if(Number.isNaN(date.getTime()))return dateString;return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
 function escapeHTML(value){return String(value||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
