@@ -52,7 +52,8 @@ function cleanVideos(videos) {
 }
 
 function isMovieClip(video) {
-  const name = String(video.name || "").toLowerCase();
+  const name =
+    String(video.name || "").toLowerCase();
 
   const blocked = [
     "official trailer",
@@ -64,7 +65,6 @@ function isMovieClip(video) {
     "exclusive clip",
     "extended clip",
     "full scene",
-    "scene",
     "fight scene",
     "training scene",
     "final fight",
@@ -75,12 +75,17 @@ function isMovieClip(video) {
     "commercial"
   ];
 
-  return blocked.some(term => name.includes(term));
+  return blocked.some(term =>
+    name.includes(term)
+  );
 }
 
 function behindScore(video) {
-  const name = String(video.name || "").toLowerCase();
-  const type = String(video.type || "").toLowerCase();
+  const name =
+    String(video.name || "").toLowerCase();
+
+  const type =
+    String(video.type || "").toLowerCase();
 
   if (isMovieClip(video)) {
     return 0;
@@ -88,77 +93,172 @@ function behindScore(video) {
 
   let score = 0;
 
-  if (name.includes("behind the scenes")) score += 200;
-  if (name.includes("behind-the-scenes")) score += 200;
-
-  if (name.includes("making of")) score += 190;
-  if (name.includes("making-of")) score += 190;
-  if (name.includes("the making of")) score += 190;
-
-  if (name.includes("on set")) score += 160;
-  if (name.includes("on-set")) score += 160;
-
-  if (name.includes("bts")) score += 140;
-
-  if (name.includes("production featurette")) score += 140;
-  if (name.includes("behind the movie")) score += 140;
-
-  if (name.includes("cast interview")) score += 120;
-  if (name.includes("director interview")) score += 120;
-  if (name.includes("interview")) score += 80;
-
-  if (name.includes("featurette")) score += 100;
-
-  if (type === "behind the scenes") score += 100;
-
-  /*
-    A generic TMDB "Featurette" label alone
-    is not enough. The title must also look
-    like genuine supplemental material.
-  */
-  if (
-    type === "featurette" &&
-    (
-      name.includes("featurette") ||
-      name.includes("making") ||
-      name.includes("behind") ||
-      name.includes("interview") ||
-      name.includes("on set") ||
-      name.includes("production")
-    )
-  ) {
-    score += 70;
+  if (name.includes("behind the scenes")) {
+    score += 250;
   }
 
-  if (video.official) score += 10;
+  if (name.includes("behind-the-scenes")) {
+    score += 250;
+  }
+
+  if (name.includes("making of")) {
+    score += 230;
+  }
+
+  if (name.includes("making-of")) {
+    score += 230;
+  }
+
+  if (name.includes("the making of")) {
+    score += 230;
+  }
+
+  if (name.includes("on set")) {
+    score += 190;
+  }
+
+  if (name.includes("on-set")) {
+    score += 190;
+  }
+
+  if (name.includes("bts")) {
+    score += 180;
+  }
+
+  if (name.includes("production")) {
+    score += 140;
+  }
+
+  if (name.includes("featurette")) {
+    score += 130;
+  }
+
+  if (name.includes("cast interview")) {
+    score += 150;
+  }
+
+  if (name.includes("director interview")) {
+    score += 150;
+  }
+
+  if (name.includes("interview")) {
+    score += 100;
+  }
+
+  if (name.includes("documentary")) {
+    score += 120;
+  }
+
+  if (name.includes("inside")) {
+    score += 90;
+  }
+
+  if (name.includes("backstage")) {
+    score += 150;
+  }
+
+  if (type === "behind the scenes") {
+    score += 180;
+  }
+
+  if (type === "featurette") {
+    score += 80;
+  }
+
+  if (video.official) {
+    score += 10;
+  }
 
   return score;
 }
 
 function blooperScore(video) {
-  const name = String(video.name || "").toLowerCase();
+  const name =
+    String(video.name || "").toLowerCase();
+
+  if (isMovieClip(video)) {
+    return 0;
+  }
 
   let score = 0;
 
-  if (name.includes("bloopers")) score += 200;
-  if (name.includes("blooper")) score += 200;
+  if (name.includes("bloopers")) {
+    score += 250;
+  }
 
-  if (name.includes("outtakes")) score += 200;
-  if (name.includes("outtake")) score += 200;
+  if (name.includes("blooper")) {
+    score += 250;
+  }
 
-  if (name.includes("gag reel")) score += 200;
-  if (name.includes("gag-reel")) score += 200;
+  if (name.includes("outtakes")) {
+    score += 250;
+  }
 
-  if (name.includes("funny outtakes")) score += 150;
+  if (name.includes("outtake")) {
+    score += 250;
+  }
 
-  if (video.official) score += 10;
+  if (name.includes("gag reel")) {
+    score += 250;
+  }
+
+  if (name.includes("gag-reel")) {
+    score += 250;
+  }
+
+  if (name.includes("funny outtakes")) {
+    score += 200;
+  }
+
+  if (video.official) {
+    score += 10;
+  }
 
   return score;
 }
 
+async function getAllMovieVideos(id) {
+
+  /*
+    TMDB can return different video sets
+    depending on language filtering.
+
+    We check the normal English results and
+    then a broader result set, combine them,
+    and remove duplicates.
+  */
+
+  const paths = [
+    `/movie/${encodeURIComponent(id)}/videos?language=en-US`,
+    `/movie/${encodeURIComponent(id)}/videos?include_video_language=en,null`
+  ];
+
+  const collected = [];
+
+  for (const path of paths) {
+    try {
+      const data = await tmdb(path);
+
+      if (Array.isArray(data.results)) {
+        collected.push(...data.results);
+      }
+    } catch (error) {
+      console.error(
+        "Video lookup failed:",
+        path,
+        error.message
+      );
+    }
+  }
+
+  return cleanVideos(collected);
+}
+
 export default async function handler(req, res) {
   try {
-    const id = String(req.query?.id || "").trim();
+
+    const id =
+      String(req.query?.id || "").trim();
 
     const feature =
       String(req.query?.feature || "behind")
@@ -180,38 +280,48 @@ export default async function handler(req, res) {
       });
     }
 
-    const data = await tmdb(
-      `/movie/${encodeURIComponent(id)}/videos?language=en-US`
-    );
-
-    const videos = cleanVideos(data.results);
+    const videos =
+      await getAllMovieVideos(id);
 
     let selected = [];
 
-    if (feature === "bloopers") {
-      selected = videos
-        .map(video => ({
-          ...video,
-          score: blooperScore(video)
-        }))
-        .filter(video => video.score > 0)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 6);
-    }
-
     if (feature === "behind") {
+
       selected = videos
         .map(video => ({
           ...video,
           score: behindScore(video)
         }))
-        .filter(video => video.score > 0)
-        .sort((a, b) => b.score - a.score)
+        .filter(video =>
+          video.score > 0
+        )
+        .sort(
+          (a, b) =>
+            b.score - a.score
+        )
+        .slice(0, 6);
+    }
+
+    if (feature === "bloopers") {
+
+      selected = videos
+        .map(video => ({
+          ...video,
+          score: blooperScore(video)
+        }))
+        .filter(video =>
+          video.score > 0
+        )
+        .sort(
+          (a, b) =>
+            b.score - a.score
+        )
         .slice(0, 6);
     }
 
     return res.status(200).json({
       feature,
+
       videos: selected.map(video => ({
         key: video.key,
         name: video.name,
@@ -221,6 +331,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
+
     console.error(
       "Reelwise extras API error:",
       error
