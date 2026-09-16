@@ -223,6 +223,168 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   .feature-view .fact-item:before{top:11px;bottom:11px}
 }
 
+
+/* ===== SIX DEGREES PRESENTATION RESTORE ===== */
+.section-page.six-page{
+  max-width:820px;
+  margin:0 auto;
+  padding-top:10px;
+}
+.six-page > .eyebrow{
+  margin-top:8px;
+}
+.six-page > h1{
+  max-width:760px;
+  font-size:clamp(42px,6vw,66px);
+  line-height:.98;
+  letter-spacing:-3px;
+  margin:10px 0 14px;
+}
+.six-page > p{
+  max-width:650px;
+  font-size:17px;
+}
+.six-page .degree-box{
+  max-width:none;
+  margin-top:28px;
+  padding:28px;
+  border-radius:20px;
+  background:
+    radial-gradient(circle at 92% 2%,rgba(255,90,54,.10),transparent 32%),
+    linear-gradient(145deg,rgba(255,255,255,.02),transparent),
+    var(--panel);
+  box-shadow:0 18px 50px rgba(0,0,0,.18);
+}
+.six-page .degree-inputs{
+  margin:0 0 14px;
+}
+.six-page .degree-inputs input{
+  min-height:58px;
+  font-size:16px;
+}
+.six-page .degree-box > button{
+  min-height:50px;
+}
+.six-result{
+  margin-top:22px;
+  padding:20px;
+  border:1px solid #313a47;
+  border-left:4px solid var(--accent);
+  border-radius:15px;
+  background:
+    radial-gradient(circle at 100% 0,rgba(228,179,77,.06),transparent 34%),
+    linear-gradient(145deg,#161c25,#10151c);
+}
+.six-result-title{
+  color:var(--gold);
+  font-size:20px;
+  font-weight:900;
+  letter-spacing:-.25px;
+  margin-bottom:16px;
+}
+.six-path{
+  display:grid;
+  gap:0;
+}
+.six-step{
+  display:grid;
+  grid-template-columns:38px 1fr;
+  align-items:center;
+  gap:10px;
+  min-height:58px;
+  border-top:1px solid rgba(255,255,255,.07);
+}
+.six-step:first-child{
+  border-top:0;
+}
+.six-step-icon{
+  width:34px;
+  height:34px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:10px;
+  background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.06);
+  font-size:19px;
+}
+.six-step.actor .six-step-name{
+  font-weight:850;
+  color:#f4f6f9;
+}
+.six-step.movie .six-step-name{
+  color:#c5ccd6;
+  font-weight:700;
+}
+.six-step.movie .six-step-icon{
+  color:var(--gold);
+}
+.six-connector{
+  width:2px;
+  height:12px;
+  margin-left:16px;
+  background:linear-gradient(var(--gold),var(--accent));
+  opacity:.7;
+}
+
+@media(max-width:800px){
+  .section-page.six-page{
+    padding-top:8px;
+  }
+  .six-page .back-button{
+    padding-bottom:18px;
+  }
+  .six-page > .eyebrow{
+    margin-top:0;
+  }
+  .six-page > h1{
+    font-size:38px;
+    line-height:1.02;
+    letter-spacing:-1.8px;
+    margin:7px 0 12px;
+  }
+  .six-page > p{
+    font-size:14px;
+    line-height:1.55;
+    margin-bottom:0;
+  }
+  .six-page .degree-box{
+    margin-top:20px;
+    padding:16px;
+    border-radius:16px;
+  }
+  .six-page .degree-inputs{
+    gap:10px;
+    margin-bottom:12px;
+  }
+  .six-page .degree-inputs input{
+    min-height:54px;
+    font-size:15px;
+    padding:14px 15px;
+  }
+  .six-page .degree-box > button{
+    width:100%;
+    min-height:50px;
+  }
+  .six-result{
+    margin-top:18px;
+    padding:16px 14px;
+    border-radius:14px;
+  }
+  .six-result-title{
+    font-size:18px;
+    margin-bottom:12px;
+  }
+  .six-step{
+    min-height:54px;
+    grid-template-columns:36px 1fr;
+    gap:9px;
+  }
+  .six-step-name{
+    font-size:15px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -445,8 +607,8 @@ async function showMovie(id){
 function toggleFullCast(){const box=document.getElementById("movieCast"),button=document.getElementById("castToggle");if(!box||!button)return;const expanded=button.dataset.expanded==="true",list=expanded?currentCast.slice(0,8):currentCast;box.innerHTML=list.map(person=>`<button onclick="showPerson('${person.id}')">${escapeHTML(person.name)}</button>`).join("");button.dataset.expanded=expanded?"false":"true";button.textContent=expanded?"View Full Cast ↓":"Show Less ↑"}
 async function showMovieFeature(feature){const view=document.getElementById("movieFeatureView");if(!view||!currentMovie)return;if(feature==="quotes"||feature==="trivia"){const endpoint=feature==="quotes"?"quotes":"trivia";view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/"+endpoint+"?id="+encodeURIComponent(currentMovie.id)),data=await response.json();if(!response.ok)throw new Error(data.error||"Information could not be loaded.");const list=feature==="quotes"?data.quotes:data.trivia;view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="quotes"?"REELWISE QUOTES":"REELWISE TRIVIA"}</div><h3>${feature==="quotes"?"💬 Quotes":"🧠 Trivia"}</h3><div class="fact-grid">${(Array.isArray(list)?list:[]).map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>'}return}if(feature==="stats"){const genres=Array.isArray(currentMovie.genres)?currentMovie.genres.map(g=>g.name).join(", "):"";view.innerHTML=`<div class="feature-view"><div class="eyebrow">REELWISE MOVIE STATS</div><h3>📊 Movie Stats</h3><div class="fact-grid">${currentMovie.release_date?`<div class="fact-item"><strong>Release:</strong> ${escapeHTML(formatDate(currentMovie.release_date))}</div>`:""}${currentMovie.runtime?`<div class="fact-item"><strong>Runtime:</strong> ${escapeHTML(currentMovie.runtime)} minutes</div>`:""}${genres?`<div class="fact-item"><strong>Genres:</strong> ${escapeHTML(genres)}</div>`:""}${currentMovie.budget?`<div class="fact-item"><strong>Budget:</strong> $${Number(currentMovie.budget).toLocaleString()}</div>`:""}${currentMovie.revenue?`<div class="fact-item"><strong>Revenue:</strong> $${Number(currentMovie.revenue).toLocaleString()}</div>`:""}</div></div>`;return}if(feature==="behind"||feature==="bloopers"){view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/extras?id="+encodeURIComponent(currentMovie.id)+"&feature="+encodeURIComponent(feature)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie extras could not be loaded.");const selected=Array.isArray(data.videos)?data.videos:[],emptyMessage=feature==="bloopers"?"No verified bloopers or outtakes are available for this movie yet.":"No movie extras are available for this movie yet.";view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="behind"?"REELWISE MOVIE EXTRAS":"OUTTAKES & BLOOPERS"}</div><h3>${feature==="behind"?"🎬 Movie Extras":"😂 Bloopers"}</h3>${selected.length?`<div class="video-list">${selected.map(video=>`<a class="video-card" href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}" target="_blank" rel="noopener noreferrer"><img src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg" alt=""><strong>${escapeHTML(video.name)}</strong></a>`).join("")}</div>`:`<p>${escapeHTML(emptyMessage)}</p>`}</div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message||"Movie extras could not be loaded.")+'</p></div>'}return}}
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||"")).slice(0,50);results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio">${escapeHTML(person.biography||"Biography information is not available.")}</div></div></div><div class="star-section"><div class="eyebrow">CAREER HIGHLIGHTS</div><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><div class="eyebrow">THE MOVIES</div><h2>Filmography</h2><div class="filmography">${filmography.length?filmography.map(movie=>`<button onclick="showMovie('${movie.id}')"><strong>${escapeHTML(movie.title)}</strong>${movie.release_date?`<span style="color:var(--muted)"> · ${escapeHTML(movie.release_date.slice(0,4))}</span>`:""}</button>`).join(""):`<div class="message">No released movie credits available.</div>`}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><input id="actorOne" placeholder="First actor — Tom Cruise"><input id="actorTwo" placeholder="Second actor — Robert De Niro"></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage" style="margin-top:18px;color:var(--muted)"></div></div></div>`;goToResults()}
-async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}box.innerHTML=`<div class="feature-view"><strong style="color:var(--gold)">Connection found — ${escapeHTML(data.degrees)} degrees</strong><div style="margin-top:15px">${(Array.isArray(data.chain)?data.chain:[]).map(item=>`<div style="padding:9px 0;border-bottom:1px solid var(--line)">${item.type==="movie"?"🎬 ":"⭐ "}${escapeHTML(item.title||item.name||"")}</div>`).join("")}</div></div>`}catch(error){box.textContent=error.message}}
+function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><input id="actorOne" placeholder="First actor — Tom Cruise"><input id="actorTwo" placeholder="Second actor — Robert De Niro"></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
+async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}const chain=Array.isArray(data.chain)?data.chain:[];box.innerHTML=`<div class="six-result"><div class="six-result-title">Connection found — ${escapeHTML(data.degrees)} degrees</div><div class="six-path">${chain.map((item,index)=>`${index?'<div class="six-connector"></div>':''}<div class="six-step ${item.type==="movie"?"movie":"actor"}"><div class="six-step-icon">${item.type==="movie"?"🎬":"⭐"}</div><div class="six-step-name">${escapeHTML(item.title||item.name||"")}</div></div>`).join("")}</div></div>`}catch(error){box.textContent=error.message}}
 function returnToSearch(){lastQuery?searchReelwise(lastQuery):showHome()}
 function formatDate(dateString){if(!dateString)return "";const parts=String(dateString).split("-");if(parts.length!==3)return dateString;const date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));if(Number.isNaN(date.getTime()))return dateString;return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
 function escapeHTML(value){return String(value||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
