@@ -505,6 +505,209 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   .six-link-line{margin-left:30px;height:10px}
 }
 
+
+/* ===== MOVIE DETAIL HERO POLISH ===== */
+.movie-hero{
+  position:relative;
+  overflow:hidden;
+  isolation:isolate;
+  grid-template-columns:270px minmax(0,1fr);
+  gap:40px;
+  padding:32px;
+  background:linear-gradient(145deg,#131a24,#0c1016);
+}
+.movie-hero:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  z-index:-1;
+  background:
+    linear-gradient(90deg,rgba(10,13,18,.98) 0%,rgba(10,13,18,.91) 36%,rgba(10,13,18,.82) 70%,rgba(10,13,18,.92) 100%),
+    linear-gradient(180deg,rgba(10,13,18,.22),rgba(10,13,18,.96));
+  pointer-events:none;
+}
+.movie-backdrop{
+  position:absolute;
+  inset:0;
+  z-index:-2;
+  background-size:cover;
+  background-position:center 25%;
+  filter:saturate(.85);
+  opacity:.5;
+  transform:scale(1.015);
+}
+.movie-poster-wrap{
+  position:relative;
+  align-self:start;
+}
+.movie-poster-wrap:after{
+  content:"";
+  position:absolute;
+  left:10%;
+  right:10%;
+  bottom:-18px;
+  height:28px;
+  border-radius:50%;
+  background:rgba(0,0,0,.55);
+  filter:blur(18px);
+  z-index:-1;
+}
+.movie-hero .detail-image{
+  border:1px solid rgba(255,255,255,.12);
+  box-shadow:0 24px 55px rgba(0,0,0,.42);
+}
+.movie-info{
+  min-width:0;
+  align-self:center;
+}
+.movie-head .eyebrow{
+  margin-bottom:8px;
+}
+.movie-head h1{
+  max-width:760px;
+  margin:0 0 14px;
+  font-size:clamp(42px,6vw,68px);
+  line-height:.94;
+  letter-spacing:-3px;
+  text-wrap:balance;
+}
+.movie-overview-label{
+  margin:20px 0 6px;
+  color:var(--gold);
+  font-size:10px;
+  font-weight:900;
+  letter-spacing:1.45px;
+}
+.movie-overview{
+  max-width:780px;
+  margin:0;
+  color:#c1c8d2!important;
+  font-size:16px;
+  line-height:1.68!important;
+}
+.movie-hero .movie-facts{
+  margin:19px 0 23px;
+  gap:7px;
+}
+.movie-hero .movie-fact{
+  padding:8px 11px;
+  background:rgba(13,18,25,.78);
+  border-color:rgba(255,255,255,.11);
+  backdrop-filter:blur(7px);
+}
+.movie-cast-block{
+  padding-top:18px;
+  border-top:1px solid rgba(255,255,255,.09);
+}
+.movie-cast-heading{
+  display:flex;
+  align-items:end;
+  justify-content:space-between;
+  gap:16px;
+  margin-bottom:11px;
+}
+.movie-cast-heading h2{
+  margin:4px 0 0;
+  font-size:22px;
+}
+.movie-cast-heading span{
+  color:var(--muted);
+  font-size:11px;
+}
+.movie-hero .cast{
+  gap:7px;
+}
+.movie-hero .cast button{
+  background:rgba(21,27,36,.84);
+  backdrop-filter:blur(7px);
+}
+.movie-hero .cast-toggle{
+  margin-top:12px;
+}
+
+@media(max-width:800px){
+  .movie-hero{
+    grid-template-columns:112px minmax(0,1fr);
+    gap:15px;
+    padding:15px;
+    border-radius:16px;
+  }
+  .movie-backdrop{
+    opacity:.34;
+    background-position:center top;
+  }
+  .movie-hero:after{
+    background:
+      linear-gradient(180deg,rgba(9,12,17,.72) 0%,rgba(9,12,17,.94) 48%,rgba(9,12,17,.99) 100%);
+  }
+  .movie-poster-wrap{
+    grid-column:1;
+    grid-row:1;
+  }
+  .movie-hero .detail-image{
+    width:112px;
+    border-radius:10px;
+  }
+  .movie-info{
+    display:contents;
+  }
+  .movie-head{
+    grid-column:2;
+    grid-row:1;
+    align-self:center;
+    min-width:0;
+  }
+  .movie-head .eyebrow{
+    font-size:9px;
+    letter-spacing:1.15px;
+    margin-bottom:5px;
+  }
+  .movie-head h1{
+    font-size:30px;
+    line-height:.98;
+    letter-spacing:-1.45px;
+    margin:0;
+    overflow-wrap:anywhere;
+  }
+  .movie-overview-label{
+    grid-column:1/-1;
+    margin:18px 0 0;
+  }
+  .movie-overview{
+    grid-column:1/-1;
+    font-size:14px!important;
+    line-height:1.55!important;
+    margin-top:4px!important;
+  }
+  .movie-hero .movie-facts{
+    grid-column:1/-1;
+    margin:13px 0 4px;
+    gap:6px;
+  }
+  .movie-hero .movie-fact{
+    font-size:10.5px;
+    padding:7px 9px;
+  }
+  .movie-cast-block{
+    grid-column:1/-1;
+    margin-top:7px;
+    padding-top:16px;
+  }
+  .movie-cast-heading{
+    margin-bottom:10px;
+  }
+  .movie-cast-heading h2{
+    font-size:19px;
+  }
+  .movie-cast-heading span{
+    display:none;
+  }
+  .movie-hero .cast button{
+    font-size:11px;
+    padding:7px 9px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -555,6 +758,10 @@ async function showMovie(id){
 
     const poster=movie.poster_path
       ?"https://image.tmdb.org/t/p/w500"+movie.poster_path
+      :"";
+
+    const backdrop=movie.backdrop_path
+      ?"https://image.tmdb.org/t/p/w1280"+movie.backdrop_path
       :"";
 
     currentCast=
@@ -637,8 +844,10 @@ async function showMovie(id){
       <div class="detail">
         <button class="back-button" onclick="returnToSearch()">← Back</button>
 
-        <div class="detail-layout">
-          <div>
+        <div class="detail-layout movie-hero">
+          ${backdrop?`<div class="movie-backdrop" style="background-image:url('${backdrop}')"></div>`:""}
+
+          <div class="movie-poster-wrap">
             ${
               poster
                 ?`<img class="detail-image" src="${poster}" alt="${escapeHTML(movie.title)}">`
@@ -646,14 +855,18 @@ async function showMovie(id){
             }
           </div>
 
-          <div>
-            <div class="eyebrow">
-              REELWISE MOVIE · ${escapeHTML(movieYear)}
+          <div class="movie-info">
+            <div class="movie-head">
+              <div class="eyebrow">
+                REELWISE MOVIE · ${escapeHTML(movieYear)}
+              </div>
+
+              <h1>${escapeHTML(movie.title)}</h1>
             </div>
 
-            <h1>${escapeHTML(movie.title)}</h1>
+            <div class="movie-overview-label">THE STORY</div>
 
-            <p>
+            <p class="movie-overview">
               ${escapeHTML(movie.overview||"No description available.")}
             </p>
 
@@ -680,21 +893,29 @@ async function showMovie(id){
               }
             </div>
 
-            <h2>Top Cast</h2>
+            <div class="movie-cast-block">
+              <div class="movie-cast-heading">
+                <div>
+                  <div class="eyebrow">WHO'S IN IT</div>
+                  <h2>Top Cast</h2>
+                </div>
+                <span>Tap a name to explore their career</span>
+              </div>
 
-            <div class="cast" id="movieCast">
-              ${topCast.map(person=>`
-                <button onclick="showPerson('${person.id}')">
-                  ${escapeHTML(person.name)}
-                </button>
-              `).join("")}
+              <div class="cast" id="movieCast">
+                ${topCast.map(person=>`
+                  <button onclick="showPerson('${person.id}')">
+                    ${escapeHTML(person.name)}
+                  </button>
+                `).join("")}
+              </div>
+
+              ${
+                currentCast.length>8
+                  ?`<button class="cast-toggle" id="castToggle" onclick="toggleFullCast()">View Full Cast ↓</button>`
+                  :""
+              }
             </div>
-
-            ${
-              currentCast.length>8
-                ?`<button class="cast-toggle" id="castToggle" onclick="toggleFullCast()">View Full Cast ↓</button>`
-                :""
-            }
           </div>
         </div>
 
