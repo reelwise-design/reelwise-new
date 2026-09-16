@@ -223,11 +223,12 @@ export default async function handler(req, res) {
     }
 
     /*
-      This is the query we actually send
+      This is the movie query we actually send
       to TMDB.
 
       Rocky 3 becomes Rocky III.
     */
+
     const query =
       normalizeSequelSearch(originalQuery);
 
@@ -272,11 +273,71 @@ export default async function handler(req, res) {
         .map(personResult);
 
     /*
-      Exact matching uses the converted query.
+      EXACT PERSON MATCH
+      ------------------
 
-      Rocky 3 therefore matches the TMDB title
-      Rocky III exactly.
+      If the search exactly matches a person's
+      name, that person takes priority over movies.
+
+      This prevents searches such as:
+
+      Sylvester Stallone
+
+      from returning things like:
+
+      The Sylvester Stallone Story
+      Sly
+
+      alongside the actual person.
+
+      The movie list will still be available
+      when the person card is opened through
+      person-details / combined_credits.
     */
+
+    const normalizedPersonQuery =
+      normalize(originalQuery);
+
+    const exactPeople =
+      personResults
+        .filter(person =>
+          normalize(
+            person.display_title
+          ) === normalizedPersonQuery
+        )
+        .sort(
+          (a, b) =>
+            Number(b.popularity || 0) -
+            Number(a.popularity || 0)
+        );
+
+    /*
+      IMPORTANT:
+
+      If an exact person exists, return ONLY
+      the exact person match.
+
+      This takes priority over an exact movie
+      with the same words in its title.
+    */
+
+    if (exactPeople.length) {
+
+      return res.status(200).json({
+        results: [
+          exactPeople[0]
+        ],
+        movies: [],
+        people: rawPeople,
+        franchiseExpanded: false,
+        exactPersonMatch: true
+      });
+    }
+
+    /*
+      EXACT MOVIE MATCHES
+    */
+
     const normalizedQuery =
       normalize(query);
 
@@ -431,7 +492,7 @@ export default async function handler(req, res) {
 
     /*
       RULE 3:
-      No exact movie title exists.
+      No exact movie or person exists.
 
       Return normal movie and actor matches.
     */
@@ -451,7 +512,8 @@ export default async function handler(req, res) {
       results,
       movies: rawMovies,
       people: rawPeople,
-      franchiseExpanded
+      franchiseExpanded,
+      exactPersonMatch: false
     });
 
   } catch (error) {
