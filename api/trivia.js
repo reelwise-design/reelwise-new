@@ -663,7 +663,13 @@ function extractTrivia(text) {
 
   const cleaned =
     text
+      /*
+        Remove Wikipedia section headings before
+        sentence splitting so headings do not get
+        glued onto the next trivia sentence.
+      */
       .replace(/==+[^=]+==+/g, " ")
+      .replace(/\b(Cast|Production|Development|Casting|Accolades|Reception|Release|Music|Soundtrack|Filming|Writing|Pre-production|Post-production)\b(?=\s+[A-Z])/g, " ")
       .replace(/\n+/g, " ")
       .replace(/\s+/g, " ")
       .trim();
@@ -699,6 +705,8 @@ function extractTrivia(text) {
           lower.startsWith("the film was released") ||
           lower.startsWith("the film stars") ||
           lower.startsWith("the movie is a") ||
+          /^[^.!?]{0,80}\bis a \d{4} (american|british|canadian|australian|french|german|italian|japanese|south korean|indian)\b/.test(lower) ||
+          /^[^.!?]{0,80}\bis an? \d{4} .* film\b/.test(lower) ||
           lower.startsWith("the story follows") ||
           lower.startsWith("the film follows") ||
           lower.startsWith("the movie follows") ||
