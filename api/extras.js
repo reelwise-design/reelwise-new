@@ -38,10 +38,7 @@ function cleanVideos(videos) {
       video.name
     )
     .filter(video => {
-      if (seen.has(video.key)) {
-        return false;
-      }
-
+      if (seen.has(video.key)) return false;
       seen.add(video.key);
       return true;
     })
@@ -54,27 +51,84 @@ function cleanVideos(videos) {
     }));
 }
 
+function isMovieClip(video) {
+  const name = String(video.name || "").toLowerCase();
+
+  const blocked = [
+    "official trailer",
+    "trailer",
+    "teaser",
+    "official clip",
+    "movie clip",
+    "film clip",
+    "exclusive clip",
+    "extended clip",
+    "full scene",
+    "scene",
+    "fight scene",
+    "training scene",
+    "final fight",
+    "opening scene",
+    "ending scene",
+    "promo",
+    "tv spot",
+    "commercial"
+  ];
+
+  return blocked.some(term => name.includes(term));
+}
+
 function behindScore(video) {
   const name = String(video.name || "").toLowerCase();
   const type = String(video.type || "").toLowerCase();
 
+  if (isMovieClip(video)) {
+    return 0;
+  }
+
   let score = 0;
 
+  if (name.includes("behind the scenes")) score += 200;
+  if (name.includes("behind-the-scenes")) score += 200;
+
+  if (name.includes("making of")) score += 190;
+  if (name.includes("making-of")) score += 190;
+  if (name.includes("the making of")) score += 190;
+
+  if (name.includes("on set")) score += 160;
+  if (name.includes("on-set")) score += 160;
+
+  if (name.includes("bts")) score += 140;
+
+  if (name.includes("production featurette")) score += 140;
+  if (name.includes("behind the movie")) score += 140;
+
+  if (name.includes("cast interview")) score += 120;
+  if (name.includes("director interview")) score += 120;
+  if (name.includes("interview")) score += 80;
+
+  if (name.includes("featurette")) score += 100;
+
   if (type === "behind the scenes") score += 100;
-  if (name.includes("behind the scenes")) score += 100;
 
-  if (type === "featurette") score += 70;
-  if (name.includes("making of")) score += 90;
-  if (name.includes("making-of")) score += 90;
-
-  if (name.includes("on set")) score += 70;
-  if (name.includes("on-set")) score += 70;
-
-  if (name.includes("interview")) score += 45;
-  if (name.includes("featurette")) score += 60;
-
-  if (name.includes("production")) score += 40;
-  if (name.includes("filming")) score += 40;
+  /*
+    A generic TMDB "Featurette" label alone
+    is not enough. The title must also look
+    like genuine supplemental material.
+  */
+  if (
+    type === "featurette" &&
+    (
+      name.includes("featurette") ||
+      name.includes("making") ||
+      name.includes("behind") ||
+      name.includes("interview") ||
+      name.includes("on set") ||
+      name.includes("production")
+    )
+  ) {
+    score += 70;
+  }
 
   if (video.official) score += 10;
 
@@ -86,14 +140,16 @@ function blooperScore(video) {
 
   let score = 0;
 
-  if (name.includes("blooper")) score += 100;
-  if (name.includes("bloopers")) score += 100;
+  if (name.includes("bloopers")) score += 200;
+  if (name.includes("blooper")) score += 200;
 
-  if (name.includes("outtake")) score += 100;
-  if (name.includes("outtakes")) score += 100;
+  if (name.includes("outtakes")) score += 200;
+  if (name.includes("outtake")) score += 200;
 
-  if (name.includes("gag reel")) score += 100;
-  if (name.includes("gag-reel")) score += 100;
+  if (name.includes("gag reel")) score += 200;
+  if (name.includes("gag-reel")) score += 200;
+
+  if (name.includes("funny outtakes")) score += 150;
 
   if (video.official) score += 10;
 
@@ -130,7 +186,7 @@ export default async function handler(req, res) {
 
     const videos = cleanVideos(data.results);
 
-    let selected;
+    let selected = [];
 
     if (feature === "bloopers") {
       selected = videos
@@ -141,7 +197,9 @@ export default async function handler(req, res) {
         .filter(video => video.score > 0)
         .sort((a, b) => b.score - a.score)
         .slice(0, 6);
-    } else {
+    }
+
+    if (feature === "behind") {
       selected = videos
         .map(video => ({
           ...video,
