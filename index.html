@@ -176,6 +176,53 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   .star-section{margin-top:28px}.known-card{flex-basis:112px}.known-card img{width:112px}.filmography{grid-template-columns:1fr 1fr;gap:7px}.filmography button{font-size:12px;padding:10px}
   .movie-vault{margin-top:22px;padding-top:22px}.movie-vault-heading h2{font-size:27px}.movie-extras{display:flex;overflow-x:auto;gap:8px;padding-bottom:4px}.extra-card{flex:0 0 112px}.feature-view{padding:16px}.degree-inputs{grid-template-columns:1fr}.degree-box{padding:18px}.video-card img{width:95px}
 }
+
+/* ===== REELWISE VAULT PRESENTATION POLISH ===== */
+.feature-view{
+  margin-top:24px;
+  padding:22px;
+  border-radius:16px;
+  background:
+    radial-gradient(circle at 100% 0,rgba(228,179,77,.055),transparent 34%),
+    linear-gradient(145deg,rgba(255,255,255,.02),transparent),
+    var(--panel2);
+  box-shadow:0 16px 38px rgba(0,0,0,.16);
+}
+.feature-view > .eyebrow{margin-bottom:7px}
+.feature-view h3{margin:0;font-size:27px;letter-spacing:-.5px}
+.feature-view .fact-grid{display:grid;gap:10px;margin-top:18px}
+.feature-view .fact-item{
+  position:relative;
+  background:linear-gradient(145deg,rgba(255,255,255,.018),transparent),#10141b;
+  border:1px solid #2b3340;
+  border-radius:12px;
+  padding:15px 17px;
+  color:#edf1f6;
+  font-size:15px;
+  line-height:1.58;
+  box-shadow:0 7px 18px rgba(0,0,0,.08);
+}
+.feature-view .fact-item:before{
+  content:"";
+  position:absolute;
+  left:-1px;
+  top:13px;
+  bottom:13px;
+  width:2px;
+  border-radius:2px;
+  background:linear-gradient(180deg,var(--gold),var(--accent));
+  opacity:.8;
+}
+.feature-view .fact-item strong{color:var(--gold)}
+@media(max-width:800px){
+  .feature-view{margin-top:18px;padding:15px 13px 16px;border-radius:14px}
+  .feature-view > .eyebrow{font-size:10px;letter-spacing:1.55px}
+  .feature-view h3{font-size:24px;margin-top:2px}
+  .feature-view .fact-grid{gap:8px;margin-top:14px}
+  .feature-view .fact-item{padding:13px 14px 13px 16px;border-radius:11px;font-size:14px;line-height:1.52}
+  .feature-view .fact-item:before{top:11px;bottom:11px}
+}
+
 </style>
 </head>
 <body>
