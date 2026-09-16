@@ -844,7 +844,7 @@ async function showMovie(id){
           <div class="movie-vault-heading">
             <div class="eyebrow">THE REELWISE VAULT</div>
             <h2>Go beyond the movie.</h2>
-            <p>Quotes, stats, trivia and stories from behind the movie.</p>
+            <p>Quotes, stats, trivia, videos and more from the movie.</p>
           </div>
 
           <div class="movie-extras">
@@ -867,8 +867,8 @@ async function showMovie(id){
             </div>
 
             <div class="extra-card">
-              <div class="extra-icon">🎥</div>
-              <h3>Behind the Scenes</h3>
+              <div class="extra-icon">🎬</div>
+              <h3>Movie Extras</h3>
               <button onclick="showMovieFeature('behind')">Explore →</button>
             </div>
 
@@ -1038,7 +1038,7 @@ async function showMovieFeature(feature){
       const emptyMessage=
         feature==="bloopers"
           ? "No verified bloopers or outtakes are available for this movie yet."
-          : "No behind-the-scenes videos are available for this movie yet.";
+          : "No movie extras are available for this movie yet.";
 
       view.innerHTML=`
         <div class="feature-view">
@@ -1046,7 +1046,7 @@ async function showMovieFeature(feature){
           <div class="eyebrow">
             ${
               feature==="behind"
-                ? "BEHIND THE MOVIE"
+                ? "REELWISE MOVIE EXTRAS"
                 : "OUTTAKES & BLOOPERS"
             }
           </div>
@@ -1054,7 +1054,7 @@ async function showMovieFeature(feature){
           <h3>
             ${
               feature==="behind"
-                ? "🎥 Behind the Scenes"
+                ? "🎬 Movie Extras"
                 : "😂 Bloopers"
             }
           </h3>
