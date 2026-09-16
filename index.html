@@ -1018,6 +1018,35 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   margin-top:0;
 }
 
+
+/* ===== COLLAPSIBLE STAR BIO ===== */
+.star-bio{
+  position:relative;
+}
+.star-bio.collapsed{
+  display:-webkit-box;
+  -webkit-line-clamp:5;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.bio-toggle{
+  margin-top:10px;
+  background:none;
+  border:0;
+  color:var(--gold);
+  padding:0;
+  font-weight:900;
+  font-size:12px;
+}
+@media(max-width:800px){
+  .star-bio.collapsed{
+    -webkit-line-clamp:5;
+  }
+  .bio-toggle{
+    font-size:12px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1316,7 +1345,9 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio">${escapeHTML(person.biography||"Biography information is not available.")}</div></div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio collapsed" id="starBio">${escapeHTML(person.biography||"Biography information is not available.")}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+function toggleStarBio(){const bio=document.getElementById("starBio"),button=document.getElementById("bioToggle");if(!bio||!button)return;const collapsed=bio.classList.contains("collapsed");bio.classList.toggle("collapsed",!collapsed);button.textContent=collapsed?"Show Less ↑":"Read Full Bio ↓"}
+
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><input id="actorOne" placeholder="First actor — Tom Cruise"><input id="actorTwo" placeholder="Second actor — Robert De Niro"></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
 async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}const chain=Array.isArray(data.chain)?data.chain:[];let connectionStory="";if(chain.length>=3){connectionStory=`${escapeHTML(chain[0].name||"Actor")} was in <strong>${escapeHTML(chain[1].title||"Movie")}</strong> with ${escapeHTML(chain[2].name||"Actor")}`;for(let i=3;i<chain.length;i+=2){const movie=chain[i],actor=chain[i+1];if(movie&&actor){connectionStory+=`, who was in <strong>${escapeHTML(movie.title||"Movie")}</strong> with ${escapeHTML(actor.name||"Actor")}`}}connectionStory+=".";}const visual=chain.map((item,index)=>{const isMovie=item.type==="movie";if(isMovie){const poster=item.poster_path?"https://image.tmdb.org/t/p/w185"+item.poster_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-movie-card clickable" onclick="showMovie('${item.id}')">${poster?`<img class="six-movie-poster" src="${poster}" alt="${escapeHTML(item.title||"Movie")}">`:`<div class="six-movie-poster-fallback">🎬</div>`}<div><div class="six-movie-label">CONNECTED THROUGH</div><div class="six-movie-title">${escapeHTML(item.title||"Movie")}</div>${item.year?`<div class="six-movie-year">${escapeHTML(item.year)}</div>`:""}</div></div>`}const photo=item.profile_path?"https://image.tmdb.org/t/p/w185"+item.profile_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-actor-card clickable" onclick="showPerson('${item.id}')">${photo?`<img class="six-actor-photo" src="${photo}" alt="${escapeHTML(item.name||"Actor")}">`:`<div class="six-actor-fallback">⭐</div>`}<div class="six-actor-name">${escapeHTML(item.name||"Actor")}</div></div>`}).join("");box.innerHTML=`<div class="six-result"><div class="six-result-title">Connection found — ${escapeHTML(data.degrees)} degrees</div>${connectionStory?`<div class="six-story">${connectionStory}</div>`:""}<div class="six-visual-path">${visual}</div></div>`}catch(error){box.textContent=error.message}}
 function returnToSearch(){lastQuery?searchReelwise(lastQuery):showHome()}
