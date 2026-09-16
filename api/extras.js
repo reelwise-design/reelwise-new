@@ -58,19 +58,16 @@ async function searchYouTube(query) {
   return Array.isArray(data.items)
     ? data.items
         .filter(item =>
-          item &&
-          item.id &&
-          item.id.videoId &&
-          item.snippet &&
-          item.snippet.title
+          item?.id?.videoId &&
+          item?.snippet?.title
         )
         .map(item => ({
           key: item.id.videoId,
-          name: decodeYouTubeText(item.snippet.title),
-          description: decodeYouTubeText(
+          name: decodeText(item.snippet.title),
+          description: decodeText(
             item.snippet.description || ""
           ),
-          channel: decodeYouTubeText(
+          channel: decodeText(
             item.snippet.channelTitle || ""
           ),
           published_at:
@@ -79,7 +76,7 @@ async function searchYouTube(query) {
     : [];
 }
 
-function decodeYouTubeText(value) {
+function decodeText(value) {
   return String(value || "")
     .replace(/&amp;/gi, "&")
     .replace(/&#39;/gi, "'")
@@ -102,36 +99,166 @@ function includesAny(text, terms) {
   );
 }
 
+/*
+  Creates useful title variants.
+
+  Example:
+  Rocky III becomes:
+  - rocky iii
+  - rocky 3
+
+  This lets YouTube results using either
+  spelling count as an exact movie match.
+*/
+function titleVariants(title) {
+  const normalized = normalize(title);
+
+  const romanToNumber = {
+    " i": " 1",
+    " ii": " 2",
+    " iii": " 3",
+    " iv": " 4",
+    " v": " 5",
+    " vi": " 6",
+    " vii": " 7",
+    " viii": " 8",
+    " ix": " 9",
+    " x": " 10"
+  };
+
+  const numberToRoman = {
+    " 1": " i",
+    " 2": " ii",
+    " 3": " iii",
+    " 4": " iv",
+    " 5": " v",
+    " 6": " vi",
+    " 7": " vii",
+    " 8": " viii",
+    " 9": " ix",
+    " 10": " x"
+  };
+
+  const variants = new Set([normalized]);
+
+  for (const [roman, number] of Object.entries(romanToNumber)) {
+    if (normalized.endsWith(roman)) {
+      variants.add(
+        normalized.slice(0, -roman.length) + number
+      );
+    }
+  }
+
+  for (const [number, roman] of Object.entries(numberToRoman)) {
+    if (normalized.endsWith(number)) {
+      variants.add(
+        normalized.slice(0, -number.length) + roman
+      );
+    }
+  }
+
+  return [...variants];
+}
+
+function exactMovieMatch(text, title) {
+  const normalizedText = normalize(text);
+  const variants = titleVariants(title);
+
+  return variants.some(variant =>
+    normalizedText.includes(variant)
+  );
+}
+
+function getBaseTitle(title) {
+  const normalized = normalize(title);
+
+  return normalized
+    .replace(
+      /\s+(?:i|ii|iii|iv|v|vi|vii|viii|ix|x|\d+)$/,
+      ""
+    )
+    .trim();
+}
+
+function hasWrongSequelNumber(text, title) {
+  const normalizedText = normalize(text);
+  const normalizedTitle = normalize(title);
+  const base = getBaseTitle(title);
+
+  if (!base || !normalizedText.includes(base)) {
+    return false;
+  }
+
+  const variants = titleVariants(title);
+
+  if (
+    variants.some(variant =>
+      normalizedText.includes(variant)
+    )
+  ) {
+    return false;
+  }
+
+  /*
+    If this movie has a sequel number but the
+    result mentions the franchise with another
+    sequel number, reject it.
+  */
+  const titleHasNumber =
+    /\s+(?:i|ii|iii|iv|v|vi|vii|viii|ix|x|\d+)$/.test(
+      normalizedTitle
+    );
+
+  if (!titleHasNumber) {
+    return false;
+  }
+
+  const sequelPattern =
+    new RegExp(
+      `\\b${escapeRegExp(base)}\\s+(?:1|2|3|4|5|6|7|8|9|10|i|ii|iii|iv|v|vi|vii|viii|ix|x)\\b`
+    );
+
+  return sequelPattern.test(normalizedText);
+}
+
+function escapeRegExp(value) {
+  return value.replace(
+    /[.*+?^${}()|[\]\\]/g,
+    "\\$&"
+  );
+}
+
 function movieExtrasScore(video, title, year) {
   const name = normalize(video.name);
   const description = normalize(video.description);
-  const channel = normalize(video.channel);
 
   const combined =
-    `${name} ${description} ${channel}`;
-
-  const normalizedTitle = normalize(title);
-
-  let score = 0;
+    `${name} ${description}`;
 
   /*
-    The result should clearly relate to
-    the movie we're looking for.
-  */
+    The exact movie title must appear somewhere
+    in the YouTube title or description.
 
-  if (name.includes(normalizedTitle)) {
-    score += 90;
-  } else if (combined.includes(normalizedTitle)) {
-    score += 45;
+    Rocky III and Rocky 3 are treated as
+    equivalent.
+  */
+  if (!exactMovieMatch(combined, title)) {
+    return -1000;
+  }
+
+  if (hasWrongSequelNumber(combined, title)) {
+    return -1000;
+  }
+
+  let score = 200;
+
+  if (exactMovieMatch(name, title)) {
+    score += 150;
   }
 
   if (year && combined.includes(String(year))) {
-    score += 20;
+    score += 50;
   }
-
-  /*
-    Strong Movie Extras signals.
-  */
 
   const veryStrong = [
     "behind the scenes",
@@ -177,34 +304,29 @@ function movieExtrasScore(video, title, year) {
     "inside",
     "backstage",
     "production story",
-    "production stories",
     "reunion",
     "remembering",
-    "legacy"
+    "legacy",
+    "facts"
   ];
 
   if (includesAny(name, veryStrong)) {
     score += 300;
   } else if (includesAny(combined, veryStrong)) {
-    score += 220;
+    score += 200;
   }
 
   if (includesAny(name, strong)) {
     score += 180;
   } else if (includesAny(combined, strong)) {
-    score += 100;
+    score += 90;
   }
 
   if (includesAny(name, useful)) {
-    score += 90;
+    score += 100;
   } else if (includesAny(combined, useful)) {
-    score += 45;
+    score += 40;
   }
-
-  /*
-    Ordinary movie scenes should be pushed
-    out of Movie Extras.
-  */
 
   const ordinaryClipTerms = [
     "official trailer",
@@ -214,7 +336,6 @@ function movieExtrasScore(video, title, year) {
     "movie clip",
     "film clip",
     "full scene",
-    "scene hd",
     "fight scene",
     "final fight",
     "training scene",
@@ -223,23 +344,14 @@ function movieExtrasScore(video, title, year) {
     "best scene",
     "best scenes",
     "movie scene",
-    "movie scenes",
     "film scene",
-    "film scenes",
-    "clip hd",
-    "clips hd",
     "tv spot",
     "commercial"
   ];
 
   if (includesAny(name, ordinaryClipTerms)) {
-    score -= 400;
+    score -= 500;
   }
-
-  /*
-    Extra protection against titles that
-    look like ordinary scene uploads.
-  */
 
   const clipWords = [
     "clip",
@@ -261,14 +373,15 @@ function movieExtrasScore(video, title, year) {
     "on set",
     "story of",
     "anniversary",
-    "reunion"
+    "reunion",
+    "facts"
   ];
 
   if (
     includesAny(name, clipWords) &&
     !includesAny(name, extrasWords)
   ) {
-    score -= 250;
+    score -= 350;
   }
 
   return score;
@@ -281,18 +394,22 @@ function blooperScore(video, title, year) {
   const combined =
     `${name} ${description}`;
 
-  const normalizedTitle = normalize(title);
+  if (!exactMovieMatch(combined, title)) {
+    return -1000;
+  }
 
-  let score = 0;
+  if (hasWrongSequelNumber(combined, title)) {
+    return -1000;
+  }
 
-  if (name.includes(normalizedTitle)) {
-    score += 100;
-  } else if (combined.includes(normalizedTitle)) {
-    score += 40;
+  let score = 200;
+
+  if (exactMovieMatch(name, title)) {
+    score += 150;
   }
 
   if (year && combined.includes(String(year))) {
-    score += 20;
+    score += 50;
   }
 
   const blooperTerms = [
@@ -309,26 +426,7 @@ function blooperScore(video, title, year) {
   } else if (includesAny(combined, blooperTerms)) {
     score += 200;
   } else {
-    /*
-      Don't show unrelated videos in
-      the Bloopers section.
-    */
-    score -= 500;
-  }
-
-  const blocked = [
-    "trailer",
-    "teaser",
-    "movie clip",
-    "official clip",
-    "full scene",
-    "fight scene",
-    "ending scene",
-    "tv spot"
-  ];
-
-  if (includesAny(name, blocked)) {
-    score -= 400;
+    return -1000;
   }
 
   return score;
@@ -372,12 +470,6 @@ export default async function handler(req, res) {
       });
     }
 
-    /*
-      First get the exact movie title and year
-      from TMDB. This helps distinguish movies
-      with similar titles and remakes.
-    */
-
     const movie = await tmdb(
       `/movie/${encodeURIComponent(id)}?language=en-US`
     );
@@ -396,14 +488,28 @@ export default async function handler(req, res) {
       );
     }
 
+    /*
+      Search with both title formats when
+      applicable.
+
+      Example:
+      Rocky III → "Rocky III" "Rocky 3"
+    */
+    const variants = titleVariants(title);
+
+    const searchTitle =
+      variants.length > 1
+        ? variants.map(item => `"${item}"`).join(" ")
+        : `"${title}"`;
+
     let query = "";
 
     if (feature === "behind") {
       query =
-        `"${title}" ${year} making of behind the scenes interview featurette`;
+        `${searchTitle} ${year} making of behind the scenes interview featurette`;
     } else {
       query =
-        `"${title}" ${year} bloopers outtakes gag reel`;
+        `${searchTitle} ${year} bloopers outtakes gag reel`;
     }
 
     const youtubeVideos =
@@ -423,7 +529,7 @@ export default async function handler(req, res) {
             )
           }))
           .filter(video =>
-            video.score >= 100
+            video.score >= 200
           )
           .sort(
             (a, b) =>
@@ -444,7 +550,7 @@ export default async function handler(req, res) {
             )
           }))
           .filter(video =>
-            video.score >= 150
+            video.score >= 200
           )
           .sort(
             (a, b) =>
