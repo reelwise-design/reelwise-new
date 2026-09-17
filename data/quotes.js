@@ -1,16 +1,28 @@
 /*
   ============================================================
-  REELWISE ICONIC QUOTE VAULT
+  REELWISE MASTER QUOTE VAULT
   ============================================================
 
-  This file contains Reelwise-curated iconic movie quotes.
+  The original Reelwise curated vault has priority.
 
-  Keep this file separate from the quote engine so the Vault
-  can grow without changing api/quotes.js.
+  Additional quote libraries are organized by era so the
+  database can keep growing without making one enormous file.
+*/
+
+import QUOTES_CLASSICS from "./quotes-classics.js";
+import QUOTES_80S from "./quotes-80s.js";
+import QUOTES_90S from "./quotes-90s.js";
+import QUOTES_2000S from "./quotes-2000s.js";
+import QUOTES_2010S from "./quotes-2010s.js";
+
+
+/*
+  ============================================================
+  ORIGINAL REELWISE CURATED VAULT
   ============================================================
 */
 
-const QUOTE_VAULT = {
+const ORIGINAL_QUOTES = {
 
   "the shawshank redemption": [
     "Get busy living, or get busy dying.",
@@ -238,5 +250,35 @@ const QUOTE_VAULT = {
   ]
 
 };
+
+
+/*
+  ============================================================
+  BUILD MASTER VAULT
+
+  Order matters.
+
+  Era libraries load first.
+  ORIGINAL_QUOTES loads last so our hand-approved Reelwise
+  selections always win whenever a movie appears in both.
+  ============================================================
+*/
+
+const QUOTE_VAULT = {
+
+  ...QUOTES_CLASSICS,
+
+  ...QUOTES_80S,
+
+  ...QUOTES_90S,
+
+  ...QUOTES_2000S,
+
+  ...QUOTES_2010S,
+
+  ...ORIGINAL_QUOTES
+
+};
+
 
 export default QUOTE_VAULT;
