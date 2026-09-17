@@ -1082,6 +1082,26 @@ header,.hero,.hero-inner{overflow:visible!important}
   .features{grid-template-columns:repeat(3,1fr)!important}
 }
 
+
+/* REELWISE PREDICTOR LAYER FIX */
+.hero{position:relative!important;z-index:100!important;overflow:visible!important}
+.hero-inner{position:relative!important;z-index:101!important;overflow:visible!important}
+.search{position:relative!important;z-index:10000!important;overflow:visible!important}
+.search .reelwise-suggestions{
+  z-index:10001!important;
+  isolation:isolate;
+  background:#10141b!important;
+  opacity:1!important;
+}
+#homeContent{
+  position:relative!important;
+  z-index:1!important;
+}
+.features,.feature{
+  position:relative;
+  z-index:1!important;
+}
+
 </style>
 </head>
 <body>
