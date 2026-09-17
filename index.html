@@ -1562,12 +1562,30 @@ async function loadPredictions(input){
       if(state.controller)state.controller.abort();
       state.controller=new AbortController();
       const signal=state.controller.signal,config=predictorConfig(input),normalized=normalizeReelwiseQuery(raw);
-      let items=await rwSearch(normalized,signal);
+      let items;
+      if(config.type==="movie"){
+        const response=await fetch("/api/search?type=movie&q="+encodeURIComponent(normalized),{signal});
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||"Movie search failed.");
+        items=Array.isArray(data.results)?data.results:[];
+        if(!items.length)items=await rwSearch(normalized,signal);
+      }else{
+        items=await rwSearch(normalized,signal);
+      }
       const words=rwClean(raw).split(" ").filter(Boolean);
 
       if(words.length>1){
         for(const word of [...words].filter(w=>w.length>=2).sort((a,b)=>b.length-a.length).slice(0,2)){
-          const extra=await rwSearch(word,signal),seen=new Set(items.map(x=>x.result_type+":"+x.id));
+          let extra;
+          if(config.type==="movie"){
+            const extraResponse=await fetch("/api/search?type=movie&q="+encodeURIComponent(word),{signal});
+            const extraData=await extraResponse.json();
+            extra=extraResponse.ok&&Array.isArray(extraData.results)?extraData.results:[];
+            if(!extra.length)extra=await rwSearch(word,signal);
+          }else{
+            extra=await rwSearch(word,signal);
+          }
+          const seen=new Set(items.map(x=>x.result_type+":"+x.id));
           extra.forEach(x=>{const k=x.result_type+":"+x.id;if(!seen.has(k)){seen.add(k);items.push(x)}});
         }
       }
