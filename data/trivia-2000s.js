@@ -3,214 +3,215 @@
   REELWISE TRIVIA VAULT — 2000s
   ============================================================
 
-  Casting stories, filming, production decisions,
-  actor anecdotes and behind-the-scenes movie history.
+  Curated casting stories, filming details, production
+  decisions, actor anecdotes and behind-the-scenes history.
 */
 
 const TRIVIA_2000S = {
 
   "gladiator": [
-    "Russell Crowe trained extensively in sword fighting and combat choreography to play Roman general Maximus.",
-    "Oliver Reed died during production before completing all of his scenes as Proximo. The filmmakers used existing footage, body doubles and digital effects to finish the character's remaining material.",
-    "A large portion of the Colosseum was physically constructed for filming, while digital effects extended the structure and filled it with enormous crowds.",
-    "Gladiator won five Academy Awards, including Best Picture and Best Actor for Russell Crowe."
+    "Oliver Reed died during production before completing all of his scenes as Proximo. Body doubles, previously filmed material and digital effects were used to complete the character's remaining appearances.",
+    "A substantial section of the Colosseum was physically constructed for filming, with digital effects extending the structure beyond the practical set.",
+    "Visual-effects artists expanded relatively small groups of photographed spectators into the enormous crowds seen inside the Colosseum.",
+    "Russell Crowe endured an extremely physical production involving extensive combat choreography and stunt work."
   ],
 
   "meet the parents": [
-    "Meet the Parents was based on a small independent film of the same name released in 1992.",
-    "Robert De Niro's casting played off his established screen image as an intimidating dramatic actor, making Jack Byrnes' interrogation of Greg especially effective as comedy.",
-    "The filmmakers used a combination of trained cats for Mr. Jinx, depending on the action required in each scene.",
-    "Ben Stiller and Robert De Niro's contrasting performance styles became central to the movie's uncomfortable humor."
+    "Meet the Parents was based on a small independent movie of the same name released in 1992.",
+    "Casting Robert De Niro as Jack Byrnes deliberately played with his intimidating screen image from decades of dramatic roles.",
+    "Multiple trained cats were used to portray Mr. Jinx, depending on what the animal needed to do in a particular shot.",
+    "Ben Stiller's nervous comic style and De Niro's controlled intimidation became the central contrast behind much of the movie's humor."
   ],
 
   "remember the titans": [
-    "Remember the Titans was inspired by the real 1971 football team at T. C. Williams High School in Alexandria, Virginia.",
+    "Remember the Titans was inspired by the 1971 football team at T. C. Williams High School in Alexandria, Virginia.",
     "Denzel Washington portrayed real-life coach Herman Boone.",
-    "The actors playing football players underwent training before filming to make the on-field sequences more convincing.",
-    "Much of the movie was filmed in Georgia rather than at the actual Virginia school where the historical events occurred."
+    "The actors playing football players trained before production so they could perform much of the on-field action convincingly.",
+    "Despite the Virginia setting, substantial portions of the movie were filmed in Georgia."
   ],
 
   "cast away": [
-    "Tom Hanks gained weight for the early scenes and production then paused for roughly a year so he could lose substantial weight and grow his hair and beard for Chuck's years on the island.",
-    "Much of the island material was filmed on Monuriki, an island in Fiji.",
-    "The production deliberately uses very little traditional musical score during Chuck's isolation, allowing natural sounds to dominate much of his time on the island.",
-    "Wilson the volleyball became such an important presence in the movie that the inanimate character developed into one of its most recognizable elements."
+    "Production was interrupted for many months so Tom Hanks could dramatically change his appearance for Chuck's years of isolation.",
+    "Hanks lost substantial weight and grew his hair and beard before filming resumed.",
+    "The island sequences were filmed primarily on Monuriki in Fiji.",
+    "Traditional musical scoring largely disappears while Chuck is isolated, leaving ocean, wind and other environmental sounds to dominate long sections of the movie.",
+    "Wilson became a character without dialogue or movement, relying almost entirely on Hanks' performance to make Chuck's relationship with the volleyball believable."
   ],
 
   "training day": [
-    "Denzel Washington won the Academy Award for Best Actor for playing corrupt narcotics detective Alonzo Harris.",
-    "Director Antoine Fuqua filmed extensively on location in Los Angeles neighborhoods rather than relying primarily on studio recreations.",
-    "The production worked in areas of Los Angeles that gave the movie a stronger sense of the environment in which Alonzo operates.",
-    "Ethan Hawke received an Academy Award nomination for Best Supporting Actor for his performance as Jake Hoyt."
+    "Director Antoine Fuqua filmed extensively on real Los Angeles locations rather than creating the movie's world primarily on studio sets.",
+    "Denzel Washington's Alonzo Harris represented a major departure from many of the heroic or authoritative characters audiences associated with him.",
+    "Washington won the Academy Award for Best Actor for the performance.",
+    "Ethan Hawke received an Academy Award nomination for playing rookie officer Jake Hoyt."
   ],
 
   "the lord of the rings: the fellowship of the ring": [
-    "The three Lord of the Rings movies were produced through an enormous overlapping production based primarily in New Zealand.",
-    "Forced-perspective photography, differently scaled sets and body doubles were used to create the apparent height differences between Hobbits and taller characters.",
-    "Ian McKellen performed as Gandalf while Elijah Wood played Frodo, with practical camera techniques frequently making them appear dramatically different in size.",
-    "Weta Workshop created extensive armor, weapons, prosthetics, creatures and miniature environments for the trilogy."
+    "Peter Jackson's three Lord of the Rings movies were produced through a massive overlapping production based in New Zealand.",
+    "Forced perspective, differently scaled sets and body doubles helped create the apparent size difference between Hobbits and taller characters.",
+    "Some sets existed in multiple scales so characters of very different apparent heights could interact convincingly.",
+    "Weta Workshop produced enormous quantities of armor, weapons, prosthetics, creatures and miniature environments for the trilogy."
   ],
 
   "zoolander": [
-    "Ben Stiller directed Zoolander in addition to starring as fashion model Derek Zoolander.",
-    "The Derek Zoolander character had appeared in comedy material connected to the VH1 Fashion Awards before being developed into a feature film.",
-    "The movie includes numerous appearances by real celebrities and figures from the fashion and entertainment industries.",
-    "Owen Wilson played rival model Hansel, extending a screen partnership with Ben Stiller that appeared in several comedies."
+    "Ben Stiller directed Zoolander as well as starring as Derek Zoolander.",
+    "The Zoolander character originated in comedy segments created around the VH1 Fashion Awards before being expanded into a feature film.",
+    "The movie filled its fashion world with cameos by real models, designers, musicians and celebrities.",
+    "Ben Stiller and Owen Wilson's Derek-and-Hansel rivalry became another entry in a screen partnership that continued across several comedies."
   ],
 
   "shrek": [
-    "Chris Farley was originally cast as the voice of Shrek and recorded substantial dialogue before his death in 1997.",
-    "Mike Myers later took over the role and eventually re-recorded Shrek's dialogue using the Scottish accent heard in the finished film.",
-    "Eddie Murphy's performance as Donkey became one of the movie's defining comic elements.",
-    "Shrek won the first Academy Award presented for Best Animated Feature."
+    "Chris Farley was originally cast as Shrek and recorded most of the character's dialogue before his death in 1997.",
+    "Mike Myers replaced Farley and initially recorded Shrek without the Scottish voice audiences now associate with the character.",
+    "After seeing an early version, Myers asked to record the character again using a Scottish accent, requiring substantial additional work on the movie.",
+    "Shrek became the first winner of the Academy Award for Best Animated Feature."
   ],
 
   "spider-man": [
-    "Tobey Maguire trained physically for the role of Peter Parker and Spider-Man.",
-    "Director Sam Raimi frequently used practical camera techniques and physical effects alongside computer-generated imagery to create Spider-Man's movement.",
-    "The upside-down kiss between Spider-Man and Mary Jane was physically uncomfortable to film because Tobey Maguire was hanging upside down while water ran into his nose.",
-    "Spider-Man became one of the major films that helped establish the modern wave of large-scale superhero movies."
+    "Tobey Maguire underwent extensive physical preparation to play Peter Parker and Spider-Man.",
+    "Sam Raimi mixed practical stunts and physical camera techniques with computer-generated effects rather than creating Spider-Man's action entirely digitally.",
+    "Filming the upside-down kiss was physically uncomfortable for Tobey Maguire because water repeatedly ran into his nose while he hung inverted.",
+    "The movie's enormous success helped demonstrate the mainstream potential of large-scale comic-book superhero films in the early 2000s."
   ],
 
   "catch me if you can": [
-    "Catch Me If You Can was based on the story associated with Frank Abagnale Jr., whose claimed exploits inspired the movie.",
-    "Steven Spielberg directed Leonardo DiCaprio as Frank Abagnale Jr. and Tom Hanks as FBI agent Carl Hanratty.",
-    "The real Frank Abagnale Jr. appears briefly in the film as a French police officer involved in Frank's arrest.",
-    "Production designer Jeannine Oppewall and the filmmaking team recreated numerous 1960s environments as Frank moves through different professions and locations."
+    "Catch Me If You Can was adapted from the published account associated with Frank Abagnale Jr., although substantial parts of Abagnale's famous life story have since been challenged by journalists and researchers.",
+    "Leonardo DiCaprio played Abagnale while Tom Hanks played Carl Hanratty, a fictionalized FBI agent inspired partly by agents associated with Abagnale's story.",
+    "Frank Abagnale Jr. made a cameo in the movie as a French police officer involved in the arrest of DiCaprio's character.",
+    "The production recreated numerous 1960s environments as Frank moves among airlines, hospitals, banks and other settings."
   ],
 
   "finding nemo": [
-    "Pixar's artists studied underwater environments, fish anatomy and marine movement while developing the visual world of Finding Nemo.",
-    "Albert Brooks voiced Marlin, while Ellen DeGeneres' performance as Dory became one of the movie's most recognizable elements.",
-    "The animation team developed specialized techniques for underwater lighting, particles and movement to make the ocean environment feel convincing while retaining a stylized appearance.",
-    "Finding Nemo won the Academy Award for Best Animated Feature."
+    "Pixar artists researched underwater environments, fish anatomy and marine movement while designing Finding Nemo.",
+    "The animation team developed specialized approaches to lighting, suspended particles and movement to make the computer-generated ocean feel convincing.",
+    "Ellen DeGeneres' vocal performance strongly shaped Dory's comic personality.",
+    "The filmmakers balanced realistic research with deliberately stylized character designs rather than trying to make the fish completely photorealistic."
   ],
 
   "pirates of the caribbean: the curse of the black pearl": [
-    "Johnny Depp developed Captain Jack Sparrow with an eccentric physical style that surprised some executives during production.",
-    "Depp has discussed drawing inspiration for aspects of Sparrow's personality from rock musician Keith Richards.",
-    "The movie was inspired by the Pirates of the Caribbean attraction at Disney theme parks rather than being adapted from a conventional novel.",
-    "The cursed pirates required extensive visual-effects work to transform between their human appearance and skeletal forms."
+    "Johnny Depp developed Captain Jack Sparrow's unusual physical mannerisms and speech in ways that initially surprised some Disney executives.",
+    "Depp has described rock musician Keith Richards as one of the inspirations behind Sparrow's personality.",
+    "The movie grew out of Disney's Pirates of the Caribbean theme-park attraction rather than a conventional novel or earlier movie.",
+    "The cursed pirates required extensive visual-effects work to transition between living human appearances and skeletal forms."
   ],
 
   "elf": [
-    "Will Ferrell wore a deliberately simple costume inspired by the look of elves in older Christmas television specials.",
-    "Forced perspective and oversized or undersized sets were used to make Buddy appear much larger than the elves at the North Pole.",
-    "Director Jon Favreau favored practical techniques for many North Pole scenes to give them the handcrafted appearance of classic holiday specials.",
-    "Much of Buddy's interaction with New York City was filmed on real locations, helping contrast the North Pole fantasy with the city."
+    "Buddy's costume was deliberately designed to evoke the elves seen in older Christmas television specials.",
+    "Forced perspective and differently scaled sets helped make Will Ferrell appear enormous beside the North Pole elves.",
+    "Director Jon Favreau favored practical techniques and a handcrafted visual style for many North Pole sequences.",
+    "Real New York locations helped create a strong contrast between Buddy's North Pole world and Manhattan."
   ],
 
   "old school": [
-    "Old School was directed by Todd Phillips, who later directed The Hangover trilogy.",
-    "Will Ferrell's performance as Frank 'The Tank' became one of the movie's breakout elements during his transition from Saturday Night Live to feature-film stardom.",
-    "The streaking sequence became one of the movie's signature scenes and one of the performances most closely associated with Ferrell's character.",
-    "Luke Wilson, Vince Vaughn and Will Ferrell formed the movie's central trio, with each bringing a distinctly different comic style."
+    "Old School was directed by Todd Phillips several years before he made The Hangover.",
+    "Frank 'The Tank' became one of Will Ferrell's breakthrough movie characters during his transition from Saturday Night Live to a major film career.",
+    "The streaking sequence became one of the movie's defining scenes.",
+    "Luke Wilson, Vince Vaughn and Will Ferrell were given distinctly different comic personalities, which became central to the chemistry of the movie's trio."
   ],
 
   "anchorman: the legend of ron burgundy": [
-    "Will Ferrell and director Adam McKay developed Anchorman after working together at Saturday Night Live.",
-    "The production generated a large amount of alternate and improvised material, much more than could fit into the theatrical movie.",
-    "So much unused footage existed that an alternate feature, Wake Up, Ron Burgundy: The Lost Movie, was assembled largely from deleted material and a different subplot.",
-    "The news-team fight brought together a large group of comedians in surprise appearances that became one of the movie's signature sequences."
+    "Will Ferrell and Adam McKay developed Anchorman after working together at Saturday Night Live.",
+    "The cast generated an enormous amount of alternate and improvised material during production.",
+    "Enough unused material existed for Wake Up, Ron Burgundy: The Lost Movie, an alternate feature assembled largely from deleted footage and a discarded subplot.",
+    "The news-team street fight was packed with surprise appearances by other comedians and became one of the movie's signature sequences."
   ],
 
   "mean girls": [
-    "Tina Fey wrote the screenplay for Mean Girls and also appears in the film as math teacher Ms. Norbury.",
-    "The screenplay was inspired partly by Rosalind Wiseman's nonfiction book Queen Bees and Wannabes.",
-    "Although the story is set in Illinois, much of the movie was filmed in and around Toronto, Canada.",
-    "Rachel McAdams played Regina George while Lindsay Lohan played Cady Heron, roles that became closely associated with both actresses."
+    "Tina Fey wrote Mean Girls and appears in the movie as mathematics teacher Ms. Norbury.",
+    "The screenplay drew inspiration from Rosalind Wiseman's nonfiction book Queen Bees and Wannabes.",
+    "Although the story takes place in Illinois, much of Mean Girls was filmed around Toronto.",
+    "Rachel McAdams was several years older than Lindsay Lohan despite playing another high-school student alongside her."
   ],
 
   "dodgeball: a true underdog story": [
-    "Ben Stiller played Globo Gym owner White Goodman and also served as one of the movie's producers.",
-    "Rip Torn played dodgeball coach Patches O'Houlihan, whose bizarre training methods became a major source of the movie's comedy.",
-    "The movie includes numerous celebrity and sports cameos, including appearances connected to professional athletics and sports broadcasting.",
-    "The dodgeball matches were staged with choreographed physical comedy and repeated takes of actors being struck by balls."
+    "Ben Stiller starred as White Goodman and also served as a producer on Dodgeball.",
+    "Rip Torn's Patches O'Houlihan turned deliberately absurd training methods into some of the movie's best-known comedy.",
+    "The movie incorporated numerous cameos from sports and entertainment personalities.",
+    "The tournament action required choreographed physical comedy and repeated takes involving actors being struck by dodgeballs."
   ],
 
   "the 40-year-old virgin": [
     "The 40-Year-Old Virgin was Judd Apatow's feature-film directing debut.",
-    "Steve Carell co-wrote the screenplay with Apatow and starred as Andy Stitzer.",
-    "For the famous chest-waxing scene, Carell's chest hair was actually waxed, allowing the cameras to capture his genuine reactions.",
-    "The production encouraged improvisation, a style that became strongly associated with several later Judd Apatow comedies."
+    "Steve Carell co-wrote the screenplay with Apatow as well as starring as Andy.",
+    "Steve Carell's chest was actually waxed during the famous waxing sequence, and his reactions were genuine.",
+    "The filmmakers encouraged improvisation and shot alternate versions of jokes, an approach that became strongly associated with later Apatow productions."
   ],
 
   "batman begins": [
-    "Christian Bale underwent a dramatic physical transformation to play Bruce Wayne after having lost substantial weight for his previous film, The Machinist.",
-    "Director Christopher Nolan emphasized practical effects, real locations and large physical sets while still using digital effects where necessary.",
-    "The Tumbler was constructed as a functional vehicle rather than existing only as a computer-generated Batmobile.",
-    "Batman Begins was filmed in several locations, including Chicago, Iceland and large sets constructed in England."
+    "Christian Bale had to rebuild his body dramatically after losing a large amount of weight for The Machinist.",
+    "Christopher Nolan emphasized physical sets, real locations and practical effects while using digital effects where they were necessary.",
+    "The Tumbler was built as a functioning full-size vehicle rather than existing only as a digital Batmobile.",
+    "The production used locations and sets in England, Iceland and Chicago to build its version of Gotham City."
   ],
 
   "wedding crashers": [
-    "Wedding Crashers paired Vince Vaughn and Owen Wilson as longtime friends Jeremy Grey and John Beckwith.",
-    "The production encouraged improvisation, particularly from Vaughn, whose rapid-fire delivery became a major part of his character.",
-    "Christopher Walken played Secretary Cleary, using his naturally intimidating screen presence as a contrast to the movie's broad comedy.",
-    "The movie became one of the major R-rated comedy successes of the mid-2000s."
+    "Wedding Crashers paired Vince Vaughn and Owen Wilson as longtime friends Jeremy and John.",
+    "The production allowed considerable improvisation, particularly around Vaughn's rapid-fire dialogue.",
+    "Christopher Walken's established intimidating screen presence became part of the joke when he was cast as Secretary Cleary.",
+    "The filmmakers mixed scripted dialogue with alternate takes and improvisation to shape many of the movie's comic exchanges."
   ],
 
   "the departed": [
-    "The Departed was Martin Scorsese's adaptation of the Hong Kong crime film Infernal Affairs.",
-    "The movie was filmed extensively in Boston and surrounding Massachusetts locations, while some interiors were filmed in New York.",
-    "Jack Nicholson was given room to develop unusual details for crime boss Frank Costello, contributing to the character's unpredictable behavior.",
-    "Martin Scorsese won his first Academy Award for Best Director for The Departed, which also won Best Picture."
+    "The Departed was adapted from the Hong Kong crime thriller Infernal Affairs.",
+    "Martin Scorsese filmed extensively in Boston and Massachusetts while also using New York for some interiors.",
+    "Jack Nicholson was given considerable freedom in shaping Frank Costello's eccentric and unpredictable behavior.",
+    "The Departed became the film for which Martin Scorsese received his first Academy Award for Best Director."
   ],
 
   "300": [
-    "Much of 300 was filmed on indoor stages using extensive green-screen backgrounds rather than large natural locations.",
-    "The visual style was designed to closely evoke Frank Miller and Lynn Varley's graphic novel.",
-    "Gerard Butler underwent intensive physical training to play King Leonidas.",
-    "Digital environments, color manipulation and stylized slow motion were combined to create the movie's distinctive comic-book appearance."
+    "Much of 300 was photographed on indoor stages against blue and green screens rather than on large natural landscapes.",
+    "The filmmakers designed the images to resemble the stylized panels of Frank Miller and Lynn Varley's graphic novel.",
+    "Gerard Butler and the actors playing Spartan warriors underwent intensive physical preparation.",
+    "Digital environments, extensive color manipulation and stylized changes in motion speed created the movie's distinctive illustrated appearance."
   ],
 
   "superbad": [
-    "Seth Rogen and Evan Goldberg began writing the screenplay that became Superbad when they were teenagers.",
-    "The characters Seth and Evan were named after writers Seth Rogen and Evan Goldberg.",
-    "Christopher Mintz-Plasse made his feature-film debut as Fogell, better known throughout the movie by the name on his fake ID: McLovin.",
-    "Jonah Hill and Michael Cera's chemistry as Seth and Evan became central to the movie's combination of crude comedy and friendship."
+    "Seth Rogen and Evan Goldberg began writing the screenplay that eventually became Superbad when they were teenagers.",
+    "The lead characters Seth and Evan were named after Rogen and Goldberg.",
+    "Christopher Mintz-Plasse made his feature-film debut as Fogell, whose fake identification gives him the single name McLovin.",
+    "The movie's friendship story was rooted partly in Rogen and Goldberg's own longtime friendship."
   ],
 
   "no country for old men": [
     "Joel and Ethan Coen adapted No Country for Old Men from Cormac McCarthy's novel.",
-    "Javier Bardem's unusual hairstyle as Anton Chigurh was deliberately chosen to give the character an unsettling and distinctive appearance.",
-    "The movie uses very little conventional musical score, allowing environmental sound and silence to intensify many scenes.",
-    "Javier Bardem won the Academy Award for Best Supporting Actor, and the film won Best Picture."
+    "Anton Chigurh's distinctive hairstyle was deliberately designed to look strange and unsettling on Javier Bardem.",
+    "The movie uses very little conventional musical score, allowing silence and environmental sound to carry much of its tension.",
+    "The Coens avoided turning Chigurh into a conventional flamboyant movie villain, with Bardem instead playing him with an unusually controlled manner."
   ],
 
   "step brothers": [
-    "Will Ferrell and John C. Reilly had already worked together in Talladega Nights before reuniting as Brennan and Dale in Step Brothers.",
-    "Director Adam McKay encouraged extensive improvisation, producing many alternate versions of jokes and scenes.",
-    "The musical performance at the Catalina Wine Mixer became one of the movie's signature sequences.",
-    "Ferrell and Reilly performed their characters with deliberately childish behavior despite both men being middle-aged, creating the movie's central comic premise."
+    "Will Ferrell and John C. Reilly reunited after previously working together in Talladega Nights.",
+    "Adam McKay encouraged extensive improvisation, leaving the production with numerous alternate versions of jokes and scenes.",
+    "The Catalina Wine Mixer musical performance became one of the movie's signature sequences.",
+    "Ferrell and Reilly deliberately played Brennan and Dale with childlike behavior despite the characters being middle-aged men."
   ],
 
   "the dark knight": [
-    "Heath Ledger isolated himself during preparation for the Joker and developed elements of the character's voice, mannerisms and appearance.",
-    "The production flipped a full-size tractor-trailer on a Chicago street for the famous truck sequence rather than creating the entire stunt digitally.",
-    "Christopher Nolan filmed major action sequences using IMAX cameras, an unusual choice for a Hollywood feature at the time.",
-    "Heath Ledger received the Academy Award for Best Supporting Actor posthumously for his performance as the Joker."
+    "The filmmakers performed the famous tractor-trailer flip as a real full-size stunt on a Chicago street rather than creating the flip entirely with computer animation.",
+    "A powerful mechanism built into the truck launched it into the flip, with visual effects later removing the equipment from the image.",
+    "Christopher Nolan used IMAX cameras for major sequences, helping make The Dark Knight an important early example of extensive IMAX photography in a Hollywood feature.",
+    "Heath Ledger spent considerable time developing the Joker's voice, physical behavior and appearance before and during production."
   ],
 
   "taken": [
-    "Taken helped transform Liam Neeson, already known primarily for dramatic roles, into an unexpected action star in his fifties.",
+    "Taken dramatically changed the public image of Liam Neeson, who had been better known for dramatic roles than as a modern action star.",
     "Much of the movie was filmed in France, including numerous Paris locations.",
-    "Neeson's calm delivery of Bryan Mills' telephone warning became one of the film's most recognizable moments.",
-    "The movie's success led to sequels and strongly influenced the action-oriented phase of Neeson's later career."
+    "Bryan Mills' long telephone warning became the movie's defining scene despite relying more on Neeson's controlled delivery than on action.",
+    "The success of Taken helped launch a lengthy action-oriented phase of Neeson's career."
   ],
 
   "gran torino": [
-    "Clint Eastwood directed Gran Torino and starred as Walt Kowalski.",
-    "The production cast numerous Hmong performers, including actors with relatively limited previous professional screen experience.",
-    "Much of the movie was filmed around Detroit and other Michigan locations.",
-    "Eastwood also performed the beginning of the song heard over the movie's closing credits, with the complete song developed with additional musicians."
+    "Clint Eastwood directed Gran Torino as well as starring as Walt Kowalski.",
+    "The production cast numerous Hmong performers, including actors who had relatively little previous professional screen experience.",
+    "Much of Gran Torino was filmed in Michigan, including Detroit-area locations.",
+    "Eastwood's own voice can be heard at the beginning of the song that plays over the closing credits."
   ],
 
   "the hangover": [
-    "The Hangover was filmed extensively in Las Vegas, including sequences at Caesars Palace.",
-    "Mike Tyson appears as himself, providing one of the movie's major surprise celebrity appearances.",
-    "Zach Galifianakis' performance as Alan became a breakout role and greatly increased his mainstream recognition.",
-    "The photographs shown during the end credits were created to reveal the outrageous events from the characters' missing night.",
-    "Director Todd Phillips went on to direct two sequels featuring the central group."
+    "The Hangover filmed extensively in Las Vegas, including at Caesars Palace.",
+    "Mike Tyson's appearance as himself became one of the movie's major surprise cameos.",
+    "Alan became a breakout role for Zach Galifianakis and greatly expanded his mainstream recognition.",
+    "The end-credit photographs were created specifically to reveal what happened during the characters' missing night.",
+    "Todd Phillips had previously directed Old School before turning another group of badly behaved friends into the center of The Hangover."
   ]
 
 };
