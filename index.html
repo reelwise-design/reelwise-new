@@ -1048,87 +1048,38 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
 }
 
 
-/* REELWISE PREDICTIVE SEARCH */
-.search,.discovery-search{position:relative}
+/* REELWISE PREDICTIVE SEARCH — COMPACT */
+.search,.discovery-search{position:relative;overflow:visible!important}
+header,.hero,.hero-inner{overflow:visible!important}
+.search{z-index:200}
 .reelwise-suggestions{
-  position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:1000;
-  background:#10141b;border:1px solid #2b3441;border-radius:16px;
-  overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,.45);
-  display:none;text-align:left
+  position:absolute;left:0;right:0;top:calc(100% + 7px);z-index:9999;
+  display:none;overflow:hidden;background:#10141b!important;
+  border:1px solid #2b3441;border-radius:14px;
+  box-shadow:0 16px 34px rgba(0,0,0,.48);text-align:left
 }
 .reelwise-suggestions.open{display:block}
 .suggestion-item{
-  width:100%;border:0;border-bottom:1px solid #262d38;background:transparent;
-  color:#f5f7fa;display:flex;align-items:center;gap:12px;padding:10px 12px;
-  min-height:64px;text-align:left;cursor:pointer
+  appearance:none;width:100%;min-height:58px;padding:7px 10px!important;
+  border:0!important;border-bottom:1px solid #262d38!important;
+  border-radius:0!important;background:#10141b!important;color:#f5f7fa!important;
+  display:flex!important;align-items:center;gap:10px;text-align:left;cursor:pointer
 }
-.suggestion-item:last-child{border-bottom:0}
-.suggestion-item:active,.suggestion-item.active{background:#151a22}
-.suggestion-thumb{
-  width:42px;height:54px;flex:0 0 42px;border-radius:8px;object-fit:cover;
-  background:#1b2230
+.suggestion-item:last-child{border-bottom:0!important}
+.suggestion-item:active,.suggestion-item:focus{background:#171d27!important;outline:none}
+.suggestion-thumb,.suggestion-fallback{
+  width:38px;height:48px;flex:0 0 38px;border-radius:7px;object-fit:cover;background:#1b2230
 }
-.suggestion-fallback{
-  width:42px;height:54px;flex:0 0 42px;border-radius:8px;background:#1b2230;
-  display:grid;place-items:center;font-size:22px
-}
-.suggestion-copy{min-width:0;display:flex;flex-direction:column;gap:3px}
-.suggestion-copy strong{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.suggestion-copy small{color:#9ca6b5;font-size:13px}
-.suggestion-type{color:#e4b34d;font-size:11px;font-weight:800;letter-spacing:.08em}
+.suggestion-fallback{display:grid;place-items:center;font-size:19px}
+.suggestion-copy{min-width:0;display:flex;flex-direction:column;gap:1px}
+.suggestion-copy strong{font-size:15px!important;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.suggestion-copy small{font-size:12px!important;color:#9ca6b5!important}
+.suggestion-type{font-size:10px!important;font-weight:800;letter-spacing:.09em;color:#e4b34d!important}
 @media(max-width:800px){
-  .reelwise-suggestions{top:calc(100% + 6px);border-radius:14px}
-  .suggestion-item{min-height:62px;padding:9px 10px}
-}
-
-
-/* REELWISE MOBILE PREDICTOR + HOMEPAGE CARD FIX */
-header,.hero,.hero-inner,main,#homeContent{overflow:visible!important}
-header{position:relative;z-index:30}
-.hero{position:relative;z-index:31}
-.hero-inner{position:relative;z-index:32}
-.search{position:relative!important;z-index:5000!important;overflow:visible!important}
-.search .reelwise-suggestions{
-  z-index:99999!important;
-  top:calc(100% + 8px)!important;
-  left:0!important;
-  right:0!important;
-  max-height:360px;
-  overflow-y:auto!important;
-  -webkit-overflow-scrolling:touch;
-}
-#homeContent{position:relative;z-index:1}
-
-@media(max-width:800px){
-  .hero,.hero-inner{overflow:visible!important}
-  .search{z-index:5000!important}
-  .search .reelwise-suggestions{
-    z-index:99999!important;
-    max-height:330px;
-  }
-
-  /* Give the three main Reelwise choices room to breathe on phones. */
-  .features{
-    display:grid!important;
-    grid-template-columns:1fr!important;
-    gap:12px!important;
-    overflow:visible!important;
-  }
-  .feature{
-    width:100%!important;
-    min-width:0!important;
-    min-height:0!important;
-    padding:18px!important;
-    display:grid!important;
-    grid-template-columns:52px 1fr!important;
-    column-gap:14px!important;
-    align-items:center!important;
-  }
-  .feature-number{display:none!important}
-  .feature-icon{grid-row:1 / span 3!important;margin:0!important}
-  .feature h3{margin:0 0 4px!important}
-  .feature p{margin:0 0 7px!important}
-  .feature .go{margin:0!important}
+  .search{z-index:5000}
+  .reelwise-suggestions{z-index:99999;max-height:300px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+  /* Preserve the original three-card Reelwise homepage layout. */
+  .features{grid-template-columns:repeat(3,1fr)!important}
 }
 
 </style>
@@ -1475,17 +1426,38 @@ function returnToSearch(){lastQuery?searchReelwise(lastQuery):showHome()}
 function formatDate(dateString){if(!dateString)return "";const parts=String(dateString).split("-");if(parts.length!==3)return dateString;const date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));if(Number.isNaN(date.getTime()))return dateString;return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
 function escapeHTML(value){return String(value||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
 
-/* REELWISE PREDICTIVE SEARCH */
+/* REELWISE PREDICTIVE SEARCH — RELEVANCE FIRST */
 let reelwisePredictTimer=null,reelwisePredictController=null;
 
+function rwClean(value){
+  return String(value||"").toLowerCase()
+    .replace(/[’']/g,"").replace(/&/g," and ")
+    .replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+}
+function rwEditDistance(a,b){
+  a=rwClean(a);b=rwClean(b);
+  const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+  for(let i=0;i<=m;i++)dp[i][0]=i;
+  for(let j=0;j<=n;j++)dp[0][j]=j;
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)
+    dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return dp[m][n];
+}
+function rwSimilarity(a,b){
+  a=rwClean(a);b=rwClean(b);
+  if(!a||!b)return 0;
+  if(a===b)return 1;
+  if(b.startsWith(a))return .94;
+  if(b.includes(a))return .86;
+  const dist=rwEditDistance(a,b);
+  return 1-dist/Math.max(a.length,b.length,1);
+}
 function suggestionBoxFor(input){
   if(!input)return null;
   let box=input.parentElement.querySelector(".reelwise-suggestions");
   if(!box){
-    box=document.createElement("div");
-    box.className="reelwise-suggestions";
-    box.setAttribute("role","listbox");
-    input.parentElement.appendChild(box);
+    box=document.createElement("div");box.className="reelwise-suggestions";
+    box.setAttribute("role","listbox");input.parentElement.appendChild(box);
   }
   return box;
 }
@@ -1493,44 +1465,60 @@ function closeSuggestions(input){
   const box=input&&input.parentElement?input.parentElement.querySelector(".reelwise-suggestions"):null;
   if(box){box.classList.remove("open");box.innerHTML=""}
 }
-function predictionScore(item,query){
-  const name=String(item.display_title||item.title||item.name||"").toLowerCase();
-  const q=String(query||"").toLowerCase().trim();
-  if(!name||!q)return 0;
-  if(name===q)return 1000;
-  if(name.startsWith(q))return 850-q.length+name.length*.01;
-  if(name.includes(q))return 700;
-  const qw=q.split(/\s+/),nw=name.split(/\s+/);
-  let score=0;
-  for(const word of qw){
-    if(nw.some(n=>n.startsWith(word)))score+=120;
-    else if(nw.some(n=>n.includes(word)))score+=70;
-  }
-  return score;
+async function rwSearch(q,signal){
+  const response=await fetch("/api/search?q="+encodeURIComponent(q),{signal});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||"Search failed.");
+  return Array.isArray(data.results)?data.results:[];
 }
 async function loadPredictions(input){
-  const raw=String(input.value||"").trim();
-  const box=suggestionBoxFor(input);
+  const raw=String(input.value||"").trim(),box=suggestionBoxFor(input);
   if(!box)return;
-  if(raw.length<2){closeSuggestions(input);return}
+
+  // Avoid noisy predictions such as "M" or "Mc".
+  if(raw.length<3){closeSuggestions(input);return}
+
   clearTimeout(reelwisePredictTimer);
   reelwisePredictTimer=setTimeout(async()=>{
     try{
       if(reelwisePredictController)reelwisePredictController.abort();
       reelwisePredictController=new AbortController();
+      const signal=reelwisePredictController.signal;
       const normalized=normalizeReelwiseQuery(raw);
-      const response=await fetch("/api/search?q="+encodeURIComponent(normalized),{signal:reelwisePredictController.signal});
-      const data=await response.json();
-      if(!response.ok)throw new Error(data.error||"Search failed.");
-      let items=Array.isArray(data.results)?data.results:[];
-      items=items
-        .map(item=>({item,score:predictionScore(item,normalized)}))
-        .filter(x=>x.score>0)
-        .sort((a,b)=>b.score-a.score)
-        .slice(0,5)
-        .map(x=>x.item);
-      if(!items.length){closeSuggestions(input);return}
-      box.innerHTML=items.map((item,index)=>{
+
+      let items=await rwSearch(normalized,signal);
+
+      // For a multi-word misspelling, also search the most distinctive word.
+      // Example: "McCauley culkin" -> search "culkin", then rank against the WHOLE query.
+      const words=rwClean(raw).split(" ").filter(Boolean);
+      if(words.length>1){
+        const distinctive=[...words].sort((a,b)=>b.length-a.length)[0];
+        if(distinctive.length>=4){
+          const extra=await rwSearch(distinctive,signal);
+          const seen=new Set(items.map(x=>x.result_type+":"+x.id));
+          extra.forEach(x=>{const k=x.result_type+":"+x.id;if(!seen.has(k)){seen.add(k);items.push(x)}});
+        }
+      }
+
+      const q=rwClean(normalized);
+      let ranked=items.map(item=>{
+        const name=item.display_title||item.title||item.name||"";
+        let score=rwSimilarity(q,name);
+        const qWords=q.split(" "),nWords=rwClean(name).split(" ");
+        if(qWords.length>1){
+          const wordScores=qWords.map(qw=>Math.max(...nWords.map(nw=>rwSimilarity(qw,nw))));
+          score=(score*.45)+(wordScores.reduce((a,b)=>a+b,0)/wordScores.length*.55);
+        }
+        return {item,score};
+      });
+
+      // Require meaningful resemblance; don't show random TMDB matches.
+      const threshold=words.length>1?.55:.72;
+      ranked=ranked.filter(x=>x.score>=threshold).sort((a,b)=>b.score-a.score).slice(0,5);
+      if(!ranked.length){closeSuggestions(input);return}
+
+      const suggestions=ranked.map(x=>x.item);
+      box.innerHTML=suggestions.map((item,index)=>{
         const movie=item.result_type==="movie";
         const name=item.display_title||item.title||item.name||"Unknown";
         const image=movie?item.poster_path:item.profile_path;
@@ -1543,32 +1531,22 @@ async function loadPredictions(input){
       }).join("");
       box.querySelectorAll(".suggestion-item").forEach((button,index)=>{
         button.addEventListener("click",()=>{
-          const item=items[index];
+          const item=suggestions[index];
           closeSuggestions(input);
           input.value=item.display_title||item.title||item.name||raw;
           item.result_type==="movie"?showMovie(item.id):showPerson(item.id);
         });
       });
       box.classList.add("open");
-    }catch(error){
-      if(error.name!=="AbortError")closeSuggestions(input);
-    }
-  },220);
+    }catch(error){if(error.name!=="AbortError")closeSuggestions(input)}
+  },260);
 }
 function wirePredictiveInput(input){
   if(!input||input.dataset.predictive==="true")return;
-  input.dataset.predictive="true";
-  input.setAttribute("autocomplete","off");
+  input.dataset.predictive="true";input.setAttribute("autocomplete","off");
   input.addEventListener("input",()=>loadPredictions(input));
-  input.addEventListener("focus",()=>{if(input.value.trim().length>=2)loadPredictions(input)});
-  input.addEventListener("keydown",event=>{
-    const box=suggestionBoxFor(input);
-    if(event.key==="Escape"){closeSuggestions(input);return}
-    if(event.key==="ArrowDown"&&box&&box.classList.contains("open")){
-      const first=box.querySelector(".suggestion-item");
-      if(first){event.preventDefault();first.focus()}
-    }
-  });
+  input.addEventListener("focus",()=>{if(input.value.trim().length>=3)loadPredictions(input)});
+  input.addEventListener("keydown",event=>{if(event.key==="Escape")closeSuggestions(input)});
 }
 function wireAllPredictiveSearches(){
   ["searchInput","movieDiscoverySearch","starDiscoverySearch"].forEach(id=>wirePredictiveInput(document.getElementById(id)));
