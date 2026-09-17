@@ -136,10 +136,6 @@ const QUOTES_2000S = {
     "I have a very particular set of skills."
   ],
 
-  "gran torino": [
-    "Get off my lawn."
-  ],
-
   "the hangover": [
     "What happens in Vegas stays in Vegas. Except herpes.",
     "I consider myself a bit of a loner."
