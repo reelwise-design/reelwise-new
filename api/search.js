@@ -108,14 +108,27 @@ function fuzzyScore(item, query) {
   let whole = similarity(q, title);
   let wordAverage = 0;
 
+  let wordScores = [];
   if (qWords.length) {
-    const scores = qWords.map(qw =>
-      Math.max(...tWords.map(tw => similarity(qw, tw)))
+    wordScores = qWords.map(qw =>
+      Math.max(...tWords.map(tw => {
+        if (tw.startsWith(qw) || qw.startsWith(tw)) return 0.98;
+        return similarity(qw, tw);
+      }))
     );
-    wordAverage = scores.reduce((a, b) => a + b, 0) / scores.length;
+    wordAverage = wordScores.reduce((a, b) => a + b, 0) / wordScores.length;
   }
 
-  let score = whole * 0.45 + wordAverage * 0.55;
+  let score = whole * 0.30 + wordAverage * 0.70;
+
+  // Multi-word searches should not be rescued by one matching word.
+  // As soon as the user starts a second word, candidates need a plausible
+  // match for that word too.
+  if (qWords.length > 1) {
+    const weakestWord = Math.min(...wordScores);
+    if (weakestWord < 0.42) score -= 0.45;
+    else if (weakestWord < 0.58) score -= 0.20;
+  }
 
   if (title === q) score += 2;
   else if (title.startsWith(q)) score += 0.8;
@@ -151,10 +164,12 @@ async function supplementalSearch(originalQuery) {
   // "McCauley Culkin" -> search "Culkin" too.
   if (words.length < 2) return { movies: [], people: [] };
 
-  const distinctive = [...words]
-    .filter(w => w.length >= 3)
-    .sort((a, b) => b.length - a.length)
-    .slice(0, 2);
+  // Search every meaningful typed word, INCLUDING the newest incomplete word.
+  // Example: "McCauley c" searches both "McCauley" and "c" is too short,
+  // while "McCauley cu" / "McCauley cul" begins using that new prefix.
+  const distinctive = [...new Set(words)]
+    .filter(w => w.length >= 2)
+    .slice(-3);
 
   const searches = await Promise.all(
     distinctive.map(async word => {
@@ -359,7 +374,7 @@ export default async function handler(req, res) {
         "McCauley Culkin", while allowing "Macaulay Culkin" to rank highly.
       */
       const words = normalize(originalQuery).split(" ").filter(Boolean);
-      const threshold = words.length > 1 ? 0.56 : 0.70;
+      const threshold = words.length > 1 ? 0.62 : 0.70;
 
       results = [...movieResults, ...personResults]
         .map(item => ({
