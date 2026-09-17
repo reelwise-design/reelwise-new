@@ -12,7 +12,6 @@ const QUOTES_90S = {
   ],
 
   "the silence of the lambs": [
-    "Hello, Clarice.",
     "A census taker once tried to test me."
   ],
 
