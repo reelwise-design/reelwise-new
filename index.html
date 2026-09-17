@@ -1075,17 +1075,44 @@ async function showStarSection(){resultsTitle.textContent="Explore Movie Stars";
 function starBrowseSection(id,eyebrow,title){return `<section class="browse-section"><div class="browse-heading"><div><div class="eyebrow">${eyebrow}</div><h2>${title}</h2></div><span>Swipe to explore →</span></div><div id="${id}" class="visual-row"><div class="message">Loading...</div></div></section>`}
 async function loadStarRow(elementId,category){const box=document.getElementById(elementId);if(!box)return;try{const response=await fetch("/api/stars?category="+encodeURIComponent(category)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie stars could not be loaded.");const stars=Array.isArray(data)?data:Array.isArray(data.stars)?data.stars:[];if(!stars.length){box.innerHTML='<div class="message">No stars available.</div>';return}box.innerHTML=stars.slice(0,18).map(person=>{const photo=person.profile_path?"https://image.tmdb.org/t/p/w342"+person.profile_path:"";return `<div class="visual-card" onclick="showPerson('${person.id}')">${photo?`<img src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}<div class="visual-info"><strong>${escapeHTML(person.name)}</strong><small>View Profile →</small></div></div>`}).join("")}catch(error){box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 function normalizeReelwiseQuery(value){
-  let q=String(value||"").trim();
-  const sequelMap={"rocky 2":"Rocky II","rocky 3":"Rocky III","rocky 4":"Rocky IV","rocky 5":"Rocky V","godfather 2":"The Godfather Part II","godfather 3":"The Godfather Part III"};
-  const key=q.toLowerCase().replace(/\s+/g," ");
-  return sequelMap[key]||q;
+  let q=String(value||"").trim().replace(/\s+/g," ");
+  if(!q)return "";
+  const key=q.toLowerCase().replace(/[’']/g,"").replace(/&/g," and ").replace(/[.:,_-]+/g," ").replace(/\s+/g," ").trim();
+  const aliases={
+    "rocky 2":"Rocky II","rocky ii":"Rocky II","rocky two":"Rocky II","rocky 3":"Rocky III","rocky iii":"Rocky III","rocky three":"Rocky III","rocky 4":"Rocky IV","rocky iv":"Rocky IV","rocky four":"Rocky IV","rocky 5":"Rocky V","rocky v":"Rocky V","rocky five":"Rocky V",
+    "godfather 2":"The Godfather Part II","the godfather 2":"The Godfather Part II","godfather part 2":"The Godfather Part II","godfather 3":"The Godfather Part III","the godfather 3":"The Godfather Part III","godfather part 3":"The Godfather Part III",
+    "back to the future 2":"Back to the Future Part II","back to the future 3":"Back to the Future Part III",
+    "goodfelas":"Goodfellas","good fellas":"Goodfellas","forest gump":"Forrest Gump","jurasic park":"Jurassic Park","jurrasic park":"Jurassic Park","independance day":"Independence Day","silence of the lamb":"The Silence of the Lambs","few good men":"A Few Good Men","topgun":"Top Gun",
+    "tom cruse":"Tom Cruise","tom cruz":"Tom Cruise","silvester stallone":"Sylvester Stallone","sylvester stalone":"Sylvester Stallone","stallone":"Sylvester Stallone","robert deniro":"Robert De Niro","de niro":"Robert De Niro","arnold schwarzenager":"Arnold Schwarzenegger","scarlet johansson":"Scarlett Johansson","scarlett johanson":"Scarlett Johansson","jake gyllenhall":"Jake Gyllenhaal","dicaprio":"Leonardo DiCaprio","leo dicaprio":"Leonardo DiCaprio"
+  };
+  return aliases[key]||q;
+}
+function reelwiseFallbackQueries(original,normalized){
+  const candidates=[];
+  const add=value=>{value=String(value||"").trim();if(value&&!candidates.some(x=>x.toLowerCase()===value.toLowerCase()))candidates.push(value)};
+  add(normalized);
+  const words=String(original||"").trim().split(/\s+/).filter(Boolean);
+  if(words.length>=3){add(words.slice(0,-1).join(" "));add(words.slice(0,2).join(" "))}
+  else if(words.length===2)add(words[0]);
+  return candidates.slice(0,3);
+}
+async function fetchReelwiseSearch(original){
+  const normalized=normalizeReelwiseQuery(original),queries=reelwiseFallbackQueries(original,normalized);
+  for(const query of queries){const response=await fetch("/api/search?q="+encodeURIComponent(query)),data=await response.json();if(!response.ok)throw new Error(data.error||"Search failed.");const items=Array.isArray(data.results)?data.results:[];if(items.length)return {items,usedQuery:query}}
+  return {items:[],usedQuery:normalized};
 }
 function searchEmptyHTML(query,type){
   const safe=escapeHTML(query);
   return `<div class="message">No exact ${type==="person"?"star":"movie"} match found for “${safe}.”<br><br><button class="back-button" style="padding:0;color:var(--gold)" onclick="searchReelwise('${escapeHTML(query).replace(/&#039;/g,"\\'")}')">Search all of Reelwise instead →</button></div>`;
 }
-async function searchBrowse(type,queryValue){const query=normalizeReelwiseQuery(queryValue);if(!query)return;lastQuery=query;resultsTitle.textContent=type==="movie"?'Movie Results for "'+query+'"':'Star Results for "'+query+'"';results.innerHTML='<div class="message">Searching Reelwise...</div>';goToResults();try{const response=await fetch("/api/search?q="+encodeURIComponent(query)),data=await response.json();if(!response.ok)throw new Error(data.error||"Search failed.");const items=(Array.isArray(data.results)?data.results:[]).filter(item=>item.result_type===type);if(!items.length){results.innerHTML=searchEmptyHTML(query,type);return}results.innerHTML=items.slice(0,30).map(makeCard).join("");attachCardEvents();goToResults()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-async function searchReelwise(queryValue){const query=normalizeReelwiseQuery(queryValue);if(!query)return;lastQuery=query;homeContent.style.display="none";revealResults();resultsTitle.textContent='Results for "'+query+'"';results.innerHTML='<div class="message">Searching Reelwise...</div>';goToResults();try{const response=await fetch("/api/search?q="+encodeURIComponent(query)),data=await response.json();if(!response.ok)throw new Error(data.error||"Search failed.");const items=Array.isArray(data.results)?data.results:[];if(!items.length){results.innerHTML=`<div class="message">No exact results found for “${escapeHTML(query)}.” Try a different spelling or a shorter title/name.</div>`;return}results.innerHTML=items.slice(0,30).map(makeCard).join("");attachCardEvents();goToResults()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+async function searchBrowse(type,queryValue){
+  const original=String(queryValue||"").trim(),query=normalizeReelwiseQuery(original);if(!query)return;lastQuery=original;resultsTitle.textContent=type==="movie"?'Movie Results for "'+query+'"':'Star Results for "'+query+'"';results.innerHTML='<div class="message">Searching Reelwise...</div>';goToResults();
+  try{const found=await fetchReelwiseSearch(original),items=found.items.filter(item=>item.result_type===type);if(!items.length){results.innerHTML=searchEmptyHTML(query,type);return}if(found.usedQuery.toLowerCase()!==original.toLowerCase())resultsTitle.textContent='Showing results for "'+found.usedQuery+'"';results.innerHTML=items.slice(0,30).map(makeCard).join("");attachCardEvents();goToResults()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}
+}
+async function searchReelwise(queryValue){
+  const original=String(queryValue||"").trim(),query=normalizeReelwiseQuery(original);if(!query)return;lastQuery=original;homeContent.style.display="none";revealResults();resultsTitle.textContent='Results for "'+query+'"';results.innerHTML='<div class="message">Searching Reelwise...</div>';goToResults();
+  try{const found=await fetchReelwiseSearch(original),items=found.items;if(!items.length){results.innerHTML=`<div class="message">No close results found for “${escapeHTML(original)}.” Try a shorter title, last name, or another spelling.</div>`;return}if(found.usedQuery.toLowerCase()!==original.toLowerCase())resultsTitle.textContent='Showing results for "'+found.usedQuery+'"';results.innerHTML=items.slice(0,30).map(makeCard).join("");attachCardEvents();goToResults()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}
+}
 function makeCard(item){const isMovie=item.result_type==="movie",name=item.display_title||item.title||item.name||"Unknown",image=isMovie?item.poster_path:item.profile_path,imageURL=image?"https://image.tmdb.org/t/p/w500"+image:"",subtitle=isMovie?item.year||"Movie":item.known_for_department||"Actor";return `<div class="card" data-type="${item.result_type}" data-id="${item.id}">${imageURL?`<img class="poster" src="${imageURL}" alt="${escapeHTML(name)}">`:`<div class="no-poster">${isMovie?"🎬":"⭐"}</div>`}<div class="card-info"><div class="type">${isMovie?"MOVIE":"STAR"}</div><strong>${escapeHTML(name)}</strong><small>${escapeHTML(subtitle)}</small></div></div>`}
 function attachCardEvents(){document.querySelectorAll(".card").forEach(card=>card.addEventListener("click",()=>card.dataset.type==="movie"?showMovie(card.dataset.id):showPerson(card.dataset.id)))}
 async function showMovie(id){
