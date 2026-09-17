@@ -6,6 +6,13 @@
 
 const QUOTES_80S = {
 
+  "airplane!": [
+    "Surely you can't be serious.",
+    "I am serious. And don't call me Shirley.",
+    "Looks like I picked the wrong week to quit smoking.",
+    "Roger, Roger. What's our vector, Victor?"
+  ],
+
   "the shining": [
     "Here's Johnny!",
     "Redrum.",
@@ -27,6 +34,13 @@ const QUOTES_80S = {
   "raiders of the lost ark": [
     "Snakes. Why did it have to be snakes?",
     "It's not the years, honey. It's the mileage."
+  ],
+
+  "rocky iii": [
+    "I don't hate Balboa. I pity the fool.",
+    "There is no tomorrow!",
+    "You ain't so bad!",
+    "Nothing is real if you don't believe in who you are."
   ],
 
   "e.t. the extra-terrestrial": [
@@ -54,10 +68,26 @@ const QUOTES_80S = {
     "Sweep the leg."
   ],
 
+  "rocky iv": [
+    "I must break you.",
+    "If he dies, he dies.",
+    "He's not a machine. He's a man!",
+    "If I can change, and you can change, everybody can change!"
+  ],
+
   "back to the future": [
     "Where we're going, we don't need roads.",
     "Great Scott!",
-    "Nobody calls me chicken."
+    "Nobody calls me chicken.",
+    "If my calculations are correct, when this baby hits 88 miles per hour, you're gonna see some serious stuff."
+  ],
+
+  "top gun": [
+    "I feel the need — the need for speed!",
+    "You can be my wingman any time.",
+    "That's right, Iceman. I am dangerous.",
+    "Talk to me, Goose.",
+    "Your ego is writing checks your body can't cash."
   ],
 
   "ferris bueller's day off": [
@@ -95,6 +125,12 @@ const QUOTES_80S = {
     "If it bleeds, we can kill it."
   ],
 
+  "dirty dancing": [
+    "Nobody puts Baby in a corner.",
+    "I carried a watermelon.",
+    "I'm scared of walking out of this room and never feeling the rest of my whole life the way I feel when I'm with you."
+  ],
+
   "wall street": [
     "Greed, for lack of a better word, is good."
   ],
@@ -122,6 +158,12 @@ const QUOTES_80S = {
   "batman": [
     "I'm Batman.",
     "Have you ever danced with the devil in the pale moonlight?"
+  ],
+
+  "when harry met sally...": [
+    "I'll have what she's having.",
+    "You made a woman meow?",
+    "Men and women can't be friends because the sex part always gets in the way."
   ],
 
   "national lampoon's christmas vacation": [
