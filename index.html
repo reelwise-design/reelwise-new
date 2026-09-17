@@ -1081,6 +1081,56 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   .suggestion-item{min-height:62px;padding:9px 10px}
 }
 
+
+/* REELWISE MOBILE PREDICTOR + HOMEPAGE CARD FIX */
+header,.hero,.hero-inner,main,#homeContent{overflow:visible!important}
+header{position:relative;z-index:30}
+.hero{position:relative;z-index:31}
+.hero-inner{position:relative;z-index:32}
+.search{position:relative!important;z-index:5000!important;overflow:visible!important}
+.search .reelwise-suggestions{
+  z-index:99999!important;
+  top:calc(100% + 8px)!important;
+  left:0!important;
+  right:0!important;
+  max-height:360px;
+  overflow-y:auto!important;
+  -webkit-overflow-scrolling:touch;
+}
+#homeContent{position:relative;z-index:1}
+
+@media(max-width:800px){
+  .hero,.hero-inner{overflow:visible!important}
+  .search{z-index:5000!important}
+  .search .reelwise-suggestions{
+    z-index:99999!important;
+    max-height:330px;
+  }
+
+  /* Give the three main Reelwise choices room to breathe on phones. */
+  .features{
+    display:grid!important;
+    grid-template-columns:1fr!important;
+    gap:12px!important;
+    overflow:visible!important;
+  }
+  .feature{
+    width:100%!important;
+    min-width:0!important;
+    min-height:0!important;
+    padding:18px!important;
+    display:grid!important;
+    grid-template-columns:52px 1fr!important;
+    column-gap:14px!important;
+    align-items:center!important;
+  }
+  .feature-number{display:none!important}
+  .feature-icon{grid-row:1 / span 3!important;margin:0!important}
+  .feature h3{margin:0 0 4px!important}
+  .feature p{margin:0 0 7px!important}
+  .feature .go{margin:0!important}
+}
+
 </style>
 </head>
 <body>
