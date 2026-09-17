@@ -5,14 +5,16 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE QUOTE ENGINE
   ============================================================
 
-  1. Reelwise-curated iconic quotes always win.
-  2. For movies not yet curated, Reelwise searches Wikiquote.
-  3. Automatic quotes are scored for "quote-like" qualities
-     instead of simply displaying the first lines found.
-  4. Cast lists, headings, descriptions and other junk are
-     filtered out.
-  5. Dialogue sections are given lower priority than
-     character/standalone quote sections.
+  REELWISE RULES:
+
+  1. Curated Reelwise quotes ALWAYS win.
+  2. Automatic quotes come from the movie's Wikiquote page.
+  3. Standalone quotes are strongly preferred.
+  4. Dialogue exchanges are not treated as standalone quotes.
+  5. Cast lists, headings, descriptions, credits, stage
+     directions and Wiki artifacts are rejected.
+  6. The automatic system favors complete, concise lines
+     rather than trying to guess "iconic" quotes from words.
 */
 
 const ICONIC_QUOTES = {
@@ -251,7 +253,7 @@ function looseTitle(value) {
 
 
 /* ============================================================
-   TMDB MOVIE LOOKUP
+   TMDB
    ============================================================ */
 
 async function getMovie(id) {
@@ -274,8 +276,7 @@ async function getMovie(id) {
 
   if (!response.ok) {
     throw new Error(
-      data.status_message ||
-      "Movie lookup failed"
+      data.status_message || "Movie lookup failed"
     );
   }
 
@@ -301,8 +302,7 @@ async function wikiquoteRequest(params) {
       `https://en.wikiquote.org/w/api.php?${query.toString()}`,
       {
         headers: {
-          "User-Agent":
-            "Reelwise/1.0 movie quote discovery"
+          "User-Agent": "Reelwise/1.0 movie quote discovery"
         }
       }
     );
@@ -332,10 +332,7 @@ async function getWikiquotePage(title) {
   const pages = data?.query?.pages || {};
   const page = Object.values(pages)[0];
 
-  if (
-    !page ||
-    page.missing !== undefined
-  ) {
+  if (!page || page.missing !== undefined) {
     return {
       title: "",
       extract: ""
@@ -352,9 +349,7 @@ async function getWikiquotePage(title) {
 async function searchWikiquote(title, year) {
 
   const searches = [
-    year
-      ? `"${title}" ${year} film`
-      : "",
+    year ? `"${title}" ${year} film` : "",
     `"${title}" film`,
     title
   ].filter(Boolean);
@@ -372,21 +367,16 @@ async function searchWikiquote(title, year) {
       srsearch: searchText
     });
 
-    const searchResults =
-      data?.query?.search || [];
+    const results = data?.query?.search || [];
 
-    for (const result of searchResults) {
+    for (const result of results) {
 
       const candidate =
         String(result?.title || "").trim();
 
-      const key =
-        candidate.toLowerCase();
+      const key = candidate.toLowerCase();
 
-      if (
-        !candidate ||
-        seen.has(key)
-      ) {
+      if (!candidate || seen.has(key)) {
         continue;
       }
 
@@ -403,17 +393,10 @@ async function searchWikiquote(title, year) {
 }
 
 
-function likelyMoviePage(
-  candidate,
-  title,
-  year
-) {
+function likelyMoviePage(candidate, title, year) {
 
-  const wanted =
-    looseTitle(title);
-
-  const got =
-    looseTitle(candidate);
+  const wanted = looseTitle(title);
+  const got = looseTitle(candidate);
 
   if (!wanted || !got) {
     return false;
@@ -432,8 +415,7 @@ function likelyMoviePage(
 
   if (
     year &&
-    normalizeTitle(candidate)
-      .includes(String(year)) &&
+    normalizeTitle(candidate).includes(String(year)) &&
     got.includes(wanted)
   ) {
     return true;
@@ -444,7 +426,7 @@ function likelyMoviePage(
 
 
 /* ============================================================
-   QUOTE CLEANING
+   CLEANING
    ============================================================ */
 
 function cleanLine(line) {
@@ -466,56 +448,49 @@ function quoteKey(line) {
 }
 
 
-function looksLikeHeading(line) {
+function headingName(line) {
 
-  const lower =
-    String(line || "")
-      .trim()
-      .toLowerCase();
+  return String(line || "")
+    .replace(/^=+\s*/, "")
+    .replace(/\s*=+$/, "")
+    .trim()
+    .toLowerCase();
+}
 
-  const headings = [
+
+function isBlockedSection(section) {
+
+  return [
     "dialogue",
     "cast",
     "taglines",
     "tagline",
-    "quotes",
     "external links",
     "external link",
     "references",
     "reference",
     "see also",
     "sources",
-    "source"
-  ];
-
-  return headings.includes(lower);
+    "source",
+    "notes",
+    "about",
+    "links"
+  ].includes(section);
 }
 
 
-function usableQuote(line) {
+function usableStandaloneQuote(line) {
 
   if (!line) {
     return false;
   }
 
-  if (line.length < 12) {
+  if (line.length < 10 || line.length > 190) {
     return false;
   }
 
-  /*
-    We allow moderately long lines but reject giant
-    paragraphs and speeches.
-  */
-  if (line.length > 210) {
-    return false;
-  }
+  const lower = line.toLowerCase();
 
-  const lower =
-    line.toLowerCase();
-
-  /*
-    Wiki markup / headings
-  */
   if (
     /^=+.*=+$/.test(line) ||
     line.startsWith("==") ||
@@ -524,50 +499,47 @@ function usableQuote(line) {
     return false;
   }
 
-  if (looksLikeHeading(line)) {
-    return false;
-  }
-
   /*
-    Page-description text
+    Reject stage directions and annotations.
   */
   if (
-    lower.includes("is a film") ||
-    lower.includes("is a movie") ||
-    lower.includes("directed by") ||
-    lower.includes("starring ") ||
-    lower.includes("released in") ||
-    lower.includes("written by") ||
-    lower.includes("produced by") ||
-    lower.includes("based on the") ||
-    lower.includes("external link") ||
-    lower.includes("wikipedia") ||
-    lower.includes("wikiquote")
+    /^\[.*\]$/.test(line) ||
+    /^\(.*\)$/.test(line) ||
+    /^\[/.test(line)
   ) {
     return false;
   }
 
   /*
-    Cast-credit style lines
+    Reject obvious article/description language.
   */
+  const descriptionTerms = [
+    "is a film",
+    "is a movie",
+    "directed by",
+    "starring ",
+    "released in",
+    "written by",
+    "produced by",
+    "based on the",
+    "based on a",
+    "screenplay by",
+    "distributed by",
+    "external link",
+    "wikipedia",
+    "wikiquote"
+  ];
+
   if (
-    /^[A-Za-z .'-]{2,45}\s+[—–-]\s+[A-Za-z ./'’-]{2,80}$/.test(line)
+    descriptionTerms.some(term =>
+      lower.includes(term)
+    )
   ) {
     return false;
   }
 
   /*
-    Wiki artifacts
-  */
-  if (
-    line.includes("[edit]") ||
-    line === "[edit]"
-  ) {
-    return false;
-  }
-
-  /*
-    URL-like text
+    Reject URLs.
   */
   if (
     lower.includes("http://") ||
@@ -577,200 +549,120 @@ function usableQuote(line) {
     return false;
   }
 
+  /*
+    Reject cast-credit formatting.
+  */
+  if (
+    /^[A-Za-z .'-]{2,45}\s+[—–-]\s+[A-Za-z ./'’-]{2,80}$/.test(line)
+  ) {
+    return false;
+  }
+
+  /*
+    Reject unfinished labels/fragments.
+  */
+  if (
+    line.endsWith(":") ||
+    line.endsWith("—") ||
+    line.endsWith("–")
+  ) {
+    return false;
+  }
+
+  /*
+    Reject lines that are mostly metadata.
+  */
+  const words = line.split(/\s+/);
+
+  if (words.length < 3) {
+    return false;
+  }
+
+  const numbers = line.match(/\d+/g) || [];
+
+  if (numbers.length >= 3) {
+    return false;
+  }
+
   return true;
 }
 
 
 /* ============================================================
-   ICONIC-QUOTE SCORING
-   ============================================================
-
-   Wikiquote contains good material, but not everything on
-   a page is equally useful to Reelwise.
-
-   This scoring system favors lines that LOOK like memorable
-   movie quotes rather than random exposition.
+   QUOTE QUALITY
    ============================================================ */
 
-function scoreQuote(line, position) {
-
-  const text =
-    String(line || "").trim();
-
-  const lower =
-    text.toLowerCase();
+function quoteQuality(line, position) {
 
   const words =
-    text.split(/\s+/).filter(Boolean);
+    line.split(/\s+/).filter(Boolean);
 
-  const wordCount =
-    words.length;
+  const count = words.length;
 
-  let score = 100;
-
-  /*
-    Sweet spot:
-    recognizable movie quotes are often relatively concise.
-  */
-  if (wordCount >= 4 && wordCount <= 16) {
-    score += 45;
-  }
-
-  if (wordCount >= 17 && wordCount <= 24) {
-    score += 22;
-  }
-
-  if (wordCount > 32) {
-    score -= 35;
-  }
-
-  if (wordCount > 42) {
-    score -= 45;
-  }
+  let score = 0;
 
   /*
-    Very short punchy lines can be iconic.
+    Favor the normal length range of memorable standalone
+    movie lines without pretending certain vocabulary makes
+    something "iconic."
   */
-  if (
-    wordCount >= 3 &&
-    wordCount <= 9
-  ) {
+  if (count >= 3 && count <= 8) {
+    score += 35;
+  } else if (count <= 16) {
+    score += 30;
+  } else if (count <= 24) {
     score += 20;
+  } else if (count <= 32) {
+    score += 8;
+  } else {
+    score -= 15;
   }
 
   /*
-    Strong punctuation often accompanies memorable lines.
+    Complete sentence punctuation gets a modest advantage.
   */
-  if (text.includes("!")) {
-    score += 12;
-  }
-
-  if (text.includes("?")) {
-    score += 5;
+  if (/[.!?…]["']?$/.test(line)) {
+    score += 10;
   }
 
   /*
-    Memorable concepts commonly found in movie quotations.
-    This is intentionally broad rather than tied to any one
-    movie.
+    Exclamation/question marks often indicate a self-contained
+    line, but only give a small bonus.
   */
-  const memorableWords = [
-    "hope",
-    "life",
-    "living",
-    "dying",
-    "dream",
-    "dreams",
-    "love",
-    "friend",
-    "friends",
-    "fear",
-    "free",
-    "freedom",
-    "believe",
-    "remember",
-    "never",
-    "always",
-    "truth",
-    "world",
-    "tomorrow",
-    "today",
-    "fight",
-    "win",
-    "winning",
-    "family",
-    "home",
-    "heart",
-    "man",
-    "woman",
-    "choice",
-    "destiny"
-  ];
+  if (line.includes("!")) {
+    score += 4;
+  }
 
-  for (const word of memorableWords) {
-    if (
-      new RegExp(
-        `\\b${word}\\b`,
-        "i"
-      ).test(lower)
-    ) {
-      score += 5;
-    }
+  if (line.includes("?")) {
+    score += 3;
   }
 
   /*
-    Penalize lines that sound like procedural exposition.
+    Avoid long explanatory lines containing lots of
+    semicolons/parentheticals.
   */
-  const expositionTerms = [
-    "irs",
-    "tax",
-    "taxes",
-    "dollars",
-    "account",
-    "accounts",
-    "certificate",
-    "license",
-    "address",
-    "investigated",
-    "evidence",
-    "testimony",
-    "police",
-    "caliber",
-    "fingerprints",
-    "securities",
-    "municipals",
-    "paperwork",
-    "application",
-    "department"
-  ];
+  const commas = (line.match(/,/g) || []).length;
+  const semicolons = (line.match(/;/g) || []).length;
 
-  for (const term of expositionTerms) {
-    if (
-      new RegExp(
-        `\\b${term}\\b`,
-        "i"
-      ).test(lower)
-    ) {
-      score -= 14;
-    }
+  if (commas >= 4) {
+    score -= 8;
+  }
+
+  if (semicolons >= 2) {
+    score -= 10;
   }
 
   /*
-    Penalize stage-direction-like text.
+    Earlier quotes receive only a tiny advantage.
   */
-  if (
-    /^\[/.test(text) ||
-    lower.includes("[in a letter]") ||
-    lower.includes("[to ") ||
-    lower.includes("[after ") ||
-    lower.includes("[while ")
-  ) {
-    score -= 30;
-  }
-
-  /*
-    A line containing lots of numbers is usually exposition.
-  */
-  const numbers =
-    text.match(/\d+/g) || [];
-
-  if (numbers.length >= 2) {
-    score -= 25;
-  }
-
-  /*
-    Earlier standalone quotes get a small advantage,
-    but position no longer determines the result.
-  */
-  score +=
-    Math.max(0, 15 - position);
+  score += Math.max(0, 6 - Math.floor(position / 3));
 
   return score;
 }
 
 
 /* ============================================================
-   EXTRACT + RANK QUOTES
+   EXTRACT STANDALONE QUOTES
    ============================================================ */
 
 function extractFallbackQuotes(text) {
@@ -779,8 +671,7 @@ function extractFallbackQuotes(text) {
     return [];
   }
 
-  const rawLines =
-    text.split(/\r?\n/);
+  const rawLines = text.split(/\r?\n/);
 
   const candidates = [];
   const seen = new Set();
@@ -790,120 +681,109 @@ function extractFallbackQuotes(text) {
 
   for (const raw of rawLines) {
 
-    let line =
-      cleanLine(raw);
+    const rawTrimmed =
+      String(raw || "").trim();
+
+    if (!rawTrimmed) {
+      continue;
+    }
+
+    /*
+      Detect Wikiquote section headings before cleaning them.
+  */
+    if (/^=+.*=+$/.test(rawTrimmed)) {
+
+      section = headingName(rawTrimmed);
+
+      continue;
+    }
+
+    let line = cleanLine(rawTrimmed);
 
     if (!line) {
       continue;
     }
 
-    const lower =
-      line.toLowerCase().trim();
-
     /*
-      Track major sections.
+      Plain-text extracts can also expose headings without
+      equals signs.
+  */
+    const possibleHeading =
+      headingName(line);
 
-      Wikiquote plain-text extracts normally preserve section
-      names as their own lines.
-    */
-    if (looksLikeHeading(line)) {
-      section = lower;
-      continue;
-    }
-
-    /*
-      Never pull material from areas that aren't quotations.
-    */
     if (
-      section === "cast" ||
-      section === "taglines" ||
-      section === "tagline" ||
-      section === "external links" ||
-      section === "external link" ||
-      section === "references" ||
-      section === "reference" ||
-      section === "see also" ||
-      section === "sources" ||
-      section === "source"
+      [
+        "dialogue",
+        "cast",
+        "taglines",
+        "tagline",
+        "external links",
+        "external link",
+        "references",
+        "reference",
+        "see also",
+        "sources",
+        "source",
+        "notes"
+      ].includes(possibleHeading)
     ) {
+
+      section = possibleHeading;
       continue;
     }
 
     /*
-      Remove speaker labels.
+      Critical Reelwise change:
 
-      Example:
-      Andy: Get busy living...
+      Do NOT mine the Dialogue section automatically.
 
-      becomes:
-      Get busy living...
-    */
+      A dialogue exchange may contain famous material, but
+      separating one speaker's response from the surrounding
+      conversation is exactly what created many of the poor
+      quote results we were seeing.
+  */
+    if (isBlockedSection(section)) {
+      continue;
+    }
+
+    /*
+      Wikiquote often uses:
+
+      Character: quote
+
+      Character labels are fine when the quote exists as a
+      standalone entry outside the Dialogue section.
+  */
     const speaker =
       line.match(
-        /^[A-Za-z0-9 .'"’-]{1,45}:\s+(.+)$/
+        /^[A-Za-z0-9 .'"’()-]{1,45}:\s+(.+)$/
       );
 
     if (speaker) {
-      line =
-        cleanLine(speaker[1]);
+      line = cleanLine(speaker[1]);
     }
 
-    if (!usableQuote(line)) {
+    if (!usableStandaloneQuote(line)) {
       continue;
     }
 
-    /*
-      Reject obvious unfinished fragments.
-    */
-    if (
-      line.endsWith(":") ||
-      line.endsWith("—") ||
-      line.endsWith("–")
-    ) {
-      continue;
-    }
+    const key = quoteKey(line);
 
-    const key =
-      quoteKey(line);
-
-    if (
-      !key ||
-      seen.has(key)
-    ) {
+    if (!key || seen.has(key)) {
       continue;
     }
 
     seen.add(key);
 
-    let score =
-      scoreQuote(
-        line,
-        position
-      );
-
-    /*
-      Dialogue can still contain famous lines, so we don't
-      throw it away completely. But standalone character
-      quote sections get priority.
-    */
-    if (section === "dialogue") {
-      score -= 28;
-    } else {
-      score += 18;
-    }
-
     candidates.push({
       text: line,
-      score,
+      score: quoteQuality(line, position),
       position
     });
 
     position++;
   }
 
-  /*
-    Highest-scoring quotes first.
-  */
   candidates.sort((a, b) => {
 
     if (b.score !== a.score) {
@@ -913,23 +793,17 @@ function extractFallbackQuotes(text) {
     return a.position - b.position;
   });
 
-  /*
-    Prevent near-duplicate quotes.
-  */
   const selected = [];
   const selectedKeys = [];
 
   for (const candidate of candidates) {
 
-    const key =
-      quoteKey(candidate.text);
+    const key = quoteKey(candidate.text);
 
     const duplicate =
       selectedKeys.some(existing => {
 
-        if (
-          existing === key
-        ) {
+        if (existing === key) {
           return true;
         }
 
@@ -951,15 +825,9 @@ function extractFallbackQuotes(text) {
       continue;
     }
 
-    selected.push(
-      candidate.text
-    );
-
+    selected.push(candidate.text);
     selectedKeys.push(key);
 
-    /*
-      Reelwise shows a maximum of five automatic quotes.
-    */
     if (selected.length >= 5) {
       break;
     }
@@ -970,34 +838,24 @@ function extractFallbackQuotes(text) {
 
 
 /* ============================================================
-   MAIN API HANDLER
+   MAIN API
    ============================================================ */
 
-export default async function handler(
-  req,
-  res
-) {
+export default async function handler(req, res) {
 
   try {
 
     const id =
-      String(
-        req.query?.id || ""
-      ).trim();
+      String(req.query?.id || "").trim();
 
     if (!id) {
 
       return res.status(400).json({
-        error:
-          "Movie ID is required."
+        error: "Movie ID is required."
       });
     }
 
-    /*
-      First identify the exact movie through TMDB.
-    */
-    const movie =
-      await getMovie(id);
+    const movie = await getMovie(id);
 
     const title =
       movie.title ||
@@ -1009,14 +867,14 @@ export default async function handler(
         ? movie.release_date.slice(0, 4)
         : "";
 
-    const key =
-      normalizeTitle(title);
+    const key = normalizeTitle(title);
+
 
     /*
       ========================================================
       REELWISE CURATED VAULT
       ========================================================
-    */
+  */
 
     const curated =
       ICONIC_QUOTES[key] || [];
@@ -1037,14 +895,10 @@ export default async function handler(
       ========================================================
       AUTOMATIC FALLBACK 1
       ========================================================
-
-      Try the most likely Wikiquote movie-page names.
-    */
+  */
 
     const possibleTitles = [
-      year
-        ? `${title} (${year} film)`
-        : "",
+      year ? `${title} (${year} film)` : "",
       `${title} (film)`,
       title
     ].filter(Boolean);
@@ -1053,32 +907,24 @@ export default async function handler(
     let fallback = [];
 
 
-    for (
-      const pageTitle of possibleTitles
-    ) {
+    for (const pageTitle of possibleTitles) {
 
       const page =
-        await getWikiquotePage(
-          pageTitle
-        );
+        await getWikiquotePage(pageTitle);
 
       if (!page.extract) {
         continue;
       }
 
       const quotes =
-        extractFallbackQuotes(
-          page.extract
-        );
+        extractFallbackQuotes(page.extract);
 
       if (quotes.length) {
 
         pageUsed =
-          page.title ||
-          pageTitle;
+          page.title || pageTitle;
 
-        fallback =
-          quotes;
+        fallback = quotes;
 
         break;
       }
@@ -1089,21 +935,14 @@ export default async function handler(
       ========================================================
       AUTOMATIC FALLBACK 2
       ========================================================
-
-      Search Wikiquote if the obvious page names failed.
-    */
+  */
 
     if (!fallback.length) {
 
       const candidates =
-        await searchWikiquote(
-          title,
-          year
-        );
+        await searchWikiquote(title, year);
 
-      for (
-        const candidate of candidates
-      ) {
+      for (const candidate of candidates) {
 
         if (
           !likelyMoviePage(
@@ -1116,27 +955,21 @@ export default async function handler(
         }
 
         const page =
-          await getWikiquotePage(
-            candidate
-          );
+          await getWikiquotePage(candidate);
 
         if (!page.extract) {
           continue;
         }
 
         const quotes =
-          extractFallbackQuotes(
-            page.extract
-          );
+          extractFallbackQuotes(page.extract);
 
         if (quotes.length) {
 
           pageUsed =
-            page.title ||
-            candidate;
+            page.title || candidate;
 
-          fallback =
-            quotes;
+          fallback = quotes;
 
           break;
         }
@@ -1146,9 +979,9 @@ export default async function handler(
 
     /*
       ========================================================
-      RETURN RESULTS
+      RETURN
       ========================================================
-    */
+  */
 
     return res.status(200).json({
       movie: title,
