@@ -156,17 +156,9 @@ const QUOTES_CLASSICS = {
     "Was it over when the Germans bombed Pearl Harbor?"
   ],
 
-  "superman": [
-    "You'll believe a man can fly."
-  ],
-
   "rocky ii": [
     "Yo, Adrian! I did it!",
     "There's one thing I want you to do for me. Win."
-  ],
-
-  "alien": [
-    "In space, no one can hear you scream."
   ],
 
   "apocalypse now": [
