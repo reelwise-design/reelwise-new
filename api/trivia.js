@@ -470,7 +470,13 @@ function isWeakTriviaContent(sentence) {
     "launched a franchise", "continued the adventures of",
     "the photographs shown during the end credits reveal",
     "the photos shown during the end credits reveal",
-    "the ending reveals", "the climax reveals"
+    "the ending reveals", "the climax reveals",
+    "variety magazine wrote", "variety wrote", "reviewed the film",
+    "reviewed the movie", "critical consensus", "website's critical consensus",
+    "cinemascore", "audiences surveyed", "audience grade",
+    "gave the film a grade", "gave the movie a grade",
+    "golden raspberry award", "razzie", "worst actor", "worst actress",
+    "worst picture", "worst director", "worst screenplay"
   ];
 
   if (rejectAnywhere.some(term => lower.includes(term))) return true;
@@ -478,6 +484,30 @@ function isWeakTriviaContent(sentence) {
   if (
     /\b\d{1,3}%\b/.test(lower) &&
     /\b(review|reviews|rating|ratings|critic|critics|score)\b/.test(lower)
+  ) {
+    return true;
+  }
+
+  /*
+    NEW: reject critic quotations, audience grades and
+    award/reception filler even when a specific review
+    aggregator is not named.
+  */
+  if (
+    /\b(critic|reviewer|magazine|newspaper|website)\b.*\b(wrote|said|called|described|praised|criticized)\b/i.test(sentence)
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(grade|rating|score)\s+(?:of\s+)?[a-f][+-]?\b/i.test(sentence) ||
+    /\bgrade\s+[a-f][+-]?\b/i.test(sentence)
+  ) {
+    return true;
+  }
+
+  if (
+    /\b(earned|received|won|nominated for|nomination for|nominations? for)\b.*\b(award|awards|worst actor|worst actress|worst picture|worst director|worst screenplay)\b/i.test(sentence)
   ) {
     return true;
   }
