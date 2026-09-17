@@ -40,7 +40,6 @@ const QUOTES_80S = {
   ],
 
   "ghostbusters": [
-    "Who you gonna call?",
     "Don't cross the streams.",
     "We came, we saw, we kicked its ass!"
   ],
