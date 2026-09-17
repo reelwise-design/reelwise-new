@@ -193,6 +193,139 @@ async function getWikipediaExtract(title) {
   }
 }
 
+
+async function searchWikipediaPages(query, limit = 6) {
+  try {
+    const url =
+      "https://en.wikipedia.org/w/api.php" +
+      "?action=query" +
+      "&list=search" +
+      "&srnamespace=0" +
+      "&srwhat=text" +
+      "&srlimit=" + encodeURIComponent(String(limit)) +
+      "&format=json" +
+      "&origin=*" +
+      "&srsearch=" + encodeURIComponent(query);
+
+    const response = await fetch(url, {
+      headers: { "User-Agent": "Reelwise/1.0 movie trivia" }
+    });
+
+    if (!response.ok) return [];
+
+    const data = await response.json();
+
+    return (data?.query?.search || [])
+      .map(item => String(item?.title || "").trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
+
+function isUsefulFallbackPage(pageTitle, movieTitle) {
+  const page = normalizeTitle(pageTitle);
+  const movie = normalizeTitle(movieTitle);
+
+  if (!page || !movie) return false;
+
+  const rejectTerms = [
+    "soundtrack",
+    "discography",
+    "filmography",
+    "awards and nominations",
+    "list of awards",
+    "list of accolades",
+    "box office",
+    "critical response",
+    "reviews",
+    "characters",
+    "episodes",
+    "video game",
+    "novel"
+  ];
+
+  if (rejectTerms.some(term => page.includes(term))) {
+    return false;
+  }
+
+  const movieWords = movie
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .split(/\s+/)
+    .filter(word => word.length >= 3);
+
+  return movieWords.some(word => page.includes(word));
+}
+
+async function getFallbackTrivia(title, year, existingTrivia = []) {
+  const queries = [
+    `"${title}" ${year || ""} film production casting`,
+    `"${title}" ${year || ""} filming production`,
+    `"${title}" ${year || ""} casting development`
+  ];
+
+  const pageTitles = [];
+  const seenPages = new Set();
+
+  for (const query of queries) {
+    const results = await searchWikipediaPages(query, 6);
+
+    for (const pageTitle of results) {
+      const key = normalizeTitle(pageTitle);
+
+      if (
+        !key ||
+        seenPages.has(key) ||
+        !isUsefulFallbackPage(pageTitle, title)
+      ) {
+        continue;
+      }
+
+      seenPages.add(key);
+      pageTitles.push(pageTitle);
+
+      if (pageTitles.length >= 5) break;
+    }
+
+    if (pageTitles.length >= 5) break;
+  }
+
+  const collected = [];
+
+  for (const pageTitle of pageTitles) {
+    const extract = await getWikipediaExtract(pageTitle);
+    if (!extract) continue;
+
+    const items = extractTrivia(extract);
+
+    for (const item of items) {
+      if (
+        existingTrivia.some(existing =>
+          triviaSimilarity(item, existing) >= 0.48
+        )
+      ) {
+        continue;
+      }
+
+      if (
+        collected.some(existing =>
+          triviaSimilarity(item, existing) >= 0.48
+        )
+      ) {
+        continue;
+      }
+
+      collected.push(item);
+
+      if (collected.length >= 6) {
+        return collected;
+      }
+    }
+  }
+
+  return collected;
+}
+
 function triviaScore(sentence) {
   const lower = sentence.toLowerCase();
   let score = 0;
@@ -699,11 +832,35 @@ export default async function handler(req, res) {
     const automaticTrivia =
       extractTrivia(extract);
 
-    const trivia =
+    let combinedTrivia =
       selectBestTrivia(
         [...cleanedCurated, ...automaticTrivia],
         6
       );
+
+    /*
+      If the main movie article does not provide enough
+      high-quality trivia, search additional relevant
+      Wikipedia pages for production/casting/filming
+      material. Every fallback item still passes through
+      the same strict Reelwise quality filters.
+    */
+    if (combinedTrivia.length < 4) {
+      const fallbackTrivia =
+        await getFallbackTrivia(
+          title,
+          year,
+          combinedTrivia
+        );
+
+      combinedTrivia =
+        selectBestTrivia(
+          [...combinedTrivia, ...fallbackTrivia],
+          6
+        );
+    }
+
+    const trivia = combinedTrivia;
 
     return res.status(200).json({
       movie: title,
