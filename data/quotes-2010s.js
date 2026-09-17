@@ -11,10 +11,6 @@ const QUOTES_2010S = {
     "An idea is like a virus."
   ],
 
-  "the social network": [
-    "You don't get to 500 million friends without making a few enemies."
-  ],
-
   "bridesmaids": [
     "Help me, I'm poor."
   ],
@@ -35,10 +31,6 @@ const QUOTES_2010S = {
   "the wolf of wall street": [
     "Sell me this pen.",
     "I'm not leaving."
-  ],
-
-  "frozen": [
-    "Let it go!"
   ],
 
   "guardians of the galaxy": [
@@ -85,20 +77,12 @@ const QUOTES_2010S = {
     "It's not about deserve. It's about what you believe."
   ],
 
-  "avengers: infinity war": [
-    "I am inevitable."
-  ],
-
   "a star is born": [
     "I just wanted to take another look at you."
   ],
 
   "bohemian rhapsody": [
     "We're four misfits who don't belong together."
-  ],
-
-  "joker": [
-    "Why so serious?"
   ],
 
   "once upon a time... in hollywood": [
