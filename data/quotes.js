@@ -5,10 +5,10 @@
 
   All curated Reelwise quote modules are combined here.
 
-  The quote database is organized by era so Reelwise can
-  continue growing without creating one enormous file.
+  The Quote Vault is organized by era so Reelwise can keep
+  growing without creating one enormous file.
 
-  To add or correct a quote, edit the appropriate era file.
+  To add or correct quotes, edit the appropriate era file.
 */
 
 import QUOTES_CLASSICS from "./quotes-classics.js";
@@ -16,6 +16,7 @@ import QUOTES_80S from "./quotes-80s.js";
 import QUOTES_90S from "./quotes-90s.js";
 import QUOTES_2000S from "./quotes-2000s.js";
 import QUOTES_2010S from "./quotes-2010s.js";
+import QUOTES_2020S from "./quotes-2020s.js";
 
 
 const QUOTE_VAULT = {
@@ -33,7 +34,10 @@ const QUOTE_VAULT = {
   ...QUOTES_2000S,
 
   // 2010–2019
-  ...QUOTES_2010S
+  ...QUOTES_2010S,
+
+  // 2020–2029
+  ...QUOTES_2020S
 
 };
 
