@@ -1,3 +1,5 @@
+import QUOTE_VAULT from "../data/quotes.js";
+
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
 /*
@@ -5,246 +7,13 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE QUOTE ENGINE
   ============================================================
 
-  CURATED MOVIES:
-  Reelwise-selected iconic quotes always win.
-
-  UNCURATED MOVIES:
-  Wikiquote is used as the fallback.
-
-  IMPORTANT:
-  The fallback does NOT attempt to guess cultural importance
-  from words such as "life", "love", "hope", punctuation, etc.
-
-  It instead:
-  - finds the correct movie page
-  - rejects page descriptions and metadata
-  - rejects cast/credits/reference sections
-  - rejects obvious stage directions
-  - extracts actual quoted lines
-  - preserves source order
-  - removes duplicates
+  1. Identify the exact movie through TMDB.
+  2. Check the separate Reelwise Quote Vault first.
+  3. Curated Reelwise quotes always win.
+  4. If the movie is not yet curated, try Wikiquote.
+  5. Automatic results are clearly fallback material.
+  ============================================================
 */
-
-const ICONIC_QUOTES = {
-
-  "the shawshank redemption": [
-    "Get busy living, or get busy dying.",
-    "Hope is a good thing, maybe the best of things, and no good thing ever dies.",
-    "I guess it comes down to a simple choice, really. Get busy living or get busy dying.",
-    "These walls are funny. First you hate 'em, then you get used to 'em.",
-    "Some birds aren't meant to be caged. Their feathers are just too bright."
-  ],
-
-  "it's a wonderful life": [
-    "Every time a bell rings, an angel gets his wings.",
-    "No man is a failure who has friends.",
-    "I want to live again!",
-    "You want the moon? Just say the word and I'll throw a lasso around it and pull it down.",
-    "Merry Christmas, you wonderful old Building and Loan!",
-    "To my big brother George, the richest man in town."
-  ],
-
-  "rocky": [
-    "Yo, Adrian!",
-    "All I wanna do is go the distance.",
-    "Nobody's ever gone the distance with Creed.",
-    "It really don't matter if I lose this fight.",
-    "I just wanna prove somethin' — I ain't no bum."
-  ],
-
-  "rocky ii": [
-    "Yo, Adrian! I did it!",
-    "You're gonna eat lightning and you're gonna crap thunder!",
-    "There's one thing I want you to do for me. Win.",
-    "I just gotta be around you.",
-    "I never asked you to stop being a woman. Please don't ask me to stop being a man."
-  ],
-
-  "rocky iii": [
-    "I don't hate Balboa. I pity the fool.",
-    "There is no tomorrow!",
-    "You ain't so bad!",
-    "Nothing is real if you don't believe in who you are."
-  ],
-
-  "rocky iv": [
-    "I must break you.",
-    "If he dies, he dies.",
-    "He's not a machine. He's a man!",
-    "If I can change, and you can change, everybody can change!"
-  ],
-
-  "rocky balboa": [
-    "It ain't about how hard you hit.",
-    "It's about how hard you can get hit and keep moving forward.",
-    "That's how winning is done!",
-    "The world ain't all sunshine and rainbows.",
-    "You, me, or nobody is gonna hit as hard as life.",
-    "Until you start believing in yourself, you ain't gonna have a life."
-  ],
-
-  "jaws": [
-    "You're gonna need a bigger boat.",
-    "Smile, you son of a—",
-    "That's some bad hat, Harry.",
-    "Here's to swimmin' with bow-legged women."
-  ],
-
-  "top gun": [
-    "I feel the need — the need for speed!",
-    "You can be my wingman any time.",
-    "That's right, Iceman. I am dangerous.",
-    "Talk to me, Goose.",
-    "Your ego is writing checks your body can't cash."
-  ],
-
-  "top gun: maverick": [
-    "It's not the plane, it's the pilot.",
-    "Don't think. Just do.",
-    "Talk to me, Goose.",
-    "It's time to let go.",
-    "You'll know when I'm gone."
-  ],
-
-  "a few good men": [
-    "You can't handle the truth!",
-    "I want the truth!",
-    "You want answers?",
-    "You don't need to wear a patch on your arm to have honor."
-  ],
-
-  "back to the future": [
-    "Where we're going, we don't need roads.",
-    "Great Scott!",
-    "Nobody calls me chicken.",
-    "If my calculations are correct, when this baby hits 88 miles per hour, you're gonna see some serious stuff."
-  ],
-
-  "the godfather": [
-    "I'm gonna make him an offer he can't refuse.",
-    "Leave the gun. Take the cannoli.",
-    "It's not personal, Sonny. It's strictly business.",
-    "A man who doesn't spend time with his family can never be a real man."
-  ],
-
-  "the godfather part ii": [
-    "Keep your friends close, but your enemies closer.",
-    "I know it was you, Fredo. You broke my heart.",
-    "We're both part of the same hypocrisy, Senator.",
-    "If anything in this life is certain, if history has taught us anything, it is that you can kill anyone."
-  ],
-
-  "goodfellas": [
-    "As far back as I can remember, I always wanted to be a gangster.",
-    "Funny how? I mean, funny like I'm a clown?",
-    "Never rat on your friends, and always keep your mouth shut.",
-    "For us to live any other way was nuts.",
-    "Now go home and get your shine box."
-  ],
-
-  "the hangover": [
-    "What happens in Vegas stays in Vegas. Except herpes.",
-    "I'm not supposed to be within two hundred feet of a school.",
-    "You guys might not know this, but I consider myself a bit of a loner."
-  ],
-
-  "old school": [
-    "We're going streaking!",
-    "You're my boy, Blue!",
-    "Once it hits your lips, it's so good!",
-    "Just ring the bell, you pansy.",
-    "I have a nice little Saturday planned."
-  ],
-
-  "forrest gump": [
-    "Life was like a box of chocolates.",
-    "Run, Forrest, run!",
-    "Stupid is as stupid does.",
-    "I'm not a smart man, but I know what love is."
-  ],
-
-  "the sixth sense": [
-    "I see dead people.",
-    "They don't know they're dead.",
-    "They only see what they want to see."
-  ],
-
-  "fight club": [
-    "The first rule of Fight Club is: you do not talk about Fight Club.",
-    "The second rule of Fight Club is: you do not talk about Fight Club.",
-    "It's only after we've lost everything that we're free to do anything.",
-    "This is your life, and it's ending one minute at a time."
-  ],
-
-  "jerry maguire": [
-    "Show me the money!",
-    "You complete me.",
-    "You had me at hello.",
-    "Help me help you."
-  ],
-
-  "dirty harry": [
-    "You've got to ask yourself one question: Do I feel lucky?",
-    "Well, do ya, punk?"
-  ],
-
-  "taxi driver": [
-    "You talkin' to me?",
-    "Well, I'm the only one here.",
-    "Someday a real rain will come and wash all this scum off the streets."
-  ],
-
-  "scream": [
-    "What's your favorite scary movie?",
-    "Movies don't create psychos. Movies make psychos more creative.",
-    "There are certain rules that one must abide by in order to successfully survive a horror movie."
-  ],
-
-  "dirty dancing": [
-    "Nobody puts Baby in a corner.",
-    "I carried a watermelon.",
-    "I'm scared of walking out of this room and never feeling the rest of my whole life the way I feel when I'm with you."
-  ],
-
-  "the sandlot": [
-    "You're killing me, Smalls!",
-    "Heroes get remembered, but legends never die.",
-    "For-ev-er."
-  ],
-
-  "airplane!": [
-    "Surely you can't be serious.",
-    "I am serious. And don't call me Shirley.",
-    "Looks like I picked the wrong week to quit smoking.",
-    "Roger, Roger. What's our vector, Victor?"
-  ],
-
-  "groundhog day": [
-    "Well, what if there is no tomorrow? There wasn't one today.",
-    "Don't drive angry!",
-    "I'm a god. I'm not the God... I don't think."
-  ],
-
-  "when harry met sally...": [
-    "I'll have what she's having.",
-    "You made a woman meow?",
-    "Men and women can't be friends because the sex part always gets in the way."
-  ],
-
-  "rudy": [
-    "You're five-foot-nothin', a hundred-and-nothin'.",
-    "In this lifetime, you don't have to prove nothin' to nobody except yourself.",
-    "I've been ready for this my whole life."
-  ],
-
-  "mrs. doubtfire": [
-    "Help is on the way, dear!",
-    "It was a run-by fruiting!",
-    "Oh, sir. I saw it! Some angry member of the kitchen staff. Did you not tip them?",
-    "Carpe dentum. Seize the teeth.",
-    "I admire that honesty, Natalie. That's a noble quality. Never lose that, because it often disappears with age, or entering politics."
-  ]
-};
 
 
 /* ============================================================
@@ -269,7 +38,7 @@ function looseTitle(value) {
 
 
 /* ============================================================
-   TMDB
+   TMDB MOVIE LOOKUP
    ============================================================ */
 
 async function getMovie(id) {
@@ -301,7 +70,7 @@ async function getMovie(id) {
 
 
 /* ============================================================
-   WIKIQUOTE
+   WIKIQUOTE REQUEST
    ============================================================ */
 
 async function wikiquoteRequest(params) {
@@ -318,7 +87,8 @@ async function wikiquoteRequest(params) {
       `https://en.wikiquote.org/w/api.php?${query.toString()}`,
       {
         headers: {
-          "User-Agent": "Reelwise/1.0 movie quote discovery"
+          "User-Agent":
+            "Reelwise/1.0 movie quote discovery"
         }
       }
     );
@@ -335,6 +105,10 @@ async function wikiquoteRequest(params) {
 }
 
 
+/* ============================================================
+   GET WIKIQUOTE PAGE
+   ============================================================ */
+
 async function getWikiquotePage(title) {
 
   const data = await wikiquoteRequest({
@@ -345,10 +119,16 @@ async function getWikiquotePage(title) {
     titles: title
   });
 
-  const pages = data?.query?.pages || {};
-  const page = Object.values(pages)[0];
+  const pages =
+    data?.query?.pages || {};
 
-  if (!page || page.missing !== undefined) {
+  const page =
+    Object.values(pages)[0];
+
+  if (
+    !page ||
+    page.missing !== undefined
+  ) {
     return {
       title: "",
       extract: ""
@@ -362,10 +142,16 @@ async function getWikiquotePage(title) {
 }
 
 
+/* ============================================================
+   SEARCH WIKIQUOTE
+   ============================================================ */
+
 async function searchWikiquote(title, year) {
 
   const searches = [
-    year ? `"${title}" ${year} film` : "",
+    year
+      ? `"${title}" ${year} film`
+      : "",
     `"${title}" film`,
     title
   ].filter(Boolean);
@@ -375,28 +161,37 @@ async function searchWikiquote(title, year) {
 
   for (const searchText of searches) {
 
-    const data = await wikiquoteRequest({
-      action: "query",
-      list: "search",
-      srnamespace: "0",
-      srlimit: "8",
-      srsearch: searchText
-    });
+    const data =
+      await wikiquoteRequest({
+        action: "query",
+        list: "search",
+        srnamespace: "0",
+        srlimit: "8",
+        srsearch: searchText
+      });
 
-    const results = data?.query?.search || [];
+    const results =
+      data?.query?.search || [];
 
     for (const result of results) {
 
       const candidate =
-        String(result?.title || "").trim();
+        String(
+          result?.title || ""
+        ).trim();
 
-      const key = candidate.toLowerCase();
+      const key =
+        candidate.toLowerCase();
 
-      if (!candidate || seen.has(key)) {
+      if (
+        !candidate ||
+        seen.has(key)
+      ) {
         continue;
       }
 
       seen.add(key);
+
       found.push(candidate);
     }
 
@@ -409,10 +204,21 @@ async function searchWikiquote(title, year) {
 }
 
 
-function likelyMoviePage(candidate, title, year) {
+/* ============================================================
+   VERIFY MOVIE PAGE
+   ============================================================ */
 
-  const wanted = looseTitle(title);
-  const got = looseTitle(candidate);
+function likelyMoviePage(
+  candidate,
+  title,
+  year
+) {
+
+  const wanted =
+    looseTitle(title);
+
+  const got =
+    looseTitle(candidate);
 
   if (!wanted || !got) {
     return false;
@@ -431,7 +237,8 @@ function likelyMoviePage(candidate, title, year) {
 
   if (
     year &&
-    normalizeTitle(candidate).includes(String(year)) &&
+    normalizeTitle(candidate)
+      .includes(String(year)) &&
     got.includes(wanted)
   ) {
     return true;
@@ -492,17 +299,25 @@ function blockedSection(section) {
 }
 
 
+/* ============================================================
+   FALLBACK SAFETY FILTER
+   ============================================================ */
+
 function usableQuote(line) {
 
   if (!line) {
     return false;
   }
 
-  if (line.length < 8 || line.length > 220) {
+  if (
+    line.length < 8 ||
+    line.length > 220
+  ) {
     return false;
   }
 
-  const lower = line.toLowerCase();
+  const lower =
+    line.toLowerCase();
 
   const junk = [
     "is a film",
@@ -521,7 +336,11 @@ function usableQuote(line) {
     "wikiquote"
   ];
 
-  if (junk.some(term => lower.includes(term))) {
+  if (
+    junk.some(term =>
+      lower.includes(term)
+    )
+  ) {
     return false;
   }
 
@@ -549,7 +368,9 @@ function usableQuote(line) {
   }
 
   const words =
-    line.split(/\s+/).filter(Boolean);
+    line
+      .split(/\s+/)
+      .filter(Boolean);
 
   if (words.length < 2) {
     return false;
@@ -567,7 +388,7 @@ function usableQuote(line) {
 
 
 /* ============================================================
-   EXTRACT QUOTES
+   EXTRACT FALLBACK QUOTES
    ============================================================ */
 
 function extractFallbackQuotes(text) {
@@ -576,15 +397,20 @@ function extractFallbackQuotes(text) {
     return [];
   }
 
-  const lines = text.split(/\r?\n/);
+  const lines =
+    text.split(/\r?\n/);
 
   const standalone = [];
   const dialogue = [];
 
-  const standaloneSeen = new Set();
-  const dialogueSeen = new Set();
+  const standaloneSeen =
+    new Set();
+
+  const dialogueSeen =
+    new Set();
 
   let section = "";
+
 
   for (const raw of lines) {
 
@@ -595,25 +421,35 @@ function extractFallbackQuotes(text) {
       continue;
     }
 
+
     /*
-      Wikiquote headings may be represented with = signs.
+      Detect Wikiquote section headings.
     */
+
     if (/^=+.*=+$/.test(rawLine)) {
-      section = sectionName(rawLine);
+
+      section =
+        sectionName(rawLine);
+
       continue;
     }
 
-    let line = cleanLine(rawLine);
+
+    let line =
+      cleanLine(rawLine);
 
     if (!line) {
       continue;
     }
 
+
     /*
-      Plain extracts can expose common section headings
+      Some plain-text extracts expose headings
       without Wiki markup.
     */
-    const heading = sectionName(line);
+
+    const heading =
+      sectionName(line);
 
     const knownHeadings = [
       "dialogue",
@@ -630,17 +466,25 @@ function extractFallbackQuotes(text) {
       "notes"
     ];
 
-    if (knownHeadings.includes(heading)) {
+    if (
+      knownHeadings.includes(heading)
+    ) {
+
       section = heading;
+
       continue;
     }
+
 
     if (blockedSection(section)) {
       continue;
     }
 
+
     /*
-      Remove a character label:
+      Remove speaker label.
+
+      Example:
 
       Red: Hope is a dangerous thing.
 
@@ -648,51 +492,58 @@ function extractFallbackQuotes(text) {
 
       Hope is a dangerous thing.
     */
+
     const speakerMatch =
       line.match(
         /^[A-Za-z0-9 .'"’()_-]{1,45}:\s+(.+)$/
       );
 
     if (speakerMatch) {
-      line = cleanLine(speakerMatch[1]);
+
+      line =
+        cleanLine(
+          speakerMatch[1]
+        );
     }
 
+
     /*
-      Remove a short stage direction before a quote.
-
-      [to Andy] Something...
-
-      becomes:
-
-      Something...
+      Remove a short stage direction.
     */
-    line = line
-      .replace(/^\[[^\]]{1,80}\]\s*/, "")
-      .trim();
+
+    line =
+      line
+        .replace(
+          /^\[[^\]]{1,80}\]\s*/,
+          ""
+        )
+        .trim();
+
 
     if (!usableQuote(line)) {
       continue;
     }
 
-    const key = quoteKey(line);
+
+    const key =
+      quoteKey(line);
 
     if (!key) {
       continue;
     }
 
+
     /*
       Keep dialogue separate.
 
-      Standalone character sections are preferred because
-      Wikiquote generally uses those for individually notable
-      quotations.
-
-      Dialogue is only used if we don't have enough
-      standalone material.
+      Standalone Wikiquote entries are preferred.
     */
+
     if (section === "dialogue") {
 
-      if (dialogueSeen.has(key)) {
+      if (
+        dialogueSeen.has(key)
+      ) {
         continue;
       }
 
@@ -702,7 +553,9 @@ function extractFallbackQuotes(text) {
 
     } else {
 
-      if (standaloneSeen.has(key)) {
+      if (
+        standaloneSeen.has(key)
+      ) {
         continue;
       }
 
@@ -714,22 +567,25 @@ function extractFallbackQuotes(text) {
 
 
   /*
-    Start with standalone quotes in the order supplied by
-    Wikiquote.
+    Standalone quotes come first.
   */
-  const combined = [...standalone];
+
+  const combined =
+    [...standalone];
 
 
   /*
-    If necessary, supplement with dialogue lines.
+    Dialogue is only supplemental.
   */
+
   for (const line of dialogue) {
 
     if (combined.length >= 5) {
       break;
     }
 
-    const key = quoteKey(line);
+    const key =
+      quoteKey(line);
 
     const duplicate =
       combined.some(existing => {
@@ -737,7 +593,9 @@ function extractFallbackQuotes(text) {
         const existingKey =
           quoteKey(existing);
 
-        if (existingKey === key) {
+        if (
+          existingKey === key
+        ) {
           return true;
         }
 
@@ -755,110 +613,157 @@ function extractFallbackQuotes(text) {
         return false;
       });
 
+
     if (!duplicate) {
       combined.push(line);
     }
   }
 
 
-  /*
-    Maximum five automatic quotes.
-  */
   return combined.slice(0, 5);
 }
 
 
 /* ============================================================
-   MAIN API
+   MAIN REELWISE API
    ============================================================ */
 
-export default async function handler(req, res) {
+export default async function handler(
+  req,
+  res
+) {
 
   try {
 
     const id =
-      String(req.query?.id || "").trim();
+      String(
+        req.query?.id || ""
+      ).trim();
+
 
     if (!id) {
+
       return res.status(400).json({
-        error: "Movie ID is required."
+        error:
+          "Movie ID is required."
       });
     }
 
 
     /*
-      Identify the exact movie through TMDB.
+      Identify exact movie.
     */
-    const movie = await getMovie(id);
+
+    const movie =
+      await getMovie(id);
+
 
     const title =
       movie.title ||
       movie.original_title ||
       "";
 
+
     const year =
       movie.release_date
         ? movie.release_date.slice(0, 4)
         : "";
 
-    const key = normalizeTitle(title);
+
+    const key =
+      normalizeTitle(title);
 
 
     /*
       ========================================================
-      CURATED REELWISE VAULT
+      REELWISE QUOTE VAULT
       ========================================================
+
+      This is now stored separately in:
+
+      data/quotes.js
+
+      That means we can grow the Vault without touching
+      this API engine.
     */
 
     const curated =
-      ICONIC_QUOTES[key] || [];
+      QUOTE_VAULT[key] || [];
+
 
     if (curated.length) {
 
       return res.status(200).json({
+
         movie: title,
+
         year,
+
         quotes: curated,
-        source: "Reelwise Vault",
+
+        source:
+          "Reelwise Vault",
+
         curated: true
+
       });
     }
 
 
     /*
       ========================================================
-      WIKIQUOTE — DIRECT PAGE ATTEMPTS
+      AUTOMATIC FALLBACK
       ========================================================
     */
 
     const possibleTitles = [
-      year ? `${title} (${year} film)` : "",
+
+      year
+        ? `${title} (${year} film)`
+        : "",
+
       `${title} (film)`,
+
       title
+
     ].filter(Boolean);
 
+
     let pageUsed = "";
+
     let fallback = [];
 
 
-    for (const pageTitle of possibleTitles) {
+    for (
+      const pageTitle
+      of possibleTitles
+    ) {
 
       const page =
-        await getWikiquotePage(pageTitle);
+        await getWikiquotePage(
+          pageTitle
+        );
+
 
       if (!page.extract) {
         continue;
       }
 
+
       const quotes =
-        extractFallbackQuotes(page.extract);
+        extractFallbackQuotes(
+          page.extract
+        );
+
 
       if (quotes.length) {
 
         pageUsed =
-          page.title || pageTitle;
+          page.title ||
+          pageTitle;
 
-        fallback = quotes;
+        fallback =
+          quotes;
 
         break;
       }
@@ -866,17 +771,23 @@ export default async function handler(req, res) {
 
 
     /*
-      ========================================================
-      WIKIQUOTE — SEARCH FALLBACK
-      ========================================================
+      Search Wikiquote if the obvious
+      page names did not work.
     */
 
     if (!fallback.length) {
 
       const candidates =
-        await searchWikiquote(title, year);
+        await searchWikiquote(
+          title,
+          year
+        );
 
-      for (const candidate of candidates) {
+
+      for (
+        const candidate
+        of candidates
+      ) {
 
         if (
           !likelyMoviePage(
@@ -888,22 +799,32 @@ export default async function handler(req, res) {
           continue;
         }
 
+
         const page =
-          await getWikiquotePage(candidate);
+          await getWikiquotePage(
+            candidate
+          );
+
 
         if (!page.extract) {
           continue;
         }
 
+
         const quotes =
-          extractFallbackQuotes(page.extract);
+          extractFallbackQuotes(
+            page.extract
+          );
+
 
         if (quotes.length) {
 
           pageUsed =
-            page.title || candidate;
+            page.title ||
+            candidate;
 
-          fallback = quotes;
+          fallback =
+            quotes;
 
           break;
         }
@@ -913,23 +834,30 @@ export default async function handler(req, res) {
 
     /*
       ========================================================
-      RETURN
+      RETURN RESULTS
       ========================================================
     */
 
     return res.status(200).json({
+
       movie: title,
+
       year,
+
       quotes: fallback,
+
       source:
         fallback.length
           ? "Wikiquote"
           : "No quote source found",
+
       curated: false,
+
       page:
         fallback.length
           ? pageUsed
           : undefined
+
     });
 
 
@@ -940,11 +868,15 @@ export default async function handler(req, res) {
       error
     );
 
+
     return res.status(500).json({
+
       error:
         error.message ||
         "Quotes could not be loaded.",
+
       quotes: []
+
     });
   }
 }
