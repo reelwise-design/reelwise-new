@@ -1047,6 +1047,40 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   }
 }
 
+
+/* REELWISE PREDICTIVE SEARCH */
+.search,.discovery-search{position:relative}
+.reelwise-suggestions{
+  position:absolute;left:0;right:0;top:calc(100% + 8px);z-index:1000;
+  background:#10141b;border:1px solid #2b3441;border-radius:16px;
+  overflow:hidden;box-shadow:0 18px 45px rgba(0,0,0,.45);
+  display:none;text-align:left
+}
+.reelwise-suggestions.open{display:block}
+.suggestion-item{
+  width:100%;border:0;border-bottom:1px solid #262d38;background:transparent;
+  color:#f5f7fa;display:flex;align-items:center;gap:12px;padding:10px 12px;
+  min-height:64px;text-align:left;cursor:pointer
+}
+.suggestion-item:last-child{border-bottom:0}
+.suggestion-item:active,.suggestion-item.active{background:#151a22}
+.suggestion-thumb{
+  width:42px;height:54px;flex:0 0 42px;border-radius:8px;object-fit:cover;
+  background:#1b2230
+}
+.suggestion-fallback{
+  width:42px;height:54px;flex:0 0 42px;border-radius:8px;background:#1b2230;
+  display:grid;place-items:center;font-size:22px
+}
+.suggestion-copy{min-width:0;display:flex;flex-direction:column;gap:3px}
+.suggestion-copy strong{font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.suggestion-copy small{color:#9ca6b5;font-size:13px}
+.suggestion-type{color:#e4b34d;font-size:11px;font-weight:800;letter-spacing:.08em}
+@media(max-width:800px){
+  .reelwise-suggestions{top:calc(100% + 6px);border-radius:14px}
+  .suggestion-item{min-height:62px;padding:9px 10px}
+}
+
 </style>
 </head>
 <body>
@@ -1390,6 +1424,114 @@ async function findSixDegrees(){const one=document.getElementById("actorOne").va
 function returnToSearch(){lastQuery?searchReelwise(lastQuery):showHome()}
 function formatDate(dateString){if(!dateString)return "";const parts=String(dateString).split("-");if(parts.length!==3)return dateString;const date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));if(Number.isNaN(date.getTime()))return dateString;return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
 function escapeHTML(value){return String(value||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
+
+/* REELWISE PREDICTIVE SEARCH */
+let reelwisePredictTimer=null,reelwisePredictController=null;
+
+function suggestionBoxFor(input){
+  if(!input)return null;
+  let box=input.parentElement.querySelector(".reelwise-suggestions");
+  if(!box){
+    box=document.createElement("div");
+    box.className="reelwise-suggestions";
+    box.setAttribute("role","listbox");
+    input.parentElement.appendChild(box);
+  }
+  return box;
+}
+function closeSuggestions(input){
+  const box=input&&input.parentElement?input.parentElement.querySelector(".reelwise-suggestions"):null;
+  if(box){box.classList.remove("open");box.innerHTML=""}
+}
+function predictionScore(item,query){
+  const name=String(item.display_title||item.title||item.name||"").toLowerCase();
+  const q=String(query||"").toLowerCase().trim();
+  if(!name||!q)return 0;
+  if(name===q)return 1000;
+  if(name.startsWith(q))return 850-q.length+name.length*.01;
+  if(name.includes(q))return 700;
+  const qw=q.split(/\s+/),nw=name.split(/\s+/);
+  let score=0;
+  for(const word of qw){
+    if(nw.some(n=>n.startsWith(word)))score+=120;
+    else if(nw.some(n=>n.includes(word)))score+=70;
+  }
+  return score;
+}
+async function loadPredictions(input){
+  const raw=String(input.value||"").trim();
+  const box=suggestionBoxFor(input);
+  if(!box)return;
+  if(raw.length<2){closeSuggestions(input);return}
+  clearTimeout(reelwisePredictTimer);
+  reelwisePredictTimer=setTimeout(async()=>{
+    try{
+      if(reelwisePredictController)reelwisePredictController.abort();
+      reelwisePredictController=new AbortController();
+      const normalized=normalizeReelwiseQuery(raw);
+      const response=await fetch("/api/search?q="+encodeURIComponent(normalized),{signal:reelwisePredictController.signal});
+      const data=await response.json();
+      if(!response.ok)throw new Error(data.error||"Search failed.");
+      let items=Array.isArray(data.results)?data.results:[];
+      items=items
+        .map(item=>({item,score:predictionScore(item,normalized)}))
+        .filter(x=>x.score>0)
+        .sort((a,b)=>b.score-a.score)
+        .slice(0,5)
+        .map(x=>x.item);
+      if(!items.length){closeSuggestions(input);return}
+      box.innerHTML=items.map((item,index)=>{
+        const movie=item.result_type==="movie";
+        const name=item.display_title||item.title||item.name||"Unknown";
+        const image=movie?item.poster_path:item.profile_path;
+        const imageURL=image?"https://image.tmdb.org/t/p/w185"+image:"";
+        const meta=movie?(item.year||"Movie"):(item.known_for_department||"Movie Star");
+        return `<button type="button" class="suggestion-item" role="option" data-index="${index}">
+          ${imageURL?`<img class="suggestion-thumb" src="${imageURL}" alt="">`:`<span class="suggestion-fallback">${movie?"🎬":"⭐"}</span>`}
+          <span class="suggestion-copy"><span class="suggestion-type">${movie?"MOVIE":"STAR"}</span><strong>${escapeHTML(name)}</strong><small>${escapeHTML(meta)}</small></span>
+        </button>`;
+      }).join("");
+      box.querySelectorAll(".suggestion-item").forEach((button,index)=>{
+        button.addEventListener("click",()=>{
+          const item=items[index];
+          closeSuggestions(input);
+          input.value=item.display_title||item.title||item.name||raw;
+          item.result_type==="movie"?showMovie(item.id):showPerson(item.id);
+        });
+      });
+      box.classList.add("open");
+    }catch(error){
+      if(error.name!=="AbortError")closeSuggestions(input);
+    }
+  },220);
+}
+function wirePredictiveInput(input){
+  if(!input||input.dataset.predictive==="true")return;
+  input.dataset.predictive="true";
+  input.setAttribute("autocomplete","off");
+  input.addEventListener("input",()=>loadPredictions(input));
+  input.addEventListener("focus",()=>{if(input.value.trim().length>=2)loadPredictions(input)});
+  input.addEventListener("keydown",event=>{
+    const box=suggestionBoxFor(input);
+    if(event.key==="Escape"){closeSuggestions(input);return}
+    if(event.key==="ArrowDown"&&box&&box.classList.contains("open")){
+      const first=box.querySelector(".suggestion-item");
+      if(first){event.preventDefault();first.focus()}
+    }
+  });
+}
+function wireAllPredictiveSearches(){
+  ["searchInput","movieDiscoverySearch","starDiscoverySearch"].forEach(id=>wirePredictiveInput(document.getElementById(id)));
+}
+document.addEventListener("click",event=>{
+  document.querySelectorAll(".reelwise-suggestions.open").forEach(box=>{
+    if(!box.parentElement.contains(event.target)){box.classList.remove("open");box.innerHTML=""}
+  });
+});
+const reelwiseObserver=new MutationObserver(()=>wireAllPredictiveSearches());
+reelwiseObserver.observe(document.body,{childList:true,subtree:true});
+wireAllPredictiveSearches();
+
 loadHomeMovies();
 </script>
 </body>
