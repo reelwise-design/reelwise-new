@@ -3,206 +3,207 @@
   REELWISE TRIVIA VAULT — 1990s
   ============================================================
 
-  Casting stories, filming, production decisions,
-  actor anecdotes and behind-the-scenes movie history.
+  Curated casting stories, filming details, production
+  decisions, actor anecdotes and behind-the-scenes history.
 */
 
 const TRIVIA_90S = {
 
   "home alone": [
-    "Macaulay Culkin had previously worked with writer John Hughes in Uncle Buck before Hughes wrote Home Alone.",
-    "The production used a school in Winnetka, Illinois, for several interior sets, while the famous McCallister house exterior was filmed at a real home nearby.",
-    "Joe Pesci deliberately avoided Macaulay Culkin away from the cameras so the young actor would remain genuinely wary of him during their scenes.",
-    "John Candy filmed his scenes as Gus Polinski during a short period on set, and much of his dialogue was improvised."
+    "Macaulay Culkin had previously worked with writer John Hughes in Uncle Buck, a performance that helped lead to his casting as Kevin McCallister.",
+    "The exterior of the McCallister house was filmed at a real home in Winnetka, Illinois, while a nearby school provided space for sets and interior filming.",
+    "Joe Pesci deliberately kept some distance from Macaulay Culkin off camera because he wanted the young actor to remain wary of him during their scenes.",
+    "John Candy shot his Home Alone material during one marathon day of filming, and much of his dialogue as Gus Polinski was improvised.",
+    "The old gangster movie Kevin watches, Angels with Filthy Souls, was not a real vintage movie. The footage was created specifically for Home Alone."
   ],
 
   "terminator 2: judgment day": [
-    "Linda Hamilton trained extensively to transform Sarah Connor into the muscular, battle-ready character seen in Terminator 2.",
-    "Linda Hamilton's identical twin sister Leslie Hamilton Gearren was used for several shots requiring two versions of Sarah Connor.",
-    "Robert Patrick trained to run with controlled breathing and movement to make the T-1000 appear unusually machine-like.",
-    "Stan Winston's team created extensive practical makeup and mechanical effects that were combined with groundbreaking computer-generated imagery for the T-1000."
+    "Linda Hamilton underwent extensive physical training to transform Sarah Connor into the muscular, battle-ready character seen in Terminator 2.",
+    "Hamilton's identical twin sister, Leslie Hamilton Gearren, was used in shots requiring two versions of Sarah Connor.",
+    "Robert Patrick trained himself to run with controlled movement and an intense fixed expression to make the T-1000 seem less human.",
+    "Stan Winston's practical makeup and mechanical effects were combined with groundbreaking computer-generated imagery to create the T-1000."
   ],
 
   "a league of their own": [
-    "The actresses underwent baseball training before filming so they could perform much of the game action themselves.",
-    "Geena Davis had relatively little baseball experience before the movie but developed strong skills during training for the role of Dottie Hinson.",
-    "The story was inspired by the real All-American Girls Professional Baseball League, which operated during and after World War II.",
-    "Director Penny Marshall assembled a large cast that included Geena Davis, Tom Hanks, Madonna, Rosie O'Donnell and Lori Petty."
+    "The actresses underwent intensive baseball training before filming so they could perform much of the game action themselves.",
+    "Geena Davis had limited baseball experience before production but became skilled enough during training to perform much of Dottie's playing action.",
+    "The movie was inspired by the real All-American Girls Professional Baseball League, which began during World War II.",
+    "Many of the performers playing ballplayers were selected partly for their actual athletic ability."
   ],
 
   "reservoir dogs": [
-    "Reservoir Dogs was Quentin Tarantino's feature directing debut.",
-    "Harvey Keitel's involvement helped the low-budget project attract financing and additional actors.",
-    "Much of the movie takes place inside a warehouse, helping Tarantino make the film on a relatively limited budget.",
-    "The production used an actual former mortuary for portions of the warehouse location."
+    "Reservoir Dogs was Quentin Tarantino's feature-film directing debut.",
+    "Harvey Keitel's decision to become involved helped the project obtain financing and attract additional actors.",
+    "Much of the story takes place in a single warehouse, helping Tarantino make the film on a comparatively small budget.",
+    "The warehouse location was a former mortuary, and some areas of the building were incorporated into the production."
   ],
 
   "a few good men": [
-    "Aaron Sorkin adapted the screenplay from his own stage play A Few Good Men.",
-    "Sorkin began developing the story after hearing from his sister, a lawyer, about a case involving Marines at Guantanamo Bay.",
-    "Rob Reiner directed the film, bringing together Tom Cruise, Jack Nicholson and Demi Moore in the principal roles.",
-    "Jack Nicholson's courtroom performance as Colonel Jessup became one of the most recognizable performances of his career."
+    "Aaron Sorkin adapted A Few Good Men from his own stage play.",
+    "Sorkin began developing the story after his sister, a lawyer, told him about Marines involved in a hazing-related case at Guantanamo Bay.",
+    "Rob Reiner directed the film, with Tom Cruise, Jack Nicholson and Demi Moore leading the cast.",
+    "The lengthy courtroom confrontation between Kaffee and Jessup became the dramatic centerpiece of the movie."
   ],
 
   "groundhog day": [
-    "Groundhog Day was filmed primarily in Woodstock, Illinois, rather than Punxsutawney, Pennsylvania, where the story takes place.",
-    "Director Harold Ramis and Bill Murray had different ideas about the balance between comedy and the story's more philosophical elements, contributing to tension during production.",
-    "The filmmakers intentionally avoided giving a precise explanation for why Phil Connors becomes trapped in the time loop.",
-    "The Woodstock town square and surrounding locations became closely associated with the movie after its release."
+    "Groundhog Day was filmed primarily in Woodstock, Illinois, rather than Punxsutawney, Pennsylvania.",
+    "Bill Murray and director Harold Ramis disagreed over aspects of the movie's tone, contributing to tension during production and a long strain in their friendship.",
+    "The finished movie deliberately never explains what causes Phil Connors to become trapped in the repeating day.",
+    "Woodstock embraced its connection to the movie and has continued to celebrate Groundhog Day with locations recognizable from the film."
   ],
 
   "jurassic park": [
-    "Steven Spielberg originally planned to rely more heavily on stop-motion techniques for the dinosaurs before computer-generated tests helped convince the filmmakers to expand the use of CGI.",
-    "Stan Winston's team built full-size animatronic dinosaurs, including the enormous Tyrannosaurus rex used for close interaction with the actors.",
-    "The combination of animatronics and computer-generated dinosaurs became a landmark in visual-effects filmmaking.",
-    "Hurricane Iniki struck Hawaii while the production was filming there, disrupting the shoot."
+    "The filmmakers initially expected stop-motion animation to play a larger role in bringing the dinosaurs to life, but impressive computer-animation tests helped change that plan.",
+    "Stan Winston's crew built enormous practical dinosaurs, including a full-size animatronic Tyrannosaurus rex for close-up interaction with the actors.",
+    "Jurassic Park ultimately combined animatronics and computer-generated dinosaurs, rather than relying exclusively on either technique.",
+    "Hurricane Iniki struck Kauai while the production was filming in Hawaii, temporarily disrupting the shoot."
   ],
 
   "the fugitive": [
-    "The Fugitive was adapted from the 1960s television series starring David Janssen.",
-    "A real train and bus were used to create the spectacular crash sequence rather than constructing the entire scene digitally.",
-    "Tommy Lee Jones won the Academy Award for Best Supporting Actor for playing U.S. Marshal Samuel Gerard.",
-    "Jones and the actors playing Gerard's team developed an easy conversational style that helped make the marshals feel like an established working unit."
+    "The Fugitive was adapted from the television series that starred David Janssen in the 1960s.",
+    "For the spectacular derailment sequence, the production crashed a real locomotive into a bus rather than creating the entire sequence digitally.",
+    "Tommy Lee Jones and the actors playing Gerard's U.S. Marshal team developed a loose conversational rhythm that made the group feel like longtime colleagues.",
+    "Tommy Lee Jones won the Academy Award for Best Supporting Actor for playing Samuel Gerard."
   ],
 
   "tombstone": [
-    "Val Kilmer's performance as Doc Holliday became one of the movie's most celebrated elements.",
-    "The production experienced major difficulties behind the scenes, including a change of director after filming had begun.",
-    "George P. Cosmatos received the directing credit after original director Kevin Jarre left the production.",
-    "Kurt Russell later described taking an unusually active role in helping keep the troubled production moving after the directing change."
+    "Screenwriter Kevin Jarre began Tombstone as its director but was dismissed after filming had started.",
+    "George P. Cosmatos replaced Jarre and received the finished movie's directing credit.",
+    "Kurt Russell later said that he assumed an unusually large behind-the-scenes role in helping organize and guide the troubled production after the directing change.",
+    "Val Kilmer's performance as Doc Holliday became one of the movie's most enduring elements."
   ],
 
   "mrs. doubtfire": [
-    "Robin Williams spent hours in extensive prosthetic makeup to transform into Mrs. Doubtfire.",
-    "Makeup artist Greg Cannom and the makeup team won the Academy Award for Best Makeup for the transformation.",
-    "Director Chris Columbus allowed Robin Williams room to improvise, resulting in multiple versions of scenes with different levels of comic material.",
-    "The movie's San Francisco locations became an important part of its visual identity, including the house used as the Hillard family home."
+    "Robin Williams spent hours undergoing the prosthetic-makeup process that transformed him into Mrs. Doubtfire.",
+    "Greg Cannom and the makeup team won the Academy Award for the film's makeup work.",
+    "Director Chris Columbus gave Williams opportunities to improvise, resulting in multiple versions of some scenes with different levels of comic material.",
+    "The Hillard family's house was a real San Francisco residence, helping make the city an important part of the movie's identity."
   ],
 
   "forrest gump": [
-    "Visual-effects artists inserted Forrest into archival footage with historical figures, carefully altering images and dialogue to make the encounters appear authentic.",
-    "Gary Sinise's lower legs were digitally removed for scenes showing Lieutenant Dan after the character loses his legs.",
-    "Tom Hanks patterned aspects of Forrest's distinctive accent on the speech of young actor Michael Conner Humphreys, who played Forrest as a boy.",
-    "Tom Hanks won the Academy Award for Best Actor, and the film won Best Picture."
+    "Visual-effects artists inserted Forrest into archival footage alongside historical figures, altering the footage to make the interactions appear convincing.",
+    "Gary Sinise's lower legs were removed with digital effects for scenes showing Lieutenant Dan after his injuries.",
+    "Tom Hanks adopted elements of the accent used by Michael Conner Humphreys, the young actor playing Forrest as a child, so the two performances would sound connected.",
+    "The movie mixed practical photography, archival material and digital effects in ways that were unusually ambitious for a mainstream drama of its time."
   ],
 
   "pulp fiction": [
-    "John Travolta's casting as Vincent Vega helped revive his movie career after a period in which he had been less prominent in major films.",
-    "Quentin Tarantino and Roger Avary shared the Academy Award for Best Original Screenplay.",
-    "The movie was structured as interconnected stories presented out of chronological order.",
-    "The Jack Rabbit Slim's dance sequence helped create one of the film's most recognizable images, pairing Travolta with Uma Thurman."
+    "John Travolta's casting as Vincent Vega gave his film career a major resurgence.",
+    "The movie tells its interconnected stories out of chronological order, allowing characters and events to reappear from different points in the timeline.",
+    "Travolta's background as a dancer became part of one of the movie's most famous sequences when Vincent dances with Mia Wallace.",
+    "Quentin Tarantino and Roger Avary won the Academy Award for Best Original Screenplay."
   ],
 
   "the shawshank redemption": [
     "The Shawshank Redemption was adapted from Stephen King's novella Rita Hayworth and Shawshank Redemption.",
-    "Much of the movie was filmed at the former Ohio State Reformatory in Mansfield, Ohio.",
-    "Morgan Freeman's character Red is described as Irish in King's novella, while Freeman was cast in the film without attempting to preserve that detail literally.",
-    "The movie had a relatively modest theatrical run before developing a much larger audience through home video and repeated television broadcasts."
+    "The former Ohio State Reformatory in Mansfield, Ohio, supplied major locations for Shawshank prison.",
+    "In King's novella, Red is a white Irish-American character; Morgan Freeman was cast without trying to preserve that physical description.",
+    "The movie's initial theatrical performance was modest compared with the enormous audience it later developed through home video and repeated television broadcasts."
   ],
 
   "the lion king": [
-    "The Lion King was one of Disney's major animated productions of the 1990s and featured songs by Elton John and Tim Rice.",
-    "James Earl Jones voiced Mufasa, giving the character the same distinctive voice that had already made Jones famous to generations of movie audiences.",
-    "Animators studied real lions and other animals to help develop the characters' movement and anatomy.",
-    "The wildebeest stampede combined traditional character animation with computer-generated techniques to create the enormous moving herd."
+    "Animators studied real lions and other animals to help develop the characters' anatomy and movement.",
+    "James Earl Jones provided the voice of Mufasa, while Jeremy Irons voiced Scar.",
+    "The enormous wildebeest stampede combined traditional character animation with computer-assisted techniques to manage the moving herd.",
+    "Elton John and Tim Rice wrote the movie's songs, while Hans Zimmer composed its score."
   ],
 
   "apollo 13": [
-    "Director Ron Howard used NASA's reduced-gravity aircraft to film portions of the weightless spacecraft scenes.",
-    "The aircraft repeatedly flew parabolic maneuvers that produced only brief periods of actual weightlessness, requiring the actors and crew to capture shots in short bursts.",
-    "NASA cooperated with the production, and the filmmakers worked to recreate spacecraft interiors and mission procedures with substantial attention to detail.",
-    "The movie was based on the real Apollo 13 lunar mission of 1970."
+    "Ron Howard filmed portions of Apollo 13's weightless scenes aboard NASA's reduced-gravity aircraft.",
+    "The aircraft flew repeated parabolic arcs, giving the actors and crew only brief periods of real weightlessness during each maneuver.",
+    "Sets representing sections of the spacecraft were placed inside the aircraft so scenes could be photographed during those short zero-gravity intervals.",
+    "The production worked closely with NASA personnel while recreating spacecraft interiors, mission procedures and equipment."
   ],
 
   "braveheart": [
-    "Mel Gibson both directed Braveheart and starred as William Wallace.",
-    "Large battle sequences were filmed in Ireland with extensive numbers of extras.",
-    "Members of the Irish Army Reserve were used as extras during some of the battle scenes, allowing groups to be reorganized to portray opposing armies.",
-    "Braveheart won five Academy Awards, including Best Picture and Best Director for Gibson."
+    "Mel Gibson directed Braveheart while also starring as William Wallace.",
+    "Many of the movie's enormous battle scenes were filmed in Ireland.",
+    "Members of the Irish Army Reserve participated as extras, with groups able to switch costumes and positions to represent opposing forces.",
+    "The production relied heavily on practical battle staging, horses, stunt performers and large groups of extras."
   ],
 
   "toy story": [
-    "Toy Story was the first feature-length film created entirely with computer-generated animation.",
-    "The movie was Pixar's first feature film and marked a major milestone in the development of computer animation.",
-    "Tom Hanks voiced Woody and Tim Allen voiced Buzz Lightyear.",
-    "Early versions of Woody were significantly harsher than the character in the finished film, leading the filmmakers to rethink his personality during development."
+    "Toy Story became the first feature-length movie made entirely with computer-generated animation.",
+    "It was Pixar's first feature film.",
+    "Early versions of Woody were much harsher and less likable than the character audiences eventually saw, forcing Pixar to substantially rework his personality.",
+    "Tom Hanks recorded Woody while Tim Allen supplied the voice of Buzz Lightyear."
   ],
 
   "jerry maguire": [
-    "Cameron Crowe wrote and directed Jerry Maguire.",
-    "Cuba Gooding Jr. won the Academy Award for Best Supporting Actor for his performance as football player Rod Tidwell.",
-    "Renée Zellweger was still relatively early in her film career when she was cast opposite Tom Cruise as Dorothy Boyd.",
-    "The movie produced several lines that quickly became part of popular culture, including phrases associated with money, love and loyalty."
+    "Cameron Crowe both wrote and directed Jerry Maguire.",
+    "Renée Zellweger was still relatively early in her movie career when she was selected to play Dorothy Boyd opposite Tom Cruise.",
+    "Cuba Gooding Jr.'s energetic performance as Rod Tidwell won him the Academy Award for Best Supporting Actor.",
+    "The movie generated several phrases that rapidly entered popular culture, an unusually strong legacy for dialogue from a romantic comedy-drama."
   ],
 
   "scream": [
-    "Scream was written by Kevin Williamson and directed by Wes Craven.",
-    "Drew Barrymore was heavily featured in the movie's marketing even though her character appears primarily in the opening sequence.",
-    "The opening scene deliberately played on audience expectations about which recognizable star would be the movie's central character.",
-    "The Ghostface mask was based on an existing commercially available mask discovered during pre-production rather than being designed entirely from scratch for the film."
+    "Kevin Williamson wrote Scream and Wes Craven directed it, combining slasher conventions with characters who understood the rules of horror movies.",
+    "Drew Barrymore was promoted prominently despite her character being killed during the opening sequence, helping the movie overturn audience expectations almost immediately.",
+    "The Ghostface face design originated with an existing commercially produced mask discovered during pre-production rather than being invented entirely for Scream.",
+    "The filmmakers secured the right to use the existing mask and paired it with the black costume that created Ghostface's finished appearance."
   ],
 
   "good will hunting": [
-    "Matt Damon and Ben Affleck wrote the screenplay for Good Will Hunting and later won the Academy Award for Best Original Screenplay.",
+    "Matt Damon and Ben Affleck wrote Good Will Hunting and won the Academy Award for Best Original Screenplay.",
     "Robin Williams won the Academy Award for Best Supporting Actor for playing therapist Sean Maguire.",
-    "Williams improvised portions of Sean's story about his late wife, and Matt Damon's laughter during the scene was genuine.",
-    "Director Gus Van Sant filmed extensively around Boston and Cambridge, Massachusetts, giving the movie a strong sense of its local setting."
+    "Williams improvised material during Sean's story about his late wife, and Matt Damon's laughter during the scene was genuine.",
+    "The movie used Boston and Cambridge locations extensively, reinforcing the strong local identity of Will's world."
   ],
 
   "titanic": [
-    "James Cameron made extensive dives to the real wreck of the Titanic and incorporated footage of the wreck into the movie.",
-    "A massive exterior set representing much of the ship was constructed at a specially developed production facility in Baja California, Mexico.",
-    "Kate Winslet and Leonardo DiCaprio performed in large water tanks for many of the sinking sequences.",
-    "The production combined enormous practical sets, miniatures and computer-generated effects to recreate the ship and its sinking."
+    "James Cameron made multiple dives to the real Titanic wreck while developing the movie and incorporated footage of the wreck into the film.",
+    "A huge exterior set representing much of Titanic was constructed at a purpose-built facility in Baja California, Mexico.",
+    "Large tanks allowed the filmmakers to flood sets and stage the sinking sequences with actors, stunt performers and practical scenery.",
+    "The finished sinking combined enormous physical sets, miniatures and computer-generated imagery."
   ],
 
   "the big lebowski": [
-    "Jeff Bridges used aspects of his own wardrobe while developing the Dude's famously casual appearance.",
-    "The Coen brothers wrote the Dude with inspiration from film producer and political activist Jeff Dowd, whom they knew personally.",
-    "John Turturro's Jesus Quintana has relatively little screen time but became one of the movie's most recognizable supporting characters.",
-    "The movie's reputation grew substantially after its original theatrical release, eventually developing a large cult following."
+    "The Dude was inspired partly by Jeff Dowd, a film producer and political activist known personally by Joel and Ethan Coen.",
+    "Jeff Bridges incorporated pieces of his own clothing into the Dude's famously relaxed wardrobe.",
+    "John Turturro's Jesus Quintana appears only briefly but became one of the movie's best-remembered supporting characters.",
+    "The movie's audience and cultural reputation grew substantially after its original theatrical run, eventually producing an unusually devoted cult following."
   ],
 
   "saving private ryan": [
-    "Steven Spielberg staged the Omaha Beach landing with an intense combination of practical effects, handheld photography, stunt performers and large numbers of extras.",
-    "The opening battle sequence was filmed in Ireland, with Curracloe Beach standing in for Normandy.",
-    "Tom Hanks and several principal cast members underwent military-style training led by technical adviser Dale Dye before filming.",
-    "Spielberg used altered shutter settings and other photographic techniques to give the combat footage its distinctive sharp, chaotic appearance."
+    "The Omaha Beach landing was filmed at Curracloe Beach in Ireland, which stood in for the Normandy coastline.",
+    "Steven Spielberg combined practical explosions, stunt performers, large groups of extras and handheld camerawork to create the landing sequence.",
+    "Tom Hanks and several other cast members completed military-style training led by veteran and technical adviser Dale Dye before filming.",
+    "Cinematographer Janusz Kamiński used techniques including altered shutter angles to give portions of the combat photography their unusually sharp, chaotic appearance."
   ],
 
   "the truman show": [
-    "Much of The Truman Show was filmed in Seaside, Florida, whose carefully planned architecture became the visual basis for Truman's artificial hometown.",
-    "The production used unusual camera angles and hidden-camera-style framing to remind viewers that Truman is constantly being watched.",
-    "Jim Carrey's performance represented a significant dramatic turn from the broad comedies that had made him a major star.",
-    "Ed Harris joined the production as Christof and received an Academy Award nomination for Best Supporting Actor."
+    "Much of The Truman Show was filmed in Seaside, Florida, whose planned architecture became the basis for Truman's artificial hometown of Seahaven.",
+    "The filmmakers used unusual lenses, concealed-camera perspectives and obstructed compositions to make viewers feel as though they were watching Truman through hidden television cameras.",
+    "The movie gave Jim Carrey one of his first major opportunities to move beyond the broad comedy roles that had made him famous.",
+    "Ed Harris joined the production as Christof and received an Academy Award nomination for the performance."
   ],
 
   "the waterboy": [
-    "The Waterboy was one of the movies that helped establish Adam Sandler as a major theatrical comedy star in the late 1990s.",
-    "Henry Winkler played Coach Klein, giving the movie a prominent supporting performer already famous for playing the Fonz on Happy Days.",
-    "Former NFL coach and broadcaster Bill Cowher appears as himself in the film.",
-    "The football scenes were staged with large groups of players and extras to give the fictional college games a larger-scale appearance."
+    "The Waterboy arrived during the run of late-1990s hits that established Adam Sandler as a major theatrical comedy star.",
+    "Henry Winkler played Coach Klein, decades after becoming famous as the Fonz on Happy Days.",
+    "The movie featured appearances by figures from the football world alongside its fictional players and coaches.",
+    "Football sequences used large groups of players, stunt performers and extras to create the fictional college games."
   ],
 
   "the sixth sense": [
-    "Haley Joel Osment received an Academy Award nomination for Best Supporting Actor for playing Cole Sear.",
-    "M. Night Shyamalan used visual clues throughout the film that take on new significance once the audience understands the ending.",
-    "Bruce Willis gave a restrained dramatic performance that contrasted with many of the action roles for which he was already famous.",
-    "The movie became a major box-office success and received six Academy Award nominations, including Best Picture."
+    "M. Night Shyamalan planted visual and storytelling clues throughout The Sixth Sense that take on a different meaning after the ending is revealed.",
+    "Bruce Willis gave a deliberately restrained performance as Malcolm Crowe, very different from the action-hero roles strongly associated with him.",
+    "Haley Joel Osment received an Academy Award nomination for playing Cole Sear.",
+    "The movie received six Academy Award nominations, including Best Picture, while becoming one of the biggest box-office successes of 1999."
   ],
 
   "fight club": [
-    "Brad Pitt had portions of his front teeth temporarily altered for Tyler Durden's rough appearance and restored after filming.",
-    "Director David Fincher used extensive visual effects for shots that move through spaces impossible for a conventional camera to travel through.",
-    "Edward Norton and Brad Pitt underwent physical preparation for their roles and performed in carefully choreographed fight sequences.",
-    "The film was adapted from Chuck Palahniuk's novel Fight Club."
+    "Brad Pitt had his front teeth temporarily altered to make Tyler Durden look rougher and had them restored after production.",
+    "David Fincher used digital visual effects for elaborate shots that appear to move the camera through physical spaces a conventional camera could not travel through.",
+    "Brad Pitt and Edward Norton underwent physical preparation and rehearsed carefully choreographed fight sequences.",
+    "The film was adapted from Chuck Palahniuk's novel."
   ],
 
   "the matrix": [
-    "Keanu Reeves, Carrie-Anne Moss and other principal actors underwent months of martial-arts and wire-work training before filming.",
-    "The movie's famous bullet-time sequences used arrays of still cameras positioned around the performers to create the illusion of a viewpoint moving around action frozen in time.",
-    "Production designer Owen Paterson and the filmmaking team created a visual distinction between the simulated Matrix and the harsher real world.",
-    "The Matrix won four Academy Awards, including honors for visual effects, editing and sound."
+    "Keanu Reeves, Carrie-Anne Moss and other cast members spent months training for the movie's martial-arts and wire-assisted action.",
+    "The famous bullet-time photography used arrays of still cameras positioned around the action, allowing the apparent viewpoint to travel around moments that seem frozen or dramatically slowed.",
+    "The production created a deliberate visual contrast between life inside the Matrix and the harsher world outside the simulation.",
+    "The Matrix combined Hong Kong-inspired fight choreography, wire work, practical stunts and digital effects in a style that became enormously influential."
   ]
 
 };
