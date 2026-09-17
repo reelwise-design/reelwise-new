@@ -1102,6 +1102,27 @@ header,.hero,.hero-inner{overflow:visible!important}
   z-index:1!important;
 }
 
+
+/* REELWISE SITE-WIDE PREDICTOR + MOBILE WIDTH UPGRADE */
+.discovery-hero,.discovery-panel,.discovery-search,
+.six-card,.six-form,.six-person-field{overflow:visible!important}
+.discovery-hero,.discovery-panel,.six-card{position:relative;z-index:20}
+.discovery-search,.six-person-field{position:relative!important;z-index:200!important}
+.discovery-search .reelwise-suggestions,
+.six-person-field .reelwise-suggestions{z-index:10000!important}
+
+@media(max-width:800px){
+  main,.page,.section,.section-inner,.discovery-page,.discovery-wrap{
+    width:100%!important;max-width:none!important;
+  }
+  .section,.section-inner,.discovery-page,.discovery-wrap{
+    padding-left:12px!important;padding-right:12px!important;
+  }
+  .discovery-hero,.discovery-panel,.six-card{
+    width:100%!important;max-width:none!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1520,6 +1541,10 @@ async function loadPredictions(input){
         }
       }
 
+      const mode=predictorModeFor(input);
+      if(mode==="movie")items=items.filter(item=>item.result_type==="movie");
+      if(mode==="person")items=items.filter(item=>item.result_type==="person");
+
       const q=rwClean(normalized);
       let ranked=items.map(item=>{
         const name=item.display_title||item.title||item.name||"";
@@ -1554,6 +1579,12 @@ async function loadPredictions(input){
           const item=suggestions[index];
           closeSuggestions(input);
           input.value=item.display_title||item.title||item.name||raw;
+          input.dataset.tmdbId=String(item.id||"");
+          input.dataset.tmdbType=item.result_type||"";
+          if(input.closest && (input.closest(".six-card")||input.closest(".six-form"))){
+            input.dispatchEvent(new Event("change",{bubbles:true}));
+            return;
+          }
           item.result_type==="movie"?showMovie(item.id):showPerson(item.id);
         });
       });
@@ -1568,8 +1599,18 @@ function wirePredictiveInput(input){
   input.addEventListener("focus",()=>{if(input.value.trim().length>=3)loadPredictions(input)});
   input.addEventListener("keydown",event=>{if(event.key==="Escape")closeSuggestions(input)});
 }
+function predictorModeFor(input){
+  if(!input)return "all";
+  if(input.id==="movieDiscoverySearch")return "movie";
+  if(input.id==="starDiscoverySearch")return "person";
+  if(input.closest && input.closest(".six-card"))return "person";
+  return "all";
+}
 function wireAllPredictiveSearches(){
   ["searchInput","movieDiscoverySearch","starDiscoverySearch"].forEach(id=>wirePredictiveInput(document.getElementById(id)));
+  document.querySelectorAll(
+    '.six-card input[type="text"], .six-form input[type="text"], input[id*="actor"], input[id*="person"]'
+  ).forEach(input=>wirePredictiveInput(input));
 }
 document.addEventListener("click",event=>{
   document.querySelectorAll(".reelwise-suggestions.open").forEach(box=>{
