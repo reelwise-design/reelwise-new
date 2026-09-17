@@ -73,7 +73,9 @@ const QUOTES_2000S = {
   "old school": [
     "We're going streaking!",
     "You're my boy, Blue!",
-    "Once it hits your lips, it's so good!"
+    "Once it hits your lips, it's so good!",
+    "Just ring the bell, you pansy.",
+    "I have a nice little Saturday planned."
   ],
 
   "anchorman: the legend of ron burgundy": [
@@ -104,10 +106,21 @@ const QUOTES_2000S = {
     "Rule number 76: No excuses. Play like a champion."
   ],
 
+  "rocky balboa": [
+    "It ain't about how hard you hit.",
+    "It's about how hard you can get hit and keep moving forward.",
+    "That's how winning is done!",
+    "The world ain't all sunshine and rainbows.",
+    "You, me, or nobody is gonna hit as hard as life.",
+    "Until you start believing in yourself, you ain't gonna have a life."
+  ],
+
   "the departed": [
     "I'm the guy who does his job. You must be the other guy.",
     "When you're facing a loaded gun, what's the difference?",
-    "Maybe. Maybe not. Maybe fuck yourself."
+    "I don't want to be a product of my environment. I want my environment to be a product of me.",
+    "Maybe. Maybe not. Maybe fuck yourself.",
+    "One of us had to die. With me, it tends to be the other guy."
   ],
 
   "300": [
@@ -138,7 +151,8 @@ const QUOTES_2000S = {
 
   "the hangover": [
     "What happens in Vegas stays in Vegas. Except herpes.",
-    "I consider myself a bit of a loner."
+    "I'm not supposed to be within two hundred feet of a school.",
+    "You guys might not know this, but I consider myself a bit of a loner."
   ]
 
 };
