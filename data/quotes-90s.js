@@ -32,12 +32,14 @@ const QUOTES_90S = {
   "a few good men": [
     "You can't handle the truth!",
     "I want the truth!",
-    "You want answers?"
+    "You want answers?",
+    "You don't need to wear a patch on your arm to have honor."
   ],
 
   "groundhog day": [
-    "Well, what if there is no tomorrow?",
-    "Don't drive angry!"
+    "Well, what if there is no tomorrow? There wasn't one today.",
+    "Don't drive angry!",
+    "I'm a god. I'm not the God... I don't think."
   ],
 
   "jurassic park": [
@@ -64,7 +66,8 @@ const QUOTES_90S = {
   "forrest gump": [
     "Life was like a box of chocolates.",
     "Run, Forrest, run!",
-    "Stupid is as stupid does."
+    "Stupid is as stupid does.",
+    "I'm not a smart man, but I know what love is."
   ],
 
   "pulp fiction": [
@@ -74,7 +77,9 @@ const QUOTES_90S = {
 
   "the shawshank redemption": [
     "Get busy living, or get busy dying.",
-    "Some birds aren't meant to be caged."
+    "Hope is a good thing, maybe the best of things, and no good thing ever dies.",
+    "These walls are funny. First you hate 'em, then you get used to 'em.",
+    "Some birds aren't meant to be caged. Their feathers are just too bright."
   ],
 
   "the lion king": [
@@ -103,7 +108,8 @@ const QUOTES_90S = {
 
   "scream": [
     "What's your favorite scary movie?",
-    "Movies don't create psychos. Movies make psychos more creative."
+    "Movies don't create psychos. Movies make psychos more creative.",
+    "There are certain rules that one must abide by in order to successfully survive a horror movie."
   ],
 
   "good will hunting": [
@@ -135,11 +141,15 @@ const QUOTES_90S = {
 
   "the sixth sense": [
     "I see dead people.",
-    "They don't know they're dead."
+    "They don't know they're dead.",
+    "They only see what they want to see."
   ],
 
   "fight club": [
-    "The first rule of Fight Club is: you do not talk about Fight Club."
+    "The first rule of Fight Club is: you do not talk about Fight Club.",
+    "The second rule of Fight Club is: you do not talk about Fight Club.",
+    "It's only after we've lost everything that we're free to do anything.",
+    "This is your life, and it's ending one minute at a time."
   ],
 
   "the matrix": [
