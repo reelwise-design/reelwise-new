@@ -3,185 +3,186 @@
   REELWISE TRIVIA VAULT — 2010s
   ============================================================
 
-  Casting stories, filming, production decisions,
-  actor anecdotes and behind-the-scenes movie history.
+  Curated casting stories, filming details, production
+  decisions, actor anecdotes and behind-the-scenes history.
 */
 
 const TRIVIA_2010S = {
 
   "inception": [
-    "Christopher Nolan spent years developing the concept for Inception before making the film, refining the rules surrounding dreams within dreams.",
-    "The rotating hallway fight was created with a large practical corridor set that could physically rotate while Joseph Gordon-Levitt performed the sequence.",
-    "Many of the movie's large-scale effects were achieved practically, including the rotating hallway, collapsing environments and a full-size vehicle used during the mountain sequence.",
-    "Hans Zimmer composed the score, whose powerful brass-heavy sound became one of the film's most recognizable elements."
+    "Christopher Nolan had been developing the basic idea behind Inception for years before finally making the movie.",
+    "The famous hallway fight was filmed inside a massive corridor set that physically rotated while Joseph Gordon-Levitt performed the sequence.",
+    "Rather than relying entirely on computer imagery, Nolan used large practical effects for sequences including the rotating hallway and portions of the collapsing dream environments.",
+    "Hans Zimmer created the movie's distinctive score, which became an important part of Inception's atmosphere and tension."
   ],
 
   "the social network": [
-    "Aaron Sorkin wrote the screenplay for The Social Network, adapting Ben Mezrich's book The Accidental Billionaires.",
-    "Jesse Eisenberg received an Academy Award nomination for his performance as Mark Zuckerberg.",
-    "Armie Hammer portrayed both Cameron and Tyler Winklevoss with the help of visual effects and actor Josh Pence, who served as a body double for one of the twins.",
-    "Director David Fincher frequently shot scenes with many takes, pursuing extremely precise timing and performances."
+    "Aaron Sorkin adapted The Social Network from Ben Mezrich's book The Accidental Billionaires.",
+    "Armie Hammer portrayed both Winklevoss twins through visual effects, with actor Josh Pence performing as the second twin during filming.",
+    "David Fincher became known during the production for shooting numerous takes while pursuing extremely precise timing and performances.",
+    "Jesse Eisenberg received an Academy Award nomination for his portrayal of Mark Zuckerberg."
   ],
 
   "bridesmaids": [
     "Kristen Wiig co-wrote Bridesmaids with Annie Mumolo and starred as Annie Walker.",
+    "The ensemble was given opportunities to improvise and experiment with alternate versions of comic scenes.",
     "Melissa McCarthy's performance as Megan earned her an Academy Award nomination for Best Supporting Actress.",
-    "The filmmakers allowed room for improvisation, particularly among the movie's ensemble of experienced comedians.",
-    "Bridesmaids became a major commercial success and helped demonstrate the theatrical audience for female-led R-rated ensemble comedies."
+    "Bridesmaids became one of the major R-rated comedy successes of its era and significantly raised the profiles of several members of its ensemble."
   ],
 
   "the avengers": [
-    "The Avengers brought characters from several previously released Marvel movies together in a single feature, an unusually ambitious shared-universe project at the time.",
-    "Mark Ruffalo took over the role of Bruce Banner from Edward Norton, who had played the character in The Incredible Hulk.",
-    "Much of the climactic New York battle combined physical sets and stunt work with extensive digital environments and computer-generated characters.",
-    "Industrial Light & Magic performed major visual-effects work on the Hulk, using Mark Ruffalo's performance as an important reference for the character."
+    "The Avengers brought heroes from several previously released Marvel movies together in one feature, completing a shared-universe plan Marvel had been building across multiple films.",
+    "Mark Ruffalo replaced Edward Norton as Bruce Banner and the Hulk.",
+    "Industrial Light & Magic used Mark Ruffalo's face and performance as important references when creating the digital Hulk.",
+    "The climactic New York battle mixed physical sets and stunt work with extensive digital environments, destruction and computer-generated characters."
   ],
 
   "django unchained": [
-    "Quentin Tarantino wrote and directed Django Unchained, drawing inspiration from spaghetti Westerns and other genre films.",
-    "Christoph Waltz won the Academy Award for Best Supporting Actor for playing Dr. King Schultz.",
-    "Leonardo DiCaprio injured his hand during the dinner-table sequence but continued performing while the cameras rolled.",
-    "Jamie Foxx used his own horse, Cheetah, for portions of the production."
+    "Quentin Tarantino drew heavily from spaghetti Westerns and other genre movies while developing Django Unchained.",
+    "Leonardo DiCaprio injured his hand during the dinner-table confrontation and continued performing through the take.",
+    "Jamie Foxx rode his own horse, Cheetah, during portions of the production.",
+    "Christoph Waltz won the Academy Award for Best Supporting Actor for playing Dr. King Schultz."
   ],
 
   "silver linings playbook": [
-    "Jennifer Lawrence won the Academy Award for Best Actress for her performance as Tiffany Maxwell.",
-    "Bradley Cooper trained extensively for the dance sequences he performs with Lawrence.",
-    "Director David O. Russell adapted the screenplay from Matthew Quick's novel.",
-    "The film received Academy Award nominations in all four acting categories, with Bradley Cooper, Jennifer Lawrence, Robert De Niro and Jacki Weaver all nominated."
+    "David O. Russell adapted Silver Linings Playbook from Matthew Quick's novel.",
+    "Bradley Cooper and Jennifer Lawrence trained for the dance competition that becomes a major part of the story.",
+    "Jennifer Lawrence won the Academy Award for Best Actress for playing Tiffany.",
+    "The movie received nominations in all four acting categories: Bradley Cooper, Jennifer Lawrence, Robert De Niro and Jacki Weaver."
   ],
 
   "the wolf of wall street": [
-    "Martin Scorsese directed Leonardo DiCaprio as stockbroker Jordan Belfort, continuing a collaboration that had already produced several films.",
-    "Jonah Hill wore prosthetic teeth while playing Donnie Azoff and received an Academy Award nomination for Best Supporting Actor.",
-    "Matthew McConaughey's rhythmic chest-thumping routine grew out of a personal warm-up ritual he used before filming and was incorporated into his restaurant scene.",
-    "The production used extensive improvisation alongside Terence Winter's screenplay, contributing to the movie's energetic performances."
+    "Leonardo DiCaprio noticed Matthew McConaughey performing a chest-thumping vocal exercise he used before acting and suggested that Martin Scorsese incorporate it into their restaurant scene.",
+    "Jonah Hill wore prominent prosthetic teeth to play Donnie Azoff.",
+    "The production allowed substantial improvisation around Terence Winter's screenplay.",
+    "The movie continued the long collaboration between Martin Scorsese and Leonardo DiCaprio that had begun with Gangs of New York."
   ],
 
   "frozen": [
-    "Frozen changed substantially during development, particularly the characterization of Elsa, who evolved from a more conventional antagonist into a sympathetic central character.",
-    "The song Let It Go influenced the filmmakers' understanding of Elsa and helped reshape portions of the story during production.",
-    "Idina Menzel voiced Elsa, while Kristen Bell voiced her sister Anna.",
-    "Disney's animation team researched snow and ice extensively to develop the movie's frozen environments and effects."
+    "Elsa changed dramatically during Frozen's development, evolving away from the more conventional villain the filmmakers had originally envisioned.",
+    "The development of Let It Go helped convince the filmmakers to rethink Elsa and reshape the story around the relationship between the two sisters.",
+    "Disney artists studied snow, ice and winter environments while developing the movie's animated world.",
+    "Idina Menzel voiced Elsa while Kristen Bell performed Anna."
   ],
 
   "guardians of the galaxy": [
-    "Chris Pratt underwent a major physical transformation to play Peter Quill after being known largely for comedic television roles.",
-    "Rocket was created digitally, with Sean Gunn performing aspects of the character physically on set while Bradley Cooper provided Rocket's voice.",
-    "Vin Diesel recorded Groot's limited vocabulary repeatedly to give variations of emotion and meaning to the character's dialogue.",
-    "The collection of 1970s and 1980s songs on Peter Quill's mixtape became a defining part of the movie's identity."
+    "Chris Pratt underwent a major physical transformation to play Peter Quill after becoming widely known through television comedy.",
+    "Sean Gunn performed Rocket on set to give the other actors a physical scene partner, while Bradley Cooper supplied Rocket's finished voice.",
+    "Vin Diesel recorded Groot's limited dialogue repeatedly with different emotional intentions.",
+    "Peter Quill's collection of 1970s and 1980s songs became so important that the mixtape functions almost like another character in the movie."
   ],
 
   "interstellar": [
-    "Christopher Nolan worked with theoretical physicist Kip Thorne, whose scientific expertise influenced the movie's depiction of black holes and relativity.",
-    "The filmmakers developed highly detailed computer simulations to visualize the black hole Gargantua.",
-    "Large portions of the spacecraft interiors were built as practical sets, with projected imagery outside the windows helping actors react to environments during filming.",
-    "For the farm sequences, the production planted hundreds of acres of corn rather than relying entirely on computer-generated fields."
+    "Christopher Nolan worked with theoretical physicist Kip Thorne while developing the movie's treatment of black holes, gravity and relativity.",
+    "The visualization of Gargantua grew from sophisticated computer calculations rather than simply designing a conventional science-fiction black hole.",
+    "Many spacecraft interiors were physical sets, with imagery projected outside windows so actors could see portions of the environments while performing.",
+    "The production planted hundreds of acres of real corn for the farm scenes instead of creating the fields entirely with visual effects."
   ],
 
   "whiplash": [
-    "Writer-director Damien Chazelle first made a short version of Whiplash to help secure financing for the feature film.",
-    "J. K. Simmons won the Academy Award for Best Supporting Actor for playing demanding music instructor Terence Fletcher.",
-    "Miles Teller had played drums before making Whiplash and performed portions of the drumming seen in the film.",
-    "The feature was filmed on a tight schedule, contributing to the intense pace of the production."
+    "Damien Chazelle made a short version of Whiplash before the feature in order to demonstrate the project's potential and help obtain financing.",
+    "Miles Teller already had drumming experience and performed portions of the drumming seen in the movie.",
+    "The feature was shot on an unusually compressed schedule.",
+    "J. K. Simmons won the Academy Award for Best Supporting Actor for playing Terence Fletcher."
   ],
 
   "john wick": [
-    "Keanu Reeves underwent extensive firearms, martial-arts and stunt training to prepare for John Wick's highly choreographed action sequences.",
-    "Directors Chad Stahelski and David Leitch came from stunt and action-coordination backgrounds, strongly influencing the movie's physical style.",
-    "Stahelski had previously worked as Keanu Reeves' stunt double on The Matrix.",
-    "The movie emphasized longer, clearly visible action choreography rather than hiding most of the fighting behind extremely rapid editing."
+    "Keanu Reeves trained extensively in firearms handling, martial arts and stunt choreography before filming John Wick.",
+    "Director Chad Stahelski came from a major stunt background and had previously doubled Keanu Reeves on The Matrix.",
+    "The filmmakers favored longer, clearly visible action choreography instead of disguising fights with constant rapid cutting.",
+    "The movie's combination of firearms and close-range martial arts required Reeves to learn complex sequences that blended several types of stunt work."
   ],
 
   "mad max: fury road": [
-    "Much of Mad Max: Fury Road was filmed in the Namibian desert using real vehicles and large practical stunts.",
-    "The production constructed numerous functioning vehicles specifically for the movie rather than creating the entire convoy digitally.",
-    "Many dangerous-looking vehicle sequences were performed by professional stunt performers with extensive safety planning.",
-    "Director George Miller had developed versions of the project for years before the movie finally entered full production."
+    "Much of Mad Max: Fury Road was filmed in Namibia with functioning vehicles racing through real desert locations.",
+    "The production constructed a huge collection of working vehicles specifically for the movie.",
+    "Many of the spectacular vehicle sequences were accomplished with practical stunt performers and physical vehicles, with digital effects used to enhance and safely complete the imagery.",
+    "George Miller spent years trying to get the project made before production finally moved forward."
   ],
 
   "the revenant": [
-    "The Revenant was filmed largely using natural light, creating strict limitations on when cinematographer Emmanuel Lubezki could capture certain scenes.",
-    "The production filmed in remote and difficult natural locations, creating an unusually demanding shoot for the cast and crew.",
-    "Leonardo DiCaprio won his first Academy Award for Best Actor for his performance as Hugh Glass.",
-    "Director Alejandro G. Iñárritu and Lubezki used long, fluid camera movements to create an immersive visual style."
+    "Cinematographer Emmanuel Lubezki relied heavily on natural light, leaving the production with limited shooting windows for many scenes.",
+    "The cast and crew worked in remote natural locations and difficult weather conditions during an unusually demanding production.",
+    "Alejandro G. Iñárritu and Lubezki designed elaborate long takes and fluid camera movements to place the audience close to the action.",
+    "Leonardo DiCaprio won his first Academy Award for Best Actor for playing Hugh Glass."
   ],
 
   "deadpool": [
-    "Ryan Reynolds spent years advocating for a Deadpool movie that more closely reflected the character's irreverent comic-book personality.",
-    "Test footage created to demonstrate the movie's approach generated strong online interest after it became public, helping revive momentum for the project.",
-    "The movie was produced with a more limited budget than many contemporary superhero blockbusters, encouraging the filmmakers to concentrate resources on selected action sequences.",
-    "Ryan Reynolds frequently performs beneath Deadpool's mask, while stunt performers handled many of the character's more demanding physical sequences."
+    "Ryan Reynolds spent years pushing for a Deadpool movie closer to the character's irreverent comic-book personality.",
+    "Visual-effects test footage made to demonstrate the proposed movie became public years before release and generated a strong online reaction that helped renew interest in the project.",
+    "Deadpool had a smaller production budget than many contemporary superhero blockbusters, forcing the filmmakers to concentrate resources carefully.",
+    "Reynolds performed much of the character himself while stunt performers handled Deadpool's most demanding physical action."
   ],
 
   "la la land": [
-    "Damien Chazelle conceived La La Land years before he had the industry influence necessary to mount the large original musical.",
-    "Ryan Gosling learned enough piano for the role to perform extensively during filming rather than relying entirely on hand doubles.",
-    "The opening freeway musical number was staged on a closed elevated roadway in Los Angeles.",
-    "Emma Stone won the Academy Award for Best Actress for playing aspiring actress Mia Dolan."
+    "Damien Chazelle developed La La Land years before he had enough industry influence to mount the large original musical.",
+    "Ryan Gosling learned piano for the role and performed extensively on camera rather than relying entirely on a hand double.",
+    "The opening musical number was filmed on a closed elevated freeway ramp in Los Angeles.",
+    "The movie used long takes and carefully choreographed camera movement to evoke the style of classic Hollywood musicals."
   ],
 
   "hidden figures": [
-    "Hidden Figures was based on Margot Lee Shetterly's nonfiction book about Black women mathematicians who worked at NASA.",
-    "Taraji P. Henson portrayed mathematician Katherine Johnson, while Octavia Spencer played Dorothy Vaughan and Janelle Monáe played Mary Jackson.",
-    "The filmmakers recreated NASA workplaces and period environments to depict the early years of the American space program.",
-    "Katherine Johnson attended major events connected with the movie and lived to see her story receive widespread public recognition."
+    "Hidden Figures was adapted from Margot Lee Shetterly's nonfiction book about Black women mathematicians whose work contributed to NASA's space program.",
+    "Taraji P. Henson portrayed Katherine Johnson, Octavia Spencer played Dorothy Vaughan and Janelle Monáe played Mary Jackson.",
+    "The production recreated period NASA offices, equipment and computing environments.",
+    "Katherine Johnson lived to see the movie bring widespread attention to work that had received far less public recognition during the early space program."
   ],
 
   "get out": [
-    "Get Out marked Jordan Peele's feature-film directing debut after he had become widely known for sketch comedy.",
-    "Peele wrote the screenplay and won the Academy Award for Best Original Screenplay.",
-    "Daniel Kaluuya received an Academy Award nomination for Best Actor for playing Chris Washington.",
-    "The Sunken Place became one of the movie's defining visual ideas and was created through a combination of performance, staging and visual effects."
+    "Get Out was Jordan Peele's feature-film directing debut after he had become widely known for comedy.",
+    "Peele combined horror with social satire rather than treating the movie as a conventional slasher film.",
+    "The Sunken Place became one of the movie's defining visual concepts.",
+    "Jordan Peele won the Academy Award for Best Original Screenplay."
   ],
 
   "wonder woman": [
-    "Patty Jenkins directed Wonder Woman, with Gal Gadot returning as Diana after first playing the character in Batman v Superman: Dawn of Justice.",
-    "Gal Gadot underwent extensive physical and combat training for the role.",
-    "The production filmed in several European locations and constructed large sets for the World War I portions of the movie.",
-    "The Amazon battle sequences combined horseback riding, stunt work, wire work and visual effects."
+    "Patty Jenkins directed Wonder Woman, with Gal Gadot returning as Diana after her appearance in Batman v Superman.",
+    "Gadot underwent extensive physical and combat preparation for the role.",
+    "The Amazon battle sequences combined horseback riding, practical stunt work, wire-assisted movement and visual effects.",
+    "European locations and large constructed sets were used to create the movie's World War I environments."
   ],
 
   "avengers: infinity war": [
-    "Avengers: Infinity War and Avengers: Endgame were produced during an enormous connected production involving characters from across the Marvel Cinematic Universe.",
-    "Josh Brolin performed Thanos using performance-capture technology, with visual-effects artists transforming his facial and body performance into the digital character.",
-    "The filmmakers had to coordinate the schedules of an unusually large ensemble of major actors.",
-    "Extensive visual-effects work was required to combine live-action performers with digital characters, environments and large-scale battles."
+    "Infinity War and Endgame were produced through a massive connected production involving characters and actors from across the Marvel Cinematic Universe.",
+    "Josh Brolin performed Thanos through performance-capture techniques before visual-effects artists transformed the performance into the finished digital character.",
+    "Coordinating the enormous ensemble became a major logistical challenge because so many established stars had to be brought into the same production.",
+    "Large sections of the finished movie combine live-action actors with digital characters, environments and effects."
   ],
 
   "a star is born": [
-    "A Star Is Born marked Bradley Cooper's feature-film directing debut.",
-    "Cooper underwent extensive vocal preparation to perform Jackson Maine's songs himself.",
-    "Lady Gaga performed as Ally and received an Academy Award nomination for Best Actress.",
-    "Several concert sequences were filmed in front of real festival audiences, helping give the performances the scale and energy of actual live shows."
+    "A Star Is Born was Bradley Cooper's feature-film directing debut.",
+    "Cooper spent months developing Jackson Maine's singing voice and learned to perform the character's music himself.",
+    "Concert footage was captured during real music festivals, including Glastonbury and Stagecoach, sometimes with the production receiving only a few minutes onstage.",
+    "Cooper wanted the concert scenes performed before real crowds rather than filling artificial venues with computer-generated audiences.",
+    "The dog belonging to Jackson and Ally was Bradley Cooper's real dog, Charlie, named after Cooper's late father."
   ],
 
   "bohemian rhapsody": [
-    "Rami Malek wore prosthetic teeth to recreate Freddie Mercury's distinctive appearance.",
-    "The filmmakers recreated Queen's famous 1985 Live Aid performance in extensive detail for the movie's climactic concert sequence.",
-    "Malek studied Mercury's stage movement and physical mannerisms while preparing for the role.",
-    "Rami Malek won the Academy Award for Best Actor for his performance as Freddie Mercury."
+    "Rami Malek wore prosthetic teeth while portraying Freddie Mercury.",
+    "The production reconstructed Queen's legendary Live Aid appearance as the centerpiece of the movie's final act.",
+    "Malek studied Mercury's movements and stage presence extensively while preparing for the role.",
+    "The Live Aid recreation required reproducing the stage, costumes, instruments and performance details associated with Queen's 1985 appearance."
   ],
 
   "joker": [
-    "Joaquin Phoenix lost substantial weight for his performance as Arthur Fleck.",
-    "Phoenix developed the character's unsettling laugh through extensive preparation rather than relying on a single conventional laugh.",
-    "Much of Joker was filmed on location in New York City, with areas of the city transformed to represent the movie's deteriorating Gotham.",
-    "Joaquin Phoenix won the Academy Award for Best Actor for his performance."
+    "Joaquin Phoenix lost a substantial amount of weight to create Arthur Fleck's extremely thin appearance.",
+    "Phoenix developed Arthur's unusual laugh as an important part of the character rather than treating it as a conventional villain's laugh.",
+    "New York locations were transformed into the movie's decaying version of Gotham City.",
+    "The now-famous staircase used by Arthur is a real outdoor staircase in the Bronx."
   ],
 
   "once upon a time... in hollywood": [
-    "Quentin Tarantino recreated sections of late-1960s Los Angeles using extensive period cars, storefronts, signs and other production design.",
-    "Leonardo DiCaprio and Brad Pitt worked together as leading actors for the first time, playing actor Rick Dalton and stuntman Cliff Booth.",
-    "Brad Pitt won the Academy Award for Best Supporting Actor for his performance as Cliff Booth.",
-    "The production filmed at several surviving Los Angeles locations to preserve as much authentic period atmosphere as possible."
+    "Quentin Tarantino recreated late-1960s Los Angeles with period automobiles, storefronts, signs and extensive street dressing.",
+    "Leonardo DiCaprio and Brad Pitt worked together as leading actors for the first time as Rick Dalton and Cliff Booth.",
+    "The production used surviving Los Angeles landmarks as well as locations that were temporarily transformed to resemble their late-1960s appearance.",
+    "Large numbers of period-correct vehicles were used to help rebuild the look of Los Angeles streets for the movie."
   ],
 
   "ford v ferrari": [
-    "Christian Bale lost substantial weight to play racing driver Ken Miles after having gained weight for his previous role in Vice.",
-    "The production used real cars, replicas, practical driving and track photography to create many of the racing sequences.",
-    "Professional drivers and stunt performers handled demanding high-speed driving while cameras were mounted around the vehicles and tracks.",
-    "The filmmakers recreated the 1966 24 Hours of Le Mans using a combination of physical locations, period vehicles and visual effects."
+    "Christian Bale lost a large amount of the weight he had gained to play Dick Cheney in Vice before portraying race driver Ken Miles.",
+    "The racing sequences relied heavily on real cars, replicas, practical driving and track photography rather than creating the races entirely with computer imagery.",
+    "Professional drivers and stunt performers handled demanding high-speed sequences while cameras were mounted around the cars and tracks.",
+    "The production recreated the 1966 24 Hours of Le Mans through a combination of physical locations, period-style cars and visual effects."
   ]
 
 };
