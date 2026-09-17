@@ -11,197 +11,127 @@ const CURATED_TRIVIA = {
 
   "rocky": [
     "Sylvester Stallone wrote the screenplay for Rocky and insisted on playing Rocky Balboa himself, even though there was interest in casting a more established actor in the lead role.",
-
     "The famous training sequence on the steps of the Philadelphia Museum of Art helped turn the location into one of the most recognizable movie landmarks in Philadelphia.",
-
     "Rocky's dog Butkus was Sylvester Stallone's real dog. Stallone had owned the bullmastiff before making the film.",
-
     "The ice-rink scene between Rocky and Adrian was filmed with the characters alone in the arena, helping create one of the movie's most intimate and memorable sequences.",
-
     "Rocky was made on a relatively modest budget but became a major box-office success and won the Academy Award for Best Picture.",
-
     "The movie's success transformed Rocky Balboa into one of cinema's most recognizable characters and launched a franchise that continued for decades."
   ],
 
   "rocky ii": [
     "Sylvester Stallone returned as Rocky Balboa and also directed Rocky II, taking over directing duties from John G. Avildsen, who directed the original Rocky.",
-
     "Stallone suffered a chest injury while training for Rocky II, and the injury influenced how some of the boxing action was staged.",
-
     "Sylvester Stallone and Carl Weathers trained for roughly two and a half months with boxing adviser Al Silvani before filming the rematch scenes.",
-
     "Stallone's real bullmastiff, Butkus, returned to appear as Rocky's dog in Rocky II.",
-
     "Future world champion Roberto Durán appears in the film as one of Rocky's sparring partners.",
-
     "Rocky's Philadelphia training-run sequence used hundreds of local schoolchildren, creating the large crowd that follows him through the city."
   ],
 
   "rocky iii": [
     "Mr. T made his major film breakthrough as Clubber Lang in Rocky III. The role turned him into one of the most recognizable personalities of the 1980s.",
-
     "Professional wrestler Hulk Hogan appears as Thunderlips, the enormous wrestler who faces Rocky in a charity exhibition match early in the film.",
-
     "Rocky III dramatically changes the relationship between Rocky and Apollo Creed. After Mickey's death and Rocky's loss to Clubber Lang, Apollo becomes Rocky's trainer.",
-
     "The beach-training sequence between Rocky and Apollo became one of the series' most recognizable training scenes and represents Rocky regaining his confidence.",
-
     "Survivor's Eye of the Tiger became closely identified with Rocky III and went on to become one of the most famous songs associated with the Rocky franchise.",
-
     "The movie ends with Rocky and Apollo privately beginning a third fight, fulfilling Rocky's promise to give Apollo a personal rematch."
   ],
 
   "rocky iv": [
     "Sylvester Stallone wanted the Rocky–Drago fight to look unusually realistic. Stallone has said he asked Dolph Lundgren to hit him for real during filming. The resulting blows were so severe that Stallone later required hospital treatment.",
-
     "Dolph Lundgren was a relative newcomer when he was cast as Ivan Drago. His imposing size and background in martial arts helped create the physically intimidating opponent Stallone wanted for Rocky.",
-
     "Rocky's isolated training scenes were filmed in Wyoming, including locations around Jackson Hole and Grand Teton National Park, which stood in for the Soviet Union.",
-
     "Rocky IV marked the final appearance of Apollo Creed in the original Rocky series. His exhibition fight against Ivan Drago becomes the event that drives Rocky to challenge Drago.",
-
     "The film contrasts Drago's highly technological training with Rocky's old-fashioned workouts in the snow, mountains and barn. The visual contrast is one of the movie's central themes.",
-
     "Rocky IV became one of the biggest commercial successes of the Rocky series and remains closely associated with its 1980s soundtrack, training montages and Cold War setting."
   ],
 
   "jaws": [
     "The mechanical shark used during production was nicknamed Bruce, a name associated with Steven Spielberg's lawyer Bruce Ramer.",
-
     "Problems with the mechanical shark forced Steven Spielberg to show the shark less frequently than originally planned. The limitation helped create the movie's suspense by keeping the threat largely unseen during much of the film.",
-
     "The shark's point-of-view shots, John Williams' music and the use of floating barrels allowed the filmmakers to suggest the shark's presence without constantly showing it.",
-
     "Much of Jaws was filmed on and around Martha's Vineyard, Massachusetts, which stood in for the fictional community of Amity Island.",
-
     "Robert Shaw's character Quint delivers the famous USS Indianapolis speech, one of the movie's most memorable scenes and a crucial explanation of Quint's fear and hatred of sharks.",
-
     "John Williams' famous two-note shark theme became one of the most recognizable pieces of suspense music in movie history."
   ],
 
   "top gun": [
     "Top Gun was made with cooperation from the United States Navy, allowing the production to photograph real aircraft and flight operations.",
-
     "Many of the aerial sequences used real Navy aircraft. The actors were also filmed in cockpit environments to help give the flying scenes a more authentic appearance.",
-
     "The Navy's real Fighter Weapons School inspired the Top Gun setting, although the movie dramatized the school and its competition for entertainment.",
-
     "Val Kilmer initially had reservations about appearing in Top Gun but ultimately played Tom 'Iceman' Kazansky, one of the defining roles of his career.",
-
     "The soundtrack became a major part of the movie's identity, with songs including Danger Zone and Take My Breath Away becoming strongly associated with the film.",
-
     "Top Gun became a major box-office success and helped establish Tom Cruise as one of Hollywood's biggest movie stars."
   ],
 
   "top gun: maverick": [
     "Top Gun: Maverick arrived more than three decades after the original Top Gun, with Tom Cruise returning as Pete 'Maverick' Mitchell.",
-
     "The production placed actors in aircraft during filming so their faces could be photographed while experiencing real forces of flight rather than relying entirely on studio simulations.",
-
     "The actors underwent extensive preparation for the aerial filming so they could operate cameras and perform while flying in military aircraft.",
-
     "Val Kilmer returned as Iceman, giving the sequel a direct emotional connection to Maverick's relationship with his former rival and longtime friend.",
-
     "Miles Teller plays Bradley 'Rooster' Bradshaw, the son of Maverick's late friend and radar intercept officer Nick 'Goose' Bradshaw.",
-
     "The movie became a major theatrical success and introduced the Top Gun story to a new generation while continuing Maverick's relationship with characters from the original film."
   ],
 
   "back to the future": [
     "Michael J. Fox was the filmmakers' preferred choice to play Marty McFly, but his television schedule initially prevented him from taking the role.",
-
     "Eric Stoltz was originally cast as Marty and filming began with him in the role. The filmmakers later decided the performance was not the right fit for the movie's comic tone and recast the part with Michael J. Fox.",
-
     "The time machine was originally conceived differently during development before the DeLorean became the movie's famous time-travel vehicle.",
-
     "Christopher Lloyd's Doc Brown became one of the movie's defining characters, with his wild appearance and energetic personality helping establish the film's eccentric sense of humor.",
-
     "The Hill Valley clock tower becomes central to the climax, when Doc and Marty attempt to harness a precisely timed lightning strike to send Marty back to 1985.",
-
     "Back to the Future became a major success and launched a trilogy that continued the adventures of Marty McFly and Doc Brown."
   ],
 
   "the godfather": [
     "Marlon Brando transformed his appearance for Don Vito Corleone by altering the shape of his jaw, creating the character's distinctive heavy-jowled look.",
-
     "The studio initially had concerns about casting both Marlon Brando and the relatively unknown Al Pacino, but director Francis Ford Coppola strongly supported his casting choices.",
-
     "The opening wedding sequence introduces much of the Corleone family while Don Vito conducts family business inside his office.",
-
     "The horse-head sequence became one of the film's most infamous images and demonstrates the Corleone family's ability to intimidate powerful people.",
-
     "Al Pacino's Michael Corleone begins the movie distancing himself from his family's criminal business before gradually becoming its leader.",
-
     "The Godfather won the Academy Award for Best Picture and became one of the most influential American films of its era."
   ],
 
   "goodfellas": [
     "Goodfellas was based on Nicholas Pileggi's nonfiction book Wiseguy, which told the story of mob associate Henry Hill.",
-
     "Martin Scorsese and Nicholas Pileggi collaborated on the screenplay, adapting events from Henry Hill's life into the film's fast-moving narrative.",
-
     "The famous Copacabana sequence follows Henry and Karen through the club in a long continuous moving shot, visually demonstrating the privileged world Henry can access through his mob connections.",
-
     "Joe Pesci's performance as Tommy DeVito earned him the Academy Award for Best Supporting Actor.",
-
     "The movie frequently uses popular music to establish time period and mood, with its soundtrack changing as Henry Hill's life moves through different decades.",
-
     "Henry Hill's narration allows the audience to experience both the attraction of gangster life and the paranoia and consequences that eventually consume it."
   ],
 
   "forrest gump": [
     "Forrest Gump places its fictional main character into recreated footage of major historical events and meetings with famous public figures.",
-
     "Tom Hanks won the Academy Award for Best Actor for his performance as Forrest Gump.",
-
     "The visual-effects team used digital techniques to place Forrest into historical footage and to remove Lieutenant Dan's legs after the character becomes a double amputee.",
-
     "The bench where Forrest tells much of his story became one of the film's most recognizable visual settings.",
-
     "The film follows Forrest through several decades of American history while repeatedly bringing him into contact with significant cultural and political events.",
-
     "Forrest Gump won the Academy Award for Best Picture and became one of the biggest theatrical successes of 1994."
   ],
 
   "the sixth sense": [
     "The Sixth Sense was written and directed by M. Night Shyamalan and became widely known for the revelation near the end of the film.",
-
     "Haley Joel Osment received an Academy Award nomination for his performance as Cole Sear.",
-
     "The line 'I see dead people' became one of the movie's most recognizable pieces of dialogue and one of the most frequently referenced movie lines of its era.",
-
     "The movie uses visual clues throughout the story that take on a different meaning once the audience understands what has actually been happening.",
-
     "Bruce Willis plays child psychologist Malcolm Crowe in a restrained dramatic performance that differed from many of the action roles for which he was already famous.",
-
     "The Sixth Sense became a major box-office success and received multiple Academy Award nominations, including Best Picture."
   ],
 
   "the hangover": [
     "The Hangover was filmed extensively in Las Vegas, using the city itself as a major part of the comedy's setting.",
-
     "The story is structured around the characters reconstructing a night they cannot remember, with each new discovery revealing another piece of what happened.",
-
     "Zach Galifianakis' performance as Alan became one of the movie's breakout elements and significantly increased his mainstream recognition.",
-
     "Mike Tyson appears as himself in one of the film's most memorable surprise appearances.",
-
     "The photographs shown during the end credits reveal events from the missing night that the characters spent the entire movie trying to reconstruct.",
-
     "The Hangover became a major box-office hit and led to two sequels featuring the central group of characters."
   ],
 
   "old school": [
     "Old School stars Luke Wilson, Will Ferrell and Vince Vaughn as three friends whose attempt to recapture their college years leads them to create a fraternity.",
-
     "Will Ferrell's Frank 'The Tank' became one of the film's most recognizable characters and helped establish Ferrell as a major movie-comedy star.",
-
     "The streaking sequence became one of the movie's signature scenes and produced the often-quoted line 'We're going streaking!'",
-
     "The film was directed by Todd Phillips, who later directed The Hangover trilogy.",
-
     "The character Blue became a cult favorite despite his relatively limited screen time, leading to the frequently quoted line 'You're my boy, Blue!'",
-
     "Old School developed a strong following after its theatrical release and became one of the defining R-rated comedies of the early 2000s."
   ]
 };
@@ -215,11 +145,7 @@ function normalizeTitle(value) {
 }
 
 async function getMovie(id) {
-  if (!TOKEN) {
-    throw new Error(
-      "TMDB token is not configured"
-    );
-  }
+  if (!TOKEN) throw new Error("TMDB token is not configured");
 
   const response = await fetch(
     `https://api.themoviedb.org/3/movie/${encodeURIComponent(id)}?language=en-US`,
@@ -232,14 +158,7 @@ async function getMovie(id) {
   );
 
   const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(
-      data.status_message ||
-      "Movie lookup failed"
-    );
-  }
-
+  if (!response.ok) throw new Error(data.status_message || "Movie lookup failed");
   return data;
 }
 
@@ -258,321 +177,119 @@ async function getWikipediaExtract(title) {
       encodeURIComponent(title);
 
     const response = await fetch(url, {
-      headers: {
-        "User-Agent":
-          "Reelwise/1.0 movie trivia"
-      }
+      headers: { "User-Agent": "Reelwise/1.0 movie trivia" }
     });
 
-    if (!response.ok) {
-      return "";
-    }
+    if (!response.ok) return "";
 
     const data = await response.json();
+    const pages = data?.query?.pages || {};
+    const page = Object.values(pages)[0];
 
-    const pages =
-      data?.query?.pages || {};
-
-    const page =
-      Object.values(pages)[0];
-
-    if (
-      !page ||
-      page.missing !== undefined
-    ) {
-      return "";
-    }
-
+    if (!page || page.missing !== undefined) return "";
     return page.extract || "";
-
   } catch {
     return "";
   }
 }
 
-/*
-  SITE-WIDE TRIVIA QUALITY FILTER
-
-  The goal is to favor production, casting,
-  filming, performance, music, effects and
-  historical facts while rejecting plot recap.
-*/
-
 function triviaScore(sentence) {
-  const lower =
-    sentence.toLowerCase();
-
+  const lower = sentence.toLowerCase();
   let score = 0;
 
   const strongTerms = [
-    "filmed",
-    "filming",
-    "production",
-    "producer",
-    "director",
-    "directed",
-    "screenplay",
-    "script",
-    "writer",
-    "written",
-    "cast",
-    "casting",
-    "audition",
-    "actor",
-    "actress",
-    "role",
-    "performance",
-    "stunt",
-    "injury",
-    "injured",
-    "camera",
-    "cinematography",
-    "visual effects",
-    "special effects",
-    "practical effects",
-    "makeup",
-    "costume",
-    "soundtrack",
-    "score",
-    "composer",
-    "song",
-    "location",
-    "shot in",
-    "academy award",
-    "oscar",
-    "golden globe",
-    "box office",
-    "budget",
-    "based on",
-    "adapted from",
-    "originally cast",
-    "originally planned",
-    "recast",
-    "improvised",
-    "improvisation",
-    "behind the scenes"
+    "filmed", "filming", "production", "producer", "director", "directed",
+    "screenplay", "script", "writer", "written", "cast", "casting",
+    "audition", "actor", "actress", "role", "performance", "stunt",
+    "injury", "injured", "camera", "cinematography", "visual effects",
+    "special effects", "practical effects", "makeup", "costume",
+    "soundtrack", "score", "composer", "song", "location", "shot in",
+    "academy award", "oscar", "golden globe", "box office", "budget",
+    "based on", "adapted from", "originally cast", "originally planned",
+    "recast", "improvised", "improvisation", "behind the scenes"
   ];
 
   for (const term of strongTerms) {
-    if (lower.includes(term)) {
-      score += 22;
-    }
+    if (lower.includes(term)) score += 22;
   }
 
   const veryStrongTerms = [
-    "was filmed",
-    "were filmed",
-    "during filming",
-    "during production",
-    "was cast",
-    "were cast",
-    "was originally cast",
-    "was directed by",
-    "was written by",
-    "was shot",
-    "filming took place",
-    "won the academy award",
-    "nominated for",
-    "grossed",
-    "budget of"
+    "was filmed", "were filmed", "during filming", "during production",
+    "was cast", "were cast", "was originally cast", "was directed by",
+    "was written by", "was shot", "filming took place",
+    "won the academy award", "nominated for", "grossed", "budget of"
   ];
 
   for (const term of veryStrongTerms) {
-    if (lower.includes(term)) {
-      score += 25;
-    }
+    if (lower.includes(term)) score += 25;
   }
 
-  /*
-    Plot-summary language gets heavily penalized.
-  */
-
   const plotTerms = [
-    "the story follows",
-    "the film follows",
-    "the movie follows",
-    "the plot follows",
-    "the story centers on",
-    "the film centers on",
-    "the movie centers on",
-    "the plot centers on",
-    "the story revolves around",
-    "the film revolves around",
-    "the movie revolves around",
-    "the plot revolves around",
-    "must find",
-    "attempts to",
-    "tries to",
-    "sets out to",
-    "falls in love",
-    "returns home",
-    "discovers that",
-    "learns that",
-    "realizes that",
-    "decides to",
-    "agrees to",
-    "plans to",
-    "travels to",
-    "goes to",
-    "escapes",
-    "is killed",
-    "is murdered",
-    "dies",
-    "defeats",
-    "wins the",
-    "loses the",
-    "faces off",
-    "fights",
-    "battles",
-    "confronts",
-    "rescues",
-    "reveals that",
-    "ends with",
-    "the ending",
-    "in the climax",
-    "the climax",
-    "after he",
-    "after she",
-    "after they",
-    "before he",
-    "before she",
+    "the story follows", "the film follows", "the movie follows",
+    "the plot follows", "the story centers on", "the film centers on",
+    "the movie centers on", "the plot centers on",
+    "the story revolves around", "the film revolves around",
+    "the movie revolves around", "the plot revolves around",
+    "must find", "attempts to", "tries to", "sets out to", "falls in love",
+    "returns home", "discovers that", "learns that", "realizes that",
+    "decides to", "agrees to", "plans to", "travels to", "goes to",
+    "escapes", "is killed", "is murdered", "dies", "defeats", "wins the",
+    "loses the", "faces off", "fights", "battles", "confronts", "rescues",
+    "reveals that", "ends with", "the ending", "in the climax", "the climax",
+    "after he", "after she", "after they", "before he", "before she",
     "before they"
   ];
 
   for (const term of plotTerms) {
-    if (lower.includes(term)) {
-      score -= 45;
-    }
+    if (lower.includes(term)) score -= 45;
   }
 
-  /*
-    Prefer facts about making the original movie.
-    Later remakes, anniversary projects, TV shows,
-    stage versions and re-releases are still valid,
-    but they should rank below production trivia.
-  */
-
-  /*
-    Reviews, awards and box-office facts are valid,
-    but Reelwise should prefer behind-the-scenes
-    material whenever better production trivia exists.
-  */
-
   const genericRecognitionTerms = [
-    "positive reviews",
-    "mixed reviews",
-    "negative reviews",
-    "critical acclaim",
-    "critics praised",
-    "critics criticized",
-    "grossed",
-    "box office",
-    "opening weekend",
-    "top film at the box office",
-    "nominated for",
-    "academy award",
-    "academy awards",
-    "golden globe",
-    "teen choice award",
-    "people's choice award",
-    "critics choice award"
+    "positive reviews", "mixed reviews", "negative reviews", "critical acclaim",
+    "critics praised", "critics criticized", "grossed", "box office",
+    "opening weekend", "top film at the box office", "nominated for",
+    "academy award", "academy awards", "golden globe", "teen choice award",
+    "people's choice award", "critics choice award"
   ];
 
   for (const term of genericRecognitionTerms) {
-    if (lower.includes(term)) {
-      score -= 45;
-    }
+    if (lower.includes(term)) score -= 45;
   }
 
   const legacyTerms = [
-    "anniversary",
-    "re-release",
-    "rerelease",
-    "re-released",
-    "remake",
-    "reboot",
-    "television remake",
-    "tv remake",
-    "reality tv",
-    "reality show",
-    "stage adaptation",
-    "stage musical",
-    "musical adaptation",
-    "sequel series",
-    "spin-off",
-    "spinoff",
-    "revival"
+    "anniversary", "re-release", "rerelease", "re-released", "remake",
+    "reboot", "television remake", "tv remake", "reality tv", "reality show",
+    "stage adaptation", "stage musical", "musical adaptation", "sequel series",
+    "spin-off", "spinoff", "revival"
   ];
 
   for (const term of legacyTerms) {
-    if (lower.includes(term)) {
-      score -= 28;
-    }
+    if (lower.includes(term)) score -= 28;
   }
 
   const originalProductionBoost = [
-    "during filming",
-    "during production",
-    "was originally cast",
-    "was recast",
-    "auditioned",
-    "improvised",
-    "filming took place",
-    "was shot in",
-    "was filmed in",
-    "production company",
-    "director",
-    "producer",
-    "screenplay",
-    "choreography",
-    "stunt",
-    "special effects",
-    "visual effects",
-    "costume",
-    "makeup"
+    "during filming", "during production", "was originally cast", "was recast",
+    "auditioned", "improvised", "filming took place", "was shot in",
+    "was filmed in", "production company", "director", "producer",
+    "screenplay", "choreography", "stunt", "special effects", "visual effects",
+    "costume", "makeup"
   ];
 
   for (const term of originalProductionBoost) {
-    if (lower.includes(term)) {
-      score += 18;
-    }
+    if (lower.includes(term)) score += 18;
   }
 
-  /*
-    Character-heavy sentences are more likely
-    to be synopsis unless they also contain
-    clear production language.
-  */
-
-  const productionSignal =
-    strongTerms.some(term =>
-      lower.includes(term)
-    );
+  const productionSignal = strongTerms.some(term => lower.includes(term));
 
   const characterActionTerms = [
-    "character",
-    "hero",
-    "villain",
-    "protagonist",
-    "friend",
-    "wife",
-    "husband",
-    "son",
-    "daughter",
-    "brother",
-    "sister",
-    "father",
-    "mother",
-    "team",
-    "police",
-    "detective"
+    "character", "hero", "villain", "protagonist", "friend", "wife",
+    "husband", "son", "daughter", "brother", "sister", "father", "mother",
+    "team", "police", "detective"
   ];
 
   if (
     !productionSignal &&
-    characterActionTerms.some(term =>
-      lower.includes(term)
-    )
+    characterActionTerms.some(term => lower.includes(term))
   ) {
     score -= 18;
   }
@@ -594,10 +311,7 @@ function triviaWords(sentence) {
       .toLowerCase()
       .replace(/[^\p{L}\p{N}\s]/gu, " ")
       .split(/\s+/)
-      .filter(word =>
-        word.length >= 3 &&
-        !stopWords.has(word)
-      )
+      .filter(word => word.length >= 3 && !stopWords.has(word))
   );
 }
 
@@ -605,182 +319,162 @@ function triviaSimilarity(a, b) {
   const wordsA = triviaWords(a);
   const wordsB = triviaWords(b);
 
-  if (!wordsA.size || !wordsB.size) {
-    return 0;
-  }
+  if (!wordsA.size || !wordsB.size) return 0;
 
   let shared = 0;
-
   for (const word of wordsA) {
-    if (wordsB.has(word)) {
-      shared += 1;
-    }
+    if (wordsB.has(word)) shared += 1;
   }
 
-  const smaller =
-    Math.min(wordsA.size, wordsB.size);
-
-  /*
-    Using the smaller sentence as the base catches
-    repeated facts even when one version contains
-    extra detail.
-  */
-  return shared / smaller;
+  return shared / Math.min(wordsA.size, wordsB.size);
 }
 
 function looksLikeBrokenFragment(sentence) {
-  const trimmed =
-    String(sentence || "").trim();
+  const trimmed = String(sentence || "").trim();
+  if (!trimmed) return true;
 
-  if (!trimmed) {
-    return true;
-  }
+  if (/^[“"'‘’]\s*[a-z]/u.test(trimmed)) return true;
+  if (/^[,;:)\]}]/u.test(trimmed)) return true;
+  if (/^\d/u.test(trimmed)) return true;
 
-  /*
-    Reject malformed fragments created when
-    Wikipedia prose is split around quotes,
-    parentheticals, numbers or partial names.
-  */
-  if (/^[“"'‘’]\s*[a-z]/u.test(trimmed)) {
-    return true;
-  }
-
-  if (/^[,;:)\]}]/u.test(trimmed)) {
-    return true;
-  }
-
-  /*
-    A trivia sentence should almost never begin
-    with a bare number such as:
-    "5 million, it was written..."
-  */
-  if (/^\d/u.test(trimmed)) {
-    return true;
-  }
-
-  /*
-    Catch partial-name fragments such as:
-    "Ienner, who had previously produced..."
-    A full person's name normally contains at
-    least two words before this construction.
-  */
   if (/^[A-Z][a-zA-Z'’.-]+,\s+(who|whose|which)\b/u.test(trimmed)) {
     return true;
   }
 
-  const firstWord =
-    trimmed
-      .replace(/^[“"'‘’(\[]+/u, "")
-      .split(/\s+/)[0] || "";
+  /*
+    NEW: reject orphaned Wikipedia fragments that begin
+    with a lowercase word after opening punctuation.
+    Examples:
+      "was in talks to acquire..."
+      "joined the cast, playing..."
+  */
+  const unwrapped =
+    trimmed.replace(/^[“"'‘’(\[]+/u, "");
+
+  if (/^[a-z]/u.test(unwrapped)) {
+    return true;
+  }
+
+  const firstWord = unwrapped.split(/\s+/)[0] || "";
 
   const weakStarts = new Set([
-    "and", "but", "or", "because", "although",
-    "however", "which", "while", "whereas",
-    "who", "whose", "also", "then",
-
-    /* Reject orphaned pronoun fragments such as:
-       "His presence and performance..."
-       when the previous sentence containing the person's
-       name is no longer attached. */
-    "he", "she", "they", "his", "her", "their",
-    "him", "them", "it", "its",
-    "this", "these", "those"
+    "and", "but", "or", "because", "although", "however", "which",
+    "while", "whereas", "who", "whose", "also", "then",
+    "he", "she", "they", "his", "her", "their", "him", "them",
+    "it", "its", "this", "these", "those"
   ]);
 
-  if (
-    weakStarts.has(
-      firstWord.toLowerCase()
-    )
-  ) {
-    return true;
-  }
-
-  return false;
+  return weakStarts.has(firstWord.toLowerCase());
 }
 
-
 /*
-  UNIVERSAL TRIVIA CONTENT GUARD
-
-  This runs on BOTH curated and automatic trivia.
-  It removes plot recap, critic/review material,
-  generic commercial-success facts, and sequel/
-  franchise-summary language before anything is shown.
+  NEW: routine casting-news announcements are not strong
+  Reelwise trivia. Preserve casting stories with an actual
+  hook: auditions, recommendations, replacements, screen
+  tests, original choices, improvisation, training, etc.
 */
+function isRoutineCastingUpdate(sentence) {
+  const lower = String(sentence || "").toLowerCase().trim();
+  if (!lower) return false;
+
+  const interestingCastingSignals = [
+    "audition",
+    "recommended",
+    "recommendation",
+    "considered",
+    "replaced",
+    "replacement",
+    "recast",
+    "originally",
+    "turned down",
+    "screen test",
+    "screen-test",
+    "first choice",
+    "wanted",
+    "refused",
+    "insisted",
+    "discovered",
+    "breakthrough",
+    "improvised",
+    "improvisation",
+    "trained",
+    "training",
+    "injury",
+    "during filming",
+    "during production",
+    "because"
+  ];
+
+  if (interestingCastingSignals.some(term => lower.includes(term))) {
+    return false;
+  }
+
+  const datedCastingAnnouncement =
+    /^on\s+(january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2},\s+\d{4},?.*\b(joined|cast|attached|signed|hired|added)\b/i;
+
+  if (datedCastingAnnouncement.test(lower)) {
+    return true;
+  }
+
+  const routinePatterns = [
+    /\bjoined the cast\b/i,
+    /\bhad joined the cast\b/i,
+    /\bjoined the film\b/i,
+    /\bwas cast as\b/i,
+    /\bwere cast as\b/i,
+    /\bwas added to the cast\b/i,
+    /\bwere added to the cast\b/i,
+    /\battached to starring roles?\b/i,
+    /\battached to star\b/i,
+    /\bsigned on to (?:play|star)\b/i,
+    /\bcast to play\b/i
+  ];
+
+  return routinePatterns.some(pattern => pattern.test(lower));
+}
+
 function isWeakTriviaContent(sentence) {
   const lower = String(sentence || "").toLowerCase().trim();
-
   if (!lower) return true;
 
-  const rejectStarts = [
-    "the story is structured",
-    "the story follows",
-    "the film follows",
-    "the movie follows",
-    "the plot follows",
-    "the story centers on",
-    "the film centers on",
-    "the movie centers on",
-    "the plot centers on",
-    "the story revolves around",
-    "the film revolves around",
-    "the movie revolves around",
-    "the plot revolves around"
-  ];
-
-  if (rejectStarts.some(term => lower.startsWith(term))) {
+  /*
+    NEW: remove generic casting timeline updates before
+    they can score highly just because they contain "cast".
+  */
+  if (isRoutineCastingUpdate(sentence)) {
     return true;
   }
+
+  const rejectStarts = [
+    "the story is structured", "the story follows", "the film follows",
+    "the movie follows", "the plot follows", "the story centers on",
+    "the film centers on", "the movie centers on", "the plot centers on",
+    "the story revolves around", "the film revolves around",
+    "the movie revolves around", "the plot revolves around"
+  ];
+
+  if (rejectStarts.some(term => lower.startsWith(term))) return true;
 
   const rejectAnywhere = [
-    "on metacritic",
-    "on rotten tomatoes",
-    "rotten tomatoes",
-    "metacritic",
-    "critical response",
-    "review aggregator",
-    "review-aggregator",
-    "approval rating",
-    "average rating",
-    "holds a score of",
-    "holds a rating of",
-    "score of ",
-    "rating of ",
-    "based on reviews",
-    "based on critic reviews",
-    "based on ",
-    "critics consensus",
-    "positive reviews",
-    "mixed reviews",
-    "negative reviews",
-    "generally favorable reviews",
-    "generally unfavourable reviews",
-    "wrote the performances were",
-    "critic wrote",
-    "critics praised",
-    "critics criticized",
-    "opening weekend",
-    "top film at the box office",
-    "major box-office hit",
-    "major box office hit",
-    "became a box-office hit",
-    "became a box office hit",
-    "led to two sequels",
-    "led to a sequel",
-    "launched a franchise",
-    "continued the adventures of",
+    "on metacritic", "on rotten tomatoes", "rotten tomatoes", "metacritic",
+    "critical response", "review aggregator", "review-aggregator",
+    "approval rating", "average rating", "holds a score of",
+    "holds a rating of", "score of ", "rating of ", "based on reviews",
+    "based on critic reviews", "based on ", "critics consensus",
+    "positive reviews", "mixed reviews", "negative reviews",
+    "generally favorable reviews", "generally unfavourable reviews",
+    "wrote the performances were", "critic wrote", "critics praised",
+    "critics criticized", "opening weekend", "top film at the box office",
+    "major box-office hit", "major box office hit", "became a box-office hit",
+    "became a box office hit", "led to two sequels", "led to a sequel",
+    "launched a franchise", "continued the adventures of",
     "the photographs shown during the end credits reveal",
     "the photos shown during the end credits reveal",
-    "the ending reveals",
-    "the climax reveals"
+    "the ending reveals", "the climax reveals"
   ];
 
-  if (rejectAnywhere.some(term => lower.includes(term))) {
-    return true;
-  }
+  if (rejectAnywhere.some(term => lower.includes(term))) return true;
 
-  /* Reject review-score sentences even when wording varies,
-     e.g. "holds a score of 66% ... based on 44 reviews". */
   if (
     /\b\d{1,3}%\b/.test(lower) &&
     /\b(review|reviews|rating|ratings|critic|critics|score)\b/.test(lower)
@@ -788,20 +482,10 @@ function isWeakTriviaContent(sentence) {
     return true;
   }
 
-  /*
-    Scene description is usually plot, unless it clearly
-    explains how the scene was made.
-  */
   const sceneDescription = [
-    "the movie ends with",
-    "the film ends with",
-    "the sequence shows",
-    "the scene shows",
-    "the scene reveals",
-    "the sequence reveals",
-    "becomes the event that drives",
-    "begins the movie",
-    "ends the movie"
+    "the movie ends with", "the film ends with", "the sequence shows",
+    "the scene shows", "the scene reveals", "the sequence reveals",
+    "becomes the event that drives", "begins the movie", "ends the movie"
   ];
 
   const productionWords = [
@@ -849,7 +533,6 @@ function selectBestTrivia(list, maxItems = 6) {
     }
 
     results.push(item.sentence);
-
     if (results.length >= maxItems) break;
   }
 
@@ -861,11 +544,6 @@ function extractTrivia(text) {
 
   const cleaned =
     text
-      /*
-        Remove Wikipedia section headings before
-        sentence splitting so headings do not get
-        glued onto the next trivia sentence.
-      */
       .replace(/==+[^=]+==+/g, " ")
       .replace(/\b(Cast|Production|Development|Casting|Accolades|Reception|Release|Music|Soundtrack|Filming|Writing|Pre-production|Post-production)\b(?=\s+[A-Z])/g, " ")
       .replace(/\n+/g, " ")
@@ -873,28 +551,19 @@ function extractTrivia(text) {
       .trim();
 
   const sentences =
-    cleaned.match(
-      /[^.!?]+[.!?]+/g
-    ) || [];
+    cleaned.match(/[^.!?]+[.!?]+/g) || [];
 
   const candidates =
     sentences
-      .map(sentence =>
-        sentence.trim()
-      )
+      .map(sentence => sentence.trim())
       .filter(sentence =>
         sentence.length >= 70 &&
         sentence.length <= 300
       )
-      .filter(sentence =>
-        !looksLikeBrokenFragment(sentence)
-      )
-      .filter(sentence =>
-        !isWeakTriviaContent(sentence)
-      )
+      .filter(sentence => !looksLikeBrokenFragment(sentence))
+      .filter(sentence => !isWeakTriviaContent(sentence))
       .filter(sentence => {
-        const lower =
-          sentence.toLowerCase();
+        const lower = sentence.toLowerCase();
 
         return !(
           lower.includes("references") ||
@@ -922,68 +591,41 @@ function extractTrivia(text) {
         sentence,
         score: triviaScore(sentence)
       }))
-      /*
-        A sentence must show at least some
-        evidence that it is trivia rather
-        than ordinary plot description.
-      */
-      .filter(item =>
-        item.score >= 18
-      )
-      .sort(
-        (a, b) =>
-          b.score - a.score
-      );
+      .filter(item => item.score >= 18)
+      .sort((a, b) => b.score - a.score);
 
   const results = [];
   const seen = new Set();
 
   for (const item of candidates) {
-
-    const sentence =
-      item.sentence;
+    const sentence = item.sentence;
 
     const key =
       sentence
         .toLowerCase()
         .replace(/[^\p{L}\p{N}]/gu, "");
 
-    if (
-      !key ||
-      seen.has(key)
-    ) {
-      continue;
-    }
+    if (!key || seen.has(key)) continue;
 
     const nearDuplicate =
       results.some(existing =>
-        triviaSimilarity(
-          sentence,
-          existing
-        ) >= 0.48
+        triviaSimilarity(sentence, existing) >= 0.48
       );
 
-    if (nearDuplicate) {
-      continue;
-    }
+    if (nearDuplicate) continue;
 
     seen.add(key);
     results.push(sentence);
 
-    if (results.length >= 6) {
-      break;
-    }
+    if (results.length >= 6) break;
   }
 
   return results;
 }
 
 export default async function handler(req, res) {
-
   try {
-
-    const id =
-      String(req.query?.id || "").trim();
+    const id = String(req.query?.id || "").trim();
 
     if (!id) {
       return res.status(400).json({
@@ -991,8 +633,7 @@ export default async function handler(req, res) {
       });
     }
 
-    const movie =
-      await getMovie(id);
+    const movie = await getMovie(id);
 
     const title =
       movie.title ||
@@ -1004,16 +645,7 @@ export default async function handler(req, res) {
         ? movie.release_date.slice(0, 4)
         : "";
 
-    const key =
-      normalizeTitle(title);
-
-    /*
-      STEP 1:
-      REELWISE CURATED TRIVIA
-
-      Curated movies never use the
-      automatic fallback.
-    */
+    const key = normalizeTitle(title);
 
     const curated =
       CURATED_TRIVIA[key] || [];
@@ -1021,48 +653,22 @@ export default async function handler(req, res) {
     const cleanedCurated =
       selectBestTrivia(curated, 6);
 
-    /*
-      STEP 2:
-      AUTOMATIC FALLBACK
-
-      Try the year-specific Wikipedia
-      movie page first to reduce the
-      chance of retrieving the wrong film.
-    */
-
     const possibleTitles = [
-      year
-        ? `${title} (${year} film)`
-        : "",
+      year ? `${title} (${year} film)` : "",
       `${title} (film)`,
       title
     ].filter(Boolean);
 
     let extract = "";
 
-    for (
-      const pageTitle of possibleTitles
-    ) {
-
-      extract =
-        await getWikipediaExtract(
-          pageTitle
-        );
-
-      if (extract) {
-        break;
-      }
+    for (const pageTitle of possibleTitles) {
+      extract = await getWikipediaExtract(pageTitle);
+      if (extract) break;
     }
 
     const automaticTrivia =
       extractTrivia(extract);
 
-    /*
-      Curated movies are no longer exempt from the
-      same quality rules. Strong curated facts stay,
-      weak plot/review facts are removed, and the
-      automatic source can fill any empty slots.
-    */
     const trivia =
       selectBestTrivia(
         [...cleanedCurated, ...automaticTrivia],
@@ -1083,11 +689,7 @@ export default async function handler(req, res) {
     });
 
   } catch (error) {
-
-    console.error(
-      "Reelwise trivia error:",
-      error
-    );
+    console.error("Reelwise trivia error:", error);
 
     return res.status(500).json({
       error:
@@ -1095,6 +697,5 @@ export default async function handler(req, res) {
         "Trivia could not be loaded.",
       trivia: []
     });
-
   }
 }
