@@ -11,6 +11,14 @@ const QUOTES_90S = {
     "This is my house. I have to defend it."
   ],
 
+  "goodfellas": [
+    "As far back as I can remember, I always wanted to be a gangster.",
+    "Funny how? I mean, funny like I'm a clown?",
+    "Never rat on your friends, and always keep your mouth shut.",
+    "For us to live any other way was nuts.",
+    "Now go home and get your shine box."
+  ],
+
   "the silence of the lambs": [
     "A census taker once tried to test me."
   ],
