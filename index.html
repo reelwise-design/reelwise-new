@@ -1591,9 +1591,29 @@ async function loadPredictions(input){
       }
       if(config.type!=="all")items=items.filter(item=>item.result_type===config.type);
 
-      const threshold=words.length>1?.56:.70;
-      const ranked=items.map(item=>({item,score:predictionScore(normalized,item)}))
-        .filter(x=>x.score>=threshold).sort((a,b)=>b.score-a.score).slice(0,5);
+      // Short movie prefixes need broader candidate discovery.
+      // Example: "Roc" should surface "Rocky" even when TMDB's first response is sparse.
+      if(config.type==="movie" && rwClean(normalized).length<=4){
+        const broad=await rwSearch(normalized,signal);
+        const seen=new Set(items.map(x=>x.result_type+":"+x.id));
+        broad.filter(x=>x.result_type==="movie").forEach(x=>{
+          const k=x.result_type+":"+x.id;
+          if(!seen.has(k)){seen.add(k);items.push(x)}
+        });
+      }
+
+      const cleanQuery=rwClean(normalized);
+      const threshold=words.length>1?.56:(config.type==="movie"&&cleanQuery.length<=4?.50:.70);
+      const ranked=items.map(item=>{
+        let score=predictionScore(normalized,item);
+        const name=rwClean(item.display_title||item.title||item.name||"");
+        if(config.type==="movie" && cleanQuery.length<=4){
+          const titleWords=name.split(" ").filter(Boolean);
+          if(name.startsWith(cleanQuery))score=Math.max(score,.995);
+          else if(titleWords.some(word=>word.startsWith(cleanQuery)))score=Math.max(score,.94);
+        }
+        return {item,score};
+      }).filter(x=>x.score>=threshold).sort((a,b)=>b.score-a.score).slice(0,5);
       if(!ranked.length){closeSuggestions(input);return}
 
       const suggestions=ranked.map(x=>x.item);
