@@ -2481,22 +2481,39 @@ function reelwiseSourceBio(person){
 
   if(!candidates.length)return "";
 
-  // Pick up to three strong career sentences, then restore their original
-  // source order so the result reads as a narrative rather than a ranking.
+  // Pick complete career-focused sentences only. Never allow the profile
+  // biography to end in the middle of a sentence.
   const picked=[];
   let chars=0;
+  const MAX_BIO_CHARS=500;
 
   for(const item of candidates){
     if(picked.length>=3)break;
-    if(chars && chars+item.sentence.length>620)continue;
-    picked.push(item);
-    chars+=item.sentence.length;
+
+    const sentence=String(item.sentence||"").trim();
+    if(!sentence)continue;
+
+    // Only accept source fragments that actually end as complete sentences.
+    if(!/[.!?]$/.test(sentence))continue;
+
+    const added=(picked.length?1:0)+sentence.length;
+    if(chars+added>MAX_BIO_CHARS)continue;
+
+    picked.push({...item,sentence});
+    chars+=added;
   }
 
   picked.sort((a,b)=>a.index-b.index);
 
   let bio=picked.map(x=>x.sentence).join(" ").trim();
   bio=bio.replace(/\s+\((?:source|wikipedia)[^)]*\)\s*$/i,"").trim();
+
+  // Final safety check: if anything upstream/downstream supplied an incomplete
+  // fragment, trim back to the last complete sentence rather than showing it.
+  if(bio && !/[.!?]$/.test(bio)){
+    const matches=bio.match(/^.*[.!?](?=\s|$)/s);
+    bio=matches?matches[0].trim():"";
+  }
 
   return bio.length>=90?bio:"";
 }
