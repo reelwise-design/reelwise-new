@@ -1174,12 +1174,17 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   z-index:1!important;
 }
 
+
+
+/* ===== REELWISE STAR BIO — FINAL COMPACT PROFILE ===== */
+.bio-toggle{display:none!important}
+
 </style>
 </head>
 <body>
 <header>
 <nav><div class="logo" onclick="showHome()">reel<span>wise</span></div><div class="nav-links"><button onclick="showHome()">Home</button><button onclick="openSection('movies')">Movies</button><button onclick="openSection('stars')">Stars</button><button onclick="openSection('six')">Six Degrees</button></div></nav>
-<div class="hero"><div class="hero-inner"><div class="eyebrow">MOVIES · STARS · STORIES</div><h1>Know the movie.<br><span>Know the story.</span></h1><p>Search movies and stars and discover the stories, people and connections behind them.</p><form class="search" id="searchForm"><input id="searchInput" placeholder="Search movies or stars..." autocomplete="off"><button type="submit">Search</button></form></div></div>
+<div class="hero"><div class="hero-inner"><div class="eyebrow">MOVIES · STARS · STORIES</div><h1>Know the movie.<br><span>Know the story.</span></h1><p>Explore movies and stars and discover the stories, people and connections behind them.</p></div></div>
 </header>
 <main>
 <div id="homeContent"><div class="home-intro"><h2 class="section-title">Explore Reelwise</h2><p>Search when you know what you want. Explore when you don't.</p></div><div class="features"><div class="feature" onclick="openSection('movies')"><div class="feature-number">01</div><div class="feature-icon">🎬</div><h3>Movies</h3><p>Browse genres, eras, franchises, classics and movies worth discovering.</p><span class="go">Explore Movies →</span></div><div class="feature" onclick="openSection('stars')"><div class="feature-number">02</div><div class="feature-icon">⭐</div><h3>Movie Stars</h3><p>Discover legends, action stars, comedy stars and today's biggest names.</p><span class="go">Explore Stars →</span></div><div class="feature" onclick="openSection('six')"><div class="feature-number">03</div><div class="feature-icon">🔗</div><h3>Six Degrees</h3><p>Connect any two movie stars through their movies and co-stars.</p><span class="go">Play Six Degrees →</span></div></div><section class="home-spotlight"><div class="spotlight-heading"><div><div class="eyebrow">IN THE SPOTLIGHT</div><h2>Movies to explore</h2></div><span>Swipe to explore →</span></div><div id="homeMovies" class="visual-row"><div class="message">Loading movies...</div></div></section></div>
@@ -1465,8 +1470,8 @@ function compactStarBio(rawBio){
   const chosen=[];
   let length=0;
   for(const sentence of complete){
-    if(chosen.length>=4)break;
-    if(chosen.length>=2 && length+sentence.length+1>650)break;
+    if(chosen.length>=3)break;
+    if(chosen.length>=2 && length+sentence.length+1>420)break;
     chosen.push(sentence);
     length+=sentence.length+1;
   }
