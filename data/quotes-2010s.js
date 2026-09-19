@@ -49,6 +49,14 @@ const QUOTES_2010S = {
     "People keep asking if I'm back."
   ],
 
+  "get hard": [
+    "I think that's more of a Yale thing.",
+    "For the love of Alan Greenspan.",
+    "We do this, we do this hard!",
+    "I can get hard!",
+    "This ain't no longer your house, man! We're in San Quentin now!"
+  ],
+
   "mad max: fury road": [
     "What a lovely day!"
   ],
