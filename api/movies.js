@@ -1,5 +1,14 @@
 const token = process.env.TMDB_READ_ACCESS_TOKEN;
 
+const OSCARBASE =
+  "https://api.oscarbase.com/api";
+
+/*
+  ============================================================
+  TMDB
+  ============================================================
+*/
+
 async function tmdb(path) {
   if (!token) {
     throw new Error("TMDB token is not configured");
@@ -27,6 +36,200 @@ async function tmdb(path) {
   return data;
 }
 
+/*
+  ============================================================
+  OSCARBASE
+  ============================================================
+*/
+
+async function oscarbase(path) {
+  const response = await fetch(
+    `${OSCARBASE}${path}`,
+    {
+      headers: {
+        accept: "application/json"
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `OscarBase request failed: ${response.status}`
+    );
+  }
+
+  return response.json();
+}
+
+function cleanCategory(category = "") {
+  return String(category).trim();
+}
+
+function isBestPicture(category = "") {
+  const value =
+    String(category).toLowerCase();
+
+  return (
+    value.includes("best picture") ||
+    value.includes("outstanding picture") ||
+    value.includes("outstanding production")
+  );
+}
+
+/*
+  ============================================================
+  AUTOMATIC ACADEMY AWARDS LOOKUP
+  ============================================================
+*/
+
+async function getAwards(tmdbId) {
+  if (!tmdbId) {
+    return {
+      found: false,
+      nominations: 0,
+      wins: 0,
+      bestPictureWinner: false,
+      winningCategories: [],
+      nominatedCategories: [],
+      ceremonyYears: []
+    };
+  }
+
+  /*
+    Find OscarBase's movie record using the
+    TMDB movie ID Reelwise already has.
+  */
+
+  const search = await oscarbase(
+    `/movies?tmdb_id=${encodeURIComponent(
+      tmdbId
+    )}&limit=5`
+  );
+
+  const movies =
+    Array.isArray(search?.data)
+      ? search.data
+      : [];
+
+  const movie =
+    movies.find(
+      item =>
+        Number(item.tmdb_id) ===
+        Number(tmdbId)
+    ) || null;
+
+  /*
+    No result means this movie does not have
+    an Academy Award record in OscarBase.
+  */
+
+  if (!movie) {
+    return {
+      found: false,
+      tmdb_id: Number(tmdbId),
+      nominations: 0,
+      wins: 0,
+      bestPictureWinner: false,
+      winningCategories: [],
+      nominatedCategories: [],
+      ceremonyYears: []
+    };
+  }
+
+  /*
+    Fetch full movie record.
+    This includes all Oscar nominations.
+  */
+
+  const detail = await oscarbase(
+    `/movies/${movie.id}`
+  );
+
+  const nominations =
+    Array.isArray(detail?.nominations)
+      ? detail.nominations
+      : [];
+
+  const wins =
+    nominations.filter(
+      nomination =>
+        nomination.winner === true
+    );
+
+  const winningCategories = [
+    ...new Set(
+      wins
+        .map(item =>
+          cleanCategory(item.category)
+        )
+        .filter(Boolean)
+    )
+  ];
+
+  const nominatedCategories = [
+    ...new Set(
+      nominations
+        .map(item =>
+          cleanCategory(item.category)
+        )
+        .filter(Boolean)
+    )
+  ];
+
+  const ceremonyYears = [
+    ...new Set(
+      nominations
+        .map(item =>
+          Number(item.ceremony_year)
+        )
+        .filter(Boolean)
+    )
+  ].sort((a, b) => a - b);
+
+  const bestPictureWinner =
+    wins.some(item =>
+      isBestPicture(item.category)
+    );
+
+  return {
+    found: nominations.length > 0,
+
+    movie: {
+      title:
+        detail?.title ||
+        movie.title ||
+        "",
+
+      release_date:
+        detail?.release_date ||
+        movie.release_date ||
+        "",
+
+      tmdb_id: Number(tmdbId)
+    },
+
+    nominations:
+      nominations.length,
+
+    wins:
+      wins.length,
+
+    bestPictureWinner,
+
+    winningCategories,
+
+    nominatedCategories,
+
+    ceremonyYears
+  };
+}
+
+/*
+  ============================================================
+  MOVIE CLEANUP
+  ============================================================
+*/
+
 function cleanMovies(movies) {
   return (movies || [])
     .filter(movie =>
@@ -39,22 +242,98 @@ function cleanMovies(movies) {
       id: movie.id,
       title: movie.title,
       poster_path: movie.poster_path,
-      release_date: movie.release_date || "",
-      overview: movie.overview || "",
-      popularity: movie.popularity || 0
+      release_date:
+        movie.release_date || "",
+      overview:
+        movie.overview || "",
+      popularity:
+        movie.popularity || 0
     }));
 }
+
+/*
+  ============================================================
+  MAIN REELWISE MOVIES API
+  ============================================================
+*/
 
 export default async function handler(req, res) {
   try {
     const category =
-      String(req.query?.category || "trending")
-        .toLowerCase();
+      String(
+        req.query?.category ||
+        "trending"
+      ).toLowerCase();
+
+    /*
+      ========================================================
+      ACADEMY AWARDS
+
+      Example:
+      /api/movies?category=awards&id=238
+
+      Uses the movie's TMDB ID.
+      ========================================================
+    */
+
+    if (category === "awards") {
+      const tmdbId =
+        Number(req.query?.id);
+
+      if (!tmdbId) {
+        return res.status(400).json({
+          error:
+            "Missing TMDB movie ID"
+        });
+      }
+
+      try {
+        const awards =
+          await getAwards(tmdbId);
+
+        res.setHeader(
+          "Cache-Control",
+          "s-maxage=86400, stale-while-revalidate=604800"
+        );
+
+        return res
+          .status(200)
+          .json(awards);
+
+      } catch (awardError) {
+        /*
+          Awards must never break the movie page.
+
+          If OscarBase is temporarily unavailable,
+          Reelwise simply behaves as though no award
+          information was found.
+        */
+
+        console.error(
+          "Reelwise awards lookup error:",
+          awardError
+        );
+
+        return res.status(200).json({
+          found: false,
+          tmdb_id: tmdbId,
+          nominations: 0,
+          wins: 0,
+          bestPictureWinner: false,
+          winningCategories: [],
+          nominatedCategories: [],
+          ceremonyYears: [],
+          unavailable: true
+        });
+      }
+    }
 
     let data;
 
     /*
+      ========================================================
       TRENDING MOVIES
+      ========================================================
     */
 
     if (category === "trending") {
@@ -64,12 +343,16 @@ export default async function handler(req, res) {
 
       return res
         .status(200)
-        .json(cleanMovies(data.results));
+        .json(
+          cleanMovies(data.results)
+        );
     }
 
     /*
+      ========================================================
       ACTION
       TMDB genre 28
+      ========================================================
     */
 
     if (category === "action") {
@@ -85,12 +368,16 @@ export default async function handler(req, res) {
 
       return res
         .status(200)
-        .json(cleanMovies(data.results));
+        .json(
+          cleanMovies(data.results)
+        );
     }
 
     /*
+      ========================================================
       COMEDY
       TMDB genre 35
+      ========================================================
     */
 
     if (category === "comedy") {
@@ -106,14 +393,18 @@ export default async function handler(req, res) {
 
       return res
         .status(200)
-        .json(cleanMovies(data.results));
+        .json(
+          cleanMovies(data.results)
+        );
     }
 
     /*
+      ========================================================
       MOVIE CLASSICS
 
       Highly rated movies released
       before 1980 with substantial votes.
+      ========================================================
     */
 
     if (category === "classics") {
@@ -129,14 +420,18 @@ export default async function handler(req, res) {
 
       return res
         .status(200)
-        .json(cleanMovies(data.results));
+        .json(
+          cleanMovies(data.results)
+        );
     }
 
     /*
+      ========================================================
       80s & 90s
 
       Popular movies released from
       1980 through 1999.
+      ========================================================
     */
 
     if (category === "retro") {
@@ -153,18 +448,19 @@ export default async function handler(req, res) {
 
       return res
         .status(200)
-        .json(cleanMovies(data.results));
+        .json(
+          cleanMovies(data.results)
+        );
     }
 
     /*
+      ========================================================
       GREAT FRANCHISES
 
-      For this discovery row, use recognizable
-      franchise entries from different series.
-
-      These are TMDB movie IDs, not hard-coded
-      movie information. All titles/posters/details
-      still come directly from TMDB.
+      These are TMDB movie IDs.
+      Movie information still comes
+      directly from TMDB.
+      ========================================================
     */
 
     if (category === "franchises") {
@@ -189,25 +485,32 @@ export default async function handler(req, res) {
         1891
       ];
 
-      const movies = await Promise.all(
-        franchiseMovieIds.map(async id => {
-          try {
-            return await tmdb(
-              `/movie/${id}?language=en-US`
-            );
-          } catch {
-            return null;
-          }
-        })
-      );
+      const movies =
+        await Promise.all(
+          franchiseMovieIds.map(
+            async id => {
+              try {
+                return await tmdb(
+                  `/movie/${id}?language=en-US`
+                );
+              } catch {
+                return null;
+              }
+            }
+          )
+        );
 
       return res
         .status(200)
-        .json(cleanMovies(movies));
+        .json(
+          cleanMovies(movies)
+        );
     }
 
     /*
+      ========================================================
       FALLBACK
+      ========================================================
     */
 
     data = await tmdb(
@@ -216,7 +519,9 @@ export default async function handler(req, res) {
 
     return res
       .status(200)
-      .json(cleanMovies(data.results));
+      .json(
+        cleanMovies(data.results)
+      );
 
   } catch (error) {
     console.error(
