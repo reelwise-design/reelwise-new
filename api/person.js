@@ -135,6 +135,7 @@ function normalizeTitle(value) {
 
 function dedupeMovies(movies) {
   const seen = new Set();
+
   return movies.filter(movie => {
     const key = normalizeTitle(movie?.title);
     if (!key || seen.has(key)) return false;
@@ -144,7 +145,10 @@ function dedupeMovies(movies) {
 }
 
 function getCareerYears(person) {
-  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const cast = Array.isArray(person?.movie_credits?.cast)
+    ? person.movie_credits.cast
+    : [];
+
   const years = cast
     .map(movie => Number(String(movie?.release_date || "").slice(0, 4)))
     .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
@@ -157,10 +161,109 @@ function getCareerYears(person) {
   };
 }
 
+/*
+  ============================================================
+  REELWISE CAREER INTELLIGENCE
+  ============================================================
+
+  This is not a hand-written biography database.
+
+  It is a compact editorial fact layer for major stars where
+  raw credits alone cannot reliably determine:
+    - signature films
+    - signature franchises
+    - iconic characters
+    - defining collaborators
+    - creator/writer significance
+
+  Everyone not listed here still receives a fully automatic bio.
+*/
+
+const CAREER_INTELLIGENCE = {
+  380: {
+    name: "Robert De Niro",
+    roles: ["actor", "producer"],
+    collaborator: "Martin Scorsese",
+    collaborationText:
+      "His celebrated collaboration with Martin Scorsese produced some of his most memorable performances.",
+    signatureFilms: [
+      "The Godfather Part II",
+      "Taxi Driver",
+      "Raging Bull",
+      "GoodFellas",
+      "Casino"
+    ]
+  },
+
+  500: {
+    name: "Tom Cruise",
+    roles: ["actor", "producer"],
+    franchiseText:
+      "Top Gun made him a global movie star, while Mission: Impossible became his signature franchise.",
+    signatureFilms: [
+      "Top Gun",
+      "A Few Good Men",
+      "Jerry Maguire",
+      "Mission: Impossible",
+      "Top Gun: Maverick"
+    ]
+  },
+
+  16483: {
+    name: "Sylvester Stallone",
+    roles: ["actor", "screenwriter"],
+    franchiseText:
+      "As the writer and star of Rocky, he created one of cinema's most enduring characters and later established another signature franchise as John Rambo.",
+    signatureFilms: [
+      "Rocky",
+      "First Blood",
+      "Rocky III",
+      "Creed",
+      "Cop Land"
+    ]
+  }
+};
+
+function getCareerIntelligence(person) {
+  const id = Number(person?.id);
+  return CAREER_INTELLIGENCE[id] || null;
+}
+
+function findCreditByTitle(person, wantedTitle) {
+  const cast = Array.isArray(person?.movie_credits?.cast)
+    ? person.movie_credits.cast
+    : [];
+
+  const wanted = normalizeTitle(wantedTitle);
+
+  return cast.find(movie =>
+    normalizeTitle(movie?.title) === wanted
+  ) || null;
+}
+
+function validatedIntelligenceFilms(person, intelligence) {
+  if (!intelligence?.signatureFilms) return [];
+
+  return intelligence.signatureFilms
+    .map(title => {
+      const credit = findCreditByTitle(person, title);
+      return credit || { title };
+    })
+    .filter(movie => movie?.title);
+}
+
+/*
+  ============================================================
+  AUTOMATIC CAREER SCORING
+  ============================================================
+*/
+
 function biographySignals(person) {
   const bio = cleanBiography(person?.biography);
   const normalizedBio = normalizeTitle(bio);
-  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const cast = Array.isArray(person?.movie_credits?.cast)
+    ? person.movie_credits.cast
+    : [];
 
   const titleSignals = new Map();
 
@@ -172,10 +275,13 @@ function biographySignals(person) {
     if (position < 0) continue;
 
     const signal = Math.max(8, 38 - Math.floor(position / 75));
-    titleSignals.set(key, Math.max(titleSignals.get(key) || 0, signal));
+    titleSignals.set(
+      key,
+      Math.max(titleSignals.get(key) || 0, signal)
+    );
   }
 
-  return { bio, normalizedBio, titleSignals };
+  return { titleSignals };
 }
 
 function oscarSignals(accolades) {
@@ -187,11 +293,7 @@ function oscarSignals(accolades) {
     const key = normalizeTitle(item?.movie);
     if (!key) continue;
 
-    /*
-      Awards are evidence of career importance, not the final
-      editorial decision. Wins matter, but cannot dominate.
-    */
-    const score = item?.winner ? 52 : 24;
+    const score = item?.winner ? 48 : 22;
     map.set(key, Math.max(map.get(key) || 0, score));
   }
 
@@ -199,7 +301,10 @@ function oscarSignals(accolades) {
 }
 
 function baseMovieScores(person, accolades) {
-  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const cast = Array.isArray(person?.movie_credits?.cast)
+    ? person.movie_credits.cast
+    : [];
+
   const { titleSignals } = biographySignals(person);
   const awards = oscarSignals(accolades);
 
@@ -215,57 +320,53 @@ function baseMovieScores(person, accolades) {
         const key = normalizeTitle(movie.title);
         const votes = Number(movie.vote_count || 0);
         const rating = Number(movie.vote_average || 0);
-        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+        const order = Number.isFinite(Number(movie.order))
+          ? Number(movie.order)
+          : 99;
 
         let billing = 0;
-        if (order === 0) billing = 58;
-        else if (order === 1) billing = 50;
-        else if (order === 2) billing = 42;
-        else if (order <= 5) billing = 25;
+
+        if (order === 0) billing = 62;
+        else if (order === 1) billing = 54;
+        else if (order === 2) billing = 45;
+        else if (order <= 5) billing = 26;
         else if (order <= 10) billing = 8;
 
-        /*
-          Vote count is used as a durable recognition signal.
-          Current TMDB popularity is intentionally excluded.
-        */
-        const recognition =
-          Math.log10(Math.max(votes, 1)) * 20 +
+        const durableRecognition =
+          Math.log10(Math.max(votes, 1)) * 21 +
           Math.max(0, rating - 5) * 4;
-
-        const score =
-          billing +
-          recognition +
-          (titleSignals.get(key) || 0) +
-          (awards.get(key) || 0);
 
         return {
           ...movie,
-          reelwise_score: score
+
+          reelwise_score:
+            billing +
+            durableRecognition +
+            (titleSignals.get(key) || 0) +
+            (awards.get(key) || 0)
         };
       })
-      .sort((a, b) => b.reelwise_score - a.reelwise_score)
+      .sort((a, b) =>
+        b.reelwise_score - a.reelwise_score
+      )
   );
 }
 
 /*
   ============================================================
-  FRANCHISE / CHARACTER INTELLIGENCE
+  AUTOMATIC FRANCHISE INTELLIGENCE
   ============================================================
-
-  Groups obvious recurring title families so a biography does
-  not waste three of five slots on sequels from one franchise.
 */
 
 function franchiseKey(title) {
-  const raw = String(title || "").trim();
-  const normalized = normalizeTitle(raw);
+  const normalized = normalizeTitle(title);
 
-  const explicit = [
+  const families = [
     ["mission impossible", "Mission: Impossible"],
     ["top gun", "Top Gun"],
     ["rocky", "Rocky"],
-    ["rambo", "Rambo"],
     ["creed", "Rocky / Creed"],
+    ["rambo", "Rambo"],
     ["terminator", "Terminator"],
     ["indiana jones", "Indiana Jones"],
     ["die hard", "Die Hard"],
@@ -276,7 +377,6 @@ function franchiseKey(title) {
     ["star wars", "Star Wars"],
     ["harry potter", "Harry Potter"],
     ["lord of the rings", "The Lord of the Rings"],
-    ["hobbit", "The Hobbit"],
     ["pirates of the caribbean", "Pirates of the Caribbean"],
     ["hunger games", "The Hunger Games"],
     ["matrix", "The Matrix"],
@@ -289,31 +389,16 @@ function franchiseKey(title) {
     ["shrek", "Shrek"]
   ];
 
-  for (const [needle, label] of explicit) {
+  for (const [needle, label] of families) {
     if (normalized.includes(needle)) {
       return { key: needle, label };
     }
   }
 
-  /*
-    Generic sequel cleanup catches numbered title families.
-  */
-  const generic = normalized
-    .replace(/\bpart\s+(one|two|three|four|five|six|seven|eight|nine|\d+)\b/g, "")
-    .replace(/\bchapter\s+\d+\b/g, "")
-    .replace(/\bepisode\s+\d+\b/g, "")
-    .replace(/\b(ii|iii|iv|v|vi|vii|viii|ix|x)\b$/g, "")
-    .replace(/\b\d+\b$/g, "")
-    .trim();
-
-  if (generic && generic !== normalized && generic.length >= 4) {
-    return { key: generic, label: raw.replace(/\s+(?:\d+|II|III|IV|V|VI|VII|VIII|IX|X)$/i, "") };
-  }
-
   return null;
 }
 
-function detectFranchises(scoredMovies) {
+function detectSignatureFranchise(scoredMovies) {
   const groups = new Map();
 
   for (const movie of scoredMovies) {
@@ -322,70 +407,54 @@ function detectFranchises(scoredMovies) {
 
     if (!groups.has(family.key)) {
       groups.set(family.key, {
-        key: family.key,
         label: family.label,
         movies: [],
-        bestScore: 0
+        score: 0
       });
     }
 
     const group = groups.get(family.key);
     group.movies.push(movie);
-    group.bestScore = Math.max(group.bestScore, Number(movie.reelwise_score || 0));
+    group.score += Number(movie.reelwise_score || 0);
   }
 
-  /*
-    A real franchise signal requires multiple credited films,
-    except Rocky/Creed which are one connected screen legacy.
-  */
   return Array.from(groups.values())
-    .filter(group =>
-      group.movies.length >= 2 ||
-      group.label === "Rocky / Creed"
-    )
-    .sort((a, b) => b.bestScore - a.bestScore);
+    .filter(group => group.movies.length >= 2)
+    .sort((a, b) => b.score - a.score)[0] || null;
 }
 
-function getDefiningCareer(person, accolades) {
+function automaticCareer(person, accolades) {
   const scored = baseMovieScores(person, accolades);
-  const franchises = detectFranchises(scored);
+  const franchise = detectSignatureFranchise(scored);
 
-  /*
-    Reserve at most one franchise concept in the short bio.
-    This prevents franchise-heavy careers from becoming a list
-    of sequels while still recognizing signature series.
-  */
-  const signatureFranchise = franchises[0] || null;
+  const excluded = new Set(
+    franchise
+      ? franchise.movies.map(movie => normalizeTitle(movie.title))
+      : []
+  );
 
-  const excludedTitles = new Set();
+  const movies = scored
+    .filter(movie => !excluded.has(normalizeTitle(movie.title)))
+    .slice(0, franchise ? 4 : 5);
 
-  if (signatureFranchise) {
-    for (const movie of signatureFranchise.movies) {
-      excludedTitles.add(normalizeTitle(movie.title));
-    }
-  }
-
-  const standalone = scored
-    .filter(movie => !excludedTitles.has(normalizeTitle(movie.title)))
-    .slice(0, signatureFranchise ? 4 : 5);
-
-  return {
-    movies: standalone,
-    franchise: signatureFranchise
-  };
+  return { movies, franchise };
 }
 
 function formatFilmList(movies) {
-  const titles = movies.map(movie => movie.title).filter(Boolean);
+  const titles = movies
+    .map(movie => String(movie?.title || "").trim())
+    .filter(Boolean);
 
   if (!titles.length) return "";
   if (titles.length === 1) return titles[0];
-  if (titles.length === 2) return `${titles[0]} and ${titles[1]}`;
+  if (titles.length === 2) {
+    return `${titles[0]} and ${titles[1]}`;
+  }
 
   return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
 }
 
-function collaborationContext(person) {
+function automaticCollaboration(person) {
   const sentences = splitSentences(person?.biography);
 
   const candidate = sentences
@@ -406,6 +475,7 @@ function collaborationContext(person) {
   if (first) {
     const subject = first[1].trim();
     const collaborator = first[2].trim();
+
     return `${subject}'s celebrated collaboration with ${collaborator} became a defining part of the career.`;
   }
 
@@ -417,7 +487,7 @@ function academyRecognition(accolades) {
   const nominations = Number(accolades?.nominations || 0);
 
   if (wins > 0) {
-    return `${wins === 1 ? "An Academy Award win" : `${wins} Academy Award wins`} and ${nominations} total ${nominations === 1 ? "nomination" : "nominations"} reflect the critical recognition earned along the way.`;
+    return `The work has earned ${wins} Academy Award ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
   }
 
   if (nominations > 0) {
@@ -427,140 +497,177 @@ function academyRecognition(accolades) {
   return "";
 }
 
-function creatorSignals(person) {
+function automaticRoles(person) {
   const bio = cleanBiography(person?.biography);
+  const department =
+    String(person?.known_for_department || "Acting").toLowerCase();
 
-  return {
-    writer:
-      /\bscreenwriter\b|\bwriter\b|\bwrote\b|\bco-wrote\b|\bwritten by\b/i.test(bio),
+  const roles = [];
 
-    producer:
-      /\bproducer\b|\bproduced\b/i.test(bio),
+  if (department === "directing") roles.push("filmmaker");
+  else if (department === "writing") roles.push("screenwriter");
+  else roles.push("actor");
 
-    director:
-      /\bdirector\b|\bdirected\b/i.test(bio),
+  if (
+    /\bscreenwriter\b|\bwrote\b|\bco-wrote\b/i.test(bio) &&
+    !roles.includes("screenwriter")
+  ) {
+    roles.push("screenwriter");
+  }
 
-    creator:
-      /\bcreated\b|\bcreator\b/i.test(bio)
-  };
+  if (
+    /\bproducer\b|\bproduced\b/i.test(bio) &&
+    roles.length < 3
+  ) {
+    roles.push("producer");
+  }
+
+  if (
+    /\bdirector\b|\bdirected\b/i.test(bio) &&
+    !roles.includes("filmmaker") &&
+    roles.length < 3
+  ) {
+    roles.push("filmmaker");
+  }
+
+  return roles;
+}
+
+function rolePhrase(roles) {
+  if (!roles.length) return "movie star";
+  if (roles.length === 1) return roles[0];
+  if (roles.length === 2) {
+    return `${roles[0]} and ${roles[1]}`;
+  }
+
+  return `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}`;
 }
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 5.0
+  REELWISE BIO ENGINE 6.0
   ============================================================
 
-  Career-aware composition:
-  - signature franchises are grouped
-  - sequels do not consume multiple defining-film slots
-  - current popularity is removed from the ranking
-  - lead billing + durable audience recognition matter
-  - Oscars support selection without controlling it
-  - writer/producer/director identity can enrich the opener
+  Hybrid architecture:
+
+  A) CAREER INTELLIGENCE
+     Editorial facts for major stars where signature-career
+     knowledge matters.
+
+  B) AUTOMATIC ENGINE
+     Scalable fallback for every person in TMDB.
+
+  The intelligence layer supplies facts, NOT finished prose.
+  The same composer writes the final Reelwise biography.
 */
 
 function buildReelwiseBio(person, accolades) {
   const name = String(person?.name || "").trim();
   if (!name) return "";
 
+  const intelligence = getCareerIntelligence(person);
   const years = getCareerYears(person);
-  const career = getDefiningCareer(person, accolades);
-  const signals = creatorSignals(person);
-  const department = String(person?.known_for_department || "Acting").toLowerCase();
 
-  let roles = [];
+  const roles =
+    intelligence?.roles?.length
+      ? intelligence.roles
+      : automaticRoles(person);
 
-  if (department === "directing") {
-    roles.push("filmmaker");
-  } else if (department === "writing") {
-    roles.push("screenwriter");
-  } else {
-    roles.push("actor");
-  }
-
-  if (signals.writer && !roles.includes("screenwriter")) roles.push("screenwriter");
-  if (signals.producer && roles.length < 3) roles.push("producer");
-  if (signals.director && !roles.includes("filmmaker") && roles.length < 3) roles.push("filmmaker");
-
-  const roleText =
-    roles.length === 1
-      ? roles[0]
-      : roles.length === 2
-        ? `${roles[0]} and ${roles[1]}`
-        : `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}`;
-
-  let identity = `${name} is an acclaimed ${roleText}`;
+  let identity =
+    `${name} is an acclaimed ${rolePhrase(roles)}`;
 
   if (years && years.last > years.first) {
-    const decades = Math.max(1, Math.floor((years.last - years.first) / 10));
-    identity += ` whose film career spans more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
+    const decades = Math.max(
+      1,
+      Math.floor((years.last - years.first) / 10)
+    );
+
+    identity +=
+      ` whose film career spans more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
   } else {
-    identity += ` with an extensive career in movies.`;
+    identity += " with an extensive career in movies.";
   }
 
   const parts = [identity];
 
   /*
-    Signature franchise gets narrative treatment instead of
-    appearing as several sequel titles.
+    Career Intelligence path
   */
-  if (career.franchise) {
-    const label = career.franchise.label;
+  if (intelligence) {
+    if (intelligence.collaborationText) {
+      parts.push(intelligence.collaborationText);
+    }
 
-    if (label === "Rocky / Creed") {
-      parts.push(`The Rocky and Creed films form one of the defining screen legacies of the career.`);
-    } else {
-      parts.push(`The ${label} films became a signature part of the career.`);
+    if (intelligence.franchiseText) {
+      parts.push(intelligence.franchiseText);
+    }
+
+    const intelligentFilms =
+      validatedIntelligenceFilms(person, intelligence);
+
+    const films = formatFilmList(intelligentFilms);
+
+    if (films) {
+      parts.push(`Defining films include ${films}.`);
     }
   }
 
-  const films = formatFilmList(career.movies);
-
-  if (films) {
-    parts.push(`Other defining films include ${films}.`);
-  }
-
   /*
-    Collaboration context is especially valuable for careers
-    such as De Niro/Scorsese, but remains optional.
+    Fully automatic path
   */
-  const collaboration = collaborationContext(person);
+  else {
+    const career = automaticCareer(person, accolades);
 
-  if (collaboration) {
-    parts.splice(1, 0, collaboration);
+    const collaboration =
+      automaticCollaboration(person);
+
+    if (collaboration) {
+      parts.push(collaboration);
+    }
+
+    if (career.franchise) {
+      parts.push(
+        `The ${career.franchise.label} films became a signature part of the career.`
+      );
+    }
+
+    const films = formatFilmList(career.movies);
+
+    if (films) {
+      parts.push(`Defining films include ${films}.`);
+    }
   }
 
   /*
-    Keep awards brief because the dedicated accolades screen
-    contains the full history.
+    Awards remain intentionally brief because the dedicated
+    Awards & Accolades screen carries the full record.
   */
   const recognition = academyRecognition(accolades);
-  if (recognition) parts.push(recognition);
 
-  let bio = parts.join(" ").replace(/\s+/g, " ").trim();
+  if (recognition) {
+    parts.push(recognition);
+  }
+
+  let bio =
+    parts.join(" ").replace(/\s+/g, " ").trim();
 
   /*
-    Mobile card ceiling. Remove awards first, then collaboration,
-    before sacrificing the career identity or defining work.
+    Mobile-first ceiling:
+    awards are removed first if the card gets too long.
   */
-  if (bio.length > 620) {
-    const withoutAwards = recognition
-      ? parts.filter(part => part !== recognition)
-      : [...parts];
-
-    bio = withoutAwards.join(" ").replace(/\s+/g, " ").trim();
+  if (bio.length > 650 && recognition) {
+    bio = parts
+      .filter(part => part !== recognition)
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
   }
 
-  if (bio.length > 620 && collaboration) {
-    const withoutCollab = parts.filter(
-      part => part !== collaboration && part !== recognition
-    );
-
-    bio = withoutCollab.join(" ").replace(/\s+/g, " ").trim();
-  }
-
-  if (bio.length > 620) {
-    bio = bio.slice(0, 617).replace(/\s+\S*$/, "") + "...";
+  if (bio.length > 650) {
+    bio =
+      bio.slice(0, 647)
+        .replace(/\s+\S*$/, "") +
+      "...";
   }
 
   return bio;
