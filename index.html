@@ -1841,26 +1841,62 @@ async function searchReelwise(queryValue){
 function makeCard(item){const isMovie=item.result_type==="movie",name=item.display_title||item.title||item.name||"Unknown",image=isMovie?item.poster_path:item.profile_path,imageURL=image?"https://image.tmdb.org/t/p/w500"+image:"",subtitle=isMovie?item.year||"Movie":item.known_for_department||"Actor";return `<div class="card" data-type="${item.result_type}" data-id="${item.id}">${imageURL?`<img class="poster" src="${imageURL}" alt="${escapeHTML(name)}">`:`<div class="no-poster">${isMovie?"🎬":"⭐"}</div>`}<div class="card-info"><div class="type">${isMovie?"MOVIE":"STAR"}</div><strong>${escapeHTML(name)}</strong><small>${escapeHTML(subtitle)}</small></div></div>`}
 function attachCardEvents(){document.querySelectorAll(".card").forEach(card=>card.addEventListener("click",()=>card.dataset.type==="movie"?showMovie(card.dataset.id):showPerson(card.dataset.id)))}
 
-function getMovieAwardHTML(movie){
-  const title=String(movie&&movie.title||"").trim().toLowerCase();
-  const year=String(movie&&movie.release_date||"").slice(0,4);
+async function fetchMovieAwards(movieId){
+  try{
+    const response=await fetch(
+      "/api/movies?category=awards&id="+encodeURIComponent(movieId)
+    );
+    const data=await response.json();
 
-  const awards={
-    "rocky|1976":{
-      kicker:"ACADEMY AWARD WINNER",
-      title:"BEST PICTURE",
-      detail:"1976 film · 3 Oscar wins · 9 nominations"
+    if(!response.ok||!data||data.unavailable){
+      return null;
     }
-  };
 
-  const award=awards[title+"|"+year];
-  if(!award)return `<div class="movie-award"></div>`;
+    return data;
+  }catch(error){
+    console.warn("Reelwise awards unavailable:",error);
+    return null;
+  }
+}
+
+function getMovieAwardHTML(movie,award){
+  if(!award||award.found!==true||Number(award.wins||0)<1){
+    return "";
+  }
+
+  const wins=Number(award.wins||0);
+  const nominations=Number(award.nominations||0);
+
+  const kicker="ACADEMY AWARD WINNER";
+
+  let title="";
+  if(award.bestPictureWinner){
+    title="BEST PICTURE";
+  }else if(wins===1){
+    const categories=Array.isArray(award.winningCategories)
+      ?award.winningCategories.filter(Boolean)
+      :[];
+    title=categories.length===1
+      ?categories[0].toUpperCase()
+      :"1 OSCAR WIN";
+  }else{
+    title=wins+" OSCAR WINS";
+  }
+
+  const filmYear=String(movie&&movie.release_date||"").slice(0,4);
+
+  const detailParts=[];
+  if(filmYear)detailParts.push(filmYear+" film");
+  detailParts.push(wins+" Oscar "+(wins===1?"win":"wins"));
+  if(nominations>0){
+    detailParts.push(nominations+" "+(nominations===1?"nomination":"nominations"));
+  }
 
   return `
     <div class="movie-award">
-      <div class="movie-award-kicker">${escapeHTML(award.kicker)}</div>
-      <div class="movie-award-title">${escapeHTML(award.title)}</div>
-      <div class="movie-award-detail">${escapeHTML(award.detail)}</div>
+      <div class="movie-award-kicker">${escapeHTML(kicker)}</div>
+      <div class="movie-award-title">${escapeHTML(title)}</div>
+      <div class="movie-award-detail">${escapeHTML(detailParts.join(" · "))}</div>
     </div>
   `;
 }
@@ -1882,6 +1918,8 @@ async function showMovie(id){
     }
 
     currentMovie=movie;
+
+    const movieAwards=await fetchMovieAwards(movie.id);
 
     const poster=movie.poster_path
       ?"https://image.tmdb.org/t/p/w500"+movie.poster_path
@@ -1983,7 +2021,7 @@ async function showMovie(id){
           </div>
 
           <div class="movie-info">
-            ${getMovieAwardHTML(movie)}
+            ${getMovieAwardHTML(movie,movieAwards)}
 
             <div class="movie-story">
               <div class="movie-overview-label">THE STORY</div>
