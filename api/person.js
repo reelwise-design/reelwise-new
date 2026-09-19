@@ -656,7 +656,7 @@ function rolePhrase(roles) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.2.1
+  REELWISE BIO ENGINE 6.2.2
   ============================================================
 
   Hybrid architecture + multi-franchise Career Intelligence:
@@ -799,8 +799,19 @@ function buildReelwiseBio(person, accolades) {
     parts.join(" ").replace(/\s+/g, " ").trim();
 
   /*
-    Mobile-first ceiling:
-    awards are removed first if the card gets too long.
+    6.2.2 SMART LENGTH HANDLING
+
+    Never sacrifice a meaningful career section merely to hit
+    an arbitrary character ceiling.
+
+    Priority:
+      1. career identity
+      2. signature characters / franchises / collaborations
+      3. defining films
+      4. brief Academy Awards summary
+
+    Awards are the only section removed for length because the
+    dedicated Awards & Accolades page already carries that detail.
   */
   if (bio.length > 650 && recognition) {
     bio = parts
@@ -810,9 +821,16 @@ function buildReelwiseBio(person, accolades) {
       .trim();
   }
 
-  if (bio.length > 650) {
+  /*
+    Career Intelligence bios may legitimately run longer when
+    multiple franchises need context. Preserve complete sentences
+    rather than chopping off the final defining-film section.
+  */
+  const hardCeiling = intelligence ? 900 : 720;
+
+  if (bio.length > hardCeiling) {
     bio =
-      bio.slice(0, 647)
+      bio.slice(0, hardCeiling - 3)
         .replace(/\s+\S*$/, "") +
       "...";
   }
