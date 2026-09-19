@@ -1690,6 +1690,70 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   .vault-page-head h1{font-size:31px}
 }
 
+
+/* ===== VAULT SCREENS — FULL WIDTH CLEANUP ===== */
+.vault-page{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:8px 0 34px!important;
+}
+.vault-page .back-button{
+  margin:0 0 22px!important;
+}
+.vault-page-head{
+  width:100%!important;
+  margin:0 0 18px!important;
+  padding:0 0 15px!important;
+}
+.vault-page-head h1{
+  margin:5px 0 0!important;
+}
+#vaultFeatureContent,
+.vault-page .feature-view,
+.vault-page .fact-grid{
+  width:100%!important;
+  max-width:none!important;
+}
+.vault-page .feature-view{
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+}
+.vault-page .fact-grid{
+  display:grid!important;
+  grid-template-columns:1fr!important;
+  gap:10px!important;
+}
+.vault-page .fact-item{
+  width:100%!important;
+  max-width:none!important;
+  margin:0!important;
+  padding:18px 20px!important;
+  border:1px solid #303845!important;
+  border-left:4px solid var(--accent)!important;
+  border-radius:12px!important;
+  background:#141920!important;
+  font-size:15px!important;
+  line-height:1.55!important;
+}
+.vault-page .video-list{
+  width:100%!important;
+  max-width:none!important;
+}
+@media(max-width:700px){
+  .vault-page{padding-top:0!important}
+  .vault-page .back-button{margin-bottom:20px!important}
+  .vault-page-head{margin-bottom:15px!important}
+  .vault-page-head h1{font-size:32px!important}
+  .vault-page .fact-item{
+    padding:16px!important;
+    font-size:14px!important;
+    line-height:1.5!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -2020,8 +2084,16 @@ async function showMovieFeature(feature){
       const response=await fetch("/api/"+endpoint+"?id="+encodeURIComponent(currentMovie.id));
       const data=await response.json();
       if(!response.ok)throw new Error(data.error||"Information could not be loaded.");
-      const list=feature==="quotes"?data.quotes:data.trivia;
-      view.innerHTML=`<div class="feature-view"><div class="fact-grid">${(Array.isArray(list)?list:[]).map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`;
+      let list=feature==="quotes"?data.quotes:data.trivia;
+      list=Array.isArray(list)?list:[];
+      if(feature==="quotes"){
+        const explanatory=/\b(ranked|american film institute|afi\b|list of the top|quotation[s]? in american cinema|bolded portion|citation|wikiquote|wikipedia)\b/i;
+        list=list.filter(item=>{
+          const text=String(typeof item==="string"?item:item.text||item.fact||"").trim();
+          return text && !explanatory.test(text);
+        });
+      }
+      view.innerHTML=`<div class="feature-view"><div class="fact-grid">${list.map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`;
     }catch(error){
       view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>';
     }
