@@ -2529,83 +2529,9 @@ function compactStarBio(person,knownMovies,allMovies){
   const remaining=ranked.filter(m=>!used.has(normalize(m.title)));
   if(!early.length)early.push(...take(remaining,Math.min(3,remaining.length)));
 
-  // Strict franchise detection:
-  // 1) exact franchise stem must recur in at least 3 released titles;
-  // 2) the stem must be substantial;
-  // 3) do not invent punctuation or split ordinary titles.
-  const franchiseStem=title=>{
-    let raw=String(title||"").trim();
-
-    // Preserve a meaningful colon stem only when the left side + first right-side
-    // word form a recurring title identity, e.g. "Mission: Impossible".
-    if(raw.includes(":")){
-      const [left,...rest]=raw.split(":");
-      const right=rest.join(":").trim();
-      const firstRight=(right.match(/^[A-Za-z0-9]+/)||[])[0];
-      if(left.trim()&&firstRight){
-        return {key:normalize(`${left.trim()} ${firstRight}`),
-                label:`${left.trim()}: ${firstRight}`};
-      }
-    }
-
-    // Remove only obvious sequel markers at the END of a title.
-    const base=raw
-      .replace(/\s+(?:part|chapter|episode)\s+(?:[ivx]+|\d+)$/i,"")
-      .replace(/\s+(?:[ivx]{1,4}|[2-9])$/i,"")
-      .trim();
-
-    return {key:normalize(base),label:base};
-  };
-
-  const buckets=new Map();
-  for(const m of movies){
-    const stem=franchiseStem(m.title);
-    if(!stem.key||stem.key.length<7)continue;
-    if(!buckets.has(stem.key))buckets.set(stem.key,{label:stem.label,items:[]});
-    buckets.get(stem.key).items.push(m);
-  }
-
-  // For subtitle-heavy franchises, derive a shared multi-word prefix from
-  // normalized titles, but require 3+ titles and at least two meaningful words.
-  const words=s=>normalize(s).split(" ").filter(Boolean);
-  for(let i=0;i<movies.length;i++){
-    const a=words(movies[i].title);
-    if(a.length<2)continue;
-    for(let j=i+1;j<movies.length;j++){
-      const b=words(movies[j].title);
-      const common=[];
-      for(let k=0;k<Math.min(a.length,b.length);k++){
-        if(a[k]!==b[k])break;
-        common.push(a[k]);
-      }
-      if(common.length<2)continue;
-      const key=common.join(" ");
-      const matches=movies.filter(m=>normalize(m.title).startsWith(key+" ")||normalize(m.title)===key);
-      if(matches.length<3)continue;
-
-      // Use punctuation from a real matching title where possible.
-      const sample=String(matches[0].title);
-      let label=common.map((w,idx)=>idx===0?w.charAt(0).toUpperCase()+w.slice(1):w).join(" ");
-      if(sample.includes(":")&&common.length>=2){
-        const left=sample.split(":")[0].trim();
-        const rightFirst=(sample.split(":")[1].trim().match(/^[A-Za-z0-9]+/)||[])[0];
-        if(left&&rightFirst&&normalize(`${left} ${rightFirst}`)===key){
-          label=`${left}: ${rightFirst}`;
-        }
-      }
-      buckets.set(key,{label,items:matches});
-    }
-  }
-
-  const franchise=[...buckets.values()]
-    .filter(f=>{
-      const uniq=new Set(f.items.map(m=>normalize(m.title)));
-      return uniq.size>=3;
-    })
-    .sort((a,b)=>{
-      if(b.items.length!==a.items.length)return b.items.length-a.items.length;
-      return Math.max(...b.items.map(importance))-Math.max(...a.items.map(importance));
-    })[0]||null;
+  // Franchise claims are intentionally not inferred from movie titles.
+  // Similar title text is not reliable enough to establish a true franchise
+  // relationship for an actor biography.
 
   const sentences=[];
 
@@ -2621,14 +2547,7 @@ function compactStarBio(person,knownMovies,allMovies){
     sentences.push(`Other notable screen roles include ${titleList(middle)}.`);
   }
 
-  if(franchise){
-    const family=[...franchise.items].sort((a,b)=>a._year-b._year);
-    const fFirst=family[0]._year;
-    const fLast=family[family.length-1]._year;
-    if(fLast>fFirst){
-      sentences.push(`Beginning in ${fFirst}, the ${franchise.label} series became a recurring part of ${name}’s film career, continuing through ${fLast}.`);
-    }
-  }else if(later.length){
+  if(later.length){
     sentences.push(`More recent film work includes ${titleList(later)}.`);
   }
 
