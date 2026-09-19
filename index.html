@@ -675,7 +675,7 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   }
   .movie-overview{
     grid-column:1/-1;
-    font-size:12px!important;
+    font-size:14px!important;
     line-height:1.55!important;
     margin-top:4px!important;
   }
@@ -1474,7 +1474,6 @@ function compactStarBio(rawBio){
   if(!bio)return "Biography information is not available.";
 
   bio=bio
-    .replace(/\s*\(born\s+[^)]*\)/gi,"")
     .replace(/\s*Description above from the Wikipedia[\s\S]*$/i,"")
     .replace(/\s*This article is licensed under CC-BY-SA[\s\S]*$/i,"")
     .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i,"")
@@ -1763,32 +1762,53 @@ function reelwiseRecordRoute(type,args=[]){
   if(!reelwiseSameRoute(reelwiseNavCurrent,next))reelwiseNavHistory.push(reelwiseNavCurrent);
   reelwiseNavCurrent=next;
 }
+function reelwiseGoHome(){
+  reelwiseNavHistory=[];
+  reelwiseNavCurrent={type:"home",args:[]};
+  homeContent.style.display="block";
+  searchArea.style.display="none";
+  results.innerHTML="";
+  resultsTitle.textContent="";
+  currentMovie=null;
+  currentCast=[];
+  window.scrollTo({top:0,behavior:"smooth"});
+}
 function goBackReelwise(){
   const previous=reelwiseNavHistory.pop();
-  if(!previous){showHome();return;}
+  if(!previous){reelwiseGoHome();return;}
   reelwiseRestoring=true;
   try{
-    if(previous.type==="home")showHome();
-    else if(previous.type==="section")openSection(...previous.args);
-    else if(previous.type==="search")searchReelwise(...previous.args);
-    else if(previous.type==="movie")showMovie(...previous.args);
-    else if(previous.type==="person")showPerson(...previous.args);
-    else showHome();
+    if(previous.type==="home"){
+      homeContent.style.display="block";
+      searchArea.style.display="none";
+      results.innerHTML="";
+      resultsTitle.textContent="";
+      currentMovie=null;
+      currentCast=[];
+      window.scrollTo({top:0,behavior:"smooth"});
+    }
+    else if(previous.type==="section")_rwOpenSection(...previous.args);
+    else if(previous.type==="search")_rwSearchReelwise(...previous.args);
+    else if(previous.type==="movie")_rwShowMovie(...previous.args);
+    else if(previous.type==="person")_rwShowPerson(...previous.args);
+    else reelwiseGoHome();
   }finally{
     reelwiseNavCurrent=previous;
     reelwiseRestoring=false;
   }
 }
+
 const _rwShowHome=showHome;
-showHome=function(){reelwiseRecordRoute("home",[]);return _rwShowHome.apply(this,arguments)};
 const _rwOpenSection=openSection;
-openSection=function(){reelwiseRecordRoute("section",arguments);return _rwOpenSection.apply(this,arguments)};
 const _rwSearchReelwise=searchReelwise;
-searchReelwise=function(){reelwiseRecordRoute("search",arguments);return _rwSearchReelwise.apply(this,arguments)};
 const _rwShowMovie=showMovie;
-showMovie=function(){reelwiseRecordRoute("movie",arguments);return _rwShowMovie.apply(this,arguments)};
 const _rwShowPerson=showPerson;
-showPerson=function(){reelwiseRecordRoute("person",arguments);return _rwShowPerson.apply(this,arguments)};
+
+showHome=function(){return reelwiseGoHome();};
+openSection=function(){reelwiseRecordRoute("section",arguments);return _rwOpenSection.apply(this,arguments);};
+searchReelwise=function(){reelwiseRecordRoute("search",arguments);return _rwSearchReelwise.apply(this,arguments);};
+showMovie=function(){reelwiseRecordRoute("movie",arguments);return _rwShowMovie.apply(this,arguments);};
+showPerson=function(){reelwiseRecordRoute("person",arguments);return _rwShowPerson.apply(this,arguments);};
 
 loadHomeMovies();
 </script>
