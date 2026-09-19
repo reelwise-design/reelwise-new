@@ -8,10 +8,15 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   ============================================================
 
   1. Identify the exact movie through TMDB.
-  2. Check the separate Reelwise Quote Vault first.
+  2. Check the Reelwise curated Quote Vault first.
   3. Curated Reelwise quotes always win.
-  4. If the movie is not yet curated, try Wikiquote.
-  5. Automatic results are clearly fallback material.
+  4. If not curated, locate the movie on Wikiquote.
+  5. Pull the actual Wikiquote page wikitext.
+  6. Extract usable quotes while rejecting junk sections.
+  7. Return up to 8 fallback quotes.
+
+  This lets the curated Vault remain the premium Reelwise layer
+  without requiring every movie to be entered manually.
   ============================================================
 */
 
@@ -27,6 +32,7 @@ function normalizeTitle(value) {
     .replace(/[’]/g, "'")
     .replace(/\s+/g, " ");
 }
+
 
 function looseTitle(value) {
   return normalizeTitle(value)
@@ -61,7 +67,8 @@ async function getMovie(id) {
 
   if (!response.ok) {
     throw new Error(
-      data.status_message || "Movie lookup failed"
+      data.status_message ||
+      "Movie lookup failed"
     );
   }
 
@@ -79,6 +86,7 @@ async function wikiquoteRequest(params) {
 
     const query = new URLSearchParams({
       format: "json",
+      formatversion: "2",
       origin: "*",
       ...params
     });
@@ -99,45 +107,61 @@ async function wikiquoteRequest(params) {
 
     return await response.json();
 
-  } catch {
+  } catch (error) {
+
+    console.error(
+      "Wikiquote request failed:",
+      error
+    );
+
     return null;
   }
 }
 
 
 /* ============================================================
-   GET WIKIQUOTE PAGE
+   GET ACTUAL WIKIQUOTE PAGE WIKITEXT
    ============================================================ */
 
 async function getWikiquotePage(title) {
 
   const data = await wikiquoteRequest({
-    action: "query",
-    prop: "extracts",
-    explaintext: "1",
-    redirects: "1",
-    titles: title
+    action: "parse",
+    page: title,
+    prop: "wikitext|displaytitle",
+    redirects: "1"
   });
 
-  const pages =
-    data?.query?.pages || {};
-
-  const page =
-    Object.values(pages)[0];
-
   if (
-    !page ||
-    page.missing !== undefined
+    !data ||
+    data.error ||
+    !data.parse
   ) {
     return {
       title: "",
-      extract: ""
+      text: ""
     };
   }
 
+  const parse = data.parse;
+
+  let text = "";
+
+  if (typeof parse.wikitext === "string") {
+    text = parse.wikitext;
+  } else if (
+    parse.wikitext &&
+    typeof parse.wikitext["*"] === "string"
+  ) {
+    text = parse.wikitext["*"];
+  }
+
   return {
-    title: page.title || title,
-    extract: page.extract || ""
+    title:
+      parse.title ||
+      title,
+
+    text
   };
 }
 
@@ -149,15 +173,23 @@ async function getWikiquotePage(title) {
 async function searchWikiquote(title, year) {
 
   const searches = [
+
     year
       ? `"${title}" ${year} film`
       : "",
+
     `"${title}" film`,
+
+    `"${title}"`,
+
     title
+
   ].filter(Boolean);
+
 
   const found = [];
   const seen = new Set();
+
 
   for (const searchText of searches) {
 
@@ -166,12 +198,14 @@ async function searchWikiquote(title, year) {
         action: "query",
         list: "search",
         srnamespace: "0",
-        srlimit: "8",
+        srlimit: "10",
         srsearch: searchText
       });
 
+
     const results =
       data?.query?.search || [];
+
 
     for (const result of results) {
 
@@ -180,8 +214,10 @@ async function searchWikiquote(title, year) {
           result?.title || ""
         ).trim();
 
+
       const key =
         candidate.toLowerCase();
+
 
       if (
         !candidate ||
@@ -190,22 +226,25 @@ async function searchWikiquote(title, year) {
         continue;
       }
 
+
       seen.add(key);
 
       found.push(candidate);
     }
 
-    if (found.length >= 12) {
+
+    if (found.length >= 20) {
       break;
     }
   }
+
 
   return found;
 }
 
 
 /* ============================================================
-   VERIFY MOVIE PAGE
+   VERIFY THAT SEARCH RESULT MATCHES MOVIE
    ============================================================ */
 
 function likelyMoviePage(
@@ -220,20 +259,24 @@ function likelyMoviePage(
   const got =
     looseTitle(candidate);
 
+
   if (!wanted || !got) {
     return false;
   }
+
 
   if (got === wanted) {
     return true;
   }
 
+
   if (
     got.startsWith(`${wanted} `) &&
-    got.length <= wanted.length + 18
+    got.length <= wanted.length + 24
   ) {
     return true;
   }
+
 
   if (
     year &&
@@ -244,20 +287,159 @@ function likelyMoviePage(
     return true;
   }
 
+
   return false;
 }
 
 
 /* ============================================================
-   QUOTE CLEANING
+   TEXT CLEANING
    ============================================================ */
 
-function cleanLine(value) {
+function decodeEntities(value) {
 
   return String(value || "")
-    .replace(/^[-*#]+\s*/, "")
-    .replace(/^["“”]+|["“”]+$/g, "")
-    .replace(/\[edit\]/gi, "")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
+
+function cleanWikiMarkup(value) {
+
+  let line =
+    String(value || "");
+
+
+  /*
+    Remove HTML comments.
+  */
+
+  line =
+    line.replace(
+      /<!--[\s\S]*?-->/g,
+      ""
+    );
+
+
+  /*
+    Remove references.
+  */
+
+  line =
+    line.replace(
+      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
+      ""
+    );
+
+  line =
+    line.replace(
+      /<ref[^/>]*\/>/gi,
+      ""
+    );
+
+
+  /*
+    Convert common Wiki links:
+
+    [[Target|visible text]] -> visible text
+    [[Target]] -> Target
+  */
+
+  line =
+    line.replace(
+      /\[\[([^\]|]+)\|([^\]]+)\]\]/g,
+      "$2"
+    );
+
+  line =
+    line.replace(
+      /\[\[([^\]]+)\]\]/g,
+      "$1"
+    );
+
+
+  /*
+    Remove external-link URL while keeping label.
+
+    [https://example.com Label] -> Label
+  */
+
+  line =
+    line.replace(
+      /\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g,
+      "$1"
+    );
+
+  line =
+    line.replace(
+      /\[https?:\/\/[^\]]+\]/g,
+      ""
+    );
+
+
+  /*
+    Remove simple formatting markup.
+  */
+
+  line =
+    line
+      .replace(/'''/g, "")
+      .replace(/''/g, "");
+
+
+  /*
+    Remove simple templates that remain on one line.
+  */
+
+  line =
+    line.replace(
+      /\{\{[^{}]*\}\}/g,
+      ""
+    );
+
+
+  /*
+    Remove basic HTML tags.
+  */
+
+  line =
+    line.replace(
+      /<[^>]+>/g,
+      ""
+    );
+
+
+  /*
+    Remove Wiki list characters.
+  */
+
+  line =
+    line.replace(
+      /^[*#:;]+\s*/,
+      ""
+    );
+
+
+  /*
+    Remove surrounding quotation marks.
+  */
+
+  line =
+    line.replace(
+      /^["“”]+|["“”]+$/g,
+      ""
+    );
+
+
+  line =
+    decodeEntities(line);
+
+
+  return line
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -281,9 +463,14 @@ function sectionName(value) {
 }
 
 
+/* ============================================================
+   SECTION FILTERS
+   ============================================================ */
+
 function blockedSection(section) {
 
-  return [
+  const blocked = [
+
     "cast",
     "taglines",
     "tagline",
@@ -294,8 +481,16 @@ function blockedSection(section) {
     "see also",
     "sources",
     "source",
-    "notes"
-  ].includes(section);
+    "notes",
+    "note",
+    "about",
+    "about the film",
+    "quotes about",
+    "links"
+
+  ];
+
+  return blocked.includes(section);
 }
 
 
@@ -309,17 +504,21 @@ function usableQuote(line) {
     return false;
   }
 
+
   if (
     line.length < 8 ||
-    line.length > 220
+    line.length > 240
   ) {
     return false;
   }
 
+
   const lower =
     line.toLowerCase();
 
+
   const junk = [
+
     "is a film",
     "is a movie",
     "directed by",
@@ -333,8 +532,15 @@ function usableQuote(line) {
     "distributed by",
     "external link",
     "wikipedia",
-    "wikiquote"
+    "wikiquote",
+    "category:",
+    "file:",
+    "image:",
+    "isbn",
+    "official website"
+
   ];
+
 
   if (
     junk.some(term =>
@@ -344,6 +550,7 @@ function usableQuote(line) {
     return false;
   }
 
+
   if (
     lower.includes("http://") ||
     lower.includes("https://") ||
@@ -352,12 +559,14 @@ function usableQuote(line) {
     return false;
   }
 
+
   if (
     /^\[.*\]$/.test(line) ||
     /^\(.*\)$/.test(line)
   ) {
     return false;
   }
+
 
   if (
     line.endsWith(":") ||
@@ -367,28 +576,131 @@ function usableQuote(line) {
     return false;
   }
 
+
+  /*
+    Reject leftover Wiki markup.
+  */
+
+  if (
+    line.includes("{{") ||
+    line.includes("}}") ||
+    line.includes("[[") ||
+    line.includes("]]") ||
+    line.startsWith("|")
+  ) {
+    return false;
+  }
+
+
   const words =
     line
       .split(/\s+/)
       .filter(Boolean);
 
+
   if (words.length < 2) {
     return false;
   }
 
+
   const numbers =
     line.match(/\d+/g) || [];
 
-  if (numbers.length >= 3) {
+
+  if (numbers.length >= 4) {
     return false;
   }
+
 
   return true;
 }
 
 
 /* ============================================================
-   EXTRACT FALLBACK QUOTES
+   SPEAKER LABEL CLEANING
+   ============================================================ */
+
+function removeSpeakerLabel(line) {
+
+  /*
+    Examples:
+
+    Rocky: Yo, Adrian!
+    Tony Stark: We have a Hulk.
+
+    Keep the actual spoken line.
+  */
+
+  const match =
+    line.match(
+      /^[A-Za-z0-9 .'"’()_-]{1,50}:\s+(.+)$/
+    );
+
+
+  if (!match) {
+    return line;
+  }
+
+
+  return cleanWikiMarkup(
+    match[1]
+  );
+}
+
+
+/* ============================================================
+   DUPLICATE CHECK
+   ============================================================ */
+
+function isDuplicateQuote(
+  quote,
+  existing
+) {
+
+  const key =
+    quoteKey(quote);
+
+
+  if (!key) {
+    return true;
+  }
+
+
+  return existing.some(item => {
+
+    const existingKey =
+      quoteKey(item);
+
+
+    if (!existingKey) {
+      return false;
+    }
+
+
+    if (existingKey === key) {
+      return true;
+    }
+
+
+    if (
+      key.length > 30 &&
+      existingKey.length > 30 &&
+      (
+        key.includes(existingKey) ||
+        existingKey.includes(key)
+      )
+    ) {
+      return true;
+    }
+
+
+    return false;
+  });
+}
+
+
+/* ============================================================
+   EXTRACT QUOTES FROM WIKIQUOTE WIKITEXT
    ============================================================ */
 
 function extractFallbackQuotes(text) {
@@ -397,17 +709,14 @@ function extractFallbackQuotes(text) {
     return [];
   }
 
+
   const lines =
-    text.split(/\r?\n/);
+    String(text)
+      .split(/\r?\n/);
 
-  const standalone = [];
+
+  const primary = [];
   const dialogue = [];
-
-  const standaloneSeen =
-    new Set();
-
-  const dialogueSeen =
-    new Set();
 
   let section = "";
 
@@ -417,60 +726,28 @@ function extractFallbackQuotes(text) {
     const rawLine =
       String(raw || "").trim();
 
+
     if (!rawLine) {
       continue;
     }
 
 
     /*
-      Detect Wikiquote section headings.
+      Detect section headings.
     */
 
-    if (/^=+.*=+$/.test(rawLine)) {
+    const headingMatch =
+      rawLine.match(
+        /^(={2,6})\s*(.*?)\s*\1$/
+      );
+
+
+    if (headingMatch) {
 
       section =
-        sectionName(rawLine);
-
-      continue;
-    }
-
-
-    let line =
-      cleanLine(rawLine);
-
-    if (!line) {
-      continue;
-    }
-
-
-    /*
-      Some plain-text extracts expose headings
-      without Wiki markup.
-    */
-
-    const heading =
-      sectionName(line);
-
-    const knownHeadings = [
-      "dialogue",
-      "cast",
-      "taglines",
-      "tagline",
-      "external links",
-      "external link",
-      "references",
-      "reference",
-      "see also",
-      "sources",
-      "source",
-      "notes"
-    ];
-
-    if (
-      knownHeadings.includes(heading)
-    ) {
-
-      section = heading;
+        sectionName(
+          headingMatch[2]
+        );
 
       continue;
     }
@@ -482,42 +759,70 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Remove speaker label.
-
-      Example:
-
-      Red: Hope is a dangerous thing.
-
-      becomes:
-
-      Hope is a dangerous thing.
+      Wikiquote quote entries are normally list items.
+      Ignore template/table/category infrastructure.
     */
 
-    const speakerMatch =
-      line.match(
-        /^[A-Za-z0-9 .'"’()_-]{1,45}:\s+(.+)$/
-      );
-
-    if (speakerMatch) {
-
-      line =
-        cleanLine(
-          speakerMatch[1]
-        );
+    if (
+      rawLine.startsWith("{{") ||
+      rawLine.startsWith("}}") ||
+      rawLine.startsWith("{|") ||
+      rawLine.startsWith("|}") ||
+      rawLine.startsWith("|-") ||
+      rawLine.startsWith("[[Category:") ||
+      rawLine.startsWith("[[File:") ||
+      rawLine.startsWith("[[Image:")
+    ) {
+      continue;
     }
 
 
     /*
-      Remove a short stage direction.
+      Most real Wikiquote material appears as list items.
+      This prevents introductory prose from becoming quotes.
+    */
+
+    const isListItem =
+      /^[*#:;]/.test(rawLine);
+
+
+    if (!isListItem) {
+      continue;
+    }
+
+
+    let line =
+      cleanWikiMarkup(
+        rawLine
+      );
+
+
+    if (!line) {
+      continue;
+    }
+
+
+    /*
+      Remove stage direction at beginning.
     */
 
     line =
       line
         .replace(
-          /^\[[^\]]{1,80}\]\s*/,
+          /^\[[^\]]{1,100}\]\s*/,
           ""
         )
         .trim();
+
+
+    /*
+      Remove character/speaker label.
+    */
+
+    line =
+      removeSpeakerLabel(
+        line
+      );
 
 
     if (!usableQuote(line)) {
@@ -525,102 +830,220 @@ function extractFallbackQuotes(text) {
     }
 
 
-    const key =
-      quoteKey(line);
+    /*
+      Dialogue sections can contain fragments from
+      multi-line exchanges, so keep them supplemental.
+    */
 
-    if (!key) {
+    if (
+      section === "dialogue"
+    ) {
+
+      if (
+        !isDuplicateQuote(
+          line,
+          dialogue
+        )
+      ) {
+        dialogue.push(line);
+      }
+
       continue;
     }
 
 
-    /*
-      Keep dialogue separate.
-
-      Standalone Wikiquote entries are preferred.
-    */
-
-    if (section === "dialogue") {
-
-      if (
-        dialogueSeen.has(key)
-      ) {
-        continue;
-      }
-
-      dialogueSeen.add(key);
-
-      dialogue.push(line);
-
-    } else {
-
-      if (
-        standaloneSeen.has(key)
-      ) {
-        continue;
-      }
-
-      standaloneSeen.add(key);
-
-      standalone.push(line);
+    if (
+      !isDuplicateQuote(
+        line,
+        primary
+      )
+    ) {
+      primary.push(line);
     }
   }
 
 
   /*
-    Standalone quotes come first.
+    Prefer standalone character quotes.
   */
 
   const combined =
-    [...standalone];
+    [...primary];
 
 
   /*
-    Dialogue is only supplemental.
+    Supplement with dialogue only when necessary.
   */
 
   for (const line of dialogue) {
 
-    if (combined.length >= 5) {
+    if (combined.length >= 8) {
       break;
     }
 
-    const key =
-      quoteKey(line);
 
-    const duplicate =
-      combined.some(existing => {
-
-        const existingKey =
-          quoteKey(existing);
-
-        if (
-          existingKey === key
-        ) {
-          return true;
-        }
-
-        if (
-          key.length > 25 &&
-          existingKey.length > 25 &&
-          (
-            key.includes(existingKey) ||
-            existingKey.includes(key)
-          )
-        ) {
-          return true;
-        }
-
-        return false;
-      });
-
-
-    if (!duplicate) {
+    if (
+      !isDuplicateQuote(
+        line,
+        combined
+      )
+    ) {
       combined.push(line);
     }
   }
 
 
-  return combined.slice(0, 5);
+  return combined.slice(0, 8);
+}
+
+
+/* ============================================================
+   TRY A SPECIFIC WIKIQUOTE PAGE
+   ============================================================ */
+
+async function tryWikiquotePage(
+  pageTitle
+) {
+
+  const page =
+    await getWikiquotePage(
+      pageTitle
+    );
+
+
+  if (!page.text) {
+
+    return {
+      page: "",
+      quotes: []
+    };
+  }
+
+
+  const quotes =
+    extractFallbackQuotes(
+      page.text
+    );
+
+
+  return {
+    page:
+      page.title ||
+      pageTitle,
+
+    quotes
+  };
+}
+
+
+/* ============================================================
+   FIND AUTOMATIC QUOTES
+   ============================================================ */
+
+async function findAutomaticQuotes(
+  title,
+  year
+) {
+
+  /*
+    Try the most likely exact Wikiquote page names first.
+  */
+
+  const possibleTitles = [
+
+    year
+      ? `${title} (${year} film)`
+      : "",
+
+    `${title} (film)`,
+
+    title
+
+  ].filter(Boolean);
+
+
+  const tried =
+    new Set();
+
+
+  for (const pageTitle of possibleTitles) {
+
+    const key =
+      normalizeTitle(pageTitle);
+
+
+    if (tried.has(key)) {
+      continue;
+    }
+
+
+    tried.add(key);
+
+
+    const result =
+      await tryWikiquotePage(
+        pageTitle
+      );
+
+
+    if (result.quotes.length) {
+      return result;
+    }
+  }
+
+
+  /*
+    If the obvious titles fail, search Wikiquote.
+  */
+
+  const candidates =
+    await searchWikiquote(
+      title,
+      year
+    );
+
+
+  for (const candidate of candidates) {
+
+    const key =
+      normalizeTitle(candidate);
+
+
+    if (tried.has(key)) {
+      continue;
+    }
+
+
+    tried.add(key);
+
+
+    if (
+      !likelyMoviePage(
+        candidate,
+        title,
+        year
+      )
+    ) {
+      continue;
+    }
+
+
+    const result =
+      await tryWikiquotePage(
+        candidate
+      );
+
+
+    if (result.quotes.length) {
+      return result;
+    }
+  }
+
+
+  return {
+    page: "",
+    quotes: []
+  };
 }
 
 
@@ -645,13 +1068,14 @@ export default async function handler(
 
       return res.status(400).json({
         error:
-          "Movie ID is required."
+          "Movie ID is required.",
+        quotes: []
       });
     }
 
 
     /*
-      Identify exact movie.
+      Identify exact movie through TMDB.
     */
 
     const movie =
@@ -676,22 +1100,20 @@ export default async function handler(
 
     /*
       ========================================================
-      REELWISE QUOTE VAULT
+      REELWISE CURATED QUOTE VAULT
       ========================================================
 
-      This is now stored separately in:
-
-      data/quotes.js
-
-      That means we can grow the Vault without touching
-      this API engine.
+      Curated Reelwise quotes always win.
     */
 
     const curated =
       QUOTE_VAULT[key] || [];
 
 
-    if (curated.length) {
+    if (
+      Array.isArray(curated) &&
+      curated.length
+    ) {
 
       return res.status(200).json({
 
@@ -699,7 +1121,8 @@ export default async function handler(
 
         year,
 
-        quotes: curated,
+        quotes:
+          curated.slice(0, 8),
 
         source:
           "Reelwise Vault",
@@ -712,124 +1135,15 @@ export default async function handler(
 
     /*
       ========================================================
-      AUTOMATIC FALLBACK
+      AUTOMATIC WIKIQUOTE FALLBACK
       ========================================================
     */
 
-    const possibleTitles = [
-
-      year
-        ? `${title} (${year} film)`
-        : "",
-
-      `${title} (film)`,
-
-      title
-
-    ].filter(Boolean);
-
-
-    let pageUsed = "";
-
-    let fallback = [];
-
-
-    for (
-      const pageTitle
-      of possibleTitles
-    ) {
-
-      const page =
-        await getWikiquotePage(
-          pageTitle
-        );
-
-
-      if (!page.extract) {
-        continue;
-      }
-
-
-      const quotes =
-        extractFallbackQuotes(
-          page.extract
-        );
-
-
-      if (quotes.length) {
-
-        pageUsed =
-          page.title ||
-          pageTitle;
-
-        fallback =
-          quotes;
-
-        break;
-      }
-    }
-
-
-    /*
-      Search Wikiquote if the obvious
-      page names did not work.
-    */
-
-    if (!fallback.length) {
-
-      const candidates =
-        await searchWikiquote(
-          title,
-          year
-        );
-
-
-      for (
-        const candidate
-        of candidates
-      ) {
-
-        if (
-          !likelyMoviePage(
-            candidate,
-            title,
-            year
-          )
-        ) {
-          continue;
-        }
-
-
-        const page =
-          await getWikiquotePage(
-            candidate
-          );
-
-
-        if (!page.extract) {
-          continue;
-        }
-
-
-        const quotes =
-          extractFallbackQuotes(
-            page.extract
-          );
-
-
-        if (quotes.length) {
-
-          pageUsed =
-            page.title ||
-            candidate;
-
-          fallback =
-            quotes;
-
-          break;
-        }
-      }
-    }
+    const automatic =
+      await findAutomaticQuotes(
+        title,
+        year
+      );
 
 
     /*
@@ -844,18 +1158,19 @@ export default async function handler(
 
       year,
 
-      quotes: fallback,
+      quotes:
+        automatic.quotes,
 
       source:
-        fallback.length
+        automatic.quotes.length
           ? "Wikiquote"
-          : "No quote source found",
+          : "No verified quote source found",
 
       curated: false,
 
       page:
-        fallback.length
-          ? pageUsed
+        automatic.quotes.length
+          ? automatic.page
           : undefined
 
     });
