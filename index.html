@@ -1346,7 +1346,7 @@ async function showMovie(id){
 
     results.innerHTML=`
       <div class="detail">
-        <button class="back-button" onclick="returnToSearch()">← Back</button>
+        <button class="back-button" onclick="goBackReelwise()">← Back</button>
 
         <div class="detail-layout movie-hero">
           ${backdrop?`<div class="movie-backdrop" style="background-image:url('${backdrop}')"></div>`:""}
@@ -1451,6 +1451,28 @@ async function showMovie(id){
 
 function toggleFullCast(){const box=document.getElementById("movieCast"),button=document.getElementById("castToggle");if(!box||!button)return;const expanded=button.dataset.expanded==="true",list=expanded?currentCast.slice(0,8):currentCast;box.innerHTML=list.map(person=>`<button onclick="showPerson('${person.id}')">${escapeHTML(person.name)}</button>`).join("");button.dataset.expanded=expanded?"false":"true";button.textContent=expanded?"View Full Cast ↓":"Show Less ↑"}
 async function showMovieFeature(feature){const view=document.getElementById("movieFeatureView");if(!view||!currentMovie)return;if(feature==="quotes"||feature==="trivia"){const endpoint=feature==="quotes"?"quotes":"trivia";view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/"+endpoint+"?id="+encodeURIComponent(currentMovie.id)),data=await response.json();if(!response.ok)throw new Error(data.error||"Information could not be loaded.");const list=feature==="quotes"?data.quotes:data.trivia;view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="quotes"?"REELWISE QUOTES":"REELWISE TRIVIA"}</div><h3>${feature==="quotes"?"💬 Quotes":"🧠 Trivia"}</h3><div class="fact-grid">${(Array.isArray(list)?list:[]).map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>'}return}if(feature==="stats"){const genres=Array.isArray(currentMovie.genres)?currentMovie.genres.map(g=>g.name).join(", "):"";view.innerHTML=`<div class="feature-view"><div class="eyebrow">REELWISE MOVIE STATS</div><h3>📊 Movie Stats</h3><div class="fact-grid">${currentMovie.release_date?`<div class="fact-item"><strong>Release:</strong> ${escapeHTML(formatDate(currentMovie.release_date))}</div>`:""}${currentMovie.runtime?`<div class="fact-item"><strong>Runtime:</strong> ${escapeHTML(currentMovie.runtime)} minutes</div>`:""}${genres?`<div class="fact-item"><strong>Genres:</strong> ${escapeHTML(genres)}</div>`:""}${currentMovie.budget?`<div class="fact-item"><strong>Budget:</strong> $${Number(currentMovie.budget).toLocaleString()}</div>`:""}${currentMovie.revenue?`<div class="fact-item"><strong>Revenue:</strong> $${Number(currentMovie.revenue).toLocaleString()}</div>`:""}</div></div>`;return}if(feature==="behind"||feature==="bloopers"){view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/extras?id="+encodeURIComponent(currentMovie.id)+"&feature="+encodeURIComponent(feature)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie extras could not be loaded.");const selected=Array.isArray(data.videos)?data.videos:[],emptyMessage=feature==="bloopers"?"No verified bloopers or outtakes are available for this movie yet.":"No movie extras are available for this movie yet.";view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="behind"?"REELWISE MOVIE EXTRAS":"OUTTAKES & BLOOPERS"}</div><h3>${feature==="behind"?"🎬 Movie Extras":"😂 Bloopers"}</h3>${selected.length?`<div class="video-list">${selected.map(video=>`<a class="video-card" href="https://www.youtube.com/watch?v=${encodeURIComponent(video.key)}" target="_blank" rel="noopener noreferrer"><img src="https://img.youtube.com/vi/${encodeURIComponent(video.key)}/mqdefault.jpg" alt=""><strong>${escapeHTML(video.name)}</strong></a>`).join("")}</div>`:`<p>${escapeHTML(emptyMessage)}</p>`}</div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message||"Movie extras could not be loaded.")+'</p></div>'}return}}
+function compactStarBio(rawBio){
+  let bio=String(rawBio||"").trim();
+  if(!bio)return "Biography information is not available.";
+  bio=bio
+    .replace(/\s*Description above from the Wikipedia[\s\S]*$/i,"")
+    .replace(/\s*This article is licensed under CC-BY-SA[\s\S]*$/i,"")
+    .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i,"")
+    .trim();
+  bio=bio.replace(/\s*\([^)]*\/[^)]*\/[^)]*\)\s*/g," ").replace(/\s+/g," ").trim();
+  const complete=(bio.match(/[^.!?]+[.!?]+(?:["'’”)]*)/g)||[]).map(s=>s.trim()).filter(Boolean);
+  if(!complete.length)return bio;
+  const chosen=[];
+  let length=0;
+  for(const sentence of complete){
+    if(chosen.length>=4)break;
+    if(chosen.length>=2 && length+sentence.length+1>650)break;
+    chosen.push(sentence);
+    length+=sentence.length+1;
+  }
+  return chosen.join(" ").replace(/\s+/g," ").trim()||"Biography information is not available.";
+}
+
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
 
 function seriesKey(title){
@@ -1509,7 +1531,7 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio collapsed" id="starBio">${escapeHTML(person.biography||"Biography information is not available.")}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio collapsed" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 function toggleStarBio(){const bio=document.getElementById("starBio"),button=document.getElementById("bioToggle");if(!bio||!button)return;const collapsed=bio.classList.contains("collapsed");bio.classList.toggle("collapsed",!collapsed);button.textContent=collapsed?"Show Less ↑":"Read Full Bio ↓"}
 
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><div class="degree-input-wrap"><input id="actorOne" placeholder="First actor — Tom Cruise" autocomplete="off"></div><div class="degree-input-wrap"><input id="actorTwo" placeholder="Second actor — Robert De Niro" autocomplete="off"></div></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
@@ -1684,6 +1706,48 @@ document.addEventListener("click",event=>{
 const reelwiseObserver=new MutationObserver(()=>wireAllPredictiveSearches());
 reelwiseObserver.observe(document.body,{childList:true,subtree:true});
 wireAllPredictiveSearches();
+
+
+/* ===== REELWISE NAVIGATION HISTORY ===== */
+let reelwiseNavHistory=[];
+let reelwiseNavCurrent={type:"home",args:[]};
+let reelwiseRestoring=false;
+
+function reelwiseSameRoute(a,b){
+  return a&&b&&a.type===b.type&&JSON.stringify(a.args||[])===JSON.stringify(b.args||[]);
+}
+function reelwiseRecordRoute(type,args=[]){
+  const next={type,args:Array.from(args)};
+  if(reelwiseRestoring){reelwiseNavCurrent=next;return;}
+  if(!reelwiseSameRoute(reelwiseNavCurrent,next))reelwiseNavHistory.push(reelwiseNavCurrent);
+  reelwiseNavCurrent=next;
+}
+function goBackReelwise(){
+  const previous=reelwiseNavHistory.pop();
+  if(!previous){showHome();return;}
+  reelwiseRestoring=true;
+  try{
+    if(previous.type==="home")showHome();
+    else if(previous.type==="section")openSection(...previous.args);
+    else if(previous.type==="search")searchReelwise(...previous.args);
+    else if(previous.type==="movie")showMovie(...previous.args);
+    else if(previous.type==="person")showPerson(...previous.args);
+    else showHome();
+  }finally{
+    reelwiseNavCurrent=previous;
+    reelwiseRestoring=false;
+  }
+}
+const _rwShowHome=showHome;
+showHome=function(){reelwiseRecordRoute("home",[]);return _rwShowHome.apply(this,arguments)};
+const _rwOpenSection=openSection;
+openSection=function(){reelwiseRecordRoute("section",arguments);return _rwOpenSection.apply(this,arguments)};
+const _rwSearchReelwise=searchReelwise;
+searchReelwise=function(){reelwiseRecordRoute("search",arguments);return _rwSearchReelwise.apply(this,arguments)};
+const _rwShowMovie=showMovie;
+showMovie=function(){reelwiseRecordRoute("movie",arguments);return _rwShowMovie.apply(this,arguments)};
+const _rwShowPerson=showPerson;
+showPerson=function(){reelwiseRecordRoute("person",arguments);return _rwShowPerson.apply(this,arguments)};
 
 loadHomeMovies();
 </script>
