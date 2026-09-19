@@ -7,24 +7,23 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE QUOTE ENGINE
   ============================================================
 
-  1. Identify the exact movie through TMDB.
+  SAFETY RULE:
+  Reelwise would rather show ZERO quotes than quotes belonging
+  to the wrong movie.
+
+  1. Identify exact movie through TMDB.
   2. Check the Reelwise curated Quote Vault.
   3. Curated Reelwise quotes always appear first.
-  4. Locate the movie on Wikiquote.
-  5. Pull the actual Wikiquote page wikitext.
-  6. Extract clean standalone quotes.
-  7. Completely reject Dialogue sections.
-  8. Merge curated + automatic quotes.
+  4. Locate a movie-specific Wikiquote page.
+  5. VERIFY the resolved Wikiquote page belongs to the movie.
+  6. Pull clean standalone quotes.
+  7. Reject Dialogue sections.
+  8. Merge curated + verified automatic quotes.
   9. Remove duplicates.
   10. Return up to 8 clean quotes.
 
-  IMPORTANT:
-  Dialogue sections are intentionally excluded because Wikiquote
-  often stores complete conversations there. Individual lines
-  from those scenes should not become separate Reelwise cards.
-
-  Curated quotes remain the premium Reelwise layer while clean
-  standalone Wikiquote material can fill remaining quote slots.
+  General topic pages such as "Vacation", "Love", "Heat",
+  "Crash", etc. MUST NOT be mistaken for movie pages.
   ============================================================
 */
 
@@ -180,17 +179,24 @@ async function getWikiquotePage(title) {
 
 async function searchWikiquote(title, year) {
 
+  /*
+    IMPORTANT:
+
+    We deliberately do NOT perform a generic bare-title search.
+
+    Searching simply for "Vacation", "Heat", "Crash", "Love",
+    etc. can return general quotation/topic pages.
+
+    Reelwise searches specifically for a FILM.
+  */
+
   const searches = [
 
     year
-      ? `"${title}" ${year} film`
+      ? `"${title}" "${year}" film`
       : "",
 
-    `"${title}" film`,
-
-    `"${title}"`,
-
-    title
+    `"${title}" film`
 
   ].filter(Boolean);
 
@@ -224,7 +230,7 @@ async function searchWikiquote(title, year) {
 
 
       const key =
-        candidate.toLowerCase();
+        normalizeTitle(candidate);
 
 
       if (
@@ -252,7 +258,7 @@ async function searchWikiquote(title, year) {
 
 
 /* ============================================================
-   VERIFY THAT SEARCH RESULT MATCHES MOVIE
+   VERIFY SEARCH RESULT TITLE
    ============================================================ */
 
 function likelyMoviePage(
@@ -273,24 +279,191 @@ function likelyMoviePage(
   }
 
 
-  if (got === wanted) {
-    return true;
-  }
+  const normalized =
+    normalizeTitle(candidate);
 
+
+  /*
+    Best case:
+
+    Vacation (2015 film)
+  */
 
   if (
-    got.startsWith(`${wanted} `) &&
-    got.length <= wanted.length + 24
+    year &&
+    normalized.includes(
+      `(${year} film)`
+    ) &&
+    got === wanted
   ) {
     return true;
   }
 
 
+  /*
+    Also accept:
+
+    Vacation (film)
+
+    But this is NOT enough by itself to ultimately trust the
+    page. The actual page contents are verified later.
+  */
+
+  if (
+    normalized.includes("(film)") &&
+    got === wanted
+  ) {
+    return true;
+  }
+
+
+  /*
+    Search engines occasionally return movie pages with slightly
+    different disambiguation text.
+
+    Require BOTH the title and an obvious film indicator.
+  */
+
+  if (
+    got === wanted &&
+    (
+      normalized.includes("film") ||
+      (
+        year &&
+        normalized.includes(String(year))
+      )
+    )
+  ) {
+    return true;
+  }
+
+
+  return false;
+}
+
+
+/* ============================================================
+   VERIFY THE ACTUAL RESOLVED WIKIQUOTE PAGE
+   ============================================================ */
+
+function verifyResolvedMoviePage(
+  pageTitle,
+  text,
+  movieTitle,
+  year
+) {
+
+  if (!pageTitle || !text) {
+    return false;
+  }
+
+
+  const wanted =
+    looseTitle(movieTitle);
+
+  const resolved =
+    looseTitle(pageTitle);
+
+  const normalizedPage =
+    normalizeTitle(pageTitle);
+
+  const lowerText =
+    String(text).toLowerCase();
+
+
+  if (!wanted || !resolved) {
+    return false;
+  }
+
+
+  /*
+    The resolved page must still have the correct title.
+
+    This catches redirects from a requested movie-looking title
+    to an unrelated/general Wikiquote topic.
+  */
+
+  if (resolved !== wanted) {
+    return false;
+  }
+
+
+  /*
+    Strongest title evidence:
+      Movie Name (2015 film)
+  */
+
   if (
     year &&
-    normalizeTitle(candidate)
-      .includes(String(year)) &&
-    got.includes(wanted)
+    normalizedPage.includes(
+      `(${year} film)`
+    )
+  ) {
+    return true;
+  }
+
+
+  /*
+    Strong evidence:
+      Movie Name (film)
+
+    Require the page contents to also look like a film page.
+  */
+
+  const filmSignals = [
+    " film",
+    "directed by",
+    "written by",
+    "screenplay",
+    "starring",
+    "cast",
+    "dialogue",
+    "taglines",
+    "tagline"
+  ];
+
+
+  const hasFilmSignal =
+    filmSignals.some(signal =>
+      lowerText.includes(signal)
+    );
+
+
+  /*
+    If the resolved page explicitly says "(film)" and its
+    contents look film-related, accept it.
+  */
+
+  if (
+    normalizedPage.includes("(film)") &&
+    hasFilmSignal
+  ) {
+    return true;
+  }
+
+
+  /*
+    Bare-title pages are dangerous.
+
+    Example:
+      Vacation
+
+    Wikiquote may have a general topic page named "Vacation".
+    We only accept a bare-title page when there is substantial
+    evidence in the page itself that it is specifically the
+    requested movie.
+
+    Require:
+      - film evidence
+      - AND the movie year somewhere in the page
+  */
+
+  if (
+    normalizedPage ===
+      normalizeTitle(movieTitle) &&
+    year &&
+    hasFilmSignal &&
+    lowerText.includes(String(year))
   ) {
     return true;
   }
@@ -368,7 +541,7 @@ function cleanWikiMarkup(value) {
 
 
   /*
-    Remove external-link URL while keeping its label.
+    Remove external-link URL while keeping label.
   */
 
   line =
@@ -479,8 +652,7 @@ function blockedSection(section) {
     "tagline",
 
     /*
-      CRITICAL:
-      Do not extract individual lines from Dialogue sections.
+      Dialogue is deliberately excluded.
     */
 
     "dialogue",
@@ -508,7 +680,7 @@ function blockedSection(section) {
 
 
 /* ============================================================
-   FALLBACK SAFETY FILTER
+   QUOTE SAFETY FILTER
    ============================================================ */
 
 function usableQuote(line) {
@@ -641,7 +813,7 @@ function removeSpeakerLabel(line) {
     Rocky: Yo, Adrian!
     Tony Stark: We have a Hulk.
 
-    Keep the spoken line.
+    Keep only the spoken line.
   */
 
   const match =
@@ -730,7 +902,7 @@ function prepareQuoteLine(rawLine) {
 
 
   /*
-    Remove stage direction at the beginning.
+    Remove stage direction at beginning.
   */
 
   line =
@@ -811,8 +983,6 @@ function extractFallbackQuotes(text) {
 
     /*
       Skip blocked sections completely.
-
-      This includes Dialogue.
     */
 
     if (blockedSection(section)) {
@@ -839,9 +1009,7 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Real quote material generally appears as Wiki list items.
-
-      Introductory prose is ignored.
+      Quote material normally appears as Wiki list items.
     */
 
     const isListItem =
@@ -890,11 +1058,13 @@ function extractFallbackQuotes(text) {
 
 
 /* ============================================================
-   TRY A SPECIFIC WIKIQUOTE PAGE
+   TRY AND VERIFY A SPECIFIC WIKIQUOTE PAGE
    ============================================================ */
 
 async function tryWikiquotePage(
-  pageTitle
+  pageTitle,
+  movieTitle,
+  year
 ) {
 
   const page =
@@ -904,6 +1074,35 @@ async function tryWikiquotePage(
 
 
   if (!page.text) {
+
+    return {
+      page: "",
+      quotes: []
+    };
+  }
+
+
+  /*
+    CRITICAL FIX:
+
+    Never extract quotes until we verify that the ACTUAL page
+    Wikiquote returned belongs to the requested movie.
+  */
+
+  const verified =
+    verifyResolvedMoviePage(
+      page.title,
+      page.text,
+      movieTitle,
+      year
+    );
+
+
+  if (!verified) {
+
+    console.log(
+      `Reelwise rejected Wikiquote page "${page.title}" for "${movieTitle}" (${year})`
+    );
 
     return {
       page: "",
@@ -938,7 +1137,11 @@ async function findAutomaticQuotes(
 ) {
 
   /*
-    Try the most likely exact Wikiquote page names first.
+    IMPORTANT:
+
+    Start with movie-specific Wikiquote page names.
+
+    We no longer blindly trust a bare title.
   */
 
   const possibleTitles = [
@@ -947,9 +1150,7 @@ async function findAutomaticQuotes(
       ? `${title} (${year} film)`
       : "",
 
-    `${title} (film)`,
-
-    title
+    `${title} (film)`
 
   ].filter(Boolean);
 
@@ -974,7 +1175,9 @@ async function findAutomaticQuotes(
 
     const result =
       await tryWikiquotePage(
-        pageTitle
+        pageTitle,
+        title,
+        year
       );
 
 
@@ -985,7 +1188,7 @@ async function findAutomaticQuotes(
 
 
   /*
-    If obvious page titles fail, search Wikiquote.
+    Search Wikiquote only using film-specific searches.
   */
 
   const candidates =
@@ -1022,7 +1225,9 @@ async function findAutomaticQuotes(
 
     const result =
       await tryWikiquotePage(
-        candidate
+        candidate,
+        title,
+        year
       );
 
 
@@ -1031,6 +1236,15 @@ async function findAutomaticQuotes(
     }
   }
 
+
+  /*
+    SAFETY FIRST:
+
+    No verified movie-specific Wikiquote page means NO automatic
+    quotes.
+
+    Never substitute general quotes based on the movie title.
+  */
 
   return {
     page: "",
@@ -1080,7 +1294,7 @@ function mergeQuotes(
 
 
   /*
-    Clean automatic quotes fill remaining spaces.
+    Verified automatic quotes fill remaining spaces.
   */
 
   for (const quote of automatic) {
@@ -1165,11 +1379,6 @@ export default async function handler(
       ========================================================
       REELWISE CURATED QUOTE VAULT
       ========================================================
-
-      Curated quotes are always highest priority.
-
-      They no longer prevent the automatic engine from filling
-      empty quote slots.
     */
 
     const vaultQuotes =
@@ -1183,8 +1392,8 @@ export default async function handler(
 
 
     /*
-      If Reelwise already has 8 curated quotes, do not make an
-      unnecessary Wikiquote request.
+      If Reelwise already has 8 curated quotes, no automatic
+      request is necessary.
     */
 
     if (curated.length >= 8) {
@@ -1209,11 +1418,8 @@ export default async function handler(
 
     /*
       ========================================================
-      AUTOMATIC WIKIQUOTE FILL
+      VERIFIED AUTOMATIC WIKIQUOTE FILL
       ========================================================
-
-      Only clean standalone Wikiquote material is accepted.
-      Dialogue sections are completely excluded.
     */
 
     const automatic =
