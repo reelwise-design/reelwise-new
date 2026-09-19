@@ -229,17 +229,21 @@ function getDefiningMovies(person, accolades) {
       else if (order <= 10) billingScore = 8;
 
       const audienceScore =
-        Math.log10(Math.max(votes, 1)) * 12 +
-        Math.max(0, rating - 5) * 4 +
-        Math.log10(Math.max(popularity, 1)) * 2;
+        Math.log10(Math.max(votes, 1)) * 17 +
+        Math.max(0, rating - 5) * 5 +
+        Math.log10(Math.max(popularity, 1)) * 0.5;
 
       const bioScore = bioMap.get(key) || 0;
       const oscarScore = oscarTitles.get(key) || 0;
 
       /*
-        Oscar recognition + substantial billing are strong
-        evidence that a film is career-defining. Audience
-        popularity is deliberately a secondary signal.
+        Engine 4.1:
+        - Oscar recognition remains a major career signal.
+        - Lead/supporting billing remains important.
+        - Long-term audience recognition gets more weight.
+        - Current TMDB popularity gets almost no influence,
+          preventing a recent title from crowding out an
+          enduring signature film.
       */
       const score =
         billingScore +
@@ -278,10 +282,24 @@ function findCollaborationSentence(person) {
 
   if (!candidates.length) return "";
 
+  const chosen = candidates.sort((a, b) => a.length - b.length)[0];
+
   /*
-    Prefer concise collaboration language, not filmography dumps.
+    Turn dry chronology such as "first collaboration with..."
+    into Reelwise-style career context without inventing facts.
   */
-  return candidates.sort((a, b) => a.length - b.length)[0];
+  const firstCollab = chosen.match(
+    /^(.+?)'?s first collaboration with (.+?) was with (.+?)(?:\.|$)/i
+  );
+
+  if (firstCollab) {
+    const subject = firstCollab[1].trim();
+    const collaborator = firstCollab[2].trim();
+
+    return `${subject}'s long-running collaboration with ${collaborator} became an important part of the career.`;
+  }
+
+  return chosen;
 }
 
 function academyRecognition(accolades) {
@@ -332,7 +350,7 @@ function buildReelwiseBio(person, accolades) {
   } else if (department === "writing") {
     identity = `${name} is a screenwriter and filmmaker whose career spans`;
   } else {
-    identity = `${name} is an actor whose film career spans`;
+    identity = `${name} is an acclaimed actor whose film career spans`;
   }
 
   if (years && years.first && years.last && years.last > years.first) {
