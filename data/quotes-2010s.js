@@ -81,6 +81,17 @@ const QUOTES_2010S = {
     "What a lovely day!"
   ],
 
+  "daddy's home": [
+    "It looks like we got our self's a dad-off, Brad.",
+    "I'm not gonna call him Dad. Even if there's a fire!",
+    "I'm the stepdad. I'm the guy who does all the work.",
+    "You know what? I'm gonna make you love me.",
+    "I'm not trying to replace your dad.",
+    "Being a dad is about being there.",
+    "I'm gonna out-dad you.",
+    "That's what dads do."
+  ],
+
   "the revenant": [
     "As long as you can still grab a breath, you fight."
   ],
