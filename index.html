@@ -1772,6 +1772,118 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   max-width:none!important;
 }
 
+
+/* ===== STAR ACCOLADES ===== */
+.star-accolades-link{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  margin-top:14px;
+  padding:10px 16px;
+  border:1px solid rgba(228,179,77,.42);
+  border-radius:999px;
+  background:rgba(228,179,77,.08);
+  color:var(--gold);
+  font:800 12px/1 inherit;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  cursor:pointer;
+}
+.star-accolades-link:hover{background:rgba(228,179,77,.14)}
+#results > .accolades-page{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  max-width:none!important;
+  justify-self:stretch!important;
+}
+.accolades-page{
+  width:100%;
+  max-width:920px;
+  margin:0 auto;
+}
+.accolades-head{
+  margin:18px 0 24px;
+  padding-bottom:22px;
+  border-bottom:1px solid var(--line);
+}
+.accolades-head .eyebrow{margin-bottom:8px}
+.accolades-head h1{
+  margin:0;
+  font-size:clamp(34px,6vw,58px);
+  line-height:1;
+  letter-spacing:-.04em;
+}
+.accolades-summary{
+  display:flex;
+  gap:10px;
+  flex-wrap:wrap;
+  margin-top:18px;
+}
+.accolades-stat{
+  padding:9px 13px;
+  border:1px solid var(--line);
+  border-radius:12px;
+  background:var(--panel);
+  font-weight:800;
+}
+.accolades-stat strong{color:var(--gold)}
+.accolades-list{
+  display:grid;
+  gap:12px;
+}
+.accolade-card{
+  display:grid;
+  grid-template-columns:92px 1fr;
+  gap:18px;
+  width:100%;
+  padding:18px;
+  border:1px solid var(--line);
+  border-radius:16px;
+  background:linear-gradient(145deg,#111720,#0c1016);
+}
+.accolade-card.winner{
+  border-color:rgba(228,179,77,.48);
+  background:linear-gradient(145deg,rgba(228,179,77,.10),#0c1016 58%);
+}
+.accolade-year{
+  color:var(--gold);
+  font-size:22px;
+  font-weight:900;
+}
+.accolade-status{
+  margin-top:3px;
+  color:var(--muted);
+  font-size:11px;
+  font-weight:900;
+  letter-spacing:.12em;
+}
+.accolade-card.winner .accolade-status{color:var(--gold)}
+.accolade-movie{
+  font-size:20px;
+  font-weight:900;
+  line-height:1.15;
+}
+.accolade-category{
+  margin-top:6px;
+  color:var(--muted);
+  line-height:1.45;
+}
+@media(max-width:640px){
+  .star-accolades-link{
+    grid-column:1/-1;
+    justify-self:start;
+    margin-top:8px;
+  }
+  .accolades-page{max-width:none}
+  .accolade-card{
+    grid-template-columns:70px 1fr;
+    gap:12px;
+    padding:15px;
+  }
+  .accolade-year{font-size:19px}
+  .accolade-movie{font-size:17px}
+}
+
 </style>
 </head>
 <body>
@@ -2286,7 +2398,102 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio collapsed" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio collapsed" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+
+async function showPersonAccolades(id,name){
+  homeContent.style.display="none";
+  revealResults();
+  resultsTitle.textContent="";
+  results.innerHTML=`
+    <div class="accolades-page">
+      <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+      <div class="accolades-head">
+        <div class="eyebrow">REELWISE STAR PROFILE</div>
+        <h1>${escapeHTML(name||"Accolades")}</h1>
+      </div>
+      <div class="message">Loading accolades...</div>
+    </div>
+  `;
+  goToResults();
+
+  try{
+    const response=await fetch(
+      "/api/person?id="+encodeURIComponent(id)+"&mode=accolades"
+    );
+    const data=await response.json();
+    if(!response.ok)throw new Error(data.error||"Accolades could not be loaded.");
+
+    const page=results.querySelector(".accolades-page");
+    if(!page)return;
+
+    if(!data||data.unavailable){
+      page.innerHTML=`
+        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+        <div class="accolades-head">
+          <div class="eyebrow">REELWISE STAR PROFILE</div>
+          <h1>${escapeHTML(name||"Accolades")}</h1>
+        </div>
+        <div class="message">Accolades are temporarily unavailable.</div>
+      `;
+      return;
+    }
+
+    const history=Array.isArray(data.history)?data.history:[];
+    const wins=Number(data.wins||0);
+    const nominations=Number(data.nominations||history.length||0);
+
+    if(!data.found||!history.length){
+      page.innerHTML=`
+        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+        <div class="accolades-head">
+          <div class="eyebrow">REELWISE STAR PROFILE</div>
+          <h1>${escapeHTML(name||"Accolades")}</h1>
+        </div>
+        <div class="message">No Academy Award nominations found.</div>
+      `;
+      return;
+    }
+
+    const cards=history.map(item=>`
+      <div class="accolade-card ${item.winner?"winner":""}">
+        <div>
+          <div class="accolade-year">${escapeHTML(item.year||"")}</div>
+          <div class="accolade-status">${item.winner?"WINNER":"NOMINEE"}</div>
+        </div>
+        <div>
+          <div class="accolade-movie">${escapeHTML(item.movie||"Film")}</div>
+          <div class="accolade-category">${escapeHTML(item.category||"Academy Award")}</div>
+        </div>
+      </div>
+    `).join("");
+
+    page.innerHTML=`
+      <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+      <div class="accolades-head">
+        <div class="eyebrow">REELWISE ACCOLADES</div>
+        <h1>${escapeHTML(name||"Star")}</h1>
+        <div class="accolades-summary">
+          <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
+          <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
+        </div>
+      </div>
+      <div class="accolades-list">${cards}</div>
+    `;
+  }catch(error){
+    const page=results.querySelector(".accolades-page");
+    if(page){
+      page.innerHTML=`
+        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+        <div class="accolades-head">
+          <div class="eyebrow">REELWISE STAR PROFILE</div>
+          <h1>${escapeHTML(name||"Accolades")}</h1>
+        </div>
+        <div class="message">${escapeHTML(error.message||"Accolades could not be loaded.")}</div>
+      `;
+    }
+  }
+}
+
 function toggleStarBio(){const bio=document.getElementById("starBio"),button=document.getElementById("bioToggle");if(!bio||!button)return;const collapsed=bio.classList.contains("collapsed");bio.classList.toggle("collapsed",!collapsed);button.textContent=collapsed?"Show Less ↑":"Read Full Bio ↓"}
 
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="six-game-hero"><div class="six-game-copy"><div class="eyebrow">REELWISE SIX DEGREES</div><h1>Every star is <span>connected.</span></h1><p>Choose two movie stars and Reelwise will trace the shortest connection through the movies and co-stars that link them.</p></div><div class="degree-box"><div class="degree-inputs"><div><label class="six-field-label" for="actorOne">STARTING STAR</label><div class="degree-input-wrap"><input id="actorOne" placeholder="Tom Cruise" autocomplete="off"></div></div><div class="six-versus">TO</div><div><label class="six-field-label" for="actorTwo">ENDING STAR</label><div class="degree-input-wrap"><input id="actorTwo" placeholder="Robert De Niro" autocomplete="off"></div></div></div><button class="six-find-button" onclick="findSixDegrees()">Find the Connection →</button><div class="six-game-hint">Actors and movies in the result are clickable.</div><div id="degreeMessage"></div></div></div></div>`;goToResults()}
