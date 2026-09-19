@@ -39,7 +39,7 @@ nav{position:relative;z-index:2;max-width:1160px;margin:auto;padding:18px 22px;d
 .nav-links{display:flex;gap:7px;padding:5px;border:1px solid rgba(255,255,255,.06);background:rgba(255,255,255,.025);border-radius:999px}
 .nav-links button{background:none;border:0;color:#cbd1da;font-weight:750;padding:8px 13px;border-radius:999px}
 .nav-links button:hover{color:white;background:rgba(255,255,255,.05)}
-.hero{position:relative;z-index:1;max-width:1160px;margin:auto;padding:62px 22px 50px}
+.hero{position:relative;z-index:1;max-width:1160px;margin:auto;padding:48px 22px 34px}
 .hero-inner{max-width:790px}
 .hero h1{max-width:790px;font-size:clamp(48px,7vw,80px);line-height:.96;letter-spacing:-4px;margin:12px 0 18px}
 .hero h1 span{color:var(--accent)}
@@ -163,7 +163,7 @@ main{max-width:1160px;margin:auto;padding:35px 22px 75px}
 footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:center}
 
 @media(max-width:800px){
-  nav{padding:12px 14px 8px;gap:8px;align-items:center}.logo{font-size:24px;flex:0 0 auto}.nav-links{display:flex;gap:3px;padding:3px;margin-left:auto;overflow-x:auto;white-space:nowrap;max-width:calc(100vw - 118px);scrollbar-width:none}.nav-links::-webkit-scrollbar{display:none}.nav-links button{font-size:10px;padding:7px 8px}.hero{padding:21px 18px 23px}
+  nav{padding:12px 14px 8px;gap:8px;align-items:center}.logo{font-size:24px;flex:0 0 auto}.nav-links{display:flex;gap:3px;padding:3px;margin-left:auto;overflow-x:auto;white-space:nowrap;max-width:calc(100vw - 118px);scrollbar-width:none}.nav-links::-webkit-scrollbar{display:none}.nav-links button{font-size:10px;padding:7px 8px}.hero{padding:21px 18px 17px}
   .hero h1{font-size:41px;line-height:1;letter-spacing:-2.2px;margin:8px 0 11px}.hero p{font-size:14px;line-height:1.5;margin:0}
   .search{margin-top:17px;display:grid;grid-template-columns:1fr auto;gap:7px;padding:5px;border-radius:13px}.search input{padding:13px 10px;font-size:14px}.search button{padding:12px 15px;font-size:13px}
   main{padding:16px 14px 45px}.home-intro{margin-bottom:12px}.home-intro p{display:none}.section-title{font-size:13px;text-transform:uppercase;letter-spacing:1.3px;color:var(--gold)}
@@ -1151,7 +1151,7 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 <body>
 <header>
 <nav><div class="logo" onclick="showHome()">reel<span>wise</span></div><div class="nav-links"><button onclick="showHome()">Home</button><button onclick="openSection('movies')">Movies</button><button onclick="openSection('stars')">Stars</button><button onclick="openSection('six')">Six Degrees</button></div></nav>
-<div class="hero"><div class="hero-inner"><div class="eyebrow">MOVIES · STARS · STORIES</div><h1>Know the movie.<br><span>Know the story.</span></h1><p>Search movies and stars and discover the stories, people and connections behind them.</p><form class="search" id="searchForm"><input id="searchInput" placeholder="Search movies or stars..." autocomplete="off"><button type="submit">Search</button></form></div></div>
+<div class="hero"><div class="hero-inner"><div class="eyebrow">MOVIES · STARS · STORIES</div><h1>Know the movie.<br><span>Know the story.</span></h1><p>Explore movies and stars and discover the stories, people and connections behind them.</p></div></div>
 </header>
 <main>
 <div id="homeContent"><div class="home-intro"><h2 class="section-title">Explore Reelwise</h2><p>Search when you know what you want. Explore when you don't.</p></div><div class="features"><div class="feature" onclick="openSection('movies')"><div class="feature-number">01</div><div class="feature-icon">🎬</div><h3>Movies</h3><p>Browse genres, eras, franchises, classics and movies worth discovering.</p><span class="go">Explore Movies →</span></div><div class="feature" onclick="openSection('stars')"><div class="feature-number">02</div><div class="feature-icon">⭐</div><h3>Movie Stars</h3><p>Discover legends, action stars, comedy stars and today's biggest names.</p><span class="go">Explore Stars →</span></div><div class="feature" onclick="openSection('six')"><div class="feature-number">03</div><div class="feature-icon">🔗</div><h3>Six Degrees</h3><p>Connect any two movie stars through their movies and co-stars.</p><span class="go">Play Six Degrees →</span></div></div><section class="home-spotlight"><div class="spotlight-heading"><div><div class="eyebrow">IN THE SPOTLIGHT</div><h2>Movies to explore</h2></div><span>Swipe to explore →</span></div><div id="homeMovies" class="visual-row"><div class="message">Loading movies...</div></div></section></div>
@@ -1161,7 +1161,7 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 <script>
 const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),searchInput=document.getElementById("searchInput"),searchForm=document.getElementById("searchForm"),homeContent=document.getElementById("homeContent");
 let lastQuery="",currentMovie=null,currentCast=[];
-searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});
+if(searchForm&&searchInput)searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});
 function revealResults(){searchArea.style.display="block"}
 function goToResults(){setTimeout(()=>searchArea.scrollIntoView({behavior:"smooth",block:"start"}),50)}
 function showHome(){homeContent.style.display="block";searchArea.style.display="none";results.innerHTML="";resultsTitle.textContent="";window.scrollTo({top:0,behavior:"smooth"})}
@@ -1318,7 +1318,7 @@ async function showMovie(id){
 
     results.innerHTML=`
       <div class="detail">
-        <button class="back-button" onclick="returnToSearch()">← Back</button>
+        <button class="back-button" onclick="goBackReelwise()">← Back</button>
 
         <div class="detail-layout movie-hero">
           ${backdrop?`<div class="movie-backdrop" style="background-image:url('${backdrop}')"></div>`:""}
@@ -1481,7 +1481,7 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="returnToSearch()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio collapsed" id="starBio">${escapeHTML(person.biography||"Biography information is not available.")}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1><div class="star-bio collapsed" id="starBio">${escapeHTML(person.biography||"Biography information is not available.")}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 function toggleStarBio(){const bio=document.getElementById("starBio"),button=document.getElementById("bioToggle");if(!bio||!button)return;const collapsed=bio.classList.contains("collapsed");bio.classList.toggle("collapsed",!collapsed);button.textContent=collapsed?"Show Less ↑":"Read Full Bio ↓"}
 
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><div class="degree-input-wrap"><input id="actorOne" placeholder="First actor — Tom Cruise" autocomplete="off"></div><div class="degree-input-wrap"><input id="actorTwo" placeholder="Second actor — Robert De Niro" autocomplete="off"></div></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
@@ -1656,6 +1656,49 @@ document.addEventListener("click",event=>{
 const reelwiseObserver=new MutationObserver(()=>wireAllPredictiveSearches());
 reelwiseObserver.observe(document.body,{childList:true,subtree:true});
 wireAllPredictiveSearches();
+
+
+/* ===== REELWISE NAVIGATION HISTORY ===== */
+let reelwiseNavHistory=[];
+let reelwiseNavCurrent={type:"home",args:[]};
+let reelwiseRestoring=false;
+
+function reelwiseSameRoute(a,b){
+  return a&&b&&a.type===b.type&&JSON.stringify(a.args||[])===JSON.stringify(b.args||[]);
+}
+function reelwiseRecordRoute(type,args=[]){
+  const next={type,args:Array.from(args)};
+  if(reelwiseRestoring){reelwiseNavCurrent=next;return;}
+  if(!reelwiseSameRoute(reelwiseNavCurrent,next))reelwiseNavHistory.push(reelwiseNavCurrent);
+  reelwiseNavCurrent=next;
+}
+function goBackReelwise(){
+  const previous=reelwiseNavHistory.pop();
+  if(!previous){showHome();return;}
+  reelwiseRestoring=true;
+  try{
+    if(previous.type==="home")showHome();
+    else if(previous.type==="section")openSection(...previous.args);
+    else if(previous.type==="search")searchReelwise(...previous.args);
+    else if(previous.type==="movie")showMovie(...previous.args);
+    else if(previous.type==="person")showPerson(...previous.args);
+    else showHome();
+  }finally{
+    reelwiseNavCurrent=previous;
+    reelwiseRestoring=false;
+  }
+}
+
+const _rwShowHome=showHome;
+showHome=function(){reelwiseRecordRoute("home",[]);return _rwShowHome.apply(this,arguments)};
+const _rwOpenSection=openSection;
+openSection=function(){reelwiseRecordRoute("section",arguments);return _rwOpenSection.apply(this,arguments)};
+const _rwSearchReelwise=searchReelwise;
+searchReelwise=function(){reelwiseRecordRoute("search",arguments);return _rwSearchReelwise.apply(this,arguments)};
+const _rwShowMovie=showMovie;
+showMovie=function(){reelwiseRecordRoute("movie",arguments);return _rwShowMovie.apply(this,arguments)};
+const _rwShowPerson=showPerson;
+showPerson=function(){reelwiseRecordRoute("person",arguments);return _rwShowPerson.apply(this,arguments)};
 
 loadHomeMovies();
 </script>
