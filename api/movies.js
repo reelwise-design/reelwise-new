@@ -1,7 +1,6 @@
 const token = process.env.TMDB_READ_ACCESS_TOKEN;
 
-const OSCARBASE =
-  "https://api.oscarbase.com/api";
+const OSCARBASE = "https://api.oscarbase.com/api";
 
 /*
   ============================================================
@@ -62,12 +61,13 @@ async function oscarbase(path) {
 }
 
 function cleanCategory(category = "") {
-  return String(category).trim();
+  return String(category || "").trim();
 }
 
 function isBestPicture(category = "") {
-  const value =
-    String(category).toLowerCase();
+  const value = String(category || "")
+    .toLowerCase()
+    .trim();
 
   return (
     value.includes("best picture") ||
@@ -83,47 +83,38 @@ function isBestPicture(category = "") {
 */
 
 async function getAwards(tmdbId) {
-  if (!tmdbId) {
-    return {
-      found: false,
-      nominations: 0,
-      wins: 0,
-      bestPictureWinner: false,
-      winningCategories: [],
-      nominatedCategories: [],
-      ceremonyYears: []
-    };
-  }
-
   /*
-    Find OscarBase's movie record using the
-    TMDB movie ID Reelwise already has.
+    Step 1:
+    Find the OscarBase movie using Reelwise's TMDB ID.
   */
 
   const search = await oscarbase(
-    `/movies?tmdb_id=${encodeURIComponent(
-      tmdbId
-    )}&limit=5`
+    `/movies?tmdb_id=${encodeURIComponent(tmdbId)}&limit=5`
   );
 
-  const movies =
-    Array.isArray(search?.data)
+  /*
+    OscarBase list endpoints normally return:
+    {
+      data: [...]
+    }
+
+    This also tolerates an array response in case
+    the API format changes.
+  */
+
+  const movies = Array.isArray(search)
+    ? search
+    : Array.isArray(search?.data)
       ? search.data
       : [];
 
   const movie =
     movies.find(
       item =>
-        Number(item.tmdb_id) ===
-        Number(tmdbId)
-    ) || null;
+        Number(item?.tmdb_id) === Number(tmdbId)
+    ) || movies[0] || null;
 
-  /*
-    No result means this movie does not have
-    an Academy Award record in OscarBase.
-  */
-
-  if (!movie) {
+  if (!movie || !movie.id) {
     return {
       found: false,
       tmdb_id: Number(tmdbId),
@@ -137,30 +128,55 @@ async function getAwards(tmdbId) {
   }
 
   /*
-    Fetch full movie record.
-    This includes all Oscar nominations.
+    Step 2:
+    Fetch the full OscarBase movie record.
+
+    /movies/{id} includes the film's nominations.
   */
 
-  const detail = await oscarbase(
-    `/movies/${movie.id}`
+  const detailResponse = await oscarbase(
+    `/movies/${encodeURIComponent(movie.id)}`
   );
+
+  /*
+    Accept either:
+      { ...movie }
+    or:
+      { data: { ...movie } }
+
+    This prevents the response wrapper from causing
+    Reelwise to incorrectly report zero nominations.
+  */
+
+  const detail =
+    detailResponse?.data &&
+    !Array.isArray(detailResponse.data)
+      ? detailResponse.data
+      : detailResponse;
 
   const nominations =
     Array.isArray(detail?.nominations)
       ? detail.nominations
       : [];
 
-  const wins =
-    nominations.filter(
-      nomination =>
-        nomination.winner === true
-    );
+  /*
+    OscarBase uses winner:true for winning nominations.
+  */
+
+  const wins = nominations.filter(item =>
+    item?.winner === true ||
+    item?.winner === 1 ||
+    String(item?.winner).toLowerCase() === "true"
+  );
 
   const winningCategories = [
     ...new Set(
       wins
         .map(item =>
-          cleanCategory(item.category)
+          cleanCategory(
+            item?.category ||
+            item?.category_name
+          )
         )
         .filter(Boolean)
     )
@@ -170,7 +186,10 @@ async function getAwards(tmdbId) {
     ...new Set(
       nominations
         .map(item =>
-          cleanCategory(item.category)
+          cleanCategory(
+            item?.category ||
+            item?.category_name
+          )
         )
         .filter(Boolean)
     )
@@ -180,7 +199,10 @@ async function getAwards(tmdbId) {
     ...new Set(
       nominations
         .map(item =>
-          Number(item.ceremony_year)
+          Number(
+            item?.ceremony_year ||
+            item?.year
+          )
         )
         .filter(Boolean)
     )
@@ -188,7 +210,10 @@ async function getAwards(tmdbId) {
 
   const bestPictureWinner =
     wins.some(item =>
-      isBestPicture(item.category)
+      isBestPicture(
+        item?.category ||
+        item?.category_name
+      )
     );
 
   return {
@@ -197,29 +222,24 @@ async function getAwards(tmdbId) {
     movie: {
       title:
         detail?.title ||
-        movie.title ||
+        movie?.title ||
         "",
 
       release_date:
         detail?.release_date ||
-        movie.release_date ||
+        movie?.release_date ||
         "",
 
       tmdb_id: Number(tmdbId)
     },
 
-    nominations:
-      nominations.length,
-
-    wins:
-      wins.length,
+    nominations: nominations.length,
+    wins: wins.length,
 
     bestPictureWinner,
 
     winningCategories,
-
     nominatedCategories,
-
     ceremonyYears
   };
 }
@@ -242,12 +262,9 @@ function cleanMovies(movies) {
       id: movie.id,
       title: movie.title,
       poster_path: movie.poster_path,
-      release_date:
-        movie.release_date || "",
-      overview:
-        movie.overview || "",
-      popularity:
-        movie.popularity || 0
+      release_date: movie.release_date || "",
+      overview: movie.overview || "",
+      popularity: movie.popularity || 0
     }));
 }
 
@@ -271,8 +288,6 @@ export default async function handler(req, res) {
 
       Example:
       /api/movies?category=awards&id=238
-
-      Uses the movie's TMDB ID.
       ========================================================
     */
 
@@ -282,8 +297,7 @@ export default async function handler(req, res) {
 
       if (!tmdbId) {
         return res.status(400).json({
-          error:
-            "Missing TMDB movie ID"
+          error: "Missing TMDB movie ID"
         });
       }
 
@@ -302,11 +316,8 @@ export default async function handler(req, res) {
 
       } catch (awardError) {
         /*
-          Awards must never break the movie page.
-
-          If OscarBase is temporarily unavailable,
-          Reelwise simply behaves as though no award
-          information was found.
+          OscarBase should never prevent the movie
+          page itself from loading.
         */
 
         console.error(
@@ -401,9 +412,6 @@ export default async function handler(req, res) {
     /*
       ========================================================
       MOVIE CLASSICS
-
-      Highly rated movies released
-      before 1980 with substantial votes.
       ========================================================
     */
 
@@ -428,9 +436,6 @@ export default async function handler(req, res) {
     /*
       ========================================================
       80s & 90s
-
-      Popular movies released from
-      1980 through 1999.
       ========================================================
     */
 
@@ -456,10 +461,6 @@ export default async function handler(req, res) {
     /*
       ========================================================
       GREAT FRANCHISES
-
-      These are TMDB movie IDs.
-      Movie information still comes
-      directly from TMDB.
       ========================================================
     */
 
