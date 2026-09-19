@@ -2418,7 +2418,46 @@ async function showMovieFeature(feature){
     }
   }
 }
+function reelwiseSourceBio(person){
+  const raw=String(person?.biography||"").replace(/\s+/g," ").trim();
+  if(!raw || raw.length<90)return "";
+
+  // Split into sentences without requiring external libraries.
+  const sentences=raw.match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+    ?.map(s=>s.trim())
+    .filter(Boolean) || [];
+
+  // Remove common database/metadata-style lines and keep career-focused prose.
+  const junk=/^(from wikipedia|source:|official website|born\b|date of birth\b)/i;
+  const useful=sentences.filter(s=>!junk.test(s));
+
+  if(!useful.length)return "";
+
+  // Prefer a compact 2–3 sentence narrative. Keep enough context to explain
+  // why the performer matters rather than reducing the bio to a title list.
+  const picked=[];
+  let chars=0;
+
+  for(const sentence of useful){
+    if(picked.length>=3)break;
+    if(chars && chars+sentence.length>560)break;
+    picked.push(sentence);
+    chars+=sentence.length;
+  }
+
+  let bio=picked.join(" ").trim();
+
+  // Strip trailing source-style parentheticals/whitespace but preserve names,
+  // films, awards and career context supplied by the person data.
+  bio=bio.replace(/\s+\((?:source|wikipedia)[^)]*\)\s*$/i,"").trim();
+
+  return bio.length>=90?bio:"";
+}
+
 function compactStarBio(person,knownMovies,allMovies){
+  const sourceBio=reelwiseSourceBio(person);
+  if(sourceBio)return sourceBio;
+
   const name=String(person?.name||"This performer").trim();
   const now=new Date();
   const currentYear=now.getFullYear();
@@ -2513,11 +2552,16 @@ function compactStarBio(person,knownMovies,allMovies){
   const ranked=[...pool].sort((a,b)=>importance(b)-importance(a));
 
   const titleList=list=>{
-    const titles=list.map(m=>m.title);
+    const titles=list.map(m=>String(m.title||"").trim());
     if(!titles.length)return "";
     if(titles.length===1)return titles[0];
     if(titles.length===2)return `${titles[0]} and ${titles[1]}`;
     return `${titles.slice(0,-1).join(", ")}, and ${titles[titles.length-1]}`;
+  };
+
+  const sentenceEnd=text=>{
+    const clean=String(text||"").trim();
+    return /[.!?]$/.test(clean)?clean:`${clean}.`;
   };
 
   // Find the first cluster of genuinely important work. This prevents obscure
@@ -2574,18 +2618,18 @@ function compactStarBio(person,knownMovies,allMovies){
 
   if(early.length){
     if(span>=12){
-      sentences.push(`${name} rose to prominence with films including ${titleList(early)}.`);
+      sentences.push(sentenceEnd(`${name} rose to prominence with films including ${titleList(early)}`));
     }else{
-      sentences.push(`${name} has appeared in films including ${titleList(early)}.`);
+      sentences.push(sentenceEnd(`${name} has appeared in films including ${titleList(early)}`));
     }
   }
 
   if(middle.length){
-    sentences.push(`Other notable screen roles include ${titleList(middle)}.`);
+    sentences.push(sentenceEnd(`Other notable screen roles include ${titleList(middle)}`));
   }
 
   if(later.length){
-    sentences.push(`Later films include ${titleList(later)}.`);
+    sentences.push(sentenceEnd(`Later films include ${titleList(later)}`));
   }
 
   if(sentences.length<2&&span>=20){
