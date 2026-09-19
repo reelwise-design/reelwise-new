@@ -1444,101 +1444,176 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 }
 
 
-/* ===== MOVIE PAGE — CLEAN REELWISE POLISH ===== */
+/* ===== MOVIE PAGE — SIMPLE REELWISE ===== */
 .movie-hero{
-  position:relative;
-  overflow:hidden;
-  padding:24px!important;
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:150px minmax(0,1fr)!important;
+  gap:20px!important;
+  align-items:start!important;
+  min-height:0!important;
+  margin-top:10px!important;
+  padding:20px!important;
+  overflow:hidden!important;
   border:1px solid #262d38!important;
-  border-radius:18px!important;
-  background:linear-gradient(145deg,#11161d,#0c1016)!important;
+  border-radius:15px!important;
+  background:#10141b!important;
+  box-shadow:none!important;
 }
-.movie-backdrop{
-  position:absolute!important;
-  inset:0!important;
-  width:100%!important;
-  height:100%!important;
-  opacity:.07!important;
-  background-size:cover!important;
-  background-position:center!important;
-  filter:none!important;
-  pointer-events:none!important;
+.movie-backdrop{display:none!important}
+.movie-poster-wrap{
+  position:relative!important;
+  z-index:1!important;
+  width:150px!important;
 }
-.movie-poster-wrap,.movie-info{position:relative;z-index:1}
 .movie-poster-wrap .detail-image{
-  width:205px!important;
-  border-radius:12px!important;
-  box-shadow:0 16px 36px rgba(0,0,0,.35)!important;
+  display:block!important;
+  width:150px!important;
+  max-width:100%!important;
+  height:auto!important;
+  border:1px solid #303845!important;
+  border-radius:10px!important;
+  box-shadow:none!important;
+}
+.movie-info{
+  position:relative!important;
+  z-index:1!important;
+  min-width:0!important;
+  padding:0!important;
+}
+.movie-head{margin:0!important}
+.movie-head .eyebrow{
+  margin:2px 0 5px!important;
+  font-size:10px!important;
+  letter-spacing:1.4px!important;
 }
 .movie-head h1{
-  margin:4px 0 16px!important;
-  font-size:clamp(38px,5vw,58px)!important;
+  margin:0 0 18px!important;
+  font-size:40px!important;
   line-height:1!important;
-  letter-spacing:-2px!important;
+  letter-spacing:-1.8px!important;
+}
+.movie-overview-label{
+  margin:0 0 7px!important;
+  font-size:10px!important;
+  letter-spacing:1.5px!important;
 }
 .movie-overview{
-  max-width:700px!important;
-  font-size:14px!important;
-  line-height:1.65!important;
+  max-width:680px!important;
+  margin:0!important;
+  font-size:13px!important;
+  line-height:1.6!important;
 }
-.movie-facts{gap:8px!important}
+.movie-facts{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:7px!important;
+  margin-top:16px!important;
+}
 .movie-fact{
-  padding:8px 10px!important;
-  border-radius:8px!important;
-  background:#11161d!important;
+  padding:7px 9px!important;
+  border:1px solid #2a313c!important;
+  border-radius:7px!important;
+  background:#12171e!important;
+  font-size:11px!important;
 }
 .movie-cast-block{
-  margin-top:22px!important;
-  padding-top:18px!important;
+  grid-column:1/-1!important;
+  margin-top:2px!important;
+  padding-top:17px!important;
   border-top:1px solid #262d38!important;
 }
-.cast{gap:8px!important}
+.movie-cast-heading{margin-bottom:10px!important}
+.movie-cast-heading .eyebrow{font-size:10px!important}
+.movie-cast-heading h2{
+  margin:2px 0 0!important;
+  font-size:22px!important;
+}
+.cast{gap:7px!important}
 .cast button{
+  padding:7px 10px!important;
+  border:1px solid #303845!important;
   border-radius:999px!important;
-  background:#10151c!important;
+  background:#12171e!important;
+  font-size:11px!important;
+}
+.cast-toggle{
+  margin-top:9px!important;
+  padding:7px 9px!important;
+  font-size:10px!important;
 }
 .movie-vault{
-  margin-top:18px!important;
-  padding:20px!important;
+  margin-top:16px!important;
+  padding:17px!important;
   border:1px solid #262d38!important;
-  border-radius:16px!important;
+  border-radius:15px!important;
   background:#10141b!important;
+}
+.movie-vault-heading{margin-bottom:13px!important}
+.movie-vault-heading h2{
+  margin:2px 0 3px!important;
+  font-size:23px!important;
+}
+.movie-vault-heading p{
+  margin:0!important;
+  font-size:11px!important;
 }
 .movie-extras{
   display:grid!important;
   grid-template-columns:repeat(5,minmax(0,1fr))!important;
-  gap:9px!important;
+  gap:7px!important;
 }
 .extra-card{
-  min-height:112px!important;
-  padding:14px!important;
-  border-radius:12px!important;
-  background:#151a22!important;
+  min-height:90px!important;
+  padding:12px!important;
+  border:1px solid #29313c!important;
+  border-radius:10px!important;
+  background:#141920!important;
 }
-.extra-card h3{font-size:15px!important}
-.extra-card button{font-size:11px!important}
-@media(max-width:800px){
+.extra-icon{font-size:18px!important}
+.extra-card h3{
+  margin:6px 0 8px!important;
+  font-size:13px!important;
+}
+.extra-card button{
+  padding:0!important;
+  font-size:10px!important;
+}
+.franchise-section{
+  margin-top:16px!important;
+  padding:17px!important;
+  border-radius:15px!important;
+}
+@media(max-width:700px){
   .movie-hero{
-    padding:15px!important;
-    border-radius:14px!important;
+    grid-template-columns:104px minmax(0,1fr)!important;
+    gap:14px!important;
+    padding:14px!important;
   }
-  .movie-backdrop{display:none!important}
-  .movie-poster-wrap .detail-image{
-    width:128px!important;
-    max-width:38vw!important;
-  }
-  .movie-info{min-width:0!important}
+  .movie-poster-wrap{width:104px!important}
+  .movie-poster-wrap .detail-image{width:104px!important}
+  .movie-head .eyebrow{display:none!important}
   .movie-head h1{
-    font-size:32px!important;
-    letter-spacing:-1.4px!important;
+    margin:2px 0 11px!important;
+    font-size:31px!important;
+    letter-spacing:-1.3px!important;
   }
-  .movie-overview{font-size:13px!important}
-  .movie-vault{padding:14px!important}
+  .movie-overview-label{margin-bottom:5px!important}
+  .movie-overview{
+    font-size:12px!important;
+    line-height:1.5!important;
+  }
+  .movie-facts{
+    grid-column:1/-1!important;
+    margin-top:12px!important;
+  }
+  .movie-cast-block{margin-top:0!important}
+  .movie-vault{padding:13px!important}
   .movie-extras{
     grid-template-columns:repeat(2,minmax(0,1fr))!important;
   }
-  .extra-card{min-height:104px!important}
-  .extra-card:last-child{grid-column:1/-1}
+  .extra-card{min-height:82px!important}
+  .extra-card:last-child{grid-column:1/-1!important}
 }
 
 </style>
