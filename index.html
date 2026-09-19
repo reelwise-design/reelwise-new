@@ -675,7 +675,7 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
   }
   .movie-overview{
     grid-column:1/-1;
-    font-size:14px!important;
+    font-size:12px!important;
     line-height:1.55!important;
     margin-top:4px!important;
   }
@@ -1474,6 +1474,7 @@ function compactStarBio(rawBio){
   if(!bio)return "Biography information is not available.";
 
   bio=bio
+    .replace(/\s*\(born\s+[^)]*\)/gi,"")
     .replace(/\s*Description above from the Wikipedia[\s\S]*$/i,"")
     .replace(/\s*This article is licensed under CC-BY-SA[\s\S]*$/i,"")
     .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i,"")
