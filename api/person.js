@@ -656,7 +656,7 @@ function rolePhrase(roles) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.2.2
+  REELWISE BIO ENGINE 6.2.3
   ============================================================
 
   Hybrid architecture + multi-franchise Career Intelligence:
@@ -851,10 +851,7 @@ export default async function handler(req, res) {
     try {
       const accolades = await getAccolades(id);
 
-      res.setHeader(
-        "Cache-Control",
-        "s-maxage=86400, stale-while-revalidate=604800"
-      );
+      res.setHeader("Cache-Control", "no-store, max-age=0");
 
       return res.status(200).json(accolades);
     } catch (error) {
@@ -893,10 +890,7 @@ export default async function handler(req, res) {
       nominations: Number(accolades?.nominations || 0)
     };
 
-    res.setHeader(
-      "Cache-Control",
-      "s-maxage=86400, stale-while-revalidate=604800"
-    );
+    res.setHeader("Cache-Control", "no-store, max-age=0");
 
     return res.status(200).json(data);
   } catch (error) {
