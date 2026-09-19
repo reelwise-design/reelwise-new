@@ -186,6 +186,7 @@ const CAREER_INTELLIGENCE = {
     collaborator: "Martin Scorsese",
     collaborationText:
       "His celebrated collaboration with Martin Scorsese produced some of his most memorable performances.",
+    narrativeFilms: [],
     signatureFilms: [
       "The Godfather Part II",
       "Taxi Driver",
@@ -200,6 +201,10 @@ const CAREER_INTELLIGENCE = {
     roles: ["actor", "producer"],
     franchiseText:
       "Top Gun made him a global movie star, while Mission: Impossible became his signature franchise.",
+    narrativeFilms: [
+      "Top Gun",
+      "Mission: Impossible"
+    ],
     signatureFilms: [
       "Top Gun",
       "A Few Good Men",
@@ -214,6 +219,11 @@ const CAREER_INTELLIGENCE = {
     roles: ["actor", "screenwriter"],
     franchiseText:
       "As the writer and star of Rocky, he created one of cinema's most enduring characters and later established another signature franchise as John Rambo.",
+    narrativeFilms: [
+      "Rocky",
+      "First Blood",
+      "Rambo"
+    ],
     signatureFilms: [
       "Rocky",
       "First Blood",
@@ -545,10 +555,13 @@ function rolePhrase(roles) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.0
+  REELWISE BIO ENGINE 6.1
   ============================================================
 
-  Hybrid architecture:
+  Hybrid architecture + narrative de-duplication:
+
+  Films already explained in a franchise/character sentence are
+  removed from the follow-up defining-film list.
 
   A) CAREER INTELLIGENCE
      Editorial facts for major stars where signature-career
@@ -602,13 +615,29 @@ function buildReelwiseBio(person, accolades) {
       parts.push(intelligence.franchiseText);
     }
 
+    const narrativeTitles = new Set(
+      (intelligence.narrativeFilms || [])
+        .map(title => normalizeTitle(title))
+        .filter(Boolean)
+    );
+
+    /*
+      Do not repeat films or franchises that the narrative has
+      already explained. The list should add new career context,
+      not echo the sentence immediately before it.
+    */
     const intelligentFilms =
-      validatedIntelligenceFilms(person, intelligence);
+      validatedIntelligenceFilms(person, intelligence)
+        .filter(movie =>
+          !narrativeTitles.has(normalizeTitle(movie?.title))
+        );
 
     const films = formatFilmList(intelligentFilms);
 
     if (films) {
-      parts.push(`Defining films include ${films}.`);
+      parts.push(
+        `${intelligence.franchiseText ? "Other defining films" : "Defining films"} include ${films}.`
+      );
     }
   }
 
