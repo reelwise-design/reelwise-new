@@ -2420,8 +2420,9 @@ async function showMovieFeature(feature){
 }
 function compactStarBio(person,knownMovies,allMovies){
   const name=String(person?.name||"This performer").trim();
-  const today=new Date();
-  const todayISO=today.toISOString().slice(0,10);
+  const now=new Date();
+  const currentYear=now.getFullYear();
+  const todayISO=now.toISOString().slice(0,10);
 
   const normalize=s=>String(s||"")
     .toLowerCase()
@@ -2429,16 +2430,24 @@ function compactStarBio(person,knownMovies,allMovies){
     .replace(/[^a-z0-9]+/g," ")
     .trim();
 
+  const validDate=s=>{
+    const raw=String(s||"").trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(raw))return false;
+    const d=new Date(raw+"T00:00:00Z");
+    return !Number.isNaN(d.getTime()) && raw<=todayISO;
+  };
+
   const yearOf=m=>{
-    const y=parseInt(String(m?.release_date||"").slice(0,4),10);
-    return Number.isFinite(y)?y:null;
+    if(!validDate(m?.release_date))return null;
+    const y=parseInt(String(m.release_date).slice(0,4),10);
+    return Number.isFinite(y)&&y<=currentYear?y:null;
   };
 
   const seen=new Set();
+  const rawCredits=Array.isArray(allMovies)?allMovies:[];
 
-  // Released films only. Future/upcoming credits do not belong in a career retrospective.
-  const movies=(Array.isArray(allMovies)?allMovies:[])
-    .filter(m=>m&&m.title&&m.release_date&&String(m.release_date)<=todayISO&&yearOf(m))
+  const movies=rawCredits
+    .filter(m=>m&&m.title&&yearOf(m))
     .filter(m=>{
       const key=`${normalize(m.title)}|${yearOf(m)}`;
       if(seen.has(key))return false;
@@ -2450,7 +2459,8 @@ function compactStarBio(person,knownMovies,allMovies){
       _year:yearOf(m),
       _pop:Number(m.popularity||0),
       _votes:Number(m.vote_count||0),
-      _score:Number(m.vote_average||0)
+      _score:Number(m.vote_average||0),
+      _order:Number.isFinite(Number(m.order))?Number(m.order):null
     }))
     .sort((a,b)=>a._year-b._year);
 
@@ -2462,17 +2472,44 @@ function compactStarBio(person,knownMovies,allMovies){
   const lastYear=movies[movies.length-1]._year;
   const span=Math.max(0,lastYear-firstYear);
 
-  // Established credits should beat obscure credits. Vote history carries the
-  // most weight; popularity helps, but cannot dominate the biography by itself.
+  // Career-bio relevance:
+  // - audience history (vote_count) is the strongest signal
+  // - popularity helps but cannot dominate
+  // - high cast billing helps when TMDB supplies order
+  // - tiny/uncredited-style appearances are strongly penalized
   const importance=m=>{
-    const votes=Math.log10(Math.max(1,m._votes)+1)*12;
-    const pop=Math.log10(Math.max(1,m._pop)+1)*4;
-    const rating=m._votes>=250?Math.max(0,m._score-5)*2:0;
-    return votes+pop+rating;
+    const voteSignal=Math.log10(Math.max(1,m._votes)+1)*15;
+    const popSignal=Math.log10(Math.max(1,m._pop)+1)*3;
+    const ratingSignal=m._votes>=300?Math.max(0,m._score-5)*1.5:0;
+
+    let billingSignal=0;
+    if(m._order!==null){
+      if(m._order<=2)billingSignal=12;
+      else if(m._order<=5)billingSignal=8;
+      else if(m._order<=10)billingSignal=4;
+      else if(m._order>=25)billingSignal=-10;
+      else if(m._order>=15)billingSignal=-5;
+    }
+
+    return voteSignal+popSignal+ratingSignal+billingSignal;
   };
 
-  const established=movies.filter(m=>m._votes>=150);
-  const pool=established.length>=4?established:movies;
+  // Prefer credits with meaningful audience history. If an actor has too few,
+  // gracefully widen the pool rather than returning an empty biography.
+  let pool=movies.filter(m=>
+    m._votes>=500 ||
+    (m._votes>=200 && (m._order===null || m._order<=12)) ||
+    (m._votes>=100 && m._order!==null && m._order<=5)
+  );
+
+  if(pool.length<5){
+    pool=movies.filter(m=>
+      m._votes>=100 ||
+      (m._votes>=50 && m._order!==null && m._order<=8)
+    );
+  }
+  if(pool.length<3)pool=[...movies];
+
   const ranked=[...pool].sort((a,b)=>importance(b)-importance(a));
 
   const titleList=list=>{
@@ -2483,21 +2520,20 @@ function compactStarBio(person,knownMovies,allMovies){
     return `${titles.slice(0,-1).join(", ")}, and ${titles[titles.length-1]}`;
   };
 
-  // Find the earliest period containing genuinely established work rather than
-  // assuming the person's first screen credits were their breakthrough.
-  const topScore=ranked.length?importance(ranked[0]):0;
-  const meaningfulThreshold=Math.max(25,topScore*.48);
-  const meaningful=pool
-    .filter(m=>importance(m)>=meaningfulThreshold)
+  // Find the first cluster of genuinely important work. This prevents obscure
+  // first credits from being described as the actor's rise to prominence.
+  const bestScore=ranked.length?importance(ranked[0]):0;
+  const threshold=Math.max(30,bestScore*.58);
+  const meaningful=[...pool]
+    .filter(m=>importance(m)>=threshold)
     .sort((a,b)=>a._year-b._year);
 
-  const anchorYear=meaningful.length?meaningful[0]._year:firstYear;
-  const earlyWindowEnd=Math.min(lastYear,anchorYear+10);
+  const anchorYear=meaningful.length?meaningful[0]._year:ranked[0]?ranked[0]._year:firstYear;
 
   const used=new Set();
-  const take=(arr,count)=>{
+  const choose=(candidates,count)=>{
     const out=[];
-    for(const m of arr){
+    for(const m of candidates){
       const key=normalize(m.title);
       if(used.has(key))continue;
       out.push(m);
@@ -2507,31 +2543,32 @@ function compactStarBio(person,knownMovies,allMovies){
     return out;
   };
 
+  // Early career: significant films around the first established period.
   const earlyCandidates=[...pool]
-    .filter(m=>m._year>=Math.max(firstYear,anchorYear-3)&&m._year<=earlyWindowEnd)
+    .filter(m=>m._year>=Math.max(firstYear,anchorYear-4)&&m._year<=Math.min(lastYear,anchorYear+11))
     .sort((a,b)=>importance(b)-importance(a));
-  const early=take(earlyCandidates,3);
+  const early=choose(earlyCandidates,3);
 
-  const midStart=earlyWindowEnd+1;
-  const midEnd=Math.min(lastYear,anchorYear+28);
+  // Middle career: strong credits after that first period.
+  const middleStart=anchorYear+12;
+  const middleEnd=Math.min(lastYear,anchorYear+29);
   const middleCandidates=[...pool]
-    .filter(m=>m._year>=midStart&&m._year<=midEnd)
+    .filter(m=>m._year>=middleStart&&m._year<=middleEnd)
     .sort((a,b)=>importance(b)-importance(a));
-  const middle=take(middleCandidates,3);
+  const middle=choose(middleCandidates,3);
 
+  // Later career: only use later work that still clears a meaningful quality bar.
   const laterCandidates=[...pool]
-    .filter(m=>m._year>midEnd)
+    .filter(m=>m._year>middleEnd)
+    .filter(m=>importance(m)>=Math.max(28,bestScore*.42))
     .sort((a,b)=>importance(b)-importance(a));
-  const later=take(laterCandidates,3);
+  const later=choose(laterCandidates,3);
 
-  // Fill sparse stages only with strong established credits, never merely to
-  // force a three-sentence template.
-  const remaining=ranked.filter(m=>!used.has(normalize(m.title)));
-  if(!early.length)early.push(...take(remaining,Math.min(3,remaining.length)));
-
-  // Franchise claims are intentionally not inferred from movie titles.
-  // Similar title text is not reliable enough to establish a true franchise
-  // relationship for an actor biography.
+  // If a stage is empty, do not force weak credits into it.
+  if(!early.length){
+    const fallback=choose(ranked,Math.min(3,ranked.length));
+    early.push(...fallback);
+  }
 
   const sentences=[];
 
