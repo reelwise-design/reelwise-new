@@ -2000,6 +2000,14 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   }
 }
 
+
+.award-body-label{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:14px;
+  font-weight:800;
+  letter-spacing:.16em;
+}
 </style>
 </head>
 <body>
@@ -2422,33 +2430,72 @@ function reelwiseSourceBio(person){
   const raw=String(person?.biography||"").replace(/\s+/g," ").trim();
   if(!raw || raw.length<90)return "";
 
-  // Split into sentences without requiring external libraries.
   const sentences=raw.match(/[^.!?]+[.!?]+|[^.!?]+$/g)
     ?.map(s=>s.trim())
     .filter(Boolean) || [];
 
-  // Remove common database/metadata-style lines and keep career-focused prose.
-  const junk=/^(from wikipedia|source:|official website|born\b|date of birth\b)/i;
-  const useful=sentences.filter(s=>!junk.test(s));
+  if(!sentences.length)return "";
 
-  if(!useful.length)return "";
+  const name=String(person?.name||"").trim();
+  const lastName=name.split(/\s+/).filter(Boolean).pop()||name;
 
-  // Prefer a compact 2–3 sentence narrative. Keep enough context to explain
-  // why the performer matters rather than reducing the bio to a title list.
+  // Score biography sentences for MOVIE-CAREER usefulness rather than simply
+  // taking the opening paragraph. This keeps Reelwise focused on the story.
+  const careerWords=/\b(film|films|movie|movies|role|roles|portrayed|played|starred|starring|breakthrough|career|screen|actor|actress|filmmaker|writer|screenwriter|director|directed|wrote|created|franchise|series|character|sequel|debut)\b/i;
+  const titleClues=/\b(Rocky|Rambo|Creed|Mission|Top Gun|Godfather|Goodfellas|Kramer|Prada|Alien|Terminator|Batman|Superman|Star Wars|Indiana Jones|Harry Potter|Marvel|Avengers)\b/i;
+  const awardsHeavy=/\b(award|awards|accolade|accolades|nomination|nominations|nominated|golden globe|bafta|academy award|critics.? choice|emmy|oscar)\b/ig;
+  const personalHeavy=/\b(born|married|wife|husband|daughter|son|children|family|divorce|relationship|resides|residence)\b/ig;
+  const statsHeavy=/\b(box[- ]office|highest[- ]grossing|grossed|million|billion|number one|no\.\s*1)\b/ig;
+
+  const scored=sentences.map((sentence,index)=>{
+    let score=0;
+    const careerHits=(sentence.match(new RegExp(careerWords.source,"ig"))||[]).length;
+    const awardHits=(sentence.match(awardsHeavy)||[]).length;
+    const personalHits=(sentence.match(personalHeavy)||[]).length;
+    const statHits=(sentence.match(statsHeavy)||[]).length;
+
+    score += careerHits*5;
+    if(titleClues.test(sentence))score += 12;
+    if(name && sentence.includes(name))score += 2;
+    if(lastName && sentence.includes(lastName))score += 1;
+
+    // Sentences that explain a defining role, writing/creation, or franchise
+    // are especially valuable to Reelwise.
+    if(/\b(breakthrough|created|wrote|screenplay|portrayed|best known|known for|rose to|franchise|series)\b/i.test(sentence))score += 9;
+
+    // Awards belong on the Accolades page; personal life and raw box-office
+    // statistics should not dominate the star-profile biography.
+    score -= awardHits*7;
+    score -= personalHits*6;
+    score -= statHits*5;
+
+    // Slight preference for earlier source sentences only as a tie-breaker.
+    score -= index*.15;
+
+    return {sentence,index,score};
+  });
+
+  let candidates=scored
+    .filter(x=>x.score>2)
+    .sort((a,b)=>b.score-a.score);
+
+  if(!candidates.length)return "";
+
+  // Pick up to three strong career sentences, then restore their original
+  // source order so the result reads as a narrative rather than a ranking.
   const picked=[];
   let chars=0;
 
-  for(const sentence of useful){
+  for(const item of candidates){
     if(picked.length>=3)break;
-    if(chars && chars+sentence.length>560)break;
-    picked.push(sentence);
-    chars+=sentence.length;
+    if(chars && chars+item.sentence.length>620)continue;
+    picked.push(item);
+    chars+=item.sentence.length;
   }
 
-  let bio=picked.join(" ").trim();
+  picked.sort((a,b)=>a.index-b.index);
 
-  // Strip trailing source-style parentheticals/whitespace but preserve names,
-  // films, awards and career context supplied by the person data.
+  let bio=picked.map(x=>x.sentence).join(" ").trim();
   bio=bio.replace(/\s+\((?:source|wikipedia)[^)]*\)\s*$/i,"").trim();
 
   return bio.length>=90?bio:"";
@@ -2769,7 +2816,7 @@ async function showPersonAccolades(id,name){
     page.innerHTML=`
       <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
       <div class="accolades-head">
-        <div class="eyebrow">REELWISE ACCOLADES</div>
+        <div class="eyebrow">REELWISE ACCOLADES</div>\n<div class="award-body-label">ACADEMY AWARDS</div>
         <h1>${escapeHTML(name||"Star")}</h1>
         <div class="accolades-summary">
           <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
