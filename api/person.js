@@ -122,6 +122,169 @@ async function getWikipediaBiography(name) {
   ============================================================
 */
 
+
+/*
+  ============================================================
+   WIKIDATA AWARDS / ACCOLADES
+  ============================================================
+*/
+
+async function getWikidataIdFromWikipedia(name) {
+  try {
+    const url =
+      "https://en.wikipedia.org/w/api.php?" +
+      new URLSearchParams({
+        action: "query",
+        generator: "search",
+        gsrsearch: name,
+        gsrlimit: "1",
+        prop: "pageprops",
+        ppprop: "wikibase_item",
+        redirects: "1",
+        format: "json",
+        origin: "*"
+      });
+
+    const data = await fetchJSON(url);
+    const pages = data?.query?.pages || {};
+    const page = Object.values(pages)[0];
+    return page?.pageprops?.wikibase_item || "";
+  } catch (error) {
+    console.error("Wikidata ID error:", error);
+    return "";
+  }
+}
+
+async function getWikidataLabels(ids = []) {
+  const uniqueIds = [...new Set(ids.filter(Boolean))];
+  if (!uniqueIds.length) return {};
+
+  const all = {};
+
+  for (let i = 0; i < uniqueIds.length; i += 40) {
+    const chunk = uniqueIds.slice(i, i + 40);
+
+    const url =
+      "https://www.wikidata.org/w/api.php?" +
+      new URLSearchParams({
+        action: "wbgetentities",
+        ids: chunk.join("|"),
+        props: "labels",
+        languages: "en",
+        format: "json",
+        origin: "*"
+      });
+
+    const data = await fetchJSON(url);
+    Object.assign(all, data?.entities || {});
+  }
+
+  return all;
+}
+
+function claimEntityId(claim) {
+  return claim?.mainsnak?.datavalue?.value?.id || "";
+}
+
+function qualifierEntityId(claim, property) {
+  return claim?.qualifiers?.[property]?.[0]?.datavalue?.value?.id || "";
+}
+
+function qualifierYear(claim) {
+  const raw =
+    claim?.qualifiers?.P585?.[0]?.datavalue?.value?.time ||
+    claim?.qualifiers?.P580?.[0]?.datavalue?.value?.time ||
+    "";
+
+  const match = raw.match(/[+-](\d{4})-/);
+  return match ? Number(match[1]) : null;
+}
+
+async function getAwardsAndAccolades(name) {
+  try {
+    const wikidataId = await getWikidataIdFromWikipedia(name);
+
+    if (!wikidataId) {
+      return { academy_awards: [], academyAwards: [], accolades: [] };
+    }
+
+    const entityUrl =
+      "https://www.wikidata.org/w/api.php?" +
+      new URLSearchParams({
+        action: "wbgetentities",
+        ids: wikidataId,
+        props: "claims",
+        format: "json",
+        origin: "*"
+      });
+
+    const entityData = await fetchJSON(entityUrl);
+    const claims = entityData?.entities?.[wikidataId]?.claims || {};
+
+    const wins = (claims.P166 || []).map(claim => ({
+      result: "Winner",
+      awardId: claimEntityId(claim),
+      workId: qualifierEntityId(claim, "P1686"),
+      ceremonyId: qualifierEntityId(claim, "P805"),
+      year: qualifierYear(claim)
+    }));
+
+    const nominations = (claims.P1411 || []).map(claim => ({
+      result: "Nominee",
+      awardId: claimEntityId(claim),
+      workId: qualifierEntityId(claim, "P1686"),
+      ceremonyId: qualifierEntityId(claim, "P805"),
+      year: qualifierYear(claim)
+    }));
+
+    const raw = [...wins, ...nominations].filter(item => item.awardId);
+
+    const labels = await getWikidataLabels(
+      raw.flatMap(item => [item.awardId, item.workId, item.ceremonyId])
+    );
+
+    const labelFor = id => labels?.[id]?.labels?.en?.value || "";
+
+    const formatted = raw
+      .map(item => ({
+        award: labelFor(item.awardId),
+        result: item.result,
+        year: item.year,
+        work: labelFor(item.workId),
+        ceremony: labelFor(item.ceremonyId)
+      }))
+      .filter(item => item.award)
+      .filter((item, index, array) => {
+        const key = `${item.award}|${item.result}|${item.year || ""}|${item.work}`;
+        return array.findIndex(other =>
+          `${other.award}|${other.result}|${other.year || ""}|${other.work}` === key
+        ) === index;
+      })
+      .sort((a, b) => (b.year || 0) - (a.year || 0));
+
+    const academyAwards = formatted.filter(item =>
+      /academy award|academy awards|oscar/i.test(
+        `${item.award} ${item.ceremony}`
+      )
+    );
+
+    return {
+      academy_awards: academyAwards,
+      academyAwards,
+      accolades: formatted.slice(0, 40)
+    };
+  } catch (error) {
+    console.error("Awards/accolades error:", error);
+    return { academy_awards: [], academyAwards: [], accolades: [] };
+  }
+}
+
+/*
+  ============================================================
+   TMDB PERSON DETAILS
+  ============================================================
+*/
+
 async function getPersonDetails(personId) {
   const url =
     `https://api.themoviedb.org/3/person/${personId}` +
@@ -262,6 +425,9 @@ export default async function handler(req, res) {
 
     const knownFor = buildKnownFor(credits);
 
+    const awardsData =
+      await getAwardsAndAccolades(person.name);
+
     return res.status(200).json({
       id: person.id,
 
@@ -287,6 +453,12 @@ export default async function handler(req, res) {
       popularity: person.popularity || 0,
 
       known_for: knownFor,
+
+      academy_awards: awardsData.academy_awards,
+
+      academyAwards: awardsData.academyAwards,
+
+      accolades: awardsData.accolades,
 
       /*
         Keep aliases for compatibility with older Reelwise
