@@ -12,8 +12,9 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   3. Curated Reelwise quotes always win.
   4. If not curated, locate the movie on Wikiquote.
   5. Pull the actual Wikiquote page wikitext.
-  6. Extract usable quotes while rejecting junk sections.
-  7. Return up to 8 fallback quotes.
+  6. Extract usable standalone quotes while rejecting junk.
+  7. Do not turn multi-line dialogue scenes into quote cards.
+  8. Return up to 8 fallback quotes.
 
   This lets the curated Vault remain the premium Reelwise layer
   without requiring every movie to be entered manually.
@@ -343,10 +344,7 @@ function cleanWikiMarkup(value) {
 
 
   /*
-    Convert common Wiki links:
-
-    [[Target|visible text]] -> visible text
-    [[Target]] -> Target
+    Convert common Wiki links.
   */
 
   line =
@@ -364,8 +362,6 @@ function cleanWikiMarkup(value) {
 
   /*
     Remove external-link URL while keeping label.
-
-    [https://example.com Label] -> Label
   */
 
   line =
@@ -474,6 +470,7 @@ function blockedSection(section) {
     "cast",
     "taglines",
     "tagline",
+    "dialogue",
     "external links",
     "external link",
     "references",
@@ -716,7 +713,6 @@ function extractFallbackQuotes(text) {
 
 
   const primary = [];
-  const dialogue = [];
 
   let section = "";
 
@@ -753,13 +749,20 @@ function extractFallbackQuotes(text) {
     }
 
 
+    /*
+      Dialogue is intentionally blocked here.
+
+      Wikiquote dialogue sections are often complete scenes
+      split across many list items. Those fragments should not
+      appear as individual Reelwise quote cards.
+    */
+
     if (blockedSection(section)) {
       continue;
     }
 
 
     /*
-      Wikiquote quote entries are normally list items.
       Ignore template/table/category infrastructure.
     */
 
@@ -830,28 +833,6 @@ function extractFallbackQuotes(text) {
     }
 
 
-    /*
-      Dialogue sections can contain fragments from
-      multi-line exchanges, so keep them supplemental.
-    */
-
-    if (
-      section === "dialogue"
-    ) {
-
-      if (
-        !isDuplicateQuote(
-          line,
-          dialogue
-        )
-      ) {
-        dialogue.push(line);
-      }
-
-      continue;
-    }
-
-
     if (
       !isDuplicateQuote(
         line,
@@ -860,40 +841,15 @@ function extractFallbackQuotes(text) {
     ) {
       primary.push(line);
     }
-  }
 
 
-  /*
-    Prefer standalone character quotes.
-  */
-
-  const combined =
-    [...primary];
-
-
-  /*
-    Supplement with dialogue only when necessary.
-  */
-
-  for (const line of dialogue) {
-
-    if (combined.length >= 8) {
+    if (primary.length >= 8) {
       break;
     }
-
-
-    if (
-      !isDuplicateQuote(
-        line,
-        combined
-      )
-    ) {
-      combined.push(line);
-    }
   }
 
 
-  return combined.slice(0, 8);
+  return primary.slice(0, 8);
 }
 
 
