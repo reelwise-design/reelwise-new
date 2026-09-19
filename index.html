@@ -1754,6 +1754,24 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   }
 }
 
+
+/* ===== VAULT WIDTH FIX =====
+   #results is a card grid. Dedicated Vault pages must span every grid column.
+*/
+#results > .vault-page{
+  grid-column:1 / -1!important;
+  width:100%!important;
+  max-width:none!important;
+  justify-self:stretch!important;
+}
+#results > .vault-page #vaultFeatureContent,
+#results > .vault-page .feature-view,
+#results > .vault-page .fact-grid,
+#results > .vault-page .fact-item{
+  width:100%!important;
+  max-width:none!important;
+}
+
 </style>
 </head>
 <body>
