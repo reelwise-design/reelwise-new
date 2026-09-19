@@ -122,7 +122,11 @@ function cleanBiography(value) {
 function splitSentences(value) {
   const clean = cleanBiography(value);
   if (!clean) return [];
-  return clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [];
+
+  return clean
+    .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
+    ?.map(s => s.trim())
+    .filter(Boolean) || [];
 }
 
 function normalizeTitle(value) {
@@ -138,7 +142,9 @@ function dedupeMovies(movies) {
 
   return movies.filter(movie => {
     const key = normalizeTitle(movie?.title);
+
     if (!key || seen.has(key)) return false;
+
     seen.add(key);
     return true;
   });
@@ -150,8 +156,14 @@ function getCareerYears(person) {
     : [];
 
   const years = cast
-    .map(movie => Number(String(movie?.release_date || "").slice(0, 4)))
-    .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
+    .map(movie =>
+      Number(String(movie?.release_date || "").slice(0, 4))
+    )
+    .filter(
+      year =>
+        year >= 1900 &&
+        year <= new Date().getFullYear() + 2
+    );
 
   if (!years.length) return null;
 
@@ -165,18 +177,6 @@ function getCareerYears(person) {
   ============================================================
   REELWISE CAREER INTELLIGENCE
   ============================================================
-
-  This is not a hand-written biography database.
-
-  It is a compact editorial fact layer for major stars where
-  raw credits alone cannot reliably determine:
-    - signature films
-    - signature franchises
-    - iconic characters
-    - defining collaborators
-    - creator/writer significance
-
-  Everyone not listed here still receives a fully automatic bio.
 */
 
 const CAREER_INTELLIGENCE = {
@@ -222,11 +222,13 @@ const CAREER_INTELLIGENCE = {
     roles: ["actor", "screenwriter"],
     franchiseTexts: [
       {
-        text: "As the writer and star of Rocky, he created one of cinema's most enduring characters.",
+        text:
+          "As the writer and star of Rocky, he created one of cinema's most enduring characters.",
         films: ["Rocky"]
       },
       {
-        text: "John Rambo established another signature character and franchise.",
+        text:
+          "John Rambo established another signature character and franchise.",
         films: ["First Blood", "Rambo"]
       }
     ],
@@ -244,8 +246,12 @@ const CAREER_INTELLIGENCE = {
     roles: ["actor", "filmmaker"],
     franchiseTexts: [
       {
-        text: "Michael Corleone in The Godfather films became one of his defining screen roles.",
-        films: ["The Godfather", "The Godfather Part II"]
+        text:
+          "Michael Corleone in The Godfather films became one of his defining screen roles.",
+        films: [
+          "The Godfather",
+          "The Godfather Part II"
+        ]
       }
     ],
     signatureFilms: [
@@ -263,11 +269,13 @@ const CAREER_INTELLIGENCE = {
     roles: ["actor", "producer"],
     franchiseTexts: [
       {
-        text: "Han Solo in Star Wars helped establish him as a global movie star.",
+        text:
+          "Han Solo in Star Wars helped establish him as a global movie star.",
         films: ["Star Wars"]
       },
       {
-        text: "Indiana Jones became his other signature screen character and franchise.",
+        text:
+          "Indiana Jones became his other signature screen character and franchise.",
         films: [
           "Raiders of the Lost Ark",
           "Indiana Jones and the Temple of Doom",
@@ -335,30 +343,42 @@ function findCreditByTitle(person, wantedTitle) {
 
   const wanted = normalizeTitle(wantedTitle);
 
-  return cast.find(movie =>
-    normalizeTitle(movie?.title) === wanted
-  ) || null;
+  return (
+    cast.find(
+      movie =>
+        normalizeTitle(movie?.title) === wanted
+    ) || null
+  );
 }
 
-function validatedIntelligenceFilms(person, intelligence) {
+function validatedIntelligenceFilms(
+  person,
+  intelligence
+) {
   if (!intelligence?.signatureFilms) return [];
 
   /*
-    6.2.1:
-    Career Intelligence titles are editorial facts and must not
-    disappear merely because TMDB uses a slightly different title
-    string, alternate punctuation, or localized credit title.
+    Career Intelligence titles are editorial facts.
 
-    When an exact TMDB credit exists, use it. Otherwise preserve
-    the Career Intelligence title itself.
+    They must not disappear simply because TMDB uses
+    slightly different punctuation, localization,
+    or an alternate credit title.
   */
+
   return intelligence.signatureFilms
     .map(title => {
       const credit = findCreditByTitle(person, title);
 
       return credit
-        ? { ...credit, title: String(title).trim() || credit.title }
-        : { title: String(title).trim() };
+        ? {
+            ...credit,
+            title:
+              String(title).trim() ||
+              credit.title
+          }
+        : {
+            title: String(title).trim()
+          };
     })
     .filter(movie => movie?.title);
 }
@@ -372,6 +392,7 @@ function validatedIntelligenceFilms(person, intelligence) {
 function biographySignals(person) {
   const bio = cleanBiography(person?.biography);
   const normalizedBio = normalizeTitle(bio);
+
   const cast = Array.isArray(person?.movie_credits?.cast)
     ? person.movie_credits.cast
     : [];
@@ -380,15 +401,24 @@ function biographySignals(person) {
 
   for (const movie of cast) {
     const key = normalizeTitle(movie?.title);
+
     if (!key || key.length < 3) continue;
 
     const position = normalizedBio.indexOf(key);
+
     if (position < 0) continue;
 
-    const signal = Math.max(8, 38 - Math.floor(position / 75));
+    const signal = Math.max(
+      8,
+      38 - Math.floor(position / 75)
+    );
+
     titleSignals.set(
       key,
-      Math.max(titleSignals.get(key) || 0, signal)
+      Math.max(
+        titleSignals.get(key) || 0,
+        signal
+      )
     );
   }
 
@@ -398,14 +428,21 @@ function biographySignals(person) {
 function oscarSignals(accolades) {
   const map = new Map();
 
-  if (!Array.isArray(accolades?.history)) return map;
+  if (!Array.isArray(accolades?.history)) {
+    return map;
+  }
 
   for (const item of accolades.history) {
     const key = normalizeTitle(item?.movie);
+
     if (!key) continue;
 
     const score = item?.winner ? 48 : 22;
-    map.set(key, Math.max(map.get(key) || 0, score));
+
+    map.set(
+      key,
+      Math.max(map.get(key) || 0, score)
+    );
   }
 
   return map;
@@ -416,166 +453,274 @@ function baseMovieScores(person, accolades) {
     ? person.movie_credits.cast
     : [];
 
-  const { titleSignals } = biographySignals(person);
-  const awards = oscarSignals(accolades);
+  const { titleSignals } =
+    biographySignals(person);
 
-  return dedupeMovies(
-    cast
-      .filter(movie =>
-        movie &&
-        movie.title &&
-        movie.release_date &&
-        Number(movie.vote_count || 0) >= 100
-      )
-      .map(movie => {
-        const key = normalizeTitle(movie.title);
-        const votes = Number(movie.vote_count || 0);
-        const rating = Number(movie.vote_average || 0);
-        const order = Number.isFinite(Number(movie.order))
-          ? Number(movie.order)
-          : 99;
+  const academy = oscarSignals(accolades);
 
-        let billing = 0;
+  const currentYear =
+    new Date().getFullYear();
 
-        if (order === 0) billing = 62;
-        else if (order === 1) billing = 54;
-        else if (order === 2) billing = 45;
-        else if (order <= 5) billing = 26;
-        else if (order <= 10) billing = 8;
+  return dedupeMovies(cast)
+    .filter(movie => {
+      const title =
+        String(movie?.title || "").trim();
 
-        const durableRecognition =
-          Math.log10(Math.max(votes, 1)) * 21 +
-          Math.max(0, rating - 5) * 4;
+      const year =
+        Number(
+          String(
+            movie?.release_date || ""
+          ).slice(0, 4)
+        ) || 0;
 
-        return {
-          ...movie,
+      if (!title) return false;
 
-          reelwise_score:
-            billing +
-            durableRecognition +
-            (titleSignals.get(key) || 0) +
-            (awards.get(key) || 0)
-        };
-      })
-      .sort((a, b) =>
-        b.reelwise_score - a.reelwise_score
-      )
-  );
+      if (
+        year &&
+        year > currentYear + 2
+      ) {
+        return false;
+      }
+
+      return true;
+    })
+    .map(movie => {
+      const titleKey =
+        normalizeTitle(movie.title);
+
+      const popularity =
+        Number(movie?.popularity || 0);
+
+      const voteCount =
+        Number(movie?.vote_count || 0);
+
+      const voteAverage =
+        Number(movie?.vote_average || 0);
+
+      const year =
+        Number(
+          String(
+            movie?.release_date || ""
+          ).slice(0, 4)
+        ) || 0;
+
+      let score = 0;
+
+      score += Math.min(
+        38,
+        Math.log10(voteCount + 1) * 10
+      );
+
+      score += Math.min(
+        24,
+        popularity / 5
+      );
+
+      if (voteAverage >= 8) {
+        score += 9;
+      } else if (voteAverage >= 7) {
+        score += 6;
+      } else if (voteAverage >= 6) {
+        score += 3;
+      }
+
+      if (year && year <= currentYear) {
+        const age =
+          currentYear - year;
+
+        if (age >= 10) score += 4;
+        if (age >= 20) score += 4;
+        if (age >= 30) score += 3;
+      }
+
+      score +=
+        titleSignals.get(titleKey) || 0;
+
+      score +=
+        academy.get(titleKey) || 0;
+
+      return {
+        ...movie,
+        reelwise_score: score
+      };
+    })
+    .sort(
+      (a, b) =>
+        b.reelwise_score -
+        a.reelwise_score
+    );
 }
 
-/*
-  ============================================================
-  AUTOMATIC FRANCHISE INTELLIGENCE
-  ============================================================
-*/
+function franchiseRoot(title) {
+  let value = normalizeTitle(title);
 
-function franchiseKey(title) {
-  const normalized = normalizeTitle(title);
+  value = value
+    .replace(
+      /\b(part|chapter|episode|volume)\s+[ivx0-9]+\b/g,
+      ""
+    )
+    .replace(
+      /\b[ivx]{1,5}\b$/g,
+      ""
+    )
+    .replace(
+      /\b[0-9]+\b$/g,
+      ""
+    )
+    .trim();
 
-  const families = [
-    ["mission impossible", "Mission: Impossible"],
-    ["top gun", "Top Gun"],
-    ["rocky", "Rocky"],
-    ["creed", "Rocky / Creed"],
-    ["rambo", "Rambo"],
-    ["terminator", "Terminator"],
-    ["indiana jones", "Indiana Jones"],
-    ["die hard", "Die Hard"],
-    ["lethal weapon", "Lethal Weapon"],
-    ["jurassic", "Jurassic"],
-    ["fast and furious", "Fast & Furious"],
-    ["fast furious", "Fast & Furious"],
-    ["star wars", "Star Wars"],
-    ["harry potter", "Harry Potter"],
-    ["lord of the rings", "The Lord of the Rings"],
-    ["pirates of the caribbean", "Pirates of the Caribbean"],
-    ["hunger games", "The Hunger Games"],
-    ["matrix", "The Matrix"],
-    ["bourne", "Bourne"],
-    ["spider man", "Spider-Man"],
-    ["batman", "Batman"],
-    ["avengers", "Avengers"],
-    ["guardians of the galaxy", "Guardians of the Galaxy"],
-    ["toy story", "Toy Story"],
-    ["shrek", "Shrek"]
-  ];
-
-  for (const [needle, label] of families) {
-    if (normalized.includes(needle)) {
-      return { key: needle, label };
-    }
-  }
-
-  return null;
+  return value;
 }
 
-function detectSignatureFranchise(scoredMovies) {
+function detectFranchise(scored) {
   const groups = new Map();
 
-  for (const movie of scoredMovies) {
-    const family = franchiseKey(movie.title);
-    if (!family) continue;
+  for (const movie of scored) {
+    const root =
+      franchiseRoot(movie?.title);
 
-    if (!groups.has(family.key)) {
-      groups.set(family.key, {
-        label: family.label,
-        movies: [],
-        score: 0
-      });
+    if (!root || root.length < 4) {
+      continue;
     }
 
-    const group = groups.get(family.key);
-    group.movies.push(movie);
-    group.score += Number(movie.reelwise_score || 0);
+    if (!groups.has(root)) {
+      groups.set(root, []);
+    }
+
+    groups.get(root).push(movie);
   }
 
-  return Array.from(groups.values())
-    .filter(group => group.movies.length >= 2)
-    .sort((a, b) => b.score - a.score)[0] || null;
+  const candidates =
+    [...groups.entries()]
+      .filter(
+        ([, movies]) =>
+          movies.length >= 2
+      )
+      .map(([root, movies]) => ({
+        root,
+        movies,
+        score: movies.reduce(
+          (sum, movie) =>
+            sum +
+            Number(
+              movie.reelwise_score || 0
+            ),
+          0
+        )
+      }))
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      );
+
+  if (!candidates.length) {
+    return null;
+  }
+
+  const best = candidates[0];
+
+  const representative =
+    [...best.movies].sort(
+      (a, b) =>
+        Number(
+          b.reelwise_score || 0
+        ) -
+        Number(
+          a.reelwise_score || 0
+        )
+    )[0];
+
+  return {
+    root: best.root,
+    label:
+      representative?.title ||
+      best.root,
+    movies: best.movies
+  };
 }
 
-function automaticCareer(person, accolades) {
-  const scored = baseMovieScores(person, accolades);
-  const franchise = detectSignatureFranchise(scored);
+function automaticCareer(
+  person,
+  accolades
+) {
+  const scored =
+    baseMovieScores(person, accolades);
+
+  const franchise =
+    detectFranchise(scored);
 
   const excluded = new Set(
     franchise
-      ? franchise.movies.map(movie => normalizeTitle(movie.title))
+      ? franchise.movies.map(movie =>
+          normalizeTitle(movie.title)
+        )
       : []
   );
 
   const movies = scored
-    .filter(movie => !excluded.has(normalizeTitle(movie.title)))
-    .slice(0, franchise ? 4 : 5);
+    .filter(
+      movie =>
+        !excluded.has(
+          normalizeTitle(movie.title)
+        )
+    )
+    .slice(
+      0,
+      franchise ? 4 : 5
+    );
 
-  return { movies, franchise };
+  return {
+    movies,
+    franchise
+  };
 }
 
 function formatFilmList(movies) {
   const titles = movies
-    .map(movie => String(movie?.title || "").trim())
+    .map(movie =>
+      String(movie?.title || "").trim()
+    )
     .filter(Boolean);
 
   if (!titles.length) return "";
-  if (titles.length === 1) return titles[0];
+
+  if (titles.length === 1) {
+    return titles[0];
+  }
+
   if (titles.length === 2) {
     return `${titles[0]} and ${titles[1]}`;
   }
 
-  return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
+  return `${titles
+    .slice(0, -1)
+    .join(", ")} and ${
+    titles[titles.length - 1]
+  }`;
 }
 
 function automaticCollaboration(person) {
-  const sentences = splitSentences(person?.biography);
+  const sentences =
+    splitSentences(person?.biography);
 
   const candidate = sentences
-    .filter(sentence =>
-      /\bcollaborat|\bworked with|\bfilms? with\b/i.test(sentence) &&
-      !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(sentence) &&
-      sentence.length <= 220 &&
-      (sentence.match(/,/g) || []).length <= 2
+    .filter(
+      sentence =>
+        /\bcollaborat|\bworked with|\bfilms? with\b/i.test(
+          sentence
+        ) &&
+        !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(
+          sentence
+        ) &&
+        sentence.length <= 220 &&
+        (
+          sentence.match(/,/g) || []
+        ).length <= 2
     )
-    .sort((a, b) => a.length - b.length)[0];
+    .sort(
+      (a, b) =>
+        a.length - b.length
+    )[0];
 
   if (!candidate) return "";
 
@@ -584,8 +729,11 @@ function automaticCollaboration(person) {
   );
 
   if (first) {
-    const subject = first[1].trim();
-    const collaborator = first[2].trim();
+    const subject =
+      first[1].trim();
+
+    const collaborator =
+      first[2].trim();
 
     return `${subject}'s celebrated collaboration with ${collaborator} became a defining part of the career.`;
   }
@@ -594,48 +742,86 @@ function automaticCollaboration(person) {
 }
 
 function academyRecognition(accolades) {
-  const wins = Number(accolades?.wins || 0);
-  const nominations = Number(accolades?.nominations || 0);
+  const wins =
+    Number(accolades?.wins || 0);
+
+  const nominations =
+    Number(
+      accolades?.nominations || 0
+    );
 
   if (wins > 0) {
-    return `The work has earned ${wins} Academy Award ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
+    return `The work has earned ${wins} Academy Award ${
+      wins === 1 ? "win" : "wins"
+    } from ${nominations} ${
+      nominations === 1
+        ? "nomination"
+        : "nominations"
+    }.`;
   }
 
   if (nominations > 0) {
-    return `The work has earned ${nominations} Academy Award ${nominations === 1 ? "nomination" : "nominations"}.`;
+    return `The work has earned ${nominations} Academy Award ${
+      nominations === 1
+        ? "nomination"
+        : "nominations"
+    }.`;
   }
 
   return "";
 }
 
 function automaticRoles(person) {
-  const bio = cleanBiography(person?.biography);
+  const bio =
+    cleanBiography(
+      person?.biography
+    );
+
   const department =
-    String(person?.known_for_department || "Acting").toLowerCase();
+    String(
+      person?.known_for_department ||
+      "Acting"
+    ).toLowerCase();
 
   const roles = [];
 
-  if (department === "directing") roles.push("filmmaker");
-  else if (department === "writing") roles.push("screenwriter");
-  else roles.push("actor");
+  if (department === "directing") {
+    roles.push("filmmaker");
+  } else if (
+    department === "writing"
+  ) {
+    roles.push("screenwriter");
+  } else {
+    roles.push("actor");
+  }
 
   if (
-    /\bscreenwriter\b|\bwrote\b|\bco-wrote\b/i.test(bio) &&
-    !roles.includes("screenwriter")
+    /\bscreenwriter\b|\bwrote\b|\bco-wrote\b/i.test(
+      bio
+    ) &&
+    !roles.includes(
+      "screenwriter"
+    )
   ) {
     roles.push("screenwriter");
   }
 
   if (
-    /\bproducer\b|\bproduced\b/i.test(bio) &&
+    /\bproducer\b|\bproduced\b/i.test(
+      bio
+    ) &&
     roles.length < 3
   ) {
     roles.push("producer");
   }
 
   if (
-    /\bdirector\b|\bdirected\b/i.test(bio) &&
-    !roles.includes("filmmaker") &&
+    /\bdirector\b|\bdirected\b/i.test(
+      bio
+    ) &&
+    !roles.includes(
+      "filmmaker"
+    ) &&
     roles.length < 3
   ) {
     roles.push("filmmaker");
@@ -645,42 +831,63 @@ function automaticRoles(person) {
 }
 
 function rolePhrase(roles) {
-  if (!roles.length) return "movie star";
-  if (roles.length === 1) return roles[0];
+  if (!roles.length) {
+    return "movie star";
+  }
+
+  if (roles.length === 1) {
+    return roles[0];
+  }
+
   if (roles.length === 2) {
     return `${roles[0]} and ${roles[1]}`;
   }
 
-  return `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}`;
+  return `${roles
+    .slice(0, -1)
+    .join(", ")} and ${
+    roles[roles.length - 1]
+  }`;
 }
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.2.3
+  REELWISE BIO ENGINE 6.2.4
   ============================================================
 
-  Hybrid architecture + multi-franchise Career Intelligence:
+  Hybrid architecture + multi-franchise Career Intelligence.
 
-  Films already explained in a franchise/character sentence are
-  removed from the follow-up defining-film list.
+  Films already explained in a franchise/character
+  sentence are removed from the follow-up
+  defining-film list.
 
   A) CAREER INTELLIGENCE
-     Editorial facts for major stars where signature-career
-     knowledge matters.
+     Editorial facts for major stars where
+     signature-career knowledge matters.
 
   B) AUTOMATIC ENGINE
      Scalable fallback for every person in TMDB.
 
-  The intelligence layer supplies facts, NOT finished prose.
-  The same composer writes the final Reelwise biography.
+  The intelligence layer supplies facts,
+  NOT finished biographies.
 */
 
-function buildReelwiseBio(person, accolades) {
-  const name = String(person?.name || "").trim();
+function buildReelwiseBio(
+  person,
+  accolades
+) {
+  const name =
+    String(
+      person?.name || ""
+    ).trim();
+
   if (!name) return "";
 
-  const intelligence = getCareerIntelligence(person);
-  const years = getCareerYears(person);
+  const intelligence =
+    getCareerIntelligence(person);
+
+  const years =
+    getCareerYears(person);
 
   const roles =
     intelligence?.roles?.length
@@ -688,88 +895,155 @@ function buildReelwiseBio(person, accolades) {
       : automaticRoles(person);
 
   let identity =
-    `${name} is an acclaimed ${rolePhrase(roles)}`;
+    `${name} is an acclaimed ${rolePhrase(
+      roles
+    )}`;
 
-  if (years && years.last > years.first) {
-    const decades = Math.max(
-      1,
-      Math.floor((years.last - years.first) / 10)
-    );
+  if (
+    years &&
+    years.last > years.first
+  ) {
+    const decades =
+      Math.max(
+        1,
+        Math.floor(
+          (
+            years.last -
+            years.first
+          ) / 10
+        )
+      );
 
     identity +=
-      ` whose film career spans more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
+      ` whose film career spans more than ${decades} ${
+        decades === 1
+          ? "decade"
+          : "decades"
+      }.`;
   } else {
-    identity += " with an extensive career in movies.";
+    identity +=
+      " with an extensive career in movies.";
   }
 
   const parts = [identity];
 
   /*
-    Career Intelligence path
+    CAREER INTELLIGENCE PATH
   */
+
   if (intelligence) {
-    if (intelligence.collaborationText) {
-      parts.push(intelligence.collaborationText);
+    if (
+      intelligence.collaborationText
+    ) {
+      parts.push(
+        intelligence.collaborationText
+      );
     }
 
-    /*
-      6.2 supports more than one signature franchise/character.
-      Each narrative item declares the films it already represents,
-      and those titles are automatically suppressed below.
-    */
     const franchiseTexts =
-      Array.isArray(intelligence.franchiseTexts)
+      Array.isArray(
+        intelligence.franchiseTexts
+      )
         ? intelligence.franchiseTexts
         : intelligence.franchiseText
-          ? [{
-              text: intelligence.franchiseText,
-              films: intelligence.narrativeFilms || []
-            }]
+          ? [
+              {
+                text:
+                  intelligence.franchiseText,
+                films:
+                  intelligence.narrativeFilms ||
+                  []
+              }
+            ]
           : [];
 
-    const narrativeTitles = new Set(
-      (intelligence.narrativeFilms || [])
-        .map(title => normalizeTitle(title))
-        .filter(Boolean)
-    );
+    const narrativeTitles =
+      new Set(
+        (
+          intelligence.narrativeFilms ||
+          []
+        )
+          .map(title =>
+            normalizeTitle(title)
+          )
+          .filter(Boolean)
+      );
 
-    for (const item of franchiseTexts) {
+    for (
+      const item of franchiseTexts
+    ) {
       if (item?.text) {
-        parts.push(String(item.text).trim());
+        parts.push(
+          String(
+            item.text
+          ).trim()
+        );
       }
 
-      for (const title of (item?.films || [])) {
-        const normalized = normalizeTitle(title);
-        if (normalized) narrativeTitles.add(normalized);
+      for (
+        const title of
+        item?.films || []
+      ) {
+        const normalized =
+          normalizeTitle(title);
+
+        if (normalized) {
+          narrativeTitles.add(
+            normalized
+          );
+        }
       }
     }
 
     const intelligentFilms =
-      validatedIntelligenceFilms(person, intelligence)
-        .filter(movie =>
-          !narrativeTitles.has(normalizeTitle(movie?.title))
-        );
+      validatedIntelligenceFilms(
+        person,
+        intelligence
+      ).filter(
+        movie =>
+          !narrativeTitles.has(
+            normalizeTitle(
+              movie?.title
+            )
+          )
+      );
 
-    const films = formatFilmList(intelligentFilms);
+    const films =
+      formatFilmList(
+        intelligentFilms
+      );
 
     if (films) {
       parts.push(
-        `${franchiseTexts.length ? "Other defining films" : "Defining films"} include ${films}.`
+        `${
+          franchiseTexts.length
+            ? "Other defining films"
+            : "Defining films"
+        } include ${films}.`
       );
     }
   }
 
   /*
-    Fully automatic path
+    FULLY AUTOMATIC PATH
   */
+
   else {
-    const career = automaticCareer(person, accolades);
+    const career =
+      automaticCareer(
+        person,
+        accolades
+      );
 
     const collaboration =
-      automaticCollaboration(person);
+      automaticCollaboration(
+        person
+      );
 
     if (collaboration) {
-      parts.push(collaboration);
+      parts.push(
+        collaboration
+      );
     }
 
     if (career.franchise) {
@@ -778,98 +1052,176 @@ function buildReelwiseBio(person, accolades) {
       );
     }
 
-    const films = formatFilmList(career.movies);
+    const films =
+      formatFilmList(
+        career.movies
+      );
 
     if (films) {
-      parts.push(`Defining films include ${films}.`);
+      parts.push(
+        `Defining films include ${films}.`
+      );
     }
   }
 
   /*
-    Awards remain intentionally brief because the dedicated
-    Awards & Accolades screen carries the full record.
+    Awards remain intentionally brief
+    because the dedicated Awards &
+    Accolades screen carries the full record.
   */
-  const recognition = academyRecognition(accolades);
+
+  const recognition =
+    academyRecognition(
+      accolades
+    );
 
   if (recognition) {
     parts.push(recognition);
   }
 
   let bio =
-    parts.join(" ").replace(/\s+/g, " ").trim();
+    parts
+      .join(" ")
+      .replace(/\s+/g, " ")
+      .trim();
 
   /*
-    6.2.2 SMART LENGTH HANDLING
+    SMART LENGTH HANDLING
 
-    Never sacrifice a meaningful career section merely to hit
-    an arbitrary character ceiling.
+    Never sacrifice meaningful career
+    information just to hit an arbitrary
+    character ceiling.
 
     Priority:
       1. career identity
-      2. signature characters / franchises / collaborations
-      3. defining films
-      4. brief Academy Awards summary
+      2. signature characters/franchises
+      3. collaborations
+      4. defining films
+      5. brief Academy Awards summary
 
-    Awards are the only section removed for length because the
-    dedicated Awards & Accolades page already carries that detail.
+    Awards are the first section removed
+    for length because the dedicated
+    Awards & Accolades page already
+    contains the complete record.
   */
-  if (bio.length > 650 && recognition) {
+
+  if (
+    bio.length > 650 &&
+    recognition
+  ) {
     bio = parts
-      .filter(part => part !== recognition)
+      .filter(
+        part =>
+          part !== recognition
+      )
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
   }
 
   /*
-    Career Intelligence bios may legitimately run longer when
-    multiple franchises need context. Preserve complete sentences
-    rather than chopping off the final defining-film section.
-  */
-  const hardCeiling = intelligence ? 900 : 720;
+    Career Intelligence biographies can
+    legitimately be longer when multiple
+    franchises need context.
 
-  if (bio.length > hardCeiling) {
+    Preserve complete career information
+    rather than chopping off the final
+    defining-film section.
+  */
+
+  const hardCeiling =
+    intelligence
+      ? 900
+      : 720;
+
+  if (
+    bio.length > hardCeiling
+  ) {
     bio =
-      bio.slice(0, hardCeiling - 3)
-        .replace(/\s+\S*$/, "") +
+      bio
+        .slice(
+          0,
+          hardCeiling - 3
+        )
+        .replace(
+          /\s+\S*$/,
+          ""
+        ) +
       "...";
   }
 
   return bio;
 }
 
-export default async function handler(req, res) {
+export default async function handler(
+  req,
+  res
+) {
   const id = req.query.id;
 
   if (!id) {
-    return res.status(400).json({ error: "Missing person id" });
+    return res
+      .status(400)
+      .json({
+        error:
+          "Missing person id"
+      });
   }
 
-  const mode = String(req.query?.mode || "person").toLowerCase();
+  const mode =
+    String(
+      req.query?.mode ||
+      "person"
+    ).toLowerCase();
+
+  /*
+    ==========================================================
+    AWARDS / ACCOLADES MODE
+    ==========================================================
+  */
 
   if (mode === "accolades") {
     try {
-      const accolades = await getAccolades(id);
+      const accolades =
+        await getAccolades(id);
 
-      res.setHeader("Cache-Control", "no-store, max-age=0");
+      res.setHeader(
+        "Cache-Control",
+        "no-store, max-age=0"
+      );
 
-      return res.status(200).json(accolades);
+      return res
+        .status(200)
+        .json(accolades);
     } catch (error) {
-      console.error("Reelwise accolades lookup error:", error);
+      console.error(
+        "Reelwise accolades lookup error:",
+        error
+      );
 
-      return res.status(200).json({
-        found: false,
-        tmdb_person_id: Number(id),
-        nominations: 0,
-        wins: 0,
-        history: [],
-        unavailable: true
-      });
+      return res
+        .status(200)
+        .json({
+          found: false,
+          tmdb_person_id:
+            Number(id),
+          nominations: 0,
+          wins: 0,
+          history: [],
+          unavailable: true
+        });
     }
   }
 
+  /*
+    ==========================================================
+    NORMAL PERSON MODE
+    ==========================================================
+  */
+
   try {
-    const data = await tmdbPerson(id);
+    const data =
+      await tmdbPerson(id);
 
     let accolades = {
       found: false,
@@ -879,25 +1231,106 @@ export default async function handler(req, res) {
     };
 
     try {
-      accolades = await getAccolades(id);
+      accolades =
+        await getAccolades(id);
     } catch (awardError) {
-      console.warn("Reelwise bio awards unavailable:", awardError);
+      console.warn(
+        "Reelwise bio awards unavailable:",
+        awardError
+      );
     }
 
-    data.reelwise_bio = buildReelwiseBio(data, accolades);
+    /*
+      REELWISE BIO ENGINE 6.2.4
+
+      The star page expects the exact
+      property:
+
+          reelwise_bio
+
+      Bio generation is isolated from
+      the profile request so a bio-engine
+      problem can never force the page
+      back to the raw TMDB biography.
+    */
+
+    let reelwiseBio = "";
+
+    try {
+      reelwiseBio =
+        buildReelwiseBio(
+          data,
+          accolades
+        );
+    } catch (bioError) {
+      console.error(
+        "Reelwise bio generation error:",
+        bioError
+      );
+
+      const rawBio =
+        String(
+          data?.biography || ""
+        )
+          .replace(/\s+/g, " ")
+          .trim();
+
+      const fallbackSentences =
+        rawBio.match(
+          /[^.!?]+[.!?]+(?:["'’”)]*)/g
+        ) || [];
+
+      reelwiseBio =
+        fallbackSentences
+          .slice(0, 3)
+          .join(" ")
+          .trim() ||
+        rawBio
+          .slice(0, 650)
+          .trim() ||
+        "Biography information is not available.";
+    }
+
+    data.reelwise_bio =
+      String(
+        reelwiseBio || ""
+      ).trim();
+
     data.reelwise_academy_awards = {
-      wins: Number(accolades?.wins || 0),
-      nominations: Number(accolades?.nominations || 0)
+      wins:
+        Number(
+          accolades?.wins || 0
+        ),
+      nominations:
+        Number(
+          accolades?.nominations || 0
+        )
     };
 
-    res.setHeader("Cache-Control", "no-store, max-age=0");
+    res.setHeader(
+      "Cache-Control",
+      "no-store, max-age=0"
+    );
 
-    return res.status(200).json(data);
+    return res
+      .status(200)
+      .json({
+        ...data,
+        reelwise_bio:
+          data.reelwise_bio
+      });
   } catch (error) {
-    console.error("Reelwise person API error:", error);
+    console.error(
+      "Reelwise person API error:",
+      error
+    );
 
-    return res.status(500).json({
-      error: error.message || "Person lookup failed"
-    });
+    return res
+      .status(500)
+      .json({
+        error:
+          error.message ||
+          "Person lookup failed"
+      });
   }
 }
