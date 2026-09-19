@@ -8,30 +8,65 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE TRIVIA ENGINE
   ============================================================
 
-  1. Reelwise curated Trivia Vault is always checked FIRST.
-  2. Wikipedia is used only when a movie has not yet been
-     added to the Reelwise Trivia Vault.
-  3. Plot summaries and weak/general sentences are filtered.
+  1. Identify the exact movie through TMDB.
+  2. Check the Reelwise curated Trivia Vault FIRST.
+  3. Curated Reelwise trivia always wins.
+  4. If the movie is not curated, locate its Wikipedia page.
+  5. Prefer behind-the-scenes sections such as:
+       - Development
+       - Writing
+       - Casting
+       - Filming
+       - Production
+       - Effects
+       - Design
+       - Music
+       - Post-production
+  6. Extract interesting movie-making facts.
+  7. Reject plot, box office, reviews and release information.
+  8. Return up to 6 useful trivia items.
+  ============================================================
 */
 
 
-function normalizeTitle(title = "") {
-  return title
+/* ============================================================
+   TITLE HELPERS
+   ============================================================ */
+
+function normalizeTitle(value = "") {
+  return String(value || "")
     .toLowerCase()
+    .trim()
     .replace(/[’‘]/g, "'")
     .replace(/[“”]/g, '"')
-    .replace(/\s+/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+
+function looseTitle(value = "") {
+  return normalizeTitle(value)
+    .replace(/\(\d{4}\s+film\)/g, "")
+    .replace(/\(film\)/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
 
+/* ============================================================
+   TMDB MOVIE LOOKUP
+   ============================================================ */
+
 async function getMovie(id) {
+
   if (!TOKEN) {
-    throw new Error("TMDB_READ_ACCESS_TOKEN is missing");
+    throw new Error(
+      "TMDB_READ_ACCESS_TOKEN is missing"
+    );
   }
 
+
   const response = await fetch(
-    `https://api.themoviedb.org/3/movie/${id}?language=en-US`,
+    `https://api.themoviedb.org/3/movie/${encodeURIComponent(id)}?language=en-US`,
     {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
@@ -40,486 +75,1603 @@ async function getMovie(id) {
     }
   );
 
+
+  const data = await response.json();
+
+
   if (!response.ok) {
-    throw new Error(`TMDB request failed: ${response.status}`);
+    throw new Error(
+      data?.status_message ||
+      `TMDB request failed: ${response.status}`
+    );
   }
 
-  return response.json();
+
+  return data;
 }
 
 
-async function getWikipediaExtract(title) {
+/* ============================================================
+   WIKIPEDIA REQUEST
+   ============================================================ */
+
+async function wikipediaRequest(params) {
+
   try {
-    const url =
-      "https://en.wikipedia.org/w/api.php" +
-      `?action=query&prop=extracts&explaintext=1&redirects=1&format=json&origin=*` +
-      `&titles=${encodeURIComponent(title)}`;
 
-    const response = await fetch(url);
+    const query = new URLSearchParams({
+      format: "json",
+      formatversion: "2",
+      origin: "*",
+      ...params
+    });
 
-    if (!response.ok) return "";
 
-    const data = await response.json();
-    const pages = data?.query?.pages || {};
+    const response = await fetch(
+      `https://en.wikipedia.org/w/api.php?${query.toString()}`,
+      {
+        headers: {
+          "User-Agent":
+            "Reelwise/1.0 movie trivia discovery"
+        }
+      }
+    );
 
-    const page = Object.values(pages)[0];
 
-    if (!page || page.missing !== undefined) {
-      return "";
+    if (!response.ok) {
+      return null;
     }
 
-    return page.extract || "";
-  } catch {
+
+    return await response.json();
+
+  } catch (error) {
+
+    console.error(
+      "Wikipedia request failed:",
+      error
+    );
+
+    return null;
+  }
+}
+
+
+/* ============================================================
+   GET WIKIPEDIA PAGE
+   ============================================================ */
+
+async function getWikipediaPage(title) {
+
+  const data =
+    await wikipediaRequest({
+      action: "parse",
+      page: title,
+      prop: "sections|displaytitle",
+      redirects: "1"
+    });
+
+
+  if (
+    !data ||
+    data.error ||
+    !data.parse
+  ) {
+
+    return null;
+  }
+
+
+  return {
+    title:
+      data.parse.title ||
+      title,
+
+    sections:
+      Array.isArray(data.parse.sections)
+        ? data.parse.sections
+        : []
+  };
+}
+
+
+/* ============================================================
+   GET WIKIPEDIA SECTION TEXT
+   ============================================================ */
+
+async function getWikipediaSection(
+  title,
+  sectionIndex
+) {
+
+  const data =
+    await wikipediaRequest({
+      action: "parse",
+      page: title,
+      prop: "wikitext",
+      section: String(sectionIndex),
+      redirects: "1"
+    });
+
+
+  if (
+    !data ||
+    data.error ||
+    !data.parse
+  ) {
     return "";
   }
-}
 
 
-async function searchWikipediaPages(query, limit = 6) {
-  try {
-    const url =
-      "https://en.wikipedia.org/w/api.php" +
-      `?action=query&list=search&format=json&origin=*` +
-      `&srsearch=${encodeURIComponent(query)}` +
-      `&srlimit=${limit}`;
+  const wikitext =
+    data.parse.wikitext;
 
-    const response = await fetch(url);
 
-    if (!response.ok) return [];
-
-    const data = await response.json();
-
-    return data?.query?.search || [];
-  } catch {
-    return [];
+  if (typeof wikitext === "string") {
+    return wikitext;
   }
+
+
+  if (
+    wikitext &&
+    typeof wikitext["*"] === "string"
+  ) {
+    return wikitext["*"];
+  }
+
+
+  return "";
 }
 
 
-function isUsefulFallbackPage(pageTitle = "", movieTitle = "") {
-  const page = normalizeTitle(pageTitle);
-  const movie = normalizeTitle(movieTitle);
+/* ============================================================
+   GET FULL ARTICLE WIKITEXT
+   ============================================================ */
 
-  if (!page || !movie) return false;
+async function getWikipediaWikitext(title) {
 
-  const rejected = [
-    "soundtrack",
-    "discography",
-    "video game",
-    "novel",
-    "album",
-    "song",
-    "television series",
-    "musical",
-    "franchise",
-    "characters",
-    "list of",
-    "awards and nominations"
-  ];
+  const data =
+    await wikipediaRequest({
+      action: "parse",
+      page: title,
+      prop: "wikitext",
+      redirects: "1"
+    });
 
-  if (rejected.some(term => page.includes(term))) {
+
+  if (
+    !data ||
+    data.error ||
+    !data.parse
+  ) {
+    return "";
+  }
+
+
+  const wikitext =
+    data.parse.wikitext;
+
+
+  if (typeof wikitext === "string") {
+    return wikitext;
+  }
+
+
+  if (
+    wikitext &&
+    typeof wikitext["*"] === "string"
+  ) {
+    return wikitext["*"];
+  }
+
+
+  return "";
+}
+
+
+/* ============================================================
+   SEARCH WIKIPEDIA
+   ============================================================ */
+
+async function searchWikipedia(
+  title,
+  year
+) {
+
+  const searches = [
+
+    year
+      ? `"${title}" ${year} film`
+      : "",
+
+    `"${title}" film`,
+
+    title
+
+  ].filter(Boolean);
+
+
+  const found = [];
+  const seen = new Set();
+
+
+  for (const searchText of searches) {
+
+    const data =
+      await wikipediaRequest({
+        action: "query",
+        list: "search",
+        srnamespace: "0",
+        srlimit: "8",
+        srsearch: searchText
+      });
+
+
+    const results =
+      data?.query?.search || [];
+
+
+    for (const result of results) {
+
+      const candidate =
+        String(
+          result?.title || ""
+        ).trim();
+
+
+      const key =
+        candidate.toLowerCase();
+
+
+      if (
+        !candidate ||
+        seen.has(key)
+      ) {
+        continue;
+      }
+
+
+      seen.add(key);
+
+      found.push(candidate);
+    }
+
+
+    if (found.length >= 15) {
+      break;
+    }
+  }
+
+
+  return found;
+}
+
+
+/* ============================================================
+   VERIFY MOVIE PAGE
+   ============================================================ */
+
+function likelyMoviePage(
+  candidate,
+  title,
+  year
+) {
+
+  const wanted =
+    looseTitle(title);
+
+  const got =
+    looseTitle(candidate);
+
+
+  if (!wanted || !got) {
     return false;
   }
 
-  return true;
-}
 
-
-function splitSentences(text = "") {
-  return text
-    .replace(/\n+/g, " ")
-    .replace(/\s+/g, " ")
-    .split(/(?<=[.!?])\s+/)
-    .map(sentence => sentence.trim())
-    .filter(Boolean);
-}
-
-
-function triviaScore(sentence = "") {
-  const lower = sentence.toLowerCase();
-
-  let score = 0;
-
-  const strongTerms = [
-    "filmed",
-    "filming",
-    "production",
-    "cast",
-    "casting",
-    "actor",
-    "actress",
-    "director",
-    "directed",
-    "screenplay",
-    "script",
-    "improvised",
-    "improvisation",
-    "originally",
-    "replaced",
-    "audition",
-    "makeup",
-    "prosthetic",
-    "costume",
-    "stunt",
-    "effects",
-    "visual effects",
-    "special effects",
-    "practical",
-    "location",
-    "set",
-    "camera",
-    "photography",
-    "training",
-    "trained",
-    "injury",
-    "injured",
-    "budget",
-    "crew",
-    "scene was shot",
-    "shot in",
-    "role was offered",
-    "considered for the role",
-    "deleted",
-    "changed during",
-    "designed",
-    "constructed"
-  ];
-
-  const weakTerms = [
-    "plot",
-    "story follows",
-    "the film follows",
-    "the movie follows",
-    "character must",
-    "character is",
-    "takes place",
-    "released",
-    "grossed",
-    "box office",
-    "received positive",
-    "critical acclaim",
-    "review",
-    "rating",
-    "sequel was released",
-    "became a franchise"
-  ];
-
-  strongTerms.forEach(term => {
-    if (lower.includes(term)) score += 3;
-  });
-
-  weakTerms.forEach(term => {
-    if (lower.includes(term)) score -= 4;
-  });
-
-  if (sentence.length >= 70 && sentence.length <= 360) {
-    score += 2;
+  if (got === wanted) {
+    return true;
   }
 
-  if (sentence.length < 45) {
-    score -= 3;
-  }
-
-  if (sentence.length > 500) {
-    score -= 3;
-  }
-
-  return score;
-}
-
-
-function looksLikeBrokenFragment(sentence = "") {
-  const text = sentence.trim();
-
-  if (!text) return true;
-
-  if (text.length < 45) return true;
-
-  if (/^[a-z]/.test(text)) return true;
 
   if (
-    text.includes("==") ||
-    text.includes("{{") ||
-    text.includes("}}") ||
-    text.includes("[[") ||
-    text.includes("]]")
+    got.startsWith(`${wanted} `) &&
+    got.length <= wanted.length + 24
   ) {
     return true;
   }
+
+
+  if (
+    year &&
+    normalizeTitle(candidate)
+      .includes(String(year)) &&
+    got.includes(wanted)
+  ) {
+    return true;
+  }
+
 
   return false;
 }
 
 
-function isWeakTriviaContent(sentence = "") {
-  const lower = sentence.toLowerCase();
+/* ============================================================
+   FIND EXACT WIKIPEDIA MOVIE PAGE
+   ============================================================ */
+
+async function findWikipediaMoviePage(
+  title,
+  year
+) {
+
+  const possibleTitles = [
+
+    year
+      ? `${title} (${year} film)`
+      : "",
+
+    `${title} (film)`,
+
+    title
+
+  ].filter(Boolean);
+
+
+  const tried = new Set();
+
+
+  /*
+    Try obvious page names first.
+  */
+
+  for (const pageTitle of possibleTitles) {
+
+    const key =
+      normalizeTitle(pageTitle);
+
+
+    if (tried.has(key)) {
+      continue;
+    }
+
+
+    tried.add(key);
+
+
+    const page =
+      await getWikipediaPage(
+        pageTitle
+      );
+
+
+    if (page) {
+      return page;
+    }
+  }
+
+
+  /*
+    Search Wikipedia if obvious page names fail.
+  */
+
+  const candidates =
+    await searchWikipedia(
+      title,
+      year
+    );
+
+
+  for (const candidate of candidates) {
+
+    const key =
+      normalizeTitle(candidate);
+
+
+    if (tried.has(key)) {
+      continue;
+    }
+
+
+    tried.add(key);
+
+
+    if (
+      !likelyMoviePage(
+        candidate,
+        title,
+        year
+      )
+    ) {
+      continue;
+    }
+
+
+    const page =
+      await getWikipediaPage(
+        candidate
+      );
+
+
+    if (page) {
+      return page;
+    }
+  }
+
+
+  return null;
+}
+
+
+/* ============================================================
+   SECTION PRIORITY
+   ============================================================ */
+
+function sectionScore(sectionName = "") {
+
+  const name =
+    normalizeTitle(sectionName);
+
+
+  let score = 0;
+
+
+  const excellent = [
+    "casting",
+    "filming",
+    "development",
+    "production",
+    "writing"
+  ];
+
+
+  const strong = [
+    "pre-production",
+    "post-production",
+    "visual effects",
+    "special effects",
+    "practical effects",
+    "design",
+    "costume",
+    "makeup",
+    "stunts",
+    "photography",
+    "music",
+    "score"
+  ];
+
 
   const rejected = [
+    "plot",
+    "release",
+    "reception",
+    "box office",
+    "critical response",
+    "accolades",
+    "awards",
+    "home media",
+    "marketing",
+    "legacy",
+    "sequel",
+    "soundtrack",
+    "references",
+    "external links",
+    "see also"
+  ];
+
+
+  if (
+    rejected.some(term =>
+      name.includes(term)
+    )
+  ) {
+    return -100;
+  }
+
+
+  if (
+    excellent.some(term =>
+      name.includes(term)
+    )
+  ) {
+    score += 10;
+  }
+
+
+  if (
+    strong.some(term =>
+      name.includes(term)
+    )
+  ) {
+    score += 7;
+  }
+
+
+  return score;
+}
+
+
+/* ============================================================
+   SELECT USEFUL ARTICLE SECTIONS
+   ============================================================ */
+
+function selectTriviaSections(
+  sections = []
+) {
+
+  return sections
+    .map(section => ({
+      index:
+        section.index,
+
+      name:
+        section.line ||
+        "",
+
+      score:
+        sectionScore(
+          section.line || ""
+        )
+    }))
+    .filter(
+      section =>
+        section.index !== undefined &&
+        section.score > 0
+    )
+    .sort(
+      (a, b) =>
+        b.score - a.score
+    )
+    .slice(0, 8);
+}
+
+
+/* ============================================================
+   WIKITEXT CLEANING
+   ============================================================ */
+
+function cleanWikiText(value = "") {
+
+  let text =
+    String(value || "");
+
+
+  /*
+    Remove comments.
+  */
+
+  text =
+    text.replace(
+      /<!--[\s\S]*?-->/g,
+      " "
+    );
+
+
+  /*
+    Remove references.
+  */
+
+  text =
+    text.replace(
+      /<ref[^>]*>[\s\S]*?<\/ref>/gi,
+      " "
+    );
+
+
+  text =
+    text.replace(
+      /<ref[^/>]*\/>/gi,
+      " "
+    );
+
+
+  /*
+    Remove tables.
+  */
+
+  text =
+    text.replace(
+      /\{\|[\s\S]*?\|\}/g,
+      " "
+    );
+
+
+  /*
+    Remove file/image blocks.
+  */
+
+  text =
+    text.replace(
+      /\[\[(?:File|Image):[^\]]+\]\]/gi,
+      " "
+    );
+
+
+  /*
+    Convert Wiki links to readable text.
+  */
+
+  text =
+    text.replace(
+      /\[\[([^\]|]+)\|([^\]]+)\]\]/g,
+      "$2"
+    );
+
+
+  text =
+    text.replace(
+      /\[\[([^\]]+)\]\]/g,
+      "$1"
+    );
+
+
+  /*
+    External links: keep label, remove URL.
+  */
+
+  text =
+    text.replace(
+      /\[https?:\/\/[^\s\]]+\s+([^\]]+)\]/g,
+      "$1"
+    );
+
+
+  text =
+    text.replace(
+      /\[https?:\/\/[^\]]+\]/g,
+      " "
+    );
+
+
+  /*
+    Remove simple templates.
+  */
+
+  for (let i = 0; i < 5; i++) {
+
+    text =
+      text.replace(
+        /\{\{[^{}]*\}\}/g,
+        " "
+      );
+  }
+
+
+  /*
+    Remove headings.
+  */
+
+  text =
+    text.replace(
+      /^=+.*?=+$/gm,
+      " "
+    );
+
+
+  /*
+    Remove HTML tags.
+  */
+
+  text =
+    text.replace(
+      /<[^>]+>/g,
+      " "
+    );
+
+
+  /*
+    Remove formatting markup.
+  */
+
+  text =
+    text
+      .replace(/'''/g, "")
+      .replace(/''/g, "");
+
+
+  /*
+    Remove list markers.
+  */
+
+  text =
+    text.replace(
+      /^[*#:;]+\s*/gm,
+      ""
+    );
+
+
+  /*
+    Decode common HTML entities.
+  */
+
+  text =
+    text
+      .replace(/&quot;/gi, '"')
+      .replace(/&#39;/gi, "'")
+      .replace(/&apos;/gi, "'")
+      .replace(/&amp;/gi, "&")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&ndash;/gi, "–")
+      .replace(/&mdash;/gi, "—");
+
+
+  return text
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+/* ============================================================
+   SENTENCE SPLITTING
+   ============================================================ */
+
+function splitSentences(text = "") {
+
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .split(
+      /(?<=[.!?])\s+(?=[A-Z0-9"'(])/
+    )
+    .map(
+      sentence =>
+        sentence.trim()
+    )
+    .filter(Boolean);
+}
+
+
+/* ============================================================
+   BROKEN CONTENT FILTER
+   ============================================================ */
+
+function looksBroken(sentence = "") {
+
+  const text =
+    String(sentence || "")
+      .trim();
+
+
+  if (!text) {
+    return true;
+  }
+
+
+  if (text.length < 45) {
+    return true;
+  }
+
+
+  if (text.length > 500) {
+    return true;
+  }
+
+
+  if (/^[a-z]/.test(text)) {
+    return true;
+  }
+
+
+  const badMarkup = [
+    "{{",
+    "}}",
+    "[[",
+    "]]",
+    "|-",
+    "thumb|",
+    "px|",
+    "category:"
+  ];
+
+
+  if (
+    badMarkup.some(term =>
+      text.toLowerCase()
+        .includes(term)
+    )
+  ) {
+    return true;
+  }
+
+
+  return false;
+}
+
+
+/* ============================================================
+   REJECT NON-TRIVIA CONTENT
+   ============================================================ */
+
+function weakTrivia(sentence = "") {
+
+  const lower =
+    sentence.toLowerCase();
+
+
+  const rejected = [
+
     "the plot",
-    "the story",
+    "the story follows",
     "the film follows",
     "the movie follows",
     "the film tells",
     "the movie tells",
+
     "grossed",
     "box office",
-    "critical response",
+    "opening weekend",
+    "worldwide total",
+
     "critical reception",
+    "critical response",
     "review aggregator",
     "rotten tomatoes",
     "metacritic",
-    "opening weekend",
+    "cinemascore",
+
     "was released on",
+    "released theatrically",
+    "premiered at",
     "premiered on",
-    "home media",
+
     "dvd",
-    "blu-ray"
+    "blu-ray",
+    "home media",
+
+    "awards and nominations",
+    "was nominated for",
+    "won the award",
+
+    "sequel was released",
+    "became a franchise"
+
   ];
 
-  return rejected.some(term => lower.includes(term));
-}
 
-
-function triviaWords(text = "") {
-  return new Set(
-    normalizeTitle(text)
-      .replace(/[^a-z0-9\s]/g, " ")
-      .split(/\s+/)
-      .filter(word => word.length > 3)
+  return rejected.some(
+    term =>
+      lower.includes(term)
   );
 }
 
 
-function triviaSimilarity(a = "", b = "") {
-  const wordsA = triviaWords(a);
-  const wordsB = triviaWords(b);
+/* ============================================================
+   TRIVIA QUALITY SCORE
+   ============================================================ */
 
-  if (!wordsA.size || !wordsB.size) return 0;
+function triviaScore(sentence = "") {
 
-  let overlap = 0;
+  const lower =
+    sentence.toLowerCase();
 
-  for (const word of wordsA) {
-    if (wordsB.has(word)) overlap++;
+
+  let score = 0;
+
+
+  /*
+    Casting stories.
+  */
+
+  const castingTerms = [
+
+    "cast",
+    "casting",
+    "audition",
+    "auditioned",
+    "role",
+    "offered the role",
+    "considered for",
+    "turned down",
+    "replaced",
+    "actor",
+    "actress"
+
+  ];
+
+
+  /*
+    Filming stories.
+  */
+
+  const filmingTerms = [
+
+    "filmed",
+    "filming",
+    "shot",
+    "location",
+    "set",
+    "principal photography",
+    "camera",
+    "cinematography"
+
+  ];
+
+
+  /*
+    Behind-the-scenes production.
+  */
+
+  const productionTerms = [
+
+    "production",
+    "development",
+    "screenplay",
+    "script",
+    "writer",
+    "director",
+    "originally",
+    "improvised",
+    "improvisation",
+    "rewrote",
+    "rewrite",
+    "changed",
+    "idea",
+    "inspired"
+
+  ];
+
+
+  /*
+    Physical filmmaking.
+  */
+
+  const craftTerms = [
+
+    "stunt",
+    "effects",
+    "visual effects",
+    "special effects",
+    "practical effects",
+    "makeup",
+    "prosthetic",
+    "costume",
+    "designed",
+    "constructed",
+    "built",
+    "training",
+    "trained",
+    "injury",
+    "injured"
+
+  ];
+
+
+  castingTerms.forEach(term => {
+    if (lower.includes(term)) {
+      score += 3;
+    }
+  });
+
+
+  filmingTerms.forEach(term => {
+    if (lower.includes(term)) {
+      score += 3;
+    }
+  });
+
+
+  productionTerms.forEach(term => {
+    if (lower.includes(term)) {
+      score += 3;
+    }
+  });
+
+
+  craftTerms.forEach(term => {
+    if (lower.includes(term)) {
+      score += 3;
+    }
+  });
+
+
+  /*
+    Particularly Reelwise-style phrases.
+  */
+
+  const bonusTerms = [
+
+    "was originally",
+    "originally intended",
+    "was considered",
+    "was offered",
+    "was chosen",
+    "was cast",
+    "was replaced",
+    "improvised",
+    "shot on location",
+    "filmed on location",
+    "performed",
+    "trained for",
+    "built for the film",
+    "created for the film",
+    "designed for the film",
+    "during filming",
+    "during production"
+
+  ];
+
+
+  bonusTerms.forEach(term => {
+    if (lower.includes(term)) {
+      score += 4;
+    }
+  });
+
+
+  /*
+    Favor readable fact length.
+  */
+
+  if (
+    sentence.length >= 70 &&
+    sentence.length <= 330
+  ) {
+    score += 3;
   }
 
-  return overlap / Math.min(wordsA.size, wordsB.size);
+
+  if (
+    sentence.length > 330 &&
+    sentence.length <= 430
+  ) {
+    score += 1;
+  }
+
+
+  if (sentence.length < 60) {
+    score -= 3;
+  }
+
+
+  return score;
 }
 
 
-function selectBestTrivia(sentences = [], existingTrivia = []) {
-  const candidates = sentences
-    .filter(sentence => !looksLikeBrokenFragment(sentence))
-    .filter(sentence => !isWeakTriviaContent(sentence))
-    .map(sentence => ({
-      text: sentence,
-      score: triviaScore(sentence)
-    }))
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score);
+/* ============================================================
+   DUPLICATE DETECTION
+   ============================================================ */
+
+function triviaWords(text = "") {
+
+  return new Set(
+
+    normalizeTitle(text)
+      .replace(
+        /[^a-z0-9\s]/g,
+        " "
+      )
+      .split(/\s+/)
+      .filter(
+        word =>
+          word.length > 3
+      )
+
+  );
+}
+
+
+function triviaSimilarity(
+  a = "",
+  b = ""
+) {
+
+  const wordsA =
+    triviaWords(a);
+
+
+  const wordsB =
+    triviaWords(b);
+
+
+  if (
+    !wordsA.size ||
+    !wordsB.size
+  ) {
+    return 0;
+  }
+
+
+  let overlap = 0;
+
+
+  for (const word of wordsA) {
+
+    if (wordsB.has(word)) {
+      overlap++;
+    }
+  }
+
+
+  return (
+    overlap /
+    Math.min(
+      wordsA.size,
+      wordsB.size
+    )
+  );
+}
+
+
+/* ============================================================
+   SELECT BEST TRIVIA
+   ============================================================ */
+
+function selectBestTrivia(
+  sentences = [],
+  existingTrivia = []
+) {
+
+  const candidates =
+    sentences
+
+      .filter(
+        sentence =>
+          !looksBroken(sentence)
+      )
+
+      .filter(
+        sentence =>
+          !weakTrivia(sentence)
+      )
+
+      .map(sentence => ({
+        text:
+          sentence,
+
+        score:
+          triviaScore(sentence)
+      }))
+
+      .filter(
+        item =>
+          item.score >= 3
+      )
+
+      .sort(
+        (a, b) =>
+          b.score - a.score
+      );
+
 
   const selected = [];
 
+
   for (const item of candidates) {
-    const duplicateExisting = existingTrivia.some(
-      trivia => triviaSimilarity(trivia, item.text) > 0.55
-    );
 
-    const duplicateSelected = selected.some(
-      trivia => triviaSimilarity(trivia, item.text) > 0.55
-    );
+    const duplicateExisting =
+      existingTrivia.some(
+        trivia =>
+          triviaSimilarity(
+            trivia,
+            item.text
+          ) > 0.55
+      );
 
-    if (!duplicateExisting && !duplicateSelected) {
-      selected.push(item.text);
+
+    const duplicateSelected =
+      selected.some(
+        trivia =>
+          triviaSimilarity(
+            trivia,
+            item.text
+          ) > 0.55
+      );
+
+
+    if (
+      !duplicateExisting &&
+      !duplicateSelected
+    ) {
+
+      selected.push(
+        item.text
+      );
     }
 
-    if (selected.length >= 6) break;
+
+    if (selected.length >= 6) {
+      break;
+    }
   }
+
 
   return selected;
 }
 
 
-function extractTrivia(text = "", existingTrivia = []) {
-  if (!text) return [];
+/* ============================================================
+   EXTRACT TRIVIA FROM WIKITEXT
+   ============================================================ */
 
-  const sentences = splitSentences(text);
+function extractTrivia(
+  wikitext = "",
+  existingTrivia = []
+) {
 
-  return selectBestTrivia(sentences, existingTrivia);
+  if (!wikitext) {
+    return [];
+  }
+
+
+  const clean =
+    cleanWikiText(
+      wikitext
+    );
+
+
+  if (!clean) {
+    return [];
+  }
+
+
+  const sentences =
+    splitSentences(
+      clean
+    );
+
+
+  return selectBestTrivia(
+    sentences,
+    existingTrivia
+  );
 }
 
 
-async function getFallbackTrivia(title, year, existingTrivia = []) {
-  const searches = [
-    `"${title}" film production`,
-    `"${title}" film casting`,
-    `"${title}" film filming`,
-    `"${title}" ${year || ""} film`
-  ];
+/* ============================================================
+   GET TRIVIA FROM PRIORITY SECTIONS
+   ============================================================ */
 
-  const pageTitles = [];
+async function getSectionTrivia(
+  page,
+  existingTrivia = []
+) {
 
-  for (const query of searches) {
-    const results = await searchWikipediaPages(query, 5);
-
-    for (const result of results) {
-      if (
-        result?.title &&
-        isUsefulFallbackPage(result.title, title) &&
-        !pageTitles.includes(result.title)
-      ) {
-        pageTitles.push(result.title);
-      }
-    }
-
-    if (pageTitles.length >= 5) break;
+  if (!page) {
+    return [];
   }
+
+
+  const sections =
+    selectTriviaSections(
+      page.sections
+    );
+
 
   let trivia = [];
 
-  for (const pageTitle of pageTitles.slice(0, 5)) {
-    const extract = await getWikipediaExtract(pageTitle);
 
-    if (!extract) continue;
+  for (const section of sections) {
 
-    const found = extractTrivia(extract, [
-      ...existingTrivia,
-      ...trivia
-    ]);
+    const text =
+      await getWikipediaSection(
+        page.title,
+        section.index
+      );
 
-    trivia.push(...found);
 
-    trivia = [...new Set(trivia)];
+    if (!text) {
+      continue;
+    }
 
-    if (trivia.length >= 6) break;
+
+    const found =
+      extractTrivia(
+        text,
+        [
+          ...existingTrivia,
+          ...trivia
+        ]
+      );
+
+
+    trivia.push(
+      ...found
+    );
+
+
+    /*
+      Remove near-duplicates.
+    */
+
+    const unique = [];
+
+
+    for (const item of trivia) {
+
+      if (
+        !unique.some(
+          existing =>
+            triviaSimilarity(
+              existing,
+              item
+            ) > 0.55
+        )
+      ) {
+
+        unique.push(item);
+      }
+    }
+
+
+    trivia = unique;
+
+
+    if (trivia.length >= 6) {
+      break;
+    }
   }
+
 
   return trivia.slice(0, 6);
 }
 
 
-export default async function handler(req, res) {
+/* ============================================================
+   FULL ARTICLE BACKUP
+   ============================================================ */
+
+async function getFullArticleTrivia(
+  page,
+  existingTrivia = []
+) {
+
+  if (!page) {
+    return [];
+  }
+
+
+  const text =
+    await getWikipediaWikitext(
+      page.title
+    );
+
+
+  if (!text) {
+    return [];
+  }
+
+
+  return extractTrivia(
+    text,
+    existingTrivia
+  );
+}
+
+
+/* ============================================================
+   AUTOMATIC TRIVIA DISCOVERY
+   ============================================================ */
+
+async function findAutomaticTrivia(
+  title,
+  year
+) {
+
+  const page =
+    await findWikipediaMoviePage(
+      title,
+      year
+    );
+
+
+  if (!page) {
+
+    return {
+      trivia: [],
+      page: ""
+    };
+  }
+
+
+  /*
+    FIRST:
+    Mine the sections most likely to contain
+    Reelwise-style behind-the-scenes material.
+  */
+
+  let trivia =
+    await getSectionTrivia(
+      page
+    );
+
+
+  /*
+    SECOND:
+    If specialized sections did not give us enough,
+    mine the complete article as backup.
+  */
+
+  if (trivia.length < 4) {
+
+    const additional =
+      await getFullArticleTrivia(
+        page,
+        trivia
+      );
+
+
+    for (const item of additional) {
+
+      const duplicate =
+        trivia.some(
+          existing =>
+            triviaSimilarity(
+              existing,
+              item
+            ) > 0.55
+        );
+
+
+      if (!duplicate) {
+        trivia.push(item);
+      }
+
+
+      if (trivia.length >= 6) {
+        break;
+      }
+    }
+  }
+
+
+  return {
+
+    trivia:
+      trivia.slice(0, 6),
+
+    page:
+      page.title
+  };
+}
+
+
+/* ============================================================
+   MAIN REELWISE API
+   ============================================================ */
+
+export default async function handler(
+  req,
+  res
+) {
+
   try {
-    const { id } = req.query;
+
+    const id =
+      String(
+        req.query?.id || ""
+      ).trim();
+
 
     if (!id) {
+
       return res.status(400).json({
-        error: "Missing movie id"
+        error:
+          "Missing movie id",
+        trivia: []
       });
     }
 
-    const movie = await getMovie(id);
 
-    const title = movie?.title || movie?.original_title || "";
+    /*
+      Identify exact movie.
+    */
 
-    const year = movie?.release_date
-      ? movie.release_date.slice(0, 4)
-      : "";
+    const movie =
+      await getMovie(id);
 
-    const key = normalizeTitle(title);
+
+    const title =
+      movie?.title ||
+      movie?.original_title ||
+      "";
+
+
+    const year =
+      movie?.release_date
+        ? movie.release_date.slice(0, 4)
+        : "";
+
+
+    const key =
+      normalizeTitle(title);
+
 
     /*
       ========================================================
       FIRST: REELWISE CURATED TRIVIA VAULT
       ========================================================
+
+      Curated Reelwise trivia always wins.
     */
 
-    const curated = TRIVIA_VAULT[key];
+    const curated =
+      TRIVIA_VAULT[key];
 
-    if (Array.isArray(curated) && curated.length) {
+
+    if (
+      Array.isArray(curated) &&
+      curated.length
+    ) {
+
       return res.status(200).json({
+
         movie: title,
+
         year,
-        trivia: curated.slice(0, 6),
-        source: "Reelwise Trivia Vault",
+
+        trivia:
+          curated.slice(0, 6),
+
+        source:
+          "Reelwise Trivia Vault",
+
         curated: true
+
       });
     }
 
 
     /*
       ========================================================
-      SECOND: WIKIPEDIA FALLBACK
-
-      This is used only when Reelwise has not yet curated
-      trivia for the requested movie.
+      SECOND: AUTOMATIC WIKIPEDIA DISCOVERY
       ========================================================
     */
 
-    let automaticTrivia = [];
-
-    const possibleWikipediaTitles = [
-      year ? `${title} (${year} film)` : "",
-      `${title} (film)`,
-      title
-    ].filter(Boolean);
-
-    for (const wikipediaTitle of possibleWikipediaTitles) {
-      const extract = await getWikipediaExtract(wikipediaTitle);
-
-      if (!extract) continue;
-
-      automaticTrivia = extractTrivia(extract);
-
-      if (automaticTrivia.length >= 4) {
-        break;
-      }
-    }
-
-
-    /*
-      Search additional Wikipedia production/casting pages
-      if the main article did not produce enough good trivia.
-    */
-
-    if (automaticTrivia.length < 4) {
-      const extraTrivia = await getFallbackTrivia(
+    const automatic =
+      await findAutomaticTrivia(
         title,
-        year,
-        automaticTrivia
+        year
       );
 
-      automaticTrivia = [
-        ...automaticTrivia,
-        ...extraTrivia
-      ];
-    }
-
 
     /*
-      Remove duplicates and keep the best six.
+      ========================================================
+      RETURN RESULTS
+      ========================================================
     */
 
-    const finalTrivia = [];
-
-    for (const item of automaticTrivia) {
-      if (
-        !finalTrivia.some(
-          existing => triviaSimilarity(existing, item) > 0.55
-        )
-      ) {
-        finalTrivia.push(item);
-      }
-
-      if (finalTrivia.length >= 6) break;
-    }
-
-
     return res.status(200).json({
+
       movie: title,
+
       year,
-      trivia: finalTrivia,
-      source: finalTrivia.length
-        ? "Wikipedia fallback"
-        : "No trivia source found",
-      curated: false
+
+      trivia:
+        automatic.trivia,
+
+      source:
+        automatic.trivia.length
+          ? "Wikipedia"
+          : "No trivia source found",
+
+      curated: false,
+
+      page:
+        automatic.trivia.length
+          ? automatic.page
+          : undefined
+
     });
 
+
   } catch (error) {
-    console.error("Reelwise trivia error:", error);
+
+    console.error(
+      "Reelwise trivia error:",
+      error
+    );
+
 
     return res.status(500).json({
-      error: "Unable to load trivia",
-      details: error?.message || "Unknown error"
+
+      error:
+        "Unable to load trivia",
+
+      details:
+        error?.message ||
+        "Unknown error",
+
+      trivia: []
+
     });
   }
 }
