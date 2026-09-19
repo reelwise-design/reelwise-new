@@ -12,9 +12,10 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   3. Curated Reelwise quotes always win.
   4. If not curated, locate the movie on Wikiquote.
   5. Pull the actual Wikiquote page wikitext.
-  6. Extract usable standalone quotes while rejecting junk.
-  7. Do not turn multi-line dialogue scenes into quote cards.
-  8. Return up to 8 fallback quotes.
+  6. Extract clean standalone quotes.
+  7. Carefully extract usable individual lines from dialogue.
+  8. Never turn an entire dialogue scene into quote cards.
+  9. Return up to 8 fallback quotes.
 
   This lets the curated Vault remain the premium Reelwise layer
   without requiring every movie to be entered manually.
@@ -315,20 +316,12 @@ function cleanWikiMarkup(value) {
     String(value || "");
 
 
-  /*
-    Remove HTML comments.
-  */
-
   line =
     line.replace(
       /<!--[\s\S]*?-->/g,
       ""
     );
 
-
-  /*
-    Remove references.
-  */
 
   line =
     line.replace(
@@ -343,10 +336,6 @@ function cleanWikiMarkup(value) {
     );
 
 
-  /*
-    Convert common Wiki links.
-  */
-
   line =
     line.replace(
       /\[\[([^\]|]+)\|([^\]]+)\]\]/g,
@@ -359,10 +348,6 @@ function cleanWikiMarkup(value) {
       "$1"
     );
 
-
-  /*
-    Remove external-link URL while keeping label.
-  */
 
   line =
     line.replace(
@@ -377,19 +362,11 @@ function cleanWikiMarkup(value) {
     );
 
 
-  /*
-    Remove simple formatting markup.
-  */
-
   line =
     line
       .replace(/'''/g, "")
       .replace(/''/g, "");
 
-
-  /*
-    Remove simple templates that remain on one line.
-  */
 
   line =
     line.replace(
@@ -398,10 +375,6 @@ function cleanWikiMarkup(value) {
     );
 
 
-  /*
-    Remove basic HTML tags.
-  */
-
   line =
     line.replace(
       /<[^>]+>/g,
@@ -409,20 +382,12 @@ function cleanWikiMarkup(value) {
     );
 
 
-  /*
-    Remove Wiki list characters.
-  */
-
   line =
     line.replace(
       /^[*#:;]+\s*/,
       ""
     );
 
-
-  /*
-    Remove surrounding quotation marks.
-  */
 
   line =
     line.replace(
@@ -470,7 +435,6 @@ function blockedSection(section) {
     "cast",
     "taglines",
     "tagline",
-    "dialogue",
     "external links",
     "external link",
     "references",
@@ -488,6 +452,16 @@ function blockedSection(section) {
   ];
 
   return blocked.includes(section);
+}
+
+
+function isDialogueSection(section) {
+
+  return (
+    section === "dialogue" ||
+    section === "dialogs" ||
+    section === "dialogues"
+  );
 }
 
 
@@ -574,10 +548,6 @@ function usableQuote(line) {
   }
 
 
-  /*
-    Reject leftover Wiki markup.
-  */
-
   if (
     line.includes("{{") ||
     line.includes("}}") ||
@@ -605,6 +575,58 @@ function usableQuote(line) {
 
 
   if (numbers.length >= 4) {
+    return false;
+  }
+
+
+  return true;
+}
+
+
+/* ============================================================
+   DIALOGUE-SPECIFIC FILTER
+   ============================================================ */
+
+function usableDialogueQuote(line) {
+
+  if (!usableQuote(line)) {
+    return false;
+  }
+
+
+  const words =
+    line
+      .split(/\s+/)
+      .filter(Boolean);
+
+
+  /*
+    Very short dialogue fragments are usually context-dependent
+    and do not make useful Reelwise quote cards.
+  */
+
+  if (words.length < 4) {
+    return false;
+  }
+
+
+  /*
+    Dialogue lines can be somewhat longer, but extremely long
+    speeches usually need surrounding context.
+  */
+
+  if (line.length > 180) {
+    return false;
+  }
+
+
+  /*
+    Reject obvious stage directions that survive cleanup.
+  */
+
+  if (
+    /^\s*(enters|exits|walks|looks|turns|laughs|laughing|sighs|smiles|cries|yells|shouts|whispers)\b/i.test(line)
+  ) {
     return false;
   }
 
@@ -697,6 +719,50 @@ function isDuplicateQuote(
 
 
 /* ============================================================
+   PREPARE ONE WIKIQUOTE LIST ITEM
+   ============================================================ */
+
+function prepareQuoteLine(rawLine) {
+
+  let line =
+    cleanWikiMarkup(
+      rawLine
+    );
+
+
+  if (!line) {
+    return "";
+  }
+
+
+  /*
+    Remove stage direction at beginning.
+  */
+
+  line =
+    line
+      .replace(
+        /^\[[^\]]{1,100}\]\s*/,
+        ""
+      )
+      .trim();
+
+
+  /*
+    Remove character/speaker label.
+  */
+
+  line =
+    removeSpeakerLabel(
+      line
+    );
+
+
+  return line.trim();
+}
+
+
+/* ============================================================
    EXTRACT QUOTES FROM WIKIQUOTE WIKITEXT
    ============================================================ */
 
@@ -713,6 +779,7 @@ function extractFallbackQuotes(text) {
 
 
   const primary = [];
+  const dialogue = [];
 
   let section = "";
 
@@ -750,11 +817,7 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Dialogue is intentionally blocked here.
-
-      Wikiquote dialogue sections are often complete scenes
-      split across many list items. Those fragments should not
-      appear as individual Reelwise quote cards.
+      Completely ignore administrative/non-quote sections.
     */
 
     if (blockedSection(section)) {
@@ -794,8 +857,8 @@ function extractFallbackQuotes(text) {
     }
 
 
-    let line =
-      cleanWikiMarkup(
+    const line =
+      prepareQuoteLine(
         rawLine
       );
 
@@ -806,27 +869,50 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Remove stage direction at beginning.
+      ========================================================
+      DIALOGUE SECTION
+      ========================================================
+
+      We no longer throw away the entire Dialogue section.
+
+      Instead, each individual list item is treated as a
+      candidate spoken line.
+
+      The line must survive stricter dialogue filtering and is
+      stored separately so normal standalone quotes remain the
+      preferred fallback material.
     */
 
-    line =
-      line
-        .replace(
-          /^\[[^\]]{1,100}\]\s*/,
-          ""
+    if (isDialogueSection(section)) {
+
+      if (!usableDialogueQuote(line)) {
+        continue;
+      }
+
+
+      if (
+        !isDuplicateQuote(
+          line,
+          dialogue
+        ) &&
+        !isDuplicateQuote(
+          line,
+          primary
         )
-        .trim();
+      ) {
+        dialogue.push(line);
+      }
+
+
+      continue;
+    }
 
 
     /*
-      Remove character/speaker label.
+      ========================================================
+      NORMAL STANDALONE QUOTE
+      ========================================================
     */
-
-    line =
-      removeSpeakerLabel(
-        line
-      );
-
 
     if (!usableQuote(line)) {
       continue;
@@ -849,7 +935,39 @@ function extractFallbackQuotes(text) {
   }
 
 
-  return primary.slice(0, 8);
+  /*
+    Standalone quotes always come first.
+
+    Dialogue lines only fill remaining space.
+
+    This prevents a long Dialogue section from overwhelming
+    better standalone material elsewhere on the page.
+  */
+
+  const combined = [
+    ...primary
+  ];
+
+
+  for (const line of dialogue) {
+
+    if (combined.length >= 8) {
+      break;
+    }
+
+
+    if (
+      !isDuplicateQuote(
+        line,
+        combined
+      )
+    ) {
+      combined.push(line);
+    }
+  }
+
+
+  return combined.slice(0, 8);
 }
 
 
