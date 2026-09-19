@@ -2402,7 +2402,7 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio collapsed" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio collapsed" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${person.biography?`<button class="bio-toggle" id="bioToggle" onclick="toggleStarBio()">Read Full Bio ↓</button>`:""}${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Awards &amp; Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
 async function showPersonAccolades(id,name){
   homeContent.style.display="none";
@@ -2476,6 +2476,7 @@ async function showPersonAccolades(id,name){
       <div class="accolades-head">
         <div class="eyebrow">REELWISE ACCOLADES</div>
         <h1>${escapeHTML(name||"Star")}</h1>
+        <div class="eyebrow" style="margin-top:20px">ACADEMY AWARDS</div>
         <div class="accolades-summary">
           <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
           <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
@@ -2749,3 +2750,24 @@ loadHomeMovies();
 </script>
 </body>
 </html>
+
+<style>
+/* ===== AWARDS & ACCOLADES BUTTON — COMPACT ===== */
+.star-accolades-link{
+  display:inline-flex!important;
+  width:auto!important;
+  min-width:0!important;
+  max-width:max-content!important;
+  padding:7px 10px!important;
+  margin-top:10px!important;
+  border:1px solid var(--line)!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  color:var(--gold)!important;
+  font-size:10px!important;
+  font-weight:800!important;
+  line-height:1!important;
+  letter-spacing:.08em!important;
+  box-shadow:none!important;
+}
+</style>
