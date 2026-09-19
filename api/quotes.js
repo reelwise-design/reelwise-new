@@ -8,14 +8,15 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   ============================================================
 
   1. Identify the exact movie through TMDB.
-  2. Check the Reelwise curated Quote Vault first.
-  3. Curated Reelwise quotes always win.
-  4. If not curated, locate the movie on Wikiquote.
+  2. Check the Reelwise curated Quote Vault.
+  3. Curated Reelwise quotes always appear first.
+  4. Locate the movie on Wikiquote.
   5. Pull the actual Wikiquote page wikitext.
   6. Extract clean standalone quotes.
   7. Carefully extract usable individual lines from dialogue.
   8. Never turn an entire dialogue scene into quote cards.
-  9. Return up to 8 fallback quotes.
+  9. Merge curated + automatic quotes.
+  10. Remove duplicates and return up to 8 quotes.
 
   This lets the curated Vault remain the premium Reelwise layer
   without requiring every movie to be entered manually.
@@ -601,8 +602,7 @@ function usableDialogueQuote(line) {
 
 
   /*
-    Very short dialogue fragments are usually context-dependent
-    and do not make useful Reelwise quote cards.
+    Very short dialogue fragments are usually context-dependent.
   */
 
   if (words.length < 4) {
@@ -611,8 +611,7 @@ function usableDialogueQuote(line) {
 
 
   /*
-    Dialogue lines can be somewhat longer, but extremely long
-    speeches usually need surrounding context.
+    Extremely long speeches usually need surrounding context.
   */
 
   if (line.length > 180) {
@@ -873,14 +872,9 @@ function extractFallbackQuotes(text) {
       DIALOGUE SECTION
       ========================================================
 
-      We no longer throw away the entire Dialogue section.
-
-      Instead, each individual list item is treated as a
-      candidate spoken line.
-
-      The line must survive stricter dialogue filtering and is
-      stored separately so normal standalone quotes remain the
-      preferred fallback material.
+      Individual dialogue lines are allowed, but they receive
+      stricter filtering and are kept separate from standalone
+      Wikiquote material.
     */
 
     if (isDialogueSection(section)) {
@@ -939,9 +933,6 @@ function extractFallbackQuotes(text) {
     Standalone quotes always come first.
 
     Dialogue lines only fill remaining space.
-
-    This prevents a long Dialogue section from overwhelming
-    better standalone material elsewhere on the page.
   */
 
   const combined = [
@@ -1122,6 +1113,77 @@ async function findAutomaticQuotes(
 
 
 /* ============================================================
+   MERGE CURATED + AUTOMATIC QUOTES
+   ============================================================ */
+
+function mergeQuotes(
+  curated,
+  automatic,
+  limit = 8
+) {
+
+  const merged = [];
+
+
+  /*
+    Curated Reelwise quotes always come first.
+  */
+
+  for (const quote of curated) {
+
+    const clean =
+      String(quote || "").trim();
+
+
+    if (
+      clean &&
+      !isDuplicateQuote(
+        clean,
+        merged
+      )
+    ) {
+      merged.push(clean);
+    }
+
+
+    if (merged.length >= limit) {
+      return merged.slice(0, limit);
+    }
+  }
+
+
+  /*
+    Automatic quotes fill any remaining spaces.
+  */
+
+  for (const quote of automatic) {
+
+    const clean =
+      String(quote || "").trim();
+
+
+    if (
+      clean &&
+      !isDuplicateQuote(
+        clean,
+        merged
+      )
+    ) {
+      merged.push(clean);
+    }
+
+
+    if (merged.length >= limit) {
+      break;
+    }
+  }
+
+
+  return merged.slice(0, limit);
+}
+
+
+/* ============================================================
    MAIN REELWISE API
    ============================================================ */
 
@@ -1177,17 +1239,27 @@ export default async function handler(
       REELWISE CURATED QUOTE VAULT
       ========================================================
 
-      Curated Reelwise quotes always win.
+      Curated quotes are the highest-priority quotes, but they
+      no longer prevent the automatic engine from filling the
+      remaining available quote slots.
     */
 
+    const vaultQuotes =
+      QUOTE_VAULT[key];
+
+
     const curated =
-      QUOTE_VAULT[key] || [];
+      Array.isArray(vaultQuotes)
+        ? vaultQuotes.slice(0, 8)
+        : [];
 
 
-    if (
-      Array.isArray(curated) &&
-      curated.length
-    ) {
+    /*
+      If the curated Vault already contains 8 quotes, there is
+      no reason to make an additional Wikiquote request.
+    */
+
+    if (curated.length >= 8) {
 
       return res.status(200).json({
 
@@ -1209,8 +1281,11 @@ export default async function handler(
 
     /*
       ========================================================
-      AUTOMATIC WIKIQUOTE FALLBACK
+      AUTOMATIC WIKIQUOTE FALLBACK / FILL
       ========================================================
+
+      Even when curated quotes exist, automatic quotes may fill
+      the remaining spaces.
     */
 
     const automatic =
@@ -1218,6 +1293,45 @@ export default async function handler(
         title,
         year
       );
+
+
+    /*
+      ========================================================
+      MERGE RESULTS
+      ========================================================
+    */
+
+    const quotes =
+      mergeQuotes(
+        curated,
+        automatic.quotes || [],
+        8
+      );
+
+
+    /*
+      ========================================================
+      SOURCE LABEL
+      ========================================================
+    */
+
+    let source =
+      "No verified quote source found";
+
+
+    if (
+      curated.length &&
+      automatic.quotes.length
+    ) {
+      source =
+        "Reelwise Vault + Wikiquote";
+    } else if (curated.length) {
+      source =
+        "Reelwise Vault";
+    } else if (automatic.quotes.length) {
+      source =
+        "Wikiquote";
+    }
 
 
     /*
@@ -1232,15 +1346,12 @@ export default async function handler(
 
       year,
 
-      quotes:
-        automatic.quotes,
+      quotes,
 
-      source:
-        automatic.quotes.length
-          ? "Wikiquote"
-          : "No verified quote source found",
+      source,
 
-      curated: false,
+      curated:
+        curated.length > 0,
 
       page:
         automatic.quotes.length
