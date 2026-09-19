@@ -2392,7 +2392,10 @@ async function showMovieFeature(feature){
           return text && !explanatory.test(text);
         });
       }
-      view.innerHTML=`<div class="feature-view"><div class="fact-grid">${list.map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`;
+      const emptyState=feature==="quotes"
+        ?"<p><strong>No verified quotes available yet.</strong><br>Reelwise only displays quotes verified for this movie.</p>"
+        :"<p>No information available yet.</p>";
+      view.innerHTML=`<div class="feature-view"><div class="fact-grid">${list.map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||emptyState}</div></div>`;
     }catch(error){
       view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>';
     }
