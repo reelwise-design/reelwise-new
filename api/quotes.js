@@ -13,13 +13,18 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   4. Locate the movie on Wikiquote.
   5. Pull the actual Wikiquote page wikitext.
   6. Extract clean standalone quotes.
-  7. Carefully extract usable individual lines from dialogue.
-  8. Never turn an entire dialogue scene into quote cards.
-  9. Merge curated + automatic quotes.
-  10. Remove duplicates and return up to 8 quotes.
+  7. Completely reject Dialogue sections.
+  8. Merge curated + automatic quotes.
+  9. Remove duplicates.
+  10. Return up to 8 clean quotes.
 
-  This lets the curated Vault remain the premium Reelwise layer
-  without requiring every movie to be entered manually.
+  IMPORTANT:
+  Dialogue sections are intentionally excluded because Wikiquote
+  often stores complete conversations there. Individual lines
+  from those scenes should not become separate Reelwise cards.
+
+  Curated quotes remain the premium Reelwise layer while clean
+  standalone Wikiquote material can fill remaining quote slots.
   ============================================================
 */
 
@@ -317,12 +322,20 @@ function cleanWikiMarkup(value) {
     String(value || "");
 
 
+  /*
+    Remove HTML comments.
+  */
+
   line =
     line.replace(
       /<!--[\s\S]*?-->/g,
       ""
     );
 
+
+  /*
+    Remove references.
+  */
 
   line =
     line.replace(
@@ -337,6 +350,10 @@ function cleanWikiMarkup(value) {
     );
 
 
+  /*
+    Convert Wiki links.
+  */
+
   line =
     line.replace(
       /\[\[([^\]|]+)\|([^\]]+)\]\]/g,
@@ -349,6 +366,10 @@ function cleanWikiMarkup(value) {
       "$1"
     );
 
+
+  /*
+    Remove external-link URL while keeping its label.
+  */
 
   line =
     line.replace(
@@ -363,11 +384,19 @@ function cleanWikiMarkup(value) {
     );
 
 
+  /*
+    Remove simple formatting markup.
+  */
+
   line =
     line
       .replace(/'''/g, "")
       .replace(/''/g, "");
 
+
+  /*
+    Remove simple one-line templates.
+  */
 
   line =
     line.replace(
@@ -376,6 +405,10 @@ function cleanWikiMarkup(value) {
     );
 
 
+  /*
+    Remove basic HTML tags.
+  */
+
   line =
     line.replace(
       /<[^>]+>/g,
@@ -383,12 +416,20 @@ function cleanWikiMarkup(value) {
     );
 
 
+  /*
+    Remove Wiki list characters.
+  */
+
   line =
     line.replace(
       /^[*#:;]+\s*/,
       ""
     );
 
+
+  /*
+    Remove surrounding quotation marks.
+  */
 
   line =
     line.replace(
@@ -436,6 +477,16 @@ function blockedSection(section) {
     "cast",
     "taglines",
     "tagline",
+
+    /*
+      CRITICAL:
+      Do not extract individual lines from Dialogue sections.
+    */
+
+    "dialogue",
+    "dialogs",
+    "dialogues",
+
     "external links",
     "external link",
     "references",
@@ -453,16 +504,6 @@ function blockedSection(section) {
   ];
 
   return blocked.includes(section);
-}
-
-
-function isDialogueSection(section) {
-
-  return (
-    section === "dialogue" ||
-    section === "dialogs" ||
-    section === "dialogues"
-  );
 }
 
 
@@ -549,6 +590,10 @@ function usableQuote(line) {
   }
 
 
+  /*
+    Reject leftover Wiki markup.
+  */
+
   if (
     line.includes("{{") ||
     line.includes("}}") ||
@@ -585,56 +630,6 @@ function usableQuote(line) {
 
 
 /* ============================================================
-   DIALOGUE-SPECIFIC FILTER
-   ============================================================ */
-
-function usableDialogueQuote(line) {
-
-  if (!usableQuote(line)) {
-    return false;
-  }
-
-
-  const words =
-    line
-      .split(/\s+/)
-      .filter(Boolean);
-
-
-  /*
-    Very short dialogue fragments are usually context-dependent.
-  */
-
-  if (words.length < 4) {
-    return false;
-  }
-
-
-  /*
-    Extremely long speeches usually need surrounding context.
-  */
-
-  if (line.length > 180) {
-    return false;
-  }
-
-
-  /*
-    Reject obvious stage directions that survive cleanup.
-  */
-
-  if (
-    /^\s*(enters|exits|walks|looks|turns|laughs|laughing|sighs|smiles|cries|yells|shouts|whispers)\b/i.test(line)
-  ) {
-    return false;
-  }
-
-
-  return true;
-}
-
-
-/* ============================================================
    SPEAKER LABEL CLEANING
    ============================================================ */
 
@@ -646,7 +641,7 @@ function removeSpeakerLabel(line) {
     Rocky: Yo, Adrian!
     Tony Stark: We have a Hulk.
 
-    Keep the actual spoken line.
+    Keep the spoken line.
   */
 
   const match =
@@ -735,7 +730,7 @@ function prepareQuoteLine(rawLine) {
 
 
   /*
-    Remove stage direction at beginning.
+    Remove stage direction at the beginning.
   */
 
   line =
@@ -762,7 +757,7 @@ function prepareQuoteLine(rawLine) {
 
 
 /* ============================================================
-   EXTRACT QUOTES FROM WIKIQUOTE WIKITEXT
+   EXTRACT CLEAN STANDALONE WIKIQUOTE QUOTES
    ============================================================ */
 
 function extractFallbackQuotes(text) {
@@ -777,8 +772,7 @@ function extractFallbackQuotes(text) {
       .split(/\r?\n/);
 
 
-  const primary = [];
-  const dialogue = [];
+  const quotes = [];
 
   let section = "";
 
@@ -816,7 +810,9 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Completely ignore administrative/non-quote sections.
+      Skip blocked sections completely.
+
+      This includes Dialogue.
     */
 
     if (blockedSection(section)) {
@@ -825,7 +821,7 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Ignore template/table/category infrastructure.
+      Ignore Wiki infrastructure.
     */
 
     if (
@@ -843,8 +839,9 @@ function extractFallbackQuotes(text) {
 
 
     /*
-      Most real Wikiquote material appears as list items.
-      This prevents introductory prose from becoming quotes.
+      Real quote material generally appears as Wiki list items.
+
+      Introductory prose is ignored.
     */
 
     const isListItem =
@@ -867,47 +864,6 @@ function extractFallbackQuotes(text) {
     }
 
 
-    /*
-      ========================================================
-      DIALOGUE SECTION
-      ========================================================
-
-      Individual dialogue lines are allowed, but they receive
-      stricter filtering and are kept separate from standalone
-      Wikiquote material.
-    */
-
-    if (isDialogueSection(section)) {
-
-      if (!usableDialogueQuote(line)) {
-        continue;
-      }
-
-
-      if (
-        !isDuplicateQuote(
-          line,
-          dialogue
-        ) &&
-        !isDuplicateQuote(
-          line,
-          primary
-        )
-      ) {
-        dialogue.push(line);
-      }
-
-
-      continue;
-    }
-
-
-    /*
-      ========================================================
-      NORMAL STANDALONE QUOTE
-      ========================================================
-    */
-
     if (!usableQuote(line)) {
       continue;
     }
@@ -916,49 +872,20 @@ function extractFallbackQuotes(text) {
     if (
       !isDuplicateQuote(
         line,
-        primary
+        quotes
       )
     ) {
-      primary.push(line);
+      quotes.push(line);
     }
 
 
-    if (primary.length >= 8) {
+    if (quotes.length >= 8) {
       break;
     }
   }
 
 
-  /*
-    Standalone quotes always come first.
-
-    Dialogue lines only fill remaining space.
-  */
-
-  const combined = [
-    ...primary
-  ];
-
-
-  for (const line of dialogue) {
-
-    if (combined.length >= 8) {
-      break;
-    }
-
-
-    if (
-      !isDuplicateQuote(
-        line,
-        combined
-      )
-    ) {
-      combined.push(line);
-    }
-  }
-
-
-  return combined.slice(0, 8);
+  return quotes.slice(0, 8);
 }
 
 
@@ -1058,7 +985,7 @@ async function findAutomaticQuotes(
 
 
   /*
-    If the obvious titles fail, search Wikiquote.
+    If obvious page titles fail, search Wikiquote.
   */
 
   const candidates =
@@ -1126,7 +1053,7 @@ function mergeQuotes(
 
 
   /*
-    Curated Reelwise quotes always come first.
+    Reelwise curated quotes always come first.
   */
 
   for (const quote of curated) {
@@ -1153,7 +1080,7 @@ function mergeQuotes(
 
 
   /*
-    Automatic quotes fill any remaining spaces.
+    Clean automatic quotes fill remaining spaces.
   */
 
   for (const quote of automatic) {
@@ -1239,9 +1166,10 @@ export default async function handler(
       REELWISE CURATED QUOTE VAULT
       ========================================================
 
-      Curated quotes are the highest-priority quotes, but they
-      no longer prevent the automatic engine from filling the
-      remaining available quote slots.
+      Curated quotes are always highest priority.
+
+      They no longer prevent the automatic engine from filling
+      empty quote slots.
     */
 
     const vaultQuotes =
@@ -1255,8 +1183,8 @@ export default async function handler(
 
 
     /*
-      If the curated Vault already contains 8 quotes, there is
-      no reason to make an additional Wikiquote request.
+      If Reelwise already has 8 curated quotes, do not make an
+      unnecessary Wikiquote request.
     */
 
     if (curated.length >= 8) {
@@ -1281,11 +1209,11 @@ export default async function handler(
 
     /*
       ========================================================
-      AUTOMATIC WIKIQUOTE FALLBACK / FILL
+      AUTOMATIC WIKIQUOTE FILL
       ========================================================
 
-      Even when curated quotes exist, automatic quotes may fill
-      the remaining spaces.
+      Only clean standalone Wikiquote material is accepted.
+      Dialogue sections are completely excluded.
     */
 
     const automatic =
@@ -1323,12 +1251,17 @@ export default async function handler(
       curated.length &&
       automatic.quotes.length
     ) {
+
       source =
         "Reelwise Vault + Wikiquote";
+
     } else if (curated.length) {
+
       source =
         "Reelwise Vault";
+
     } else if (automatic.quotes.length) {
+
       source =
         "Wikiquote";
     }
