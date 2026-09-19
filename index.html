@@ -213,150 +213,209 @@ footer{border-top:1px solid var(--line);color:#737d8b;padding:26px;text-align:ce
 .filmography.compact{display:flex;gap:10px;overflow-x:auto;padding:1px 1px 10px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}.filmography-card{background:linear-gradient(180deg,#121720,#0d1117);border:1px solid var(--line);border-radius:9px;overflow:hidden;cursor:pointer;flex:0 0 92px}.filmography-card img,.filmography-card .no-poster{width:92px;aspect-ratio:2/3;object-fit:cover}.filmography-card-info{padding:7px}.filmography-card-info strong{display:block;font-size:10px;line-height:1.2}.filmography-card-info small{display:block;color:var(--gold);font-size:9px;margin-top:3px}
 .star-bio.collapsed{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
 
-/* Predictive search */
-.discovery-search,.degree-input-wrap{position:relative;overflow:visible!important}
-.reelwise-suggestions{position:absolute;left:0;right:0;top:calc(100% + 7px);z-index:9999;display:none;overflow:hidden;background:#10141b!important;border:1px solid #2b3441;border-radius:14px;box-shadow:0 16px 34px rgba(0,0,0,.48);text-align:left}
-.reelwise-suggestions.open{display:block}.suggestion-item{appearance:none;width:100%;min-height:58px;padding:7px 10px!important;border:0!important;border-bottom:1px solid #262d38!important;border-radius:0!important;background:#10141b!important;color:#f5f7fa!important;display:flex!important;align-items:center;gap:10px;text-align:left;cursor:pointer}.suggestion-thumb,.suggestion-fallback{width:38px;height:48px;flex:0 0 38px;border-radius:7px;object-fit:cover;background:#1b2230}.suggestion-fallback{display:grid;place-items:center;font-size:19px}.suggestion-copy{min-width:0;display:flex;flex-direction:column}.suggestion-copy strong{font-size:15px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.suggestion-copy small{font-size:12px!important;color:#9ca6b5!important}.suggestion-type{font-size:10px!important;font-weight:800;letter-spacing:.09em;color:#e4b34d!important}
-
-html,body{width:100%;max-width:100%;overflow-x:hidden}
-@media(max-width:800px){
-  .movie-hero{grid-template-columns:112px minmax(0,1fr);gap:15px;padding:15px;border-radius:16px}.movie-backdrop{opacity:.34}.movie-poster-wrap{grid-column:1;grid-row:1}.movie-hero .detail-image{width:112px;border-radius:10px}.movie-info{display:contents}.movie-head{grid-column:2;grid-row:1;align-self:center}.movie-head h1{font-size:30px;line-height:.98;letter-spacing:-1.45px;margin:0;overflow-wrap:anywhere}.movie-overview-label,.movie-overview,.movie-hero .movie-facts,.movie-cast-block{grid-column:1/-1}.movie-overview{font-size:14px!important;line-height:1.55!important}
-  .star-hero{grid-template-columns:88px minmax(0,1fr);gap:12px;padding:14px;align-items:start}.star-photo{width:88px;border-radius:11px}.star-name{font-size:27px;line-height:.98;letter-spacing:-1.2px}.star-bio{grid-column:1/-1;font-size:13px;line-height:1.55}.star-born{font-size:11px}
-  .filmography.compact .filmography-card{flex-basis:82px}.filmography.compact .filmography-card img,.filmography.compact .filmography-card .no-poster{width:82px}
-  .discovery-search{display:grid;grid-template-columns:1fr auto;padding:5px;gap:6px}
-}
-</style>
-</head>
-<body>
-<header>
-<nav><div class="logo" onclick="showHome()">reel<span>wise</span></div><div class="nav-links"><button onclick="showHome()">Home</button><button onclick="openSection('movies')">Movies</button><button onclick="openSection('stars')">Stars</button><button onclick="openSection('six')">Six Degrees</button></div></nav>
-<div class="hero"><div class="hero-inner"><div class="eyebrow">MOVIES · STARS · STORIES</div><h1>Know the movie.<br><span>Know the story.</span></h1><p>Explore movies and stars and discover the stories, people and connections behind them.</p></div></div>
-</header>
-<main>
-<div id="homeContent"><div class="home-intro"><h2 class="section-title">Explore Reelwise</h2><p>Search when you know what you want. Explore when you don't.</p></div><div class="features"><div class="feature" onclick="openSection('movies')"><div class="feature-number">01</div><div class="feature-icon">🎬</div><h3>Movies</h3><p>Browse genres, eras, franchises, classics and movies worth discovering.</p><span class="go">Explore Movies →</span></div><div class="feature" onclick="openSection('stars')"><div class="feature-number">02</div><div class="feature-icon">⭐</div><h3>Movie Stars</h3><p>Discover legends, action stars, comedy stars and today's biggest names.</p><span class="go">Explore Stars →</span></div><div class="feature" onclick="openSection('six')"><div class="feature-number">03</div><div class="feature-icon">🔗</div><h3>Six Degrees</h3><p>Connect any two movie stars through their movies and co-stars.</p><span class="go">Play Six Degrees →</span></div></div><section class="home-spotlight"><div class="spotlight-heading"><div><div class="eyebrow">IN THE SPOTLIGHT</div><h2>Movies to explore</h2></div><span>Swipe to explore →</span></div><div id="homeMovies" class="visual-row"><div class="message">Loading movies...</div></div></section></div>
-<div id="searchArea"><h2 class="section-title" id="resultsTitle"></h2><div id="results"></div></div>
-</main>
-<footer>Reelwise · Know the movie. Know the story.</footer>
-<script>
-const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),homeContent=document.getElementById("homeContent");
-let lastQuery="",currentMovie=null,currentCast=[];
-
-/* ===== REELWISE NAVIGATION =====
-   Home always resets to the homepage.
-   Back returns to the actual previous Reelwise screen.
-*/
-let reelwiseNavHistory=[];
-let reelwiseNavCurrent={type:"home",args:[]};
-let reelwiseRestoring=false;
-
-function sameRoute(a,b){return a&&b&&a.type===b.type&&JSON.stringify(a.args||[])===JSON.stringify(b.args||[])}
-function recordRoute(type,args=[]){
-  const next={type,args:Array.from(args)};
-  if(reelwiseRestoring){reelwiseNavCurrent=next;return}
-  if(!sameRoute(reelwiseNavCurrent,next))reelwiseNavHistory.push(reelwiseNavCurrent);
-  reelwiseNavCurrent=next;
-}
-function resetToHome(){
-  reelwiseNavHistory=[];
-  reelwiseNavCurrent={type:"home",args:[]};
-  homeContent.style.display="block";searchArea.style.display="none";results.innerHTML="";resultsTitle.textContent="";
-  window.scrollTo({top:0,behavior:"smooth"});
-}
-function showHome(){resetToHome()}
-function goBackReelwise(){
-  const previous=reelwiseNavHistory.pop();
-  if(!previous){resetToHome();return}
-  reelwiseRestoring=true;
-  try{
-    if(previous.type==="home")renderHome();
-    else if(previous.type==="section")openSection(...previous.args);
-    else if(previous.type==="search")searchReelwise(...previous.args);
-    else if(previous.type==="movie")showMovie(...previous.args);
-    else if(previous.type==="person")showPerson(...previous.args);
-    else renderHome();
-  }finally{reelwiseNavCurrent=previous;reelwiseRestoring=false}
-}
-function renderHome(){
-  homeContent.style.display="block";searchArea.style.display="none";results.innerHTML="";resultsTitle.textContent="";
-  window.scrollTo({top:0,behavior:"smooth"});
-}
-function revealResults(){searchArea.style.display="block"}
-function goToResults(){setTimeout(()=>searchArea.scrollIntoView({behavior:"smooth",block:"start"}),50)}
-
-function openSection(section){
-  recordRoute("section",[section]);
-  homeContent.style.display="none";revealResults();
-  if(section==="movies")return showMovieSection();
-  if(section==="stars")return showStarSection();
-  return showSixDegrees();
-}
-
-async function loadHomeMovies(){const box=document.getElementById("homeMovies");if(!box)return;try{const response=await fetch("/api/movies?category=trending"),data=await response.json();if(!response.ok)throw new Error(data.error||"Movies could not be loaded.");const movies=Array.isArray(data)?data:Array.isArray(data.movies)?data.movies:[];if(!movies.length){box.innerHTML='<div class="message">No movies available.</div>';return}box.innerHTML=movies.slice(0,12).map(movie=>{const poster=movie.poster_path?"https://image.tmdb.org/t/p/w342"+movie.poster_path:"",movieYear=movie.release_date?movie.release_date.slice(0,4):"";return `<div class="visual-card" onclick="showMovie('${movie.id}')">${poster?`<img src="${poster}" alt="${escapeHTML(movie.title)}">`:`<div class="no-poster">🎬</div>`}<div class="visual-info"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movieYear)}</small></div></div>`}).join("")}catch(error){box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-
-async function showMovieSection(){resultsTitle.textContent="Explore Movies";results.innerHTML=`<div class="discovery-page"><button class="back-button" onclick="showHome()">← Home</button><div class="discovery-hero"><div class="eyebrow">EXPLORE THE MOVIES</div><h1>Find your next movie.</h1><p>Browse movies by what you're in the mood for, revisit the classics, explore different eras and discover great movie franchises.</p><form class="discovery-search" onsubmit="event.preventDefault();searchBrowse('movie',document.getElementById('movieDiscoverySearch').value)"><input id="movieDiscoverySearch" placeholder="Search movies..." autocomplete="off"><button type="submit">Search</button></form></div>${movieBrowseSection("trendingMovies","WHAT PEOPLE ARE WATCHING","Trending Movies")}${movieBrowseSection("franchiseMovies","MOVIE MARATHON","Great Franchises")}${movieBrowseSection("actionMovies","HIGH OCTANE","Action")}${movieBrowseSection("comedyMovies","MAKE ME LAUGH","Comedy")}${movieBrowseSection("classicMovies","ESSENTIAL VIEWING","Movie Classics")}${movieBrowseSection("retroMovies","BACK IN TIME","80s & 90s")}</div>`;goToResults();await Promise.all([loadMovieRow("trendingMovies","trending"),loadMovieRow("franchiseMovies","franchises"),loadMovieRow("actionMovies","action"),loadMovieRow("comedyMovies","comedy"),loadMovieRow("classicMovies","classics"),loadMovieRow("retroMovies","retro")])}
-function movieBrowseSection(id,eyebrow,title){return `<section class="browse-section"><div class="browse-heading"><div><div class="eyebrow">${eyebrow}</div><h2>${title}</h2></div><span>Swipe to explore →</span></div><div id="${id}" class="visual-row"><div class="message">Loading...</div></div></section>`}
-async function loadMovieRow(elementId,category){const box=document.getElementById(elementId);if(!box)return;try{const response=await fetch("/api/movies?category="+encodeURIComponent(category)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movies could not be loaded.");const movies=Array.isArray(data)?data:Array.isArray(data.movies)?data.movies:[];box.innerHTML=movies.slice(0,18).map(movie=>{const poster=movie.poster_path?"https://image.tmdb.org/t/p/w342"+movie.poster_path:"",year=movie.release_date?movie.release_date.slice(0,4):"";return `<div class="visual-card" onclick="showMovie('${movie.id}')">${poster?`<img src="${poster}" alt="${escapeHTML(movie.title)}">`:`<div class="no-poster">🎬</div>`}<div class="visual-info"><strong>${escapeHTML(movie.title)}</strong><small>${year}</small></div></div>`}).join("")||'<div class="message">No movies available.</div>'}catch(error){box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-
-async function showStarSection(){resultsTitle.textContent="Explore Movie Stars";results.innerHTML=`<div class="discovery-page"><button class="back-button" onclick="showHome()">← Home</button><div class="discovery-hero"><div class="eyebrow">THE PEOPLE BEHIND THE MOVIES</div><h1>Meet the stars.</h1><p>Explore movie legends, unforgettable performers and the stars behind the movies you love.</p><form class="discovery-search" onsubmit="event.preventDefault();searchBrowse('person',document.getElementById('starDiscoverySearch').value)"><input id="starDiscoverySearch" placeholder="Search movie stars..." autocomplete="off"><button type="submit">Search</button></form></div>${starBrowseSection("popularStars","IN THE SPOTLIGHT","Popular Movie Stars")}${starBrowseSection("legendStars","ICONIC CAREERS","Hollywood Legends")}${starBrowseSection("actionStars","SCREEN HEROES","Action Stars")}${starBrowseSection("comedyStars","FUNNY PEOPLE","Comedy Stars")}${starBrowseSection("retroStars","THE FACES OF AN ERA","80s & 90s Stars")}</div>`;goToResults();await Promise.all([loadStarRow("popularStars","popular"),loadStarRow("legendStars","legends"),loadStarRow("actionStars","action"),loadStarRow("comedyStars","comedy"),loadStarRow("retroStars","retro")])}
-function starBrowseSection(id,eyebrow,title){return `<section class="browse-section"><div class="browse-heading"><div><div class="eyebrow">${eyebrow}</div><h2>${title}</h2></div><span>Swipe to explore →</span></div><div id="${id}" class="visual-row"><div class="message">Loading...</div></div></section>`}
-async function loadStarRow(elementId,category){const box=document.getElementById(elementId);if(!box)return;try{const response=await fetch("/api/stars?category="+encodeURIComponent(category)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie stars could not be loaded.");const stars=Array.isArray(data)?data:Array.isArray(data.stars)?data.stars:[];box.innerHTML=stars.slice(0,18).map(person=>{const photo=person.profile_path?"https://image.tmdb.org/t/p/w342"+person.profile_path:"";return `<div class="visual-card" onclick="showPerson('${person.id}')">${photo?`<img src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}<div class="visual-info"><strong>${escapeHTML(person.name)}</strong><small>View Profile →</small></div></div>`}).join("")||'<div class="message">No stars available.</div>'}catch(error){box.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-
-function normalizeReelwiseQuery(value){let q=String(value||"").trim().replace(/\s+/g," ");if(!q)return "";const key=q.toLowerCase().replace(/[’']/g,"").replace(/&/g," and ").replace(/[.:,_-]+/g," ").replace(/\s+/g," ").trim();const aliases={"rocky 2":"Rocky II","rocky 3":"Rocky III","rocky 4":"Rocky IV","godfather 2":"The Godfather Part II","godfather 3":"The Godfather Part III","goodfelas":"Goodfellas","good fellas":"Goodfellas","forest gump":"Forrest Gump","jurasic park":"Jurassic Park","few good men":"A Few Good Men","topgun":"Top Gun","tom cruse":"Tom Cruise","tom cruz":"Tom Cruise","silvester stallone":"Sylvester Stallone","sylvester stalone":"Sylvester Stallone","stallone":"Sylvester Stallone","robert deniro":"Robert De Niro","de niro":"Robert De Niro","dicaprio":"Leonardo DiCaprio"};return aliases[key]||q}
-async function fetchReelwiseSearch(original){const q=normalizeReelwiseQuery(original),response=await fetch("/api/search?q="+encodeURIComponent(q)),data=await response.json();if(!response.ok)throw new Error(data.error||"Search failed.");return {items:Array.isArray(data.results)?data.results:[],usedQuery:q}}
-async function searchBrowse(type,queryValue){const original=String(queryValue||"").trim();if(!original)return;lastQuery=original;results.innerHTML='<div class="message">Searching Reelwise...</div>';try{const found=await fetchReelwiseSearch(original),items=found.items.filter(item=>item.result_type===type);results.innerHTML=items.length?items.slice(0,30).map(makeCard).join(""):`<div class="message">No exact match found.</div>`;attachCardEvents()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-async function searchReelwise(queryValue){recordRoute("search",[queryValue]);const original=String(queryValue||"").trim();if(!original)return;lastQuery=original;homeContent.style.display="none";revealResults();resultsTitle.textContent='Results for "'+normalizeReelwiseQuery(original)+'"';results.innerHTML='<div class="message">Searching Reelwise...</div>';try{const found=await fetchReelwiseSearch(original),items=found.items;results.innerHTML=items.length?items.slice(0,30).map(makeCard).join(""):`<div class="message">No close results found.</div>`;attachCardEvents();goToResults()}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
-function makeCard(item){const isMovie=item.result_type==="movie",name=item.display_title||item.title||item.name||"Unknown",image=isMovie?item.poster_path:item.profile_path,imageURL=image?"https://image.tmdb.org/t/p/w500"+image:"",subtitle=isMovie?item.year||"Movie":item.known_for_department||"Actor";return `<div class="card" data-type="${item.result_type}" data-id="${item.id}">${imageURL?`<img class="poster" src="${imageURL}" alt="${escapeHTML(name)}">`:`<div class="no-poster">${isMovie?"🎬":"⭐"}</div>`}<div class="card-info"><div class="type">${isMovie?"MOVIE":"STAR"}</div><strong>${escapeHTML(name)}</strong><small>${escapeHTML(subtitle)}</small></div></div>`}
-function attachCardEvents(){document.querySelectorAll(".card").forEach(card=>card.addEventListener("click",()=>card.dataset.type==="movie"?showMovie(card.dataset.id):showPerson(card.dataset.id)))}
-
-async function showMovie(id){
-  recordRoute("movie",[id]);homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie";results.innerHTML='<div class="message">Loading movie...</div>';
-  try{
-    const response=await fetch("/api/search?type=movie-details&id="+encodeURIComponent(id)),movie=await response.json();if(!response.ok)throw new Error(movie.error||"Movie could not be loaded.");
-    currentMovie=movie;const poster=movie.poster_path?"https://image.tmdb.org/t/p/w500"+movie.poster_path:"",backdrop=movie.backdrop_path?"https://image.tmdb.org/t/p/w1280"+movie.backdrop_path:"";
-    currentCast=movie.credits&&Array.isArray(movie.credits.cast)?movie.credits.cast.slice(0,20):[];
-    const year=movie.release_date?movie.release_date.slice(0,4):"",genres=Array.isArray(movie.genres)?movie.genres.map(g=>g.name).join(", "):"",rating=Number(movie.vote_average||0)>0?Number(movie.vote_average).toFixed(1):"",topCast=currentCast.slice(0,8);
-    const franchise=movie.reelwise_franchise&&Array.isArray(movie.reelwise_franchise.parts)?movie.reelwise_franchise.parts:[];
-    const franchiseHTML=franchise.length>1?`<div class="franchise-section"><div class="franchise-heading"><div><div class="eyebrow">FRANCHISE</div><h2>${escapeHTML(movie.reelwise_franchise.name||"Movie Series")}</h2></div><span>Swipe through the series →</span></div><div class="franchise-row">${franchise.map(part=>{const pp=part.poster_path?"https://image.tmdb.org/t/p/w342"+part.poster_path:"",py=part.release_date?part.release_date.slice(0,4):"",cur=String(part.id)===String(movie.id);return `<div class="franchise-card${cur?" current":""}" onclick="${cur?"":"showMovie('"+part.id+"')"}">${pp?`<img src="${pp}" alt="${escapeHTML(part.title)}">`:`<div class="no-poster">🎬</div>`}<div class="franchise-info"><strong>${escapeHTML(part.title)}</strong><small>${py}${cur?" · CURRENT":""}</small></div></div>`}).join("")}</div></div>`:"";
-    results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="detail-layout movie-hero">${backdrop?`<div class="movie-backdrop" style="background-image:url('${backdrop}')"></div>`:""}<div class="movie-poster-wrap">${poster?`<img class="detail-image" src="${poster}" alt="${escapeHTML(movie.title)}">`:`<div class="no-poster">🎬</div>`}</div><div class="movie-info"><div class="movie-head"><div class="eyebrow">REELWISE MOVIE · ${year}</div><h1>${escapeHTML(movie.title)}</h1></div><div class="movie-overview-label">THE STORY</div><p class="movie-overview">${escapeHTML(movie.overview||"No description available.")}</p><div class="movie-facts">${movie.release_date?`<div class="movie-fact"><span>Release</span> ${formatDate(movie.release_date)}</div>`:""}${movie.runtime?`<div class="movie-fact"><span>Runtime</span> ${movie.runtime} min</div>`:""}${genres?`<div class="movie-fact"><span>Genres</span> ${escapeHTML(genres)}</div>`:""}${rating?`<div class="movie-fact"><span>Rating</span> ★ ${rating}/10</div>`:""}</div><div class="movie-cast-block"><div class="movie-cast-heading"><div><div class="eyebrow">WHO'S IN IT</div><h2>Top Cast</h2></div><span>Tap a name to explore their career</span></div><div class="cast" id="movieCast">${topCast.map(p=>`<button onclick="showPerson('${p.id}')">${escapeHTML(p.name)}</button>`).join("")}</div>${currentCast.length>8?`<button class="cast-toggle" id="castToggle" onclick="toggleFullCast()">View Full Cast ↓</button>`:""}</div></div></div>${franchiseHTML}<div class="movie-vault"><div class="movie-vault-heading"><div class="eyebrow">THE REELWISE VAULT</div><h2>Go beyond the movie.</h2><p>Quotes, trivia, movie extras, bloopers, stats and more from the movie.</p></div><div class="movie-extras"><div class="extra-card"><div class="extra-icon">💬</div><h3>Quotes</h3><button onclick="showMovieFeature('quotes')">Explore →</button></div><div class="extra-card"><div class="extra-icon">🧠</div><h3>Trivia</h3><button onclick="showMovieFeature('trivia')">Explore →</button></div><div class="extra-card"><div class="extra-icon">🎬</div><h3>Movie Extras</h3><button onclick="showMovieFeature('behind')">Explore →</button></div><div class="extra-card"><div class="extra-icon">😂</div><h3>Bloopers</h3><button onclick="showMovieFeature('bloopers')">Explore →</button></div><div class="extra-card"><div class="extra-icon">📊</div><h3>Movie Stats</h3><button onclick="showMovieFeature('stats')">Explore →</button></div></div><div id="movieFeatureView"></div></div></div>`;
-  }catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}
-}
-function toggleFullCast(){const box=document.getElementById("movieCast"),button=document.getElementById("castToggle");if(!box||!button)return;const expanded=button.dataset.expanded==="true",list=expanded?currentCast.slice(0,8):currentCast;box.innerHTML=list.map(p=>`<button onclick="showPerson('${p.id}')">${escapeHTML(p.name)}</button>`).join("");button.dataset.expanded=expanded?"false":"true";button.textContent=expanded?"View Full Cast ↓":"Show Less ↑"}
-
-async function showMovieFeature(feature){const view=document.getElementById("movieFeatureView");if(!view||!currentMovie)return;if(feature==="quotes"||feature==="trivia"){view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/"+feature+"?id="+encodeURIComponent(currentMovie.id)),data=await response.json();if(!response.ok)throw new Error(data.error||"Information could not be loaded.");const list=feature==="quotes"?data.quotes:data.trivia;view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="quotes"?"REELWISE QUOTES":"REELWISE TRIVIA"}</div><h3>${feature==="quotes"?"💬 Quotes":"🧠 Trivia"}</h3><div class="fact-grid">${(Array.isArray(list)?list:[]).map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||"<p>No information available yet.</p>"}</div></div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>'}return}if(feature==="stats"){const genres=Array.isArray(currentMovie.genres)?currentMovie.genres.map(g=>g.name).join(", "):"";view.innerHTML=`<div class="feature-view"><div class="eyebrow">REELWISE MOVIE STATS</div><h3>📊 Movie Stats</h3><div class="fact-grid">${currentMovie.release_date?`<div class="fact-item"><strong>Release:</strong> ${formatDate(currentMovie.release_date)}</div>`:""}${currentMovie.runtime?`<div class="fact-item"><strong>Runtime:</strong> ${currentMovie.runtime} minutes</div>`:""}${genres?`<div class="fact-item"><strong>Genres:</strong> ${escapeHTML(genres)}</div>`:""}${currentMovie.budget?`<div class="fact-item"><strong>Budget:</strong> $${Number(currentMovie.budget).toLocaleString()}</div>`:""}${currentMovie.revenue?`<div class="fact-item"><strong>Revenue:</strong> $${Number(currentMovie.revenue).toLocaleString()}</div>`:""}</div></div>`;return}if(feature==="behind"||feature==="bloopers"){view.innerHTML='<div class="feature-view"><p>Loading...</p></div>';try{const response=await fetch("/api/extras?id="+encodeURIComponent(currentMovie.id)+"&feature="+encodeURIComponent(feature)),data=await response.json();if(!response.ok)throw new Error(data.error||"Movie extras could not be loaded.");const selected=Array.isArray(data.videos)?data.videos:[];view.innerHTML=`<div class="feature-view"><div class="eyebrow">${feature==="behind"?"REELWISE MOVIE EXTRAS":"OUTTAKES & BLOOPERS"}</div><h3>${feature==="behind"?"🎬 Movie Extras":"😂 Bloopers"}</h3>${selected.length?`<div class="video-list">${selected.map(v=>`<a class="video-card" href="https://www.youtube.com/watch?v=${encodeURIComponent(v.key)}" target="_blank" rel="noopener noreferrer"><img src="https://img.youtube.com/vi/${encodeURIComponent(v.key)}/mqdefault.jpg" alt=""><strong>${escapeHTML(v.name)}</strong></a>`).join("")}</div>`:`<p>No verified material is available for this movie yet.</p>`}</div>`}catch(error){view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>'}}}
-
-function compactStarBio(rawBio){let bio=String(rawBio||"").trim();if(!bio)return "Biography information is not available.";bio=bio.replace(/\s*Description above from the Wikipedia[\s\S]*$/i,"").replace(/\s*This article is licensed under CC-BY-SA[\s\S]*$/i,"").replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i,"").trim().replace(/\s*\([^)]*\/[^)]*\/[^)]*\)\s*/g," ").replace(/\s+/g," ").trim();const complete=(bio.match(/[^.!?]+[.!?]+(?:["'’”)]*)/g)||[]).map(s=>s.trim()).filter(Boolean);if(!complete.length)return bio;const chosen=[];let length=0;for(const sentence of complete){if(chosen.length>=4)break;if(chosen.length>=2&&length+sentence.length+1>650)break;chosen.push(sentence);length+=sentence.length+1}return chosen.join(" ")||"Biography information is not available."}
-
-async function showPerson(id){
-  recordRoute("person",[id]);homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';
-  try{
-    const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");
-    const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10);
-    const movies=credits.filter(x=>x.media_type==="movie"&&x.title&&x.release_date&&x.release_date<=today).filter((m,i,a)=>a.findIndex(x=>x.id===m.id)===i);
-    const known=[...movies].filter(m=>m.poster_path).sort((a,b)=>Number(b.vote_count||0)-Number(a.vote_count||0)).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
-    function seriesKey(title){const clean=String(title||"").toLowerCase().replace(/['’]/g,"").replace(/[:\-–—].*$/,"").replace(/\b(part|chapter|episode)\s+[ivxlcdm\d]+\b/g,"").replace(/\b[ivxlcdm]+\b$/g,"").replace(/\b\d+\b$/g,"").trim();const aliases=[["Rocky",/^rocky\b|^creed\b/],["Rambo",/^rambo\b|^first blood\b/],["Mission: Impossible",/^mission impossible\b/],["Top Gun",/^top gun\b/],["John Wick",/^john wick\b/],["The Godfather",/^the godfather\b/],["Back to the Future",/^back to the future\b/]];for(const [name,test] of aliases)if(test.test(clean))return name;return clean}
-    const map=new Map();filmography.forEach(m=>{const k=seriesKey(m.title);if(!map.has(k))map.set(k,[]);map.get(k).push(m)});const groups=[],ids=new Set();for(const [key,list] of map){if(list.length<2)continue;groups.push({label:key.replace(/\b\w/g,c=>c.toUpperCase()),movies:[...list].sort((a,b)=>(a.release_date||"").localeCompare(b.release_date||""))});list.forEach(m=>ids.add(m.id))}const others=filmography.filter(m=>!ids.has(m.id));
-    function filmCard(m){const p=m.poster_path?"https://image.tmdb.org/t/p/w342"+m.poster_path:"",y=m.release_date?m.release_date.slice(0,4):"";return `<div class="filmography-card" onclick="showMovie('${m.id}')">${p?`<img src="${p}" alt="${escapeHTML(m.title)}">`:`<div class="no-poster">🎬</div>`}<div class="filmography-card-info"><strong>${escapeHTML(m.title)}</strong><small>${y}</small></div></div>`}
-    const filmographyHTML=[...groups.map(g=>`<section class="filmography-group"><div class="filmography-group-heading"><h3>${escapeHTML(g.label)}</h3><span>Release order</span></div><div class="filmography compact">${g.movies.map(filmCard).join("")}</div></section>`),others.length?`<section class="filmography-group"><div class="filmography-group-heading"><h3>Other Movies</h3><span>Newest first</span></div><div class="filmography compact">${others.map(filmCard).join("")}</div></section>`:""].join("");
-    const bio=compactStarBio(person.biography),born=person.birthday?formatDate(person.birthday):"";
-    results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${born?`<div class="star-born">Born: ${born}</div>`:""}<div class="star-bio">${escapeHTML(bio)}</div></div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.map(m=>`<div class="known-card" onclick="showMovie('${m.id}')"><img src="https://image.tmdb.org/t/p/w342${m.poster_path}" alt="${escapeHTML(m.title)}"><strong>${escapeHTML(m.title)}</strong><small>${m.release_date.slice(0,4)}</small></div>`).join("")}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML}</div></div></div>`;
-  }catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}
-}
-
-function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="showHome()">← Home</button><div class="eyebrow">SIX DEGREES</div><h1>How are two movie stars connected?</h1><p>Enter any two actors. Reelwise will connect them through movies and co-stars.</p><div class="degree-box"><div class="degree-inputs"><div class="degree-input-wrap"><input id="actorOne" placeholder="First actor — Tom Cruise" autocomplete="off"></div><div class="degree-input-wrap"><input id="actorTwo" placeholder="Second actor — Robert De Niro" autocomplete="off"></div></div><button onclick="findSixDegrees()">Find Connection</button><div id="degreeMessage"></div></div></div>`;goToResults()}
-async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.textContent="Enter two actor names.";return}box.textContent="Finding the connection...";try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.textContent=data.message||"No connection found.";return}const chain=Array.isArray(data.chain)?data.chain:[];const visual=chain.map((item,index)=>{const isMovie=item.type==="movie";if(isMovie){const poster=item.poster_path?"https://image.tmdb.org/t/p/w185"+item.poster_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-movie-card clickable" onclick="showMovie('${item.id}')">${poster?`<img class="six-movie-poster" src="${poster}" alt="">`:`<div class="six-movie-poster-fallback">🎬</div>`}<div><div class="six-movie-label">CONNECTED THROUGH</div><div class="six-movie-title">${escapeHTML(item.title||"Movie")}</div><div class="six-movie-year">${escapeHTML(item.year||"")}</div></div></div>`}const photo=item.profile_path?"https://image.tmdb.org/t/p/w185"+item.profile_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-actor-card clickable" onclick="showPerson('${item.id}')">${photo?`<img class="six-actor-photo" src="${photo}" alt="">`:`<div class="six-actor-fallback">⭐</div>`}<div class="six-actor-name">${escapeHTML(item.name||"Actor")}</div></div>`}).join("");box.innerHTML=`<div class="six-result"><div class="six-result-title">Connection found — ${escapeHTML(data.degrees)} degrees</div><div class="six-visual-path">${visual}</div></div>`}catch(error){box.textContent=error.message}}
-
-function formatDate(dateString){if(!dateString)return "";const parts=String(dateString).split("-");if(parts.length!==3)return dateString;const date=new Date(Number(parts[0]),Number(parts[1])-1,Number(parts[2]));return date.toLocaleDateString("en-US",{month:"long",day:"numeric",year:"numeric"})}
-function escapeHTML(value){return String(value||"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;")}
-
-/* Predictive search */
+/* REELWISE PREDICTIVE SEARCH — FULL RESTORE */
 const reelwisePredictState=new WeakMap();
-function rwClean(value){return String(value||"").toLowerCase().replace(/[’']/g,"").replace(/&/g," and ").replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim()}
-function suggestionBoxFor(input){if(!input)return null;const parent=input.parentElement;let box=parent.querySelector(".reelwise-suggestions");if(!box){box=document.createElement("div");box.className="reelwise-suggestions";parent.appendChild(box)}return box}
-function closeSuggestions(input){if(!input)return;const box=input.parentElement.querySelector(".reelwise-suggestions");if(box){box.classList.remove("open");box.innerHTML=""}}
-async function loadPredictions(input){const raw=input.value.trim(),box=suggestionBoxFor(input);if(raw.length<3){closeSuggestions(input);return}let state=reelwisePredictState.get(input)||{};clearTimeout(state.timer);state.timer=setTimeout(async()=>{try{const response=await fetch("/api/search?q="+encodeURIComponent(normalizeReelwiseQuery(raw))),data=await response.json();let items=Array.isArray(data.results)?data.results:[];const type=input.id==="movieDiscoverySearch"?"movie":"person";items=items.filter(x=>x.result_type===type).slice(0,5);if(!items.length){closeSuggestions(input);return}box.innerHTML=items.map((item,i)=>{const movie=item.result_type==="movie",name=item.display_title||item.title||item.name,image=movie?item.poster_path:item.profile_path,url=image?"https://image.tmdb.org/t/p/w185"+image:"";return `<button type="button" class="suggestion-item" data-index="${i}">${url?`<img class="suggestion-thumb" src="${url}" alt="">`:`<span class="suggestion-fallback">${movie?"🎬":"⭐"}</span>`}<span class="suggestion-copy"><span class="suggestion-type">${movie?"MOVIE":"STAR"}</span><strong>${escapeHTML(name)}</strong></span></button>`}).join("");box.querySelectorAll("button").forEach((button,i)=>button.onclick=()=>{const item=items[i];closeSuggestions(input);item.result_type==="movie"?showMovie(item.id):showPerson(item.id)});box.classList.add("open")}catch(e){closeSuggestions(input)}},220);reelwisePredictState.set(input,state)}
-function wireAllPredictiveSearches(){["movieDiscoverySearch","starDiscoverySearch","actorOne","actorTwo"].forEach(id=>{const input=document.getElementById(id);if(input&&!input.dataset.predictive){input.dataset.predictive="true";input.addEventListener("input",()=>loadPredictions(input))}})}
-new MutationObserver(wireAllPredictiveSearches).observe(document.body,{childList:true,subtree:true});
+
+function rwClean(value){
+  return String(value||"").toLowerCase().replace(/[’']/g,"").replace(/&/g," and ")
+    .replace(/[^a-z0-9\s]/g," ").replace(/\s+/g," ").trim();
+}
+function rwEditDistance(a,b){
+  a=rwClean(a);b=rwClean(b);
+  const m=a.length,n=b.length,dp=Array.from({length:m+1},()=>Array(n+1).fill(0));
+  for(let i=0;i<=m;i++)dp[i][0]=i;
+  for(let j=0;j<=n;j++)dp[0][j]=j;
+  for(let i=1;i<=m;i++)for(let j=1;j<=n;j++)
+    dp[i][j]=Math.min(dp[i-1][j]+1,dp[i][j-1]+1,dp[i-1][j-1]+(a[i-1]===b[j-1]?0:1));
+  return dp[m][n];
+}
+function rwSimilarity(a,b){
+  a=rwClean(a);b=rwClean(b);
+  if(!a||!b)return 0;
+  if(a===b)return 1;
+  if(b.startsWith(a))return .98;
+  if(a.startsWith(b))return .93;
+  if(b.includes(a))return .90;
+  return 1-rwEditDistance(a,b)/Math.max(a.length,b.length,1);
+}
+function predictorConfig(input){
+  if(!input)return {type:"all",selectOnly:false};
+  if(input.id==="movieDiscoverySearch")return {type:"movie",selectOnly:false};
+  if(input.id==="starDiscoverySearch")return {type:"person",selectOnly:false};
+  if(input.id==="actorOne"||input.id==="actorTwo")return {type:"person",selectOnly:true};
+  return {type:"all",selectOnly:false};
+}
+function suggestionBoxFor(input){
+  if(!input)return null;
+  const parent=input.parentElement;
+  let box=Array.from(parent.children).find(el=>el.classList&&el.classList.contains("reelwise-suggestions"));
+  if(!box){
+    box=document.createElement("div");
+    box.className="reelwise-suggestions";
+    box.setAttribute("role","listbox");
+    parent.appendChild(box);
+  }
+  return box;
+}
+function closeSuggestions(input){
+  if(!input||!input.parentElement)return;
+  const box=Array.from(input.parentElement.children).find(el=>el.classList&&el.classList.contains("reelwise-suggestions"));
+  if(box){box.classList.remove("open");box.innerHTML=""}
+}
+async function rwSearch(q,signal){
+  const response=await fetch("/api/search?q="+encodeURIComponent(q),{signal});
+  const data=await response.json();
+  if(!response.ok)throw new Error(data.error||"Search failed.");
+  return Array.isArray(data.results)?data.results:[];
+}
+function predictionScore(query,item){
+  const name=item.display_title||item.title||item.name||"",q=rwClean(query),n=rwClean(name);
+  let score=rwSimilarity(q,n);
+  const qWords=q.split(" ").filter(Boolean),nWords=n.split(" ").filter(Boolean);
+  if(qWords.length>1&&nWords.length){
+    const scores=qWords.map(qw=>Math.max(...nWords.map(nw=>rwSimilarity(qw,nw))));
+    score=score*.38+(scores.reduce((a,b)=>a+b,0)/scores.length)*.47+Math.min(...scores)*.15;
+  }
+  return score;
+}
+async function loadPredictions(input){
+  const raw=String(input.value||"").trim(),box=suggestionBoxFor(input);
+  if(!box)return;
+  input.dataset.tmdbId="";
+  input.dataset.tmdbType="";
+  if(raw.length<3){closeSuggestions(input);return}
+
+  let state=reelwisePredictState.get(input);
+  if(!state){
+    state={timer:null,controller:null};
+    reelwisePredictState.set(input,state);
+  }
+  clearTimeout(state.timer);
+
+  state.timer=setTimeout(async()=>{
+    try{
+      if(state.controller)state.controller.abort();
+      state.controller=new AbortController();
+      const signal=state.controller.signal,config=predictorConfig(input),normalized=normalizeReelwiseQuery(raw);
+      let items;
+
+      if(config.type==="movie"){
+        const response=await fetch("/api/search?type=movie&q="+encodeURIComponent(normalized),{signal});
+        const data=await response.json();
+        if(!response.ok)throw new Error(data.error||"Movie search failed.");
+        items=Array.isArray(data.results)?data.results:[];
+        if(!items.length)items=await rwSearch(normalized,signal);
+      }else{
+        items=await rwSearch(normalized,signal);
+      }
+
+      const words=rwClean(raw).split(" ").filter(Boolean);
+
+      if(words.length>1){
+        for(const word of [...words].filter(w=>w.length>=2).sort((a,b)=>b.length-a.length).slice(0,2)){
+          let extra;
+          if(config.type==="movie"){
+            const extraResponse=await fetch("/api/search?type=movie&q="+encodeURIComponent(word),{signal});
+            const extraData=await extraResponse.json();
+            extra=extraResponse.ok&&Array.isArray(extraData.results)?extraData.results:[];
+            if(!extra.length)extra=await rwSearch(word,signal);
+          }else{
+            extra=await rwSearch(word,signal);
+          }
+          const seen=new Set(items.map(x=>x.result_type+":"+x.id));
+          extra.forEach(x=>{
+            const k=x.result_type+":"+x.id;
+            if(!seen.has(k)){seen.add(k);items.push(x)}
+          });
+        }
+      }
+
+      if(config.type!=="all")items=items.filter(item=>item.result_type===config.type);
+
+      if(config.type==="movie"&&rwClean(normalized).length<=4){
+        const broad=await rwSearch(normalized,signal);
+        const seen=new Set(items.map(x=>x.result_type+":"+x.id));
+        broad.filter(x=>x.result_type==="movie").forEach(x=>{
+          const k=x.result_type+":"+x.id;
+          if(!seen.has(k)){seen.add(k);items.push(x)}
+        });
+      }
+
+      const cleanQuery=rwClean(normalized);
+      const threshold=words.length>1?.56:(config.type==="movie"&&cleanQuery.length<=4?.50:.70);
+
+      const ranked=items.map(item=>{
+        let score=predictionScore(normalized,item);
+        const name=rwClean(item.display_title||item.title||item.name||"");
+        if(config.type==="movie"&&cleanQuery.length<=4){
+          const titleWords=name.split(" ").filter(Boolean);
+          if(name.startsWith(cleanQuery))score=Math.max(score,.995);
+          else if(titleWords.some(word=>word.startsWith(cleanQuery)))score=Math.max(score,.94);
+        }
+        return {item,score};
+      }).filter(x=>x.score>=threshold).sort((a,b)=>b.score-a.score).slice(0,5);
+
+      if(!ranked.length){closeSuggestions(input);return}
+
+      const suggestions=ranked.map(x=>x.item);
+
+      box.innerHTML=suggestions.map((item,index)=>{
+        const movie=item.result_type==="movie",
+          name=item.display_title||item.title||item.name||"Unknown",
+          image=movie?item.poster_path:item.profile_path,
+          imageURL=image?"https://image.tmdb.org/t/p/w185"+image:"",
+          meta=movie?(item.year||"Movie"):(item.known_for_department||"Movie Star");
+
+        return `<button type="button" class="suggestion-item" role="option" data-index="${index}">${imageURL?`<img class="suggestion-thumb" src="${imageURL}" alt="">`:`<span class="suggestion-fallback">${movie?"🎬":"⭐"}</span>`}<span class="suggestion-copy"><span class="suggestion-type">${movie?"MOVIE":"STAR"}</span><strong>${escapeHTML(name)}</strong><small>${escapeHTML(meta)}</small></span></button>`;
+      }).join("");
+
+      box.querySelectorAll(".suggestion-item").forEach((button,index)=>{
+        button.addEventListener("click",event=>{
+          event.preventDefault();
+          event.stopPropagation();
+          const item=suggestions[index],name=item.display_title||item.title||item.name||raw;
+          input.value=name;
+          input.dataset.tmdbId=String(item.id||"");
+          input.dataset.tmdbType=item.result_type||"";
+          closeSuggestions(input);
+
+          if(config.selectOnly){
+            input.dispatchEvent(new Event("change",{bubbles:true}));
+            return;
+          }
+          item.result_type==="movie"?showMovie(item.id):showPerson(item.id);
+        });
+      });
+
+      box.classList.add("open");
+    }catch(error){
+      if(error.name!=="AbortError")closeSuggestions(input);
+    }
+  },220);
+}
+function wirePredictiveInput(input){
+  if(!input||input.dataset.predictive==="true")return;
+  input.dataset.predictive="true";
+  input.setAttribute("autocomplete","off");
+  input.addEventListener("input",()=>loadPredictions(input));
+  input.addEventListener("focus",()=>{if(input.value.trim().length>=3)loadPredictions(input)});
+  input.addEventListener("keydown",event=>{if(event.key==="Escape")closeSuggestions(input)});
+}
+function wireAllPredictiveSearches(){
+  ["movieDiscoverySearch","starDiscoverySearch","actorOne","actorTwo"].forEach(id=>wirePredictiveInput(document.getElementById(id)));
+}
+document.addEventListener("click",event=>{
+  document.querySelectorAll(".reelwise-suggestions.open").forEach(box=>{
+    if(!box.parentElement.contains(event.target)){
+      box.classList.remove("open");
+      box.innerHTML="";
+    }
+  });
+});
+const reelwiseObserver=new MutationObserver(()=>wireAllPredictiveSearches());
+reelwiseObserver.observe(document.body,{childList:true,subtree:true});
 wireAllPredictiveSearches();
+
 loadHomeMovies();
 </script>
 </body>
