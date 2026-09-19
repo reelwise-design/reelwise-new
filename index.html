@@ -1778,18 +1778,22 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  margin-top:14px;
-  padding:10px 16px;
-  border:1px solid rgba(228,179,77,.42);
-  border-radius:999px;
-  background:rgba(228,179,77,.08);
+  width:auto;
+  margin-top:12px;
+  padding:9px 13px;
+  border:1px solid var(--line);
+  border-radius:8px;
+  background:var(--panel2);
   color:var(--gold);
-  font:800 12px/1 inherit;
-  letter-spacing:.12em;
+  font:800 11px/1 inherit;
+  letter-spacing:.10em;
   text-transform:uppercase;
   cursor:pointer;
 }
-.star-accolades-link:hover{background:rgba(228,179,77,.14)}
+.star-accolades-link:hover{
+  border-color:rgba(228,179,77,.45);
+  background:rgba(228,179,77,.08);
+}
 #results > .accolades-page{
   grid-column:1 / -1!important;
   width:100%!important;
