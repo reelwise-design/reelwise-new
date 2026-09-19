@@ -2,6 +2,10 @@
   ============================================================
   REELWISE ICONIC QUOTE VAULT — 2010s
   ============================================================
+
+  Curated Reelwise movie quotes.
+  Verified additions should be made in batches so Reelwise
+  favors accuracy over filling the Vault with questionable lines.
 */
 
 const QUOTES_2010S = {
@@ -11,8 +15,24 @@ const QUOTES_2010S = {
     "An idea is like a virus."
   ],
 
+  "toy story 3": [
+    "So long... partner."
+  ],
+
+  "the social network": [
+    "I'm just checking your math on that."
+  ],
+
   "bridesmaids": [
     "Help me, I'm poor."
+  ],
+
+  "crazy, stupid, love.": [
+    "I have loved her even when I hated her."
+  ],
+
+  "the hangover part ii": [
+    "I wish monkeys could Skype."
   ],
 
   "the avengers": [
