@@ -1921,6 +1921,12 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 </main>
 <footer>Reelwise · Know the movie. Know the story.</footer>
 <script>
+window.addEventListener("error",event=>{
+  console.error("Reelwise error:",event.error||event.message);
+});
+window.addEventListener("unhandledrejection",event=>{
+  console.error("Reelwise promise error:",event.reason);
+});
 const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),searchInput=document.getElementById("searchInput"),searchForm=document.getElementById("searchForm"),homeContent=document.getElementById("homeContent");
 let lastQuery="",currentMovie=null,currentCast=[];
 if(searchForm&&searchInput){searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});}
@@ -2698,23 +2704,35 @@ reelwiseObserver.observe(document.body,{childList:true,subtree:true});
 wireAllPredictiveSearches();
 
 
-/* ===== REELWISE NAVIGATION HISTORY ===== */
-let reelwiseNavHistory=[];
-let reelwiseNavCurrent={type:"home",args:[]};
-let reelwiseRestoring=false;
+/* ===== REELWISE CONSOLIDATED NAVIGATION ===== */
+const reelwiseNav = {
+  stack: [],
+  current: {type:"home", args:[]},
+  restoring: false
+};
+
+function reelwiseRoute(type,args=[]){
+  return {type, args:Array.from(args)};
+}
 
 function reelwiseSameRoute(a,b){
-  return a&&b&&a.type===b.type&&JSON.stringify(a.args||[])===JSON.stringify(b.args||[]);
+  return !!(a && b && a.type===b.type &&
+    JSON.stringify(a.args||[])===JSON.stringify(b.args||[]));
 }
-function reelwiseRecordRoute(type,args=[]){
-  const next={type,args:Array.from(args)};
-  if(reelwiseRestoring){reelwiseNavCurrent=next;return;}
-  if(!reelwiseSameRoute(reelwiseNavCurrent,next))reelwiseNavHistory.push(reelwiseNavCurrent);
-  reelwiseNavCurrent=next;
+
+function reelwiseRemember(type,args=[]){
+  const next=reelwiseRoute(type,args);
+  if(reelwiseNav.restoring){
+    reelwiseNav.current=next;
+    return;
+  }
+  if(!reelwiseSameRoute(reelwiseNav.current,next)){
+    reelwiseNav.stack.push(reelwiseNav.current);
+  }
+  reelwiseNav.current=next;
 }
-function reelwiseGoHome(){
-  reelwiseNavHistory=[];
-  reelwiseNavCurrent={type:"home",args:[]};
+
+function reelwiseRenderHome(){
   homeContent.style.display="block";
   searchArea.style.display="none";
   results.innerHTML="";
@@ -2723,42 +2741,72 @@ function reelwiseGoHome(){
   currentCast=[];
   window.scrollTo({top:0,behavior:"smooth"});
 }
-function goBackReelwise(){
-  const previous=reelwiseNavHistory.pop();
-  if(!previous){reelwiseGoHome();return;}
-  reelwiseRestoring=true;
-  try{
-    if(previous.type==="home"){
-      homeContent.style.display="block";
-      searchArea.style.display="none";
-      results.innerHTML="";
-      resultsTitle.textContent="";
-      currentMovie=null;
-      currentCast=[];
-      window.scrollTo({top:0,behavior:"smooth"});
-    }
-    else if(previous.type==="section")_rwOpenSection(...previous.args);
-    else if(previous.type==="search")_rwSearchReelwise(...previous.args);
-    else if(previous.type==="movie")_rwShowMovie(...previous.args);
-    else if(previous.type==="person")_rwShowPerson(...previous.args);
-    else reelwiseGoHome();
-  }finally{
-    reelwiseNavCurrent=previous;
-    reelwiseRestoring=false;
-  }
+
+function reelwiseGoHome(){
+  reelwiseNav.stack=[];
+  reelwiseNav.current={type:"home",args:[]};
+  reelwiseRenderHome();
 }
 
-const _rwShowHome=showHome;
 const _rwOpenSection=openSection;
 const _rwSearchReelwise=searchReelwise;
 const _rwShowMovie=showMovie;
 const _rwShowPerson=showPerson;
 
-showHome=function(){return reelwiseGoHome();};
-openSection=function(){reelwiseRecordRoute("section",arguments);return _rwOpenSection.apply(this,arguments);};
-searchReelwise=function(){reelwiseRecordRoute("search",arguments);return _rwSearchReelwise.apply(this,arguments);};
-showMovie=function(){reelwiseRecordRoute("movie",arguments);return _rwShowMovie.apply(this,arguments);};
-showPerson=function(){reelwiseRecordRoute("person",arguments);return _rwShowPerson.apply(this,arguments);};
+function goBackReelwise(){
+  const previous=reelwiseNav.stack.pop();
+
+  if(!previous){
+    reelwiseGoHome();
+    return;
+  }
+
+  reelwiseNav.restoring=true;
+
+  try{
+    if(previous.type==="home"){
+      reelwiseRenderHome();
+    }else if(previous.type==="section"){
+      _rwOpenSection(...previous.args);
+    }else if(previous.type==="search"){
+      _rwSearchReelwise(...previous.args);
+    }else if(previous.type==="movie"){
+      _rwShowMovie(...previous.args);
+    }else if(previous.type==="person"){
+      _rwShowPerson(...previous.args);
+    }else{
+      reelwiseRenderHome();
+    }
+
+    reelwiseNav.current=previous;
+  }finally{
+    reelwiseNav.restoring=false;
+  }
+}
+
+showHome=function(){
+  reelwiseGoHome();
+};
+
+openSection=function(...args){
+  reelwiseRemember("section",args);
+  return _rwOpenSection(...args);
+};
+
+searchReelwise=function(...args){
+  reelwiseRemember("search",args);
+  return _rwSearchReelwise(...args);
+};
+
+showMovie=function(...args){
+  reelwiseRemember("movie",args);
+  return _rwShowMovie(...args);
+};
+
+showPerson=function(...args){
+  reelwiseRemember("person",args);
+  return _rwShowPerson(...args);
+};
 
 loadHomeMovies();
 </script>
