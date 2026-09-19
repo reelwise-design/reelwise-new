@@ -1,4 +1,4 @@
-import { QUOTE_VAULT } from "../data/quotes.js";
+import QUOTE_VAULT from "../data/quotes.js";
 
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
@@ -7,10 +7,12 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE QUOTE ENGINE
   ============================================================
 
-  1. Reelwise curated Quote Vault always wins.
-  2. Wikiquote is used only when a movie is not in the vault.
-  3. Fallback results are filtered so scene fragments,
-     speaker labels, reactions and broken dialogue are removed.
+  Curated Reelwise Vault quotes always appear first.
+  Wikiquote is used as the fallback for movies that
+  do not yet have curated quotes.
+
+  The fallback filter removes weak dialogue fragments,
+  speaker-only reactions, cast entries and page metadata.
 */
 
 function normalizeTitle(title = "") {
@@ -97,18 +99,27 @@ async function searchWikiquote(query) {
 }
 
 function likelyMoviePage(result, movieTitle, year) {
-  const title = (result?.title || "").toLowerCase();
+  const resultTitle = (result?.title || "").toLowerCase();
   const snippet = (result?.snippet || "").toLowerCase();
   const movie = movieTitle.toLowerCase();
 
-  if (title === movie) return true;
-  if (title.includes(`${movie} (film`)) return true;
-  if (title.includes(movie) && title.includes("film")) return true;
+  if (resultTitle === movie) return true;
+  if (resultTitle.includes(`${movie} (film`)) return true;
+
+  if (
+    resultTitle.includes(movie) &&
+    resultTitle.includes("film")
+  ) {
+    return true;
+  }
 
   if (
     year &&
-    title.includes(movie) &&
-    (title.includes(String(year)) || snippet.includes(String(year)))
+    resultTitle.includes(movie) &&
+    (
+      resultTitle.includes(String(year)) ||
+      snippet.includes(String(year))
+    )
   ) {
     return true;
   }
@@ -118,8 +129,7 @@ function likelyMoviePage(result, movieTitle, year) {
 
 function cleanLine(line = "") {
   return line
-    .replace(/\[[^\]]*]/g, "")
-    .replace(/\([^)]*edit[^)]*\)/gi, "")
+    .replace(/\[[^\]]*\]/g, "")
     .replace(/^[*#:;\-\s]+/, "")
     .replace(/\s+/g, " ")
     .trim();
@@ -145,64 +155,11 @@ function isHeading(line) {
   return headings.some(
     heading =>
       lower === heading ||
-      lower === `${heading}:` ||
-      lower.startsWith(`${heading}[`)
+      lower === `${heading}:`
   );
 }
 
-function looksLikeSpeakerFragment(line) {
-  /*
-    Reject lines such as:
-    "Megan, Dylan: Yay!"
-    "Brad: No."
-    "Dusty: What?"
-  */
-
-  const match = line.match(/^([^:]{1,45}):\s*(.+)$/);
-
-  if (!match) return false;
-
-  const speech = match[2].trim();
-
-  const words = speech
-    .replace(/[^\w']/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  if (words.length <= 5) {
-    return true;
-  }
-
-  return false;
-}
-
-function looksLikeScriptDirection(line) {
-  const lower = line.toLowerCase();
-
-  const patterns = [
-    /^\[/,
-    /^\(/,
-    /^scene\b/,
-    /^cut to\b/,
-    /^fade\b/,
-    /^later\b/,
-    /^meanwhile\b/,
-    /^the scene\b/,
-    /^he says\b/,
-    /^she says\b/,
-    /^they say\b/
-  ];
-
-  return patterns.some(pattern => pattern.test(lower));
-}
-
-function looksLikeCastEntry(line) {
-  /*
-    Reject cast-list style entries:
-    "Will Ferrell as Brad Whitaker"
-    "Mark Wahlberg - Dusty Mayron"
-  */
-
+function isCastEntry(line) {
   if (/^[A-Z][A-Za-z.' -]+ as [A-Z]/.test(line)) {
     return true;
   }
@@ -216,37 +173,13 @@ function looksLikeCastEntry(line) {
   return false;
 }
 
-function looksLikeBrokenDialogue(line) {
-  const lower = line.toLowerCase();
+function isWeakReaction(text) {
+  const cleaned = text
+    .toLowerCase()
+    .replace(/[^a-z' ]/g, "")
+    .trim();
 
-  /*
-    Common signs that a Wikiquote line is merely one piece
-    of a larger dialogue exchange rather than a standalone quote.
-  */
-
-  const badStarts = [
-    "and ",
-    "but ",
-    "so ",
-    "then ",
-    "which ",
-    "because ",
-    "although ",
-    "though ",
-    "except ",
-    "until ",
-    "while "
-  ];
-
-  if (badStarts.some(start => lower.startsWith(start))) {
-    return true;
-  }
-
-  /*
-    Very short reactions usually aren't useful Reelwise quotes.
-  */
-
-  const reactionWords = [
+  const weak = [
     "yay",
     "aww",
     "aw",
@@ -267,223 +200,186 @@ function looksLikeBrokenDialogue(line) {
     "thank you"
   ];
 
-  const stripped = lower
-    .replace(/^[^:]+:\s*/, "")
-    .replace(/[^a-z' ]/g, "")
-    .trim();
+  return weak.includes(cleaned);
+}
 
-  if (reactionWords.includes(stripped)) {
-    return true;
-  }
+function isBrokenContinuation(line) {
+  const lower = line.toLowerCase();
 
-  return false;
+  const starts = [
+    "and ",
+    "but ",
+    "which ",
+    "because ",
+    "although ",
+    "though "
+  ];
+
+  return starts.some(start => lower.startsWith(start));
 }
 
 function isUsefulQuote(line) {
   if (!line) return false;
 
   if (line.length < 18) return false;
-  if (line.length > 240) return false;
+  if (line.length > 260) return false;
 
   if (isHeading(line)) return false;
-  if (looksLikeSpeakerFragment(line)) return false;
-  if (looksLikeScriptDirection(line)) return false;
-  if (looksLikeCastEntry(line)) return false;
-  if (looksLikeBrokenDialogue(line)) return false;
+  if (isCastEntry(line)) return false;
+  if (isBrokenContinuation(line)) return false;
 
-  /*
-    Reject obvious Wikiquote/navigation material.
-  */
+  if (/^\[/.test(line)) return false;
+  if (/^\(/.test(line)) return false;
 
   const lower = line.toLowerCase();
 
   const blocked = [
     "wikiquote",
     "wikipedia",
-    "imdb",
+    "external links",
     "official website",
-    "external link",
     "retrieved from",
     "category:",
-    "quotes about",
-    "film trailer",
-    "movie trailer"
+    "movie trailer",
+    "film trailer"
   ];
 
-  if (blocked.some(text => lower.includes(text))) {
+  if (blocked.some(item => lower.includes(item))) {
     return false;
   }
 
-  /*
-    Require enough actual words to resemble a meaningful quote.
-  */
-
   const words = line
     .replace(/[^A-Za-z0-9']/g, " ")
     .split(/\s+/)
     .filter(Boolean);
 
-  if (words.length < 5) return false;
-
-  return true;
+  return words.length >= 5;
 }
 
-function quoteScore(line) {
-  let score = 0;
-
-  const words = line
-    .replace(/[^A-Za-z0-9']/g, " ")
-    .split(/\s+/)
-    .filter(Boolean);
-
-  /*
-    Standalone medium-length lines usually make the best cards.
-  */
-
-  if (words.length >= 7 && words.length <= 25) {
-    score += 5;
-  }
-
-  if (words.length >= 5 && words.length <= 35) {
-    score += 3;
-  }
-
-  if (line.length >= 35 && line.length <= 160) {
-    score += 4;
-  }
-
-  if (/[.!?]["']?$/.test(line)) {
-    score += 2;
-  }
-
-  /*
-    Speaker-prefixed lines can still be valid if the actual
-    quote is substantial, but slightly prefer clean standalone
-    lines when both are available.
-  */
-
-  if (/^[^:]{1,40}:\s+/.test(line)) {
-    score -= 1;
-  }
-
-  return score;
-}
-
-function extractFallbackQuotes(extract = "") {
+function extractQuotes(extract = "") {
   const lines = extract
     .split("\n")
     .map(cleanLine)
     .filter(Boolean);
 
-  const candidates = [];
+  const quotes = [];
   const seen = new Set();
 
-  for (const originalLine of lines) {
-    let line = originalLine;
-
+  for (let line of lines) {
     /*
-      If Wikiquote gives us:
-      "Brad: This is an actual substantial quote..."
-      remove the speaker name but keep the quote.
+      Wikiquote frequently formats dialogue like:
+
+      Brad: This is the actual quote.
+
+      Keep substantial dialogue but remove the speaker name.
+      Reject tiny reactions such as:
+
+      Megan, Dylan: Yay!
     */
 
-    const speakerMatch = line.match(/^([^:]{1,45}):\s*(.+)$/);
+    const speakerMatch = line.match(
+      /^([^:]{1,45}):\s*(.+)$/
+    );
 
     if (speakerMatch) {
       const speech = speakerMatch[2].trim();
 
+      if (isWeakReaction(speech)) {
+        continue;
+      }
+
       const speechWords = speech
-        .replace(/[^\w']/g, " ")
+        .replace(/[^A-Za-z0-9']/g, " ")
         .split(/\s+/)
         .filter(Boolean);
 
-      if (speechWords.length >= 6) {
-        line = speech;
+      if (speechWords.length < 5) {
+        continue;
       }
+
+      line = speech;
     }
 
     line = cleanLine(line);
 
-    if (!isUsefulQuote(line)) continue;
+    if (!isUsefulQuote(line)) {
+      continue;
+    }
 
     const key = line
       .toLowerCase()
       .replace(/[^a-z0-9]/g, "");
 
-    if (!key || seen.has(key)) continue;
+    if (!key || seen.has(key)) {
+      continue;
+    }
 
     /*
-      Prevent near-duplicate quote cards.
+      Avoid cards that are simply pieces or duplicates
+      of quotes we already kept.
     */
 
-    const duplicate = candidates.some(item => {
-      const existing = item.line
+    const duplicate = quotes.some(existing => {
+      const existingKey = existing
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "");
 
       return (
-        existing.includes(key) ||
-        key.includes(existing)
+        existingKey === key ||
+        (
+          key.length > 25 &&
+          existingKey.includes(key)
+        ) ||
+        (
+          existingKey.length > 25 &&
+          key.includes(existingKey)
+        )
       );
     });
 
-    if (duplicate) continue;
-
-    seen.add(key);
-
-    candidates.push({
-      line,
-      score: quoteScore(line),
-      order: candidates.length
-    });
-  }
-
-  /*
-    Favor stronger standalone quotes while retaining page order
-    when scores are equal.
-  */
-
-  candidates.sort((a, b) => {
-    if (b.score !== a.score) {
-      return b.score - a.score;
+    if (duplicate) {
+      continue;
     }
 
-    return a.order - b.order;
-  });
+    seen.add(key);
+    quotes.push(line);
 
-  return candidates
-    .slice(0, 5)
-    .map(item => item.line);
+    if (quotes.length >= 8) {
+      break;
+    }
+  }
+
+  return quotes;
 }
 
-async function findWikiquotePage(title, year) {
-  const candidates = [
+async function findWikiquoteQuotes(title, year) {
+  const exactCandidates = [
     year ? `${title} (${year} film)` : null,
     `${title} (film)`,
     title
   ].filter(Boolean);
 
   /*
-    Try likely exact Wikiquote page names first.
+    First try exact page names.
   */
 
-  for (const candidate of candidates) {
+  for (const candidate of exactCandidates) {
     const page = await getWikiPage(candidate);
 
-    if (page) {
-      const quotes = extractFallbackQuotes(page.extract);
+    if (!page) continue;
 
-      if (quotes.length) {
-        return {
-          page: page.title,
-          quotes
-        };
-      }
+    const quotes = extractQuotes(page.extract);
+
+    if (quotes.length) {
+      return {
+        page: page.title,
+        quotes
+      };
     }
   }
 
   /*
-    If an exact page wasn't found, search Wikiquote.
+    If no exact page worked, search Wikiquote.
   */
 
   const searches = [
@@ -492,8 +388,8 @@ async function findWikiquotePage(title, year) {
     title
   ].filter(Boolean);
 
-  for (const search of searches) {
-    const results = await searchWikiquote(search);
+  for (const query of searches) {
+    const results = await searchWikiquote(query);
 
     const likely = results.filter(result =>
       likelyMoviePage(result, title, year)
@@ -504,7 +400,7 @@ async function findWikiquotePage(title, year) {
 
       if (!page) continue;
 
-      const quotes = extractFallbackQuotes(page.extract);
+      const quotes = extractQuotes(page.extract);
 
       if (quotes.length) {
         return {
@@ -532,6 +428,7 @@ export default async function handler(req, res) {
     const movie = await getMovie(id);
 
     const title = movie?.title || "";
+
     const year = movie?.release_date
       ? movie.release_date.slice(0, 4)
       : "";
@@ -540,21 +437,20 @@ export default async function handler(req, res) {
 
     /*
       ==========================================================
-      REELWISE VAULT
+      REELWISE CURATED VAULT
       ==========================================================
-      Curated quotes always take priority.
     */
 
-    const curatedQuotes = QUOTE_VAULT[key];
+    const curated = QUOTE_VAULT[key];
 
     if (
-      Array.isArray(curatedQuotes) &&
-      curatedQuotes.length
+      Array.isArray(curated) &&
+      curated.length
     ) {
       return res.status(200).json({
         movie: title,
         year,
-        quotes: curatedQuotes,
+        quotes: curated,
         source: "Reelwise Vault",
         curated: true
       });
@@ -566,9 +462,16 @@ export default async function handler(req, res) {
       ==========================================================
     */
 
-    const fallback = await findWikiquotePage(title, year);
+    const fallback = await findWikiquoteQuotes(
+      title,
+      year
+    );
 
-    if (fallback?.quotes?.length) {
+    if (
+      fallback &&
+      Array.isArray(fallback.quotes) &&
+      fallback.quotes.length
+    ) {
       return res.status(200).json({
         movie: title,
         year,
@@ -586,8 +489,12 @@ export default async function handler(req, res) {
       source: "No quote source found",
       curated: false
     });
+
   } catch (error) {
-    console.error("Reelwise quotes error:", error);
+    console.error(
+      "Reelwise quotes error:",
+      error
+    );
 
     return res.status(500).json({
       error: "Unable to load quotes",
