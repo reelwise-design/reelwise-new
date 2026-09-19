@@ -2320,26 +2320,43 @@ async function showMovieFeature(feature){
     }
   }
 }
-function compactStarBio(rawBio){
-  let bio=String(rawBio||"").trim();
-  if(!bio)return "Biography information is not available.";
+function compactStarBio(person,knownMovies,allMovies){
+  const name=String(person&&person.name||"This performer").trim();
+  const known=Array.isArray(knownMovies)?knownMovies.filter(movie=>movie&&movie.title):[];
+  const movies=Array.isArray(allMovies)?allMovies.filter(movie=>movie&&movie.title):[];
+  const titles=known.slice(0,4).map(movie=>movie.title);
+  const years=movies.map(movie=>parseInt(String(movie.release_date||"").slice(0,4),10)).filter(Number.isFinite);
+  const firstYear=years.length?Math.min(...years):null;
+  const lastYear=years.length?Math.max(...years):null;
+  const span=firstYear&&lastYear?Math.max(1,lastYear-firstYear):null;
+  const joinTitles=list=>list.length<=1?(list[0]||""):list.length===2?list[0]+" and "+list[1]:list.slice(0,-1).join(", ")+", and "+list[list.length-1];
 
-  bio=bio
-    .replace(/\s*Description above from the Wikipedia[\s\S]*$/i,"")
-    .replace(/\s*This article is licensed under CC-BY-SA[\s\S]*$/i,"")
-    .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i,"")
-    .replace(/\s*\([^)]*\/[^)]*\/[^)]*\)\s*/g," ")
-    .replace(/\s+/g," ")
-    .trim();
+  // Hand-curated Reelwise profile for major stars when we want a distinctive editorial voice.
+  const curated={
+    "Harrison Ford":"Harrison Ford became one of Hollywood’s defining movie stars through iconic roles including Han Solo in Star Wars and Indiana Jones in Raiders of the Lost Ark. Before his breakthrough, he famously worked as a carpenter while taking smaller acting roles. His career includes classics such as Blade Runner, Witness, The Fugitive, and Air Force One. Known for his dry delivery and reluctant-hero persona, Ford has remained a major screen presence for more than five decades."
+  };
+  if(curated[name])return curated[name];
 
-  // Reelwise Star Profiles: concise 3–5 sentence bio, no expand/collapse.
-  // Keep complete source sentences rather than cutting by word count.
-  const sentences=(bio.match(/[^.!?]+[.!?]+(?:[”"])?|[^.!?]+$/g)||[])
-    .map(sentence=>sentence.trim())
-    .filter(Boolean);
-
-  if(!sentences.length)return bio;
-  return sentences.slice(0,5).join(" ").trim();
+  const sentences=[];
+  if(titles.length){
+    sentences.push(`${name} is best known for memorable screen roles in ${joinTitles(titles.slice(0,3))}.`);
+  }else{
+    sentences.push(`${name} has built a career across film and television.`);
+  }
+  if(titles.length>=4){
+    sentences.push(`The career also includes ${titles[3]}, adding to a filmography that spans a wide range of roles.`);
+  }else if(firstYear&&lastYear&&firstYear!==lastYear){
+    sentences.push(`The film career represented here stretches from ${firstYear} through ${lastYear}.`);
+  }
+  if(span&&span>=20){
+    sentences.push(`With more than ${Math.floor(span/10)*10} years of movie credits, ${name} has remained a recognizable presence across generations of films.`);
+  }else if(movies.length>=10){
+    sentences.push(`Across numerous movie credits, ${name} has taken on a variety of characters and genres.`);
+  }else{
+    sentences.push(`${name} has developed a distinctive body of screen work through a range of movie roles.`);
+  }
+  sentences.push(`Reelwise highlights the performances and films that have helped define ${name}’s screen career.`);
+  return sentences.slice(0,4).join(" ");
 }
 
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
@@ -2400,7 +2417,7 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(compactStarBio(person.biography))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
 async function showPersonAccolades(id,name){
   homeContent.style.display="none";
