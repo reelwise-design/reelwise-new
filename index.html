@@ -2002,7 +2002,8 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 
 
 .award-body-label{
-  margin-top:10px;
+  margin-top:14px;
+  margin-bottom:18px;
   color:var(--muted);
   font-size:14px;
   font-weight:800;
@@ -2833,8 +2834,8 @@ async function showPersonAccolades(id,name){
     page.innerHTML=`
       <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
       <div class="accolades-head">
-        <div class="eyebrow">REELWISE ACCOLADES</div>\n<div class="award-body-label">ACADEMY AWARDS</div>
-        <h1>${escapeHTML(name||"Star")}</h1>
+        <div class="eyebrow">REELWISE ACCOLADES</div>\n<h1>${escapeHTML(name||"Star")}</h1>
+<div class="award-body-label">ACADEMY AWARDS</div>
         <div class="accolades-summary">
           <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
           <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
