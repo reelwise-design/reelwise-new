@@ -1443,6 +1443,235 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   .six-link-line{margin-left:29px!important;height:11px!important}
 }
 
+
+/* ===== MOVIE PAGE — CINEMATIC REBUILD ===== */
+.detail{max-width:1180px!important}
+.movie-hero{
+  position:relative;
+  overflow:hidden;
+  min-height:560px;
+  margin-top:12px!important;
+  padding:34px!important;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:24px;
+  background:#0d1218;
+  box-shadow:0 28px 75px rgba(0,0,0,.28);
+}
+.movie-backdrop{
+  position:absolute!important;
+  inset:0!important;
+  width:100%!important;
+  height:100%!important;
+  opacity:.24!important;
+  background-size:cover!important;
+  background-position:center 25%!important;
+  filter:saturate(.85);
+}
+.movie-hero:after{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    linear-gradient(90deg,rgba(8,10,14,.98) 0%,rgba(8,10,14,.91) 42%,rgba(8,10,14,.50) 76%,rgba(8,10,14,.72) 100%),
+    linear-gradient(0deg,rgba(8,10,14,.96) 0%,transparent 55%);
+  pointer-events:none;
+}
+.movie-poster-wrap,.movie-info{position:relative;z-index:2}
+.movie-poster-wrap{align-self:start}
+.movie-poster-wrap .detail-image{
+  width:250px!important;
+  border-radius:15px!important;
+  box-shadow:0 24px 55px rgba(0,0,0,.55)!important;
+  border:1px solid rgba(255,255,255,.12);
+}
+.movie-info{padding:10px 5px 0!important}
+.movie-head h1{
+  max-width:760px;
+  margin:7px 0 10px!important;
+  font-size:clamp(43px,6vw,72px)!important;
+  line-height:.95!important;
+  letter-spacing:-3.2px!important;
+}
+.movie-tagline{
+  max-width:700px;
+  margin:0 0 24px;
+  color:#d4dae2;
+  font-size:17px;
+  font-style:italic;
+  line-height:1.45;
+}
+.movie-overview-label{
+  margin-top:3px!important;
+  color:var(--gold)!important;
+  letter-spacing:1.35px!important;
+}
+.movie-overview{
+  max-width:720px!important;
+  color:#c0c7d1!important;
+  font-size:15px!important;
+  line-height:1.72!important;
+}
+.movie-facts{
+  gap:8px!important;
+  margin-top:18px!important;
+}
+.movie-fact{
+  padding:9px 11px!important;
+  border:1px solid rgba(255,255,255,.07)!important;
+  border-radius:9px!important;
+  background:rgba(255,255,255,.035)!important;
+}
+.movie-cast-block{
+  margin-top:24px!important;
+  padding-top:20px!important;
+  border-top:1px solid rgba(255,255,255,.08);
+}
+.movie-cast-heading{margin-bottom:12px!important}
+.movie-cast-heading h2{font-size:22px!important;margin-top:3px!important}
+.movie-cast-heading>span{color:#788391!important;font-size:11px!important}
+.cast{gap:7px!important}
+.cast button{
+  padding:8px 11px!important;
+  border-radius:999px!important;
+  border:1px solid #333d4a!important;
+  background:rgba(17,23,31,.88)!important;
+  font-size:12px!important;
+}
+.cast button:hover{border-color:var(--gold)!important}
+.cast-toggle{
+  margin-top:10px!important;
+  padding:8px 11px!important;
+  border-radius:8px!important;
+}
+.movie-vault{
+  position:relative;
+  overflow:hidden;
+  margin-top:24px!important;
+  padding:27px!important;
+  border:1px solid #2a3340!important;
+  border-radius:22px!important;
+  background:
+    radial-gradient(circle at 92% 8%,rgba(255,90,54,.10),transparent 28%),
+    linear-gradient(145deg,#111720,#0b0f15)!important;
+}
+.movie-vault-heading{
+  max-width:680px;
+  margin-bottom:19px!important;
+}
+.movie-vault-heading h2{
+  margin:5px 0 7px!important;
+  font-size:32px!important;
+  letter-spacing:-1.3px!important;
+}
+.movie-vault-heading p{
+  margin:0!important;
+  color:#8f99a7!important;
+  font-size:13px!important;
+}
+.movie-extras{
+  display:grid!important;
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:10px!important;
+}
+.extra-card{
+  min-height:145px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:flex-start!important;
+  padding:16px!important;
+  border:1px solid #2b3542!important;
+  border-radius:14px!important;
+  background:linear-gradient(145deg,#151c25,#10151c)!important;
+  transition:transform .18s ease,border-color .18s ease,background .18s ease;
+}
+.extra-card:hover{
+  transform:translateY(-2px);
+  border-color:#495667!important;
+  background:linear-gradient(145deg,#18212c,#111820)!important;
+}
+.extra-number{
+  display:flex;
+  width:29px;
+  height:29px;
+  align-items:center;
+  justify-content:center;
+  margin-bottom:22px;
+  border-radius:8px;
+  background:var(--accentSoft);
+  color:#ff7658;
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:.5px;
+}
+.extra-card h3{
+  margin:0 0 4px!important;
+  font-size:16px!important;
+}
+.extra-card p{
+  min-height:31px;
+  margin:0 0 12px!important;
+  color:#778290!important;
+  font-size:10.5px!important;
+  line-height:1.45!important;
+}
+.extra-card button{
+  margin-top:auto!important;
+  padding:0!important;
+  border:0!important;
+  background:transparent!important;
+  color:var(--gold)!important;
+  font-size:11px!important;
+  font-weight:900!important;
+}
+#movieFeatureView{margin-top:15px!important}
+.feature-view{
+  border-radius:15px!important;
+  border:1px solid #2b3542!important;
+  background:#0e141b!important;
+}
+.franchise-section{
+  margin-top:24px!important;
+  padding:23px!important;
+  border:1px solid #2a3340!important;
+  border-radius:20px!important;
+  background:linear-gradient(145deg,#111720,#0d1218)!important;
+}
+@media(max-width:900px){
+  .movie-hero{
+    min-height:0;
+    padding:16px!important;
+    border-radius:18px;
+  }
+  .movie-hero:after{
+    background:
+      linear-gradient(0deg,rgba(8,10,14,.99) 0%,rgba(8,10,14,.90) 57%,rgba(8,10,14,.52) 100%);
+  }
+  .movie-poster-wrap .detail-image{width:145px!important}
+  .movie-info{padding-top:0!important}
+  .movie-head h1{
+    margin-top:5px!important;
+    font-size:36px!important;
+    line-height:.98!important;
+    letter-spacing:-2px!important;
+  }
+  .movie-tagline{margin-bottom:17px;font-size:14px}
+  .movie-overview{font-size:13px!important;line-height:1.6!important}
+  .movie-cast-heading>span{display:none}
+  .movie-vault{padding:16px!important;border-radius:17px!important}
+  .movie-vault-heading h2{font-size:26px!important}
+  .movie-extras{
+    grid-template-columns:repeat(2,minmax(0,1fr))!important;
+    gap:8px!important;
+  }
+  .extra-card{
+    min-height:124px!important;
+    padding:13px!important;
+  }
+  .extra-number{margin-bottom:15px}
+  .extra-card:last-child{grid-column:1/-1}
+  .franchise-section{padding:16px!important;border-radius:17px!important}
+}
+
 </style>
 </head>
 <body>
@@ -1637,6 +1866,8 @@ async function showMovie(id){
               <h1>${escapeHTML(movie.title)}</h1>
             </div>
 
+            ${movie.tagline?`<div class="movie-tagline">“${escapeHTML(movie.tagline)}”</div>`:""}
+
             <div class="movie-overview-label">THE STORY</div>
 
             <p class="movie-overview">
@@ -1702,11 +1933,11 @@ async function showMovie(id){
           </div>
 
           <div class="movie-extras">
-            <div class="extra-card"><div class="extra-icon">💬</div><h3>Quotes</h3><button onclick="showMovieFeature('quotes')">Explore →</button></div>
-            <div class="extra-card"><div class="extra-icon">🧠</div><h3>Trivia</h3><button onclick="showMovieFeature('trivia')">Explore →</button></div>
-            <div class="extra-card"><div class="extra-icon">🎬</div><h3>Movie Extras</h3><button onclick="showMovieFeature('behind')">Explore →</button></div>
-            <div class="extra-card"><div class="extra-icon">😂</div><h3>Bloopers</h3><button onclick="showMovieFeature('bloopers')">Explore →</button></div>
-            <div class="extra-card"><div class="extra-icon">📊</div><h3>Movie Stats</h3><button onclick="showMovieFeature('stats')">Explore →</button></div>
+            <div class="extra-card"><div class="extra-number">01</div><h3>Quotes</h3><p>Memorable lines from the movie.</p><button onclick="showMovieFeature('quotes')">OPEN VAULT →</button></div>
+            <div class="extra-card"><div class="extra-number">02</div><h3>Trivia</h3><p>Stories and facts worth knowing.</p><button onclick="showMovieFeature('trivia')">OPEN VAULT →</button></div>
+            <div class="extra-card"><div class="extra-number">03</div><h3>Movie Extras</h3><p>Go behind the finished film.</p><button onclick="showMovieFeature('behind')">WATCH EXTRAS →</button></div>
+            <div class="extra-card"><div class="extra-number">04</div><h3>Bloopers</h3><p>Outtakes and moments that went wrong.</p><button onclick="showMovieFeature('bloopers')">WATCH BLOOPERS →</button></div>
+            <div class="extra-card"><div class="extra-number">05</div><h3>Movie Stats</h3><p>The numbers behind the movie.</p><button onclick="showMovieFeature('stats')">VIEW STATS →</button></div>
           </div>
 
           <div id="movieFeatureView"></div>
