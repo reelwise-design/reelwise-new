@@ -1194,7 +1194,7 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 <script>
 const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),searchInput=document.getElementById("searchInput"),searchForm=document.getElementById("searchForm"),homeContent=document.getElementById("homeContent");
 let lastQuery="",currentMovie=null,currentCast=[];
-searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});
+if(searchForm&&searchInput){searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});}
 function revealResults(){searchArea.style.display="block"}
 function goToResults(){setTimeout(()=>searchArea.scrollIntoView({behavior:"smooth",block:"start"}),50)}
 function showHome(){homeContent.style.display="block";searchArea.style.display="none";results.innerHTML="";resultsTitle.textContent="";window.scrollTo({top:0,behavior:"smooth"})}
