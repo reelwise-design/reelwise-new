@@ -2419,61 +2419,166 @@ async function showMovieFeature(feature){
   }
 }
 function compactStarBio(person,knownMovies,allMovies){
-  const name=String(person&&person.name||"This performer").trim();
-  const known=Array.isArray(knownMovies)?knownMovies.filter(movie=>movie&&movie.title):[];
-  const movies=Array.isArray(allMovies)?allMovies.filter(movie=>movie&&movie.title):[];
+  const name=String(person?.name||"This performer").trim();
+  const credits=[...(Array.isArray(allMovies)?allMovies:[])];
 
-  const cleanTitle=title=>String(title||"").trim();
-  const uniqueTitles=[];
-  for(const movie of known){
-    const title=cleanTitle(movie.title);
-    if(title&&!uniqueTitles.some(t=>t.toLowerCase()===title.toLowerCase()))uniqueTitles.push(title);
-    if(uniqueTitles.length===5)break;
+  const normalize=s=>String(s||"")
+    .toLowerCase()
+    .replace(/&/g,"and")
+    .replace(/[^a-z0-9]+/g," ")
+    .trim();
+
+  const yearOf=m=>{
+    const y=parseInt(String(m?.release_date||"").slice(0,4),10);
+    return Number.isFinite(y)?y:null;
+  };
+
+  // Keep released feature-film credits with useful title/year information.
+  const seen=new Set();
+  const movies=credits
+    .filter(m=>m&&m.title&&yearOf(m))
+    .filter(m=>{
+      const key=`${normalize(m.title)}|${yearOf(m)}`;
+      if(seen.has(key))return false;
+      seen.add(key);
+      return true;
+    })
+    .map(m=>({
+      ...m,
+      _year:yearOf(m),
+      _pop:Number(m.popularity||0),
+      _votes:Number(m.vote_count||0),
+      _score:Number(m.vote_average||0)
+    }))
+    .sort((a,b)=>a._year-b._year);
+
+  if(!movies.length){
+    return `${name} has built a screen career across film and television, with Reelwise highlighting the movies and performances connected to that career.`;
   }
 
-  const years=movies
-    .map(movie=>parseInt(String(movie.release_date||"").slice(0,4),10))
-    .filter(Number.isFinite);
-  const firstYear=years.length?Math.min(...years):null;
-  const lastYear=years.length?Math.max(...years):null;
-  const careerYears=firstYear&&lastYear?Math.max(1,lastYear-firstYear):null;
+  const firstYear=movies[0]._year;
+  const lastYear=movies[movies.length-1]._year;
+  const span=Math.max(0,lastYear-firstYear);
 
-  const joinTitles=list=>{
-    if(!list.length)return "";
-    if(list.length===1)return list[0];
-    if(list.length===2)return `${list[0]} and ${list[1]}`;
-    return `${list.slice(0,-1).join(", ")}, and ${list[list.length-1]}`;
+  // Favor credits that are both visible/popular and well-established.
+  const importance=m=>{
+    const voteWeight=Math.log10(Math.max(1,m._votes)+1)*7;
+    const popWeight=Math.log10(Math.max(1,m._pop)+1)*8;
+    const ratingWeight=m._votes>=100 ? Math.max(0,m._score-5)*2 : 0;
+    return voteWeight+popWeight+ratingWeight;
   };
 
-  // A few editorial profiles can still be hand-curated when Reelwise has
-  // genuinely distinctive information worth preserving.
-  const curated={
-    "Harrison Ford":"Harrison Ford became one of Hollywood’s defining movie stars through Han Solo in Star Wars and Indiana Jones in Raiders of the Lost Ark. His film career also includes Blade Runner, Witness, The Fugitive, and Air Force One, giving him a body of work that spans science fiction, adventure, drama, and thriller roles across more than five decades."
-  };
-  if(curated[name])return curated[name];
+  const ranked=[...movies].sort((a,b)=>importance(b)-importance(a));
 
-  const leadTitles=uniqueTitles.slice(0,3);
-  const additionalTitles=uniqueTitles.slice(3,5);
+  const pickFromRange=(min,max,count,excluded=new Set())=>{
+    return ranked
+      .filter(m=>m._year>=min&&m._year<=max&&!excluded.has(normalize(m.title)))
+      .slice(0,count);
+  };
+
+  const used=new Set();
+  const addUsed=list=>list.forEach(m=>used.add(normalize(m.title)));
+
+  // Divide the career into stages rather than simply listing the highest-ranked movies.
+  const earlyEnd=firstYear+Math.max(7,Math.round(span*.28));
+  const middleEnd=firstYear+Math.max(15,Math.round(span*.68));
+
+  let early=pickFromRange(firstYear,Math.min(earlyEnd,lastYear),3,used);
+  addUsed(early);
+
+  let middle=span>=12
+    ? pickFromRange(Math.min(earlyEnd+1,lastYear),Math.min(middleEnd,lastYear),3,used)
+    : [];
+  addUsed(middle);
+
+  let later=span>=20
+    ? pickFromRange(Math.min(middleEnd+1,lastYear),lastYear,3,used)
+    : pickFromRange(Math.min(earlyEnd+1,lastYear),lastYear,3,used);
+  addUsed(later);
+
+  // Ensure we still have recognizable credits if a career stage was sparse.
+  const fill=(arr,target)=>{
+    for(const m of ranked){
+      if(arr.length>=target)break;
+      const key=normalize(m.title);
+      if(!used.has(key)){
+        arr.push(m);
+        used.add(key);
+      }
+    }
+  };
+  if(!early.length)fill(early,2);
+  if(span>=12&&!middle.length)fill(middle,2);
+  if(!later.length)fill(later,2);
+
+  // Detect recurring title families (Mission: Impossible, Rocky, Harry Potter, etc.).
+  const franchiseKey=title=>{
+    const raw=String(title||"").trim();
+    const colon=raw.split(":")[0].trim();
+    if(colon && colon.length>=4 && colon.length<raw.length)return normalize(colon);
+
+    // Remove common sequel numbering/subtitles conservatively.
+    return normalize(raw)
+      .replace(/\b(part|chapter|episode)\s+[ivx0-9]+\b/g,"")
+      .replace(/\b[ivx]{1,4}\b$/g,"")
+      .replace(/\b[2-9]\b$/g,"")
+      .trim();
+  };
+
+  const families=new Map();
+  for(const m of movies){
+    const key=franchiseKey(m.title);
+    if(!key||key.length<4)continue;
+    if(!families.has(key))families.set(key,[]);
+    families.get(key).push(m);
+  }
+
+  const franchise=[...families.entries()]
+    .filter(([,items])=>items.length>=3)
+    .sort((a,b)=>{
+      if(b[1].length!==a[1].length)return b[1].length-a[1].length;
+      return Math.max(...b[1].map(importance))-Math.max(...a[1].map(importance));
+    })[0];
+
+  const titleList=list=>{
+    const titles=list.map(m=>m.title);
+    if(!titles.length)return "";
+    if(titles.length===1)return titles[0];
+    if(titles.length===2)return `${titles[0]} and ${titles[1]}`;
+    return `${titles.slice(0,-1).join(", ")}, and ${titles[titles.length-1]}`;
+  };
+
   const sentences=[];
 
-  if(leadTitles.length){
-    sentences.push(`${name}’s film career includes ${joinTitles(leadTitles)}.`);
-  }else{
-    sentences.push(`${name} has built a screen career across film and television.`);
-  }
-
-  if(additionalTitles.length){
-    sentences.push(`Other notable movie credits include ${joinTitles(additionalTitles)}.`);
-  }
-
-  if(firstYear&&lastYear&&firstYear!==lastYear){
-    if(careerYears>=30){
-      sentences.push(`The movie credits in Reelwise span more than ${Math.floor(careerYears/10)*10} years, from ${firstYear} through ${lastYear}.`);
+  if(early.length){
+    if(span>=15){
+      sentences.push(`${name} established a film career with early credits including ${titleList(early.slice(0,3))}.`);
     }else{
-      sentences.push(`The movie credits in Reelwise span from ${firstYear} through ${lastYear}.`);
+      sentences.push(`${name}’s film credits include ${titleList(early.slice(0,3))}.`);
     }
-  }else if(movies.length){
-    sentences.push(`Reelwise currently tracks ${movies.length} released movie ${movies.length===1?"credit":"credits"} for ${name}.`);
+  }
+
+  if(middle.length){
+    sentences.push(`The career continued with ${titleList(middle.slice(0,3))}.`);
+  }
+
+  if(franchise){
+    const familyMovies=franchise[1].sort((a,b)=>a._year-b._year);
+    const label=String(familyMovies[0].title).split(":")[0]
+      .replace(/\s+[IVX0-9]+$/i,"")
+      .trim();
+    const first=familyMovies[0]._year;
+    const last=familyMovies[familyMovies.length-1]._year;
+    if(label && last>first){
+      sentences.push(`${name} also returned to the ${label} films across multiple installments from ${first} through ${last}.`);
+    }
+  }else if(later.length){
+    sentences.push(`Later film work includes ${titleList(later.slice(0,3))}.`);
+  }
+
+  // Keep bios compact on mobile. Add longevity only when it is genuinely informative.
+  if(sentences.length<3 && span>=25){
+    sentences.push(`The filmography spans more than ${Math.floor(span/10)*10} years, from ${firstYear} through ${lastYear}.`);
   }
 
   return sentences.slice(0,3).join(" ");
