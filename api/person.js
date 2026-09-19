@@ -183,7 +183,6 @@ const CAREER_INTELLIGENCE = {
   380: {
     name: "Robert De Niro",
     roles: ["actor", "producer"],
-    collaborator: "Martin Scorsese",
     collaborationText:
       "His celebrated collaboration with Martin Scorsese produced some of his most memorable performances.",
     narrativeFilms: [],
@@ -199,11 +198,15 @@ const CAREER_INTELLIGENCE = {
   500: {
     name: "Tom Cruise",
     roles: ["actor", "producer"],
-    franchiseText:
-      "Top Gun made him a global movie star, while Mission: Impossible became his signature franchise.",
-    narrativeFilms: [
-      "Top Gun",
-      "Mission: Impossible"
+    franchiseTexts: [
+      {
+        text: "Top Gun made him a global movie star.",
+        films: ["Top Gun"]
+      },
+      {
+        text: "Mission: Impossible became his signature franchise.",
+        films: ["Mission: Impossible"]
+      }
     ],
     signatureFilms: [
       "Top Gun",
@@ -217,12 +220,15 @@ const CAREER_INTELLIGENCE = {
   16483: {
     name: "Sylvester Stallone",
     roles: ["actor", "screenwriter"],
-    franchiseText:
-      "As the writer and star of Rocky, he created one of cinema's most enduring characters and later established another signature franchise as John Rambo.",
-    narrativeFilms: [
-      "Rocky",
-      "First Blood",
-      "Rambo"
+    franchiseTexts: [
+      {
+        text: "As the writer and star of Rocky, he created one of cinema's most enduring characters.",
+        films: ["Rocky"]
+      },
+      {
+        text: "John Rambo established another signature character and franchise.",
+        films: ["First Blood", "Rambo"]
+      }
     ],
     signatureFilms: [
       "Rocky",
@@ -230,6 +236,83 @@ const CAREER_INTELLIGENCE = {
       "Rocky III",
       "Creed",
       "Cop Land"
+    ]
+  },
+
+  1158: {
+    name: "Al Pacino",
+    roles: ["actor", "filmmaker"],
+    franchiseTexts: [
+      {
+        text: "Michael Corleone in The Godfather films became one of his defining screen roles.",
+        films: ["The Godfather", "The Godfather Part II"]
+      }
+    ],
+    signatureFilms: [
+      "The Godfather",
+      "The Godfather Part II",
+      "Serpico",
+      "Dog Day Afternoon",
+      "Scarface",
+      "Scent of a Woman"
+    ]
+  },
+
+  3: {
+    name: "Harrison Ford",
+    roles: ["actor", "producer"],
+    franchiseTexts: [
+      {
+        text: "Han Solo in Star Wars helped establish him as a global movie star.",
+        films: ["Star Wars"]
+      },
+      {
+        text: "Indiana Jones became his other signature screen character and franchise.",
+        films: ["Raiders of the Lost Ark", "Indiana Jones"]
+      }
+    ],
+    signatureFilms: [
+      "Star Wars",
+      "Raiders of the Lost Ark",
+      "Blade Runner",
+      "Witness",
+      "The Fugitive"
+    ]
+  },
+
+  5064: {
+    name: "Meryl Streep",
+    roles: ["actor"],
+    signatureFilms: [
+      "Kramer vs. Kramer",
+      "Sophie's Choice",
+      "The Devil Wears Prada",
+      "The Iron Lady",
+      "Out of Africa"
+    ]
+  },
+
+  5292: {
+    name: "Denzel Washington",
+    roles: ["actor", "filmmaker"],
+    signatureFilms: [
+      "Glory",
+      "Malcolm X",
+      "Training Day",
+      "Remember the Titans",
+      "Fences"
+    ]
+  },
+
+  1204: {
+    name: "Julia Roberts",
+    roles: ["actor", "producer"],
+    signatureFilms: [
+      "Pretty Woman",
+      "Erin Brockovich",
+      "Notting Hill",
+      "My Best Friend's Wedding",
+      "Ocean's Eleven"
     ]
   }
 };
@@ -555,10 +638,10 @@ function rolePhrase(roles) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.1
+  REELWISE BIO ENGINE 6.2
   ============================================================
 
-  Hybrid architecture + narrative de-duplication:
+  Hybrid architecture + multi-franchise Career Intelligence:
 
   Films already explained in a franchise/character sentence are
   removed from the follow-up defining-film list.
@@ -611,9 +694,20 @@ function buildReelwiseBio(person, accolades) {
       parts.push(intelligence.collaborationText);
     }
 
-    if (intelligence.franchiseText) {
-      parts.push(intelligence.franchiseText);
-    }
+    /*
+      6.2 supports more than one signature franchise/character.
+      Each narrative item declares the films it already represents,
+      and those titles are automatically suppressed below.
+    */
+    const franchiseTexts =
+      Array.isArray(intelligence.franchiseTexts)
+        ? intelligence.franchiseTexts
+        : intelligence.franchiseText
+          ? [{
+              text: intelligence.franchiseText,
+              films: intelligence.narrativeFilms || []
+            }]
+          : [];
 
     const narrativeTitles = new Set(
       (intelligence.narrativeFilms || [])
@@ -621,11 +715,17 @@ function buildReelwiseBio(person, accolades) {
         .filter(Boolean)
     );
 
-    /*
-      Do not repeat films or franchises that the narrative has
-      already explained. The list should add new career context,
-      not echo the sentence immediately before it.
-    */
+    for (const item of franchiseTexts) {
+      if (item?.text) {
+        parts.push(String(item.text).trim());
+      }
+
+      for (const title of (item?.films || [])) {
+        const normalized = normalizeTitle(title);
+        if (normalized) narrativeTitles.add(normalized);
+      }
+    }
+
     const intelligentFilms =
       validatedIntelligenceFilms(person, intelligence)
         .filter(movie =>
@@ -636,7 +736,7 @@ function buildReelwiseBio(person, accolades) {
 
     if (films) {
       parts.push(
-        `${intelligence.franchiseText ? "Other defining films" : "Defining films"} include ${films}.`
+        `${franchiseTexts.length ? "Other defining films" : "Defining films"} include ${films}.`
       );
     }
   }
