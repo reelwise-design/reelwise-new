@@ -123,7 +123,6 @@ function cleanBiography(value) {
 
 function splitSentences(value) {
   const clean = cleanBiography(value);
-
   if (!clean) return [];
 
   return clean
@@ -140,7 +139,15 @@ function normalizeTitle(value) {
     .trim();
 }
 
-function academySentence(accolades) {
+function isAwardsHeavy(sentence) {
+  return /\bacademy award|\boscar|\bgolden globe|\bbafta|\bemmy|\bscreen actors guild|\baward|\bnomination|\bnominated|\bwon\b/i.test(sentence);
+}
+
+function isHousekeeping(sentence) {
+  return /\bwas born\b|\bborn on\b|\bborn in\b|\braised in\b|\bgrew up\b|\bmother\b|\bfather\b|\bparents\b|\bchildhood\b|\battended\b|\bschool\b|\bfirst credited\b|\bfirst screen role\b|\bmade (?:his|her|their) film debut\b/i.test(sentence);
+}
+
+function academySummary(accolades) {
   const wins = Number(accolades?.wins || 0);
   const nominations = Number(accolades?.nominations || 0);
 
@@ -157,196 +164,234 @@ function academySentence(accolades) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 2.0
+  REELWISE BIO ENGINE 3.0
   ============================================================
 
-  The old version built a sentence from popularity-ranked
-  movie credits. That could mistake a popular supporting film
-  for a defining career film.
+  Target structure:
+  1. WHO THEY ARE — career identity/significance
+  2. WHY MOVIE FANS KNOW THEM — defining work/collaborations
+  3. RECOGNITION — one short awards statement maximum
 
-  This version treats the person's existing biography as the
-  factual narrative source, then intelligently condenses it.
-
-  It favors sentences containing:
-  - career-defining films already named in the biography
-  - awards and recognition
-  - directors/collaborations
-  - career identity and significance
-
-  It removes low-value encyclopedia material such as:
-  - full legal-name introductions
-  - birth-date repetition
-  - early-life/family details
-  - isolated first-credit chronology
-
-  TMDB credits are used only to help identify which movie
-  titles mentioned in the biography are genuine film credits.
+  Awards never dominate the bio because the profile already
+  has a dedicated Awards & Accolades section.
 */
 
 function buildReelwiseBio(person, accolades) {
   const name = String(person?.name || "").trim();
   const biography = cleanBiography(person?.biography);
 
-  if (!name || !biography) {
-    return biography;
-  }
+  if (!name || !biography) return biography;
 
   const sentences = splitSentences(biography);
-
-  if (!sentences.length) {
-    return biography;
-  }
+  if (!sentences.length) return biography;
 
   const cast = Array.isArray(person?.movie_credits?.cast)
     ? person.movie_credits.cast
     : [];
 
-  const creditTitles = cast
-    .map(movie => String(movie?.title || "").trim())
-    .filter(Boolean);
+  const credits = cast
+    .map(movie => ({
+      title: String(movie?.title || "").trim(),
+      key: normalizeTitle(movie?.title || "")
+    }))
+    .filter(movie => movie.title && movie.key.length >= 3);
 
-  const normalizedCredits = creditTitles.map(title => ({
-    title,
-    key: normalizeTitle(title)
-  }));
-
-  const lowValuePatterns = [
-    /\bwas born\b/i,
-    /\bborn on\b/i,
-    /\bborn in\b/i,
-    /\braised in\b/i,
-    /\bgrew up\b/i,
-    /\bmother\b/i,
-    /\bfather\b/i,
-    /\bparents\b/i,
-    /\bchildhood\b/i,
-    /\battended\b/i,
-    /\bschool\b/i,
-    /\bfirst credited\b/i,
-    /\bfirst screen role\b/i,
-    /\bmade (?:his|her|their) film debut\b/i,
-    /\bfull name\b/i
-  ];
-
-  const careerPatterns = [
+  const identityPatterns = [
     /\bknown for\b/i,
     /\bbest known\b/i,
     /\bacclaimed\b/i,
     /\bcelebrated\b/i,
     /\bregarded\b/i,
+    /\bconsidered\b/i,
     /\bprominent\b/i,
     /\binfluential\b/i,
-    /\bcareer\b/i,
+    /\bactor\b/i,
+    /\bactress\b/i,
+    /\bfilmmaker\b/i,
+    /\bdirector\b/i,
+    /\bcomedian\b/i,
+    /\bproducer\b/i
+  ];
+
+  const workPatterns = [
     /\bperformance/i,
     /\brole/i,
+    /\bstarred\b/i,
+    /\bportray/i,
     /\bcollaborat/i,
-    /\bdirector/i,
-    /\bactor/i,
-    /\bactress/i,
-    /\bfilmmaker/i,
-    /\bcomed/i,
-    /\bdram/i
+    /\bworked with\b/i,
+    /\bdirected by\b/i,
+    /\bfilmography\b/i,
+    /\bcareer\b/i
   ];
 
-  const awardPatterns = [
-    /\bacademy award/i,
-    /\boscar/i,
-    /\bgolden globe/i,
-    /\bbafta/i,
-    /\bemmy/i,
-    /\bscreen actors guild/i,
-    /\baward/i,
-    /\bnomination/i,
-    /\bwon\b/i
-  ];
+  const analyzed = sentences.map((sentence, index) => {
+    const normalized = normalizeTitle(sentence);
 
-  const scored = sentences.map((sentence, index) => {
-    const normalizedSentence = normalizeTitle(sentence);
+    const movieCount = credits.filter(movie =>
+      normalized.includes(movie.key)
+    ).length;
 
-    const mentionedMovies = normalizedCredits.filter(movie =>
-      movie.key.length >= 3 &&
-      normalizedSentence.includes(movie.key)
-    );
+    const identity =
+      identityPatterns.some(pattern => pattern.test(sentence));
 
-    let score = 0;
+    const work =
+      workPatterns.some(pattern => pattern.test(sentence));
 
-    if (index === 0) score += 12;
-    if (index === 1) score += 5;
+    const awards = isAwardsHeavy(sentence);
+    const housekeeping = isHousekeeping(sentence);
 
-    score += Math.min(mentionedMovies.length, 4) * 16;
+    let identityScore = 0;
+    let workScore = 0;
 
-    if (careerPatterns.some(pattern => pattern.test(sentence))) {
-      score += 12;
-    }
+    if (identity) identityScore += 20;
+    if (work) identityScore += 8;
+    if (movieCount) identityScore += Math.min(movieCount, 3) * 5;
+    if (index === 0) identityScore += 6;
+    if (awards) identityScore -= 24;
+    if (housekeeping) identityScore -= 22;
 
-    if (awardPatterns.some(pattern => pattern.test(sentence))) {
-      score += 18;
-    }
-
-    if (lowValuePatterns.some(pattern => pattern.test(sentence))) {
-      score -= 22;
-    }
-
-    if (sentence.length < 45) score -= 5;
-    if (sentence.length > 360) score -= 4;
+    workScore += Math.min(movieCount, 5) * 15;
+    if (work) workScore += 12;
+    if (identity) workScore += 5;
+    if (awards) workScore -= 20;
+    if (housekeeping) workScore -= 18;
 
     return {
       sentence,
       index,
-      score,
-      movieCount: mentionedMovies.length
+      movieCount,
+      awards,
+      housekeeping,
+      identityScore,
+      workScore
     };
   });
 
   /*
-    Keep a compact narrative. We choose the strongest material
-    but restore its original order so it reads naturally.
+    Sentence 1: career identity.
+    It must not be an awards résumé or early-life sentence.
   */
 
-  let selected = scored
-    .filter(item => item.score > 0)
-    .sort((a, b) => b.score - a.score)
-    .slice(0, 3)
-    .sort((a, b) => a.index - b.index);
+  const identityCandidates = analyzed
+    .filter(item => !item.awards && !item.housekeeping)
+    .sort((a, b) => b.identityScore - a.identityScore);
 
-  if (!selected.length) {
-    selected = scored.slice(0, 2);
+  let identity = identityCandidates[0] || null;
+
+  /*
+    Sentence 2: defining work/collaborations.
+    Prefer a different sentence containing real movie credits.
+  */
+
+  const workCandidates = analyzed
+    .filter(item =>
+      !item.awards &&
+      !item.housekeeping &&
+      (!identity || item.index !== identity.index)
+    )
+    .sort((a, b) => b.workScore - a.workScore);
+
+  let work =
+    workCandidates.find(item => item.movieCount > 0) ||
+    workCandidates[0] ||
+    null;
+
+  /*
+    If the source biography does not contain a useful identity
+    sentence, create a restrained factual opener rather than
+    forcing an awards sentence into that role.
+  */
+
+  const department =
+    String(person?.known_for_department || "Acting").trim();
+
+  let parts = [];
+
+  if (identity && identity.identityScore > 0) {
+    parts.push(identity.sentence);
+  } else {
+    if (department.toLowerCase() === "directing") {
+      parts.push(`${name} is a filmmaker with a career spanning a wide range of movies.`);
+    } else if (department.toLowerCase() === "writing") {
+      parts.push(`${name} is a screenwriter and filmmaker with an extensive career in movies.`);
+    } else {
+      parts.push(`${name} is an actor with an extensive career in movies.`);
+    }
+  }
+
+  if (work && work.workScore > 0) {
+    parts.push(work.sentence);
   }
 
   /*
-    Avoid opening with a sentence that is almost entirely
-    biographical housekeeping. Prefer the strongest career
-    sentence when available.
+    Keep only one short recognition sentence.
+    Prefer a concise source sentence; otherwise use OscarBase's
+    structured totals. Never include a long list of nominations.
   */
 
-  const strongCareer = scored
-    .filter(item =>
-      item.score >= 12 &&
-      !lowValuePatterns.some(pattern => pattern.test(item.sentence))
-    )
-    .sort((a, b) => b.score - a.score)[0];
+  const awardCandidates = analyzed
+    .filter(item => item.awards)
+    .filter(item => item.sentence.length <= 220)
+    .sort((a, b) => {
+      const aListPenalty =
+        (a.sentence.match(/\(\d{4}\)/g) || []).length * 15;
+      const bListPenalty =
+        (b.sentence.match(/\(\d{4}\)/g) || []).length * 15;
+
+      return (
+        (b.movieCount * 4 - bListPenalty) -
+        (a.movieCount * 4 - aListPenalty)
+      );
+    });
+
+  let recognition = awardCandidates[0]?.sentence || "";
+
+  /*
+    Reject award sentences that still look like nomination
+    inventories. The Awards & Accolades page is the right place
+    for that level of detail.
+  */
 
   if (
-    selected.length &&
-    lowValuePatterns.some(pattern => pattern.test(selected[0].sentence)) &&
-    strongCareer
+    recognition &&
+    (
+      recognition.length > 220 ||
+      (recognition.match(/,\s/g) || []).length >= 4 ||
+      (recognition.match(/\(\d{4}\)/g) || []).length >= 3
+    )
   ) {
-    selected[0] = strongCareer;
-    selected = Array.from(
-      new Map(selected.map(item => [item.index, item])).values()
-    ).sort((a, b) => a.index - b.index);
+    recognition = "";
   }
 
-  let bio = selected
-    .map(item => item.sentence)
+  if (!recognition) {
+    recognition = academySummary(accolades);
+  }
+
+  if (recognition) {
+    parts.push(recognition);
+  }
+
+  /*
+    Remove duplicate sentences and preserve narrative order.
+  */
+
+  const seen = new Set();
+
+  parts = parts.filter(part => {
+    const key = normalizeTitle(part);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+
+  let bio = parts
     .join(" ")
     .replace(/\s+/g, " ")
     .trim();
 
   /*
-    The profile already displays the birth date separately.
-    Remove a parenthetical birth-date clause when it appears
-    near the beginning of the source biography.
+    The profile already displays birth date separately.
   */
 
   bio = bio
@@ -361,30 +406,18 @@ function buildReelwiseBio(person, accolades) {
     .trim();
 
   /*
-    Keep the on-card bio readable on a phone.
+    Mobile-first length ceiling.
   */
 
-  if (bio.length > 700) {
-    const shorter = splitSentences(bio);
-    bio = shorter.slice(0, 2).join(" ");
+  if (bio.length > 620) {
+    const compact = splitSentences(bio).slice(0, 3);
+    bio = compact.join(" ");
 
-    if (bio.length > 700) {
-      bio = bio.slice(0, 697).replace(/\s+\S*$/, "") + "...";
+    if (bio.length > 620) {
+      bio = bio
+        .slice(0, 617)
+        .replace(/\s+\S*$/, "") + "...";
     }
-  }
-
-  /*
-    Only append Oscar information if the selected biography
-    did not already discuss Academy Awards/Oscars.
-  */
-
-  const awardLine = academySentence(accolades);
-
-  if (
-    awardLine &&
-    !/\bacademy award|\boscar/i.test(bio)
-  ) {
-    bio = `${bio} ${awardLine}`.trim();
   }
 
   return bio || biography;
