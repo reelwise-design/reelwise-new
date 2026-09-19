@@ -2420,7 +2420,8 @@ async function showMovieFeature(feature){
 }
 function compactStarBio(person,knownMovies,allMovies){
   const name=String(person?.name||"This performer").trim();
-  const credits=[...(Array.isArray(allMovies)?allMovies:[])];
+  const today=new Date();
+  const todayISO=today.toISOString().slice(0,10);
 
   const normalize=s=>String(s||"")
     .toLowerCase()
@@ -2434,8 +2435,10 @@ function compactStarBio(person,knownMovies,allMovies){
   };
 
   const seen=new Set();
-  const movies=credits
-    .filter(m=>m&&m.title&&yearOf(m))
+
+  // Released films only. Future/upcoming credits do not belong in a career retrospective.
+  const movies=(Array.isArray(allMovies)?allMovies:[])
+    .filter(m=>m&&m.title&&m.release_date&&String(m.release_date)<=todayISO&&yearOf(m))
     .filter(m=>{
       const key=`${normalize(m.title)}|${yearOf(m)}`;
       if(seen.has(key))return false;
@@ -2452,58 +2455,25 @@ function compactStarBio(person,knownMovies,allMovies){
     .sort((a,b)=>a._year-b._year);
 
   if(!movies.length){
-    return `${name} has appeared across film and television in a career that spans a range of screen roles.`;
+    return `${name} has appeared across film and television in a range of screen roles.`;
   }
 
   const firstYear=movies[0]._year;
   const lastYear=movies[movies.length-1]._year;
   const span=Math.max(0,lastYear-firstYear);
 
+  // Established credits should beat obscure credits. Vote history carries the
+  // most weight; popularity helps, but cannot dominate the biography by itself.
   const importance=m=>{
-    const voteWeight=Math.log10(Math.max(1,m._votes)+1)*7;
-    const popWeight=Math.log10(Math.max(1,m._pop)+1)*8;
-    const ratingWeight=m._votes>=100?Math.max(0,m._score-5)*2:0;
-    return voteWeight+popWeight+ratingWeight;
+    const votes=Math.log10(Math.max(1,m._votes)+1)*12;
+    const pop=Math.log10(Math.max(1,m._pop)+1)*4;
+    const rating=m._votes>=250?Math.max(0,m._score-5)*2:0;
+    return votes+pop+rating;
   };
 
-  const ranked=[...movies].sort((a,b)=>importance(b)-importance(a));
-
-  const pickFromRange=(min,max,count,excluded=new Set())=>
-    ranked.filter(m=>m._year>=min&&m._year<=max&&!excluded.has(normalize(m.title))).slice(0,count);
-
-  const used=new Set();
-  const addUsed=list=>list.forEach(m=>used.add(normalize(m.title)));
-
-  const earlyEnd=firstYear+Math.max(7,Math.round(span*.28));
-  const middleEnd=firstYear+Math.max(15,Math.round(span*.68));
-
-  let early=pickFromRange(firstYear,Math.min(earlyEnd,lastYear),3,used);
-  addUsed(early);
-
-  let middle=span>=12
-    ? pickFromRange(Math.min(earlyEnd+1,lastYear),Math.min(middleEnd,lastYear),3,used)
-    : [];
-  addUsed(middle);
-
-  let later=span>=20
-    ? pickFromRange(Math.min(middleEnd+1,lastYear),lastYear,3,used)
-    : pickFromRange(Math.min(earlyEnd+1,lastYear),lastYear,3,used);
-  addUsed(later);
-
-  const fill=(arr,target)=>{
-    for(const m of ranked){
-      if(arr.length>=target)break;
-      const key=normalize(m.title);
-      if(!used.has(key)){
-        arr.push(m);
-        used.add(key);
-      }
-    }
-  };
-
-  if(!early.length)fill(early,2);
-  if(span>=12&&!middle.length)fill(middle,2);
-  if(!later.length)fill(later,2);
+  const established=movies.filter(m=>m._votes>=150);
+  const pool=established.length>=4?established:movies;
+  const ranked=[...pool].sort((a,b)=>importance(b)-importance(a));
 
   const titleList=list=>{
     const titles=list.map(m=>m.title);
@@ -2513,85 +2483,125 @@ function compactStarBio(person,knownMovies,allMovies){
     return `${titles.slice(0,-1).join(", ")}, and ${titles[titles.length-1]}`;
   };
 
-  // Build a conservative franchise identity. Keep meaningful colon titles
-  // such as "Mission: Impossible" intact while removing sequel subtitles.
-  const franchiseIdentity=title=>{
-    const raw=String(title||"").trim();
+  // Find the earliest period containing genuinely established work rather than
+  // assuming the person's first screen credits were their breakthrough.
+  const topScore=ranked.length?importance(ranked[0]):0;
+  const meaningfulThreshold=Math.max(25,topScore*.48);
+  const meaningful=pool
+    .filter(m=>importance(m)>=meaningfulThreshold)
+    .sort((a,b)=>a._year-b._year);
 
-    const colonParts=raw.split(":").map(s=>s.trim()).filter(Boolean);
-    if(colonParts.length>=2){
-      const firstTwo=`${colonParts[0]}: ${colonParts[1]}`;
-      // If several movies share the first two colon segments, this preserves
-      // identities such as Mission: Impossible rather than reducing to Mission.
-      return {key:normalize(firstTwo),label:firstTwo};
+  const anchorYear=meaningful.length?meaningful[0]._year:firstYear;
+  const earlyWindowEnd=Math.min(lastYear,anchorYear+10);
+
+  const used=new Set();
+  const take=(arr,count)=>{
+    const out=[];
+    for(const m of arr){
+      const key=normalize(m.title);
+      if(used.has(key))continue;
+      out.push(m);
+      used.add(key);
+      if(out.length>=count)break;
+    }
+    return out;
+  };
+
+  const earlyCandidates=[...pool]
+    .filter(m=>m._year>=Math.max(firstYear,anchorYear-3)&&m._year<=earlyWindowEnd)
+    .sort((a,b)=>importance(b)-importance(a));
+  const early=take(earlyCandidates,3);
+
+  const midStart=earlyWindowEnd+1;
+  const midEnd=Math.min(lastYear,anchorYear+28);
+  const middleCandidates=[...pool]
+    .filter(m=>m._year>=midStart&&m._year<=midEnd)
+    .sort((a,b)=>importance(b)-importance(a));
+  const middle=take(middleCandidates,3);
+
+  const laterCandidates=[...pool]
+    .filter(m=>m._year>midEnd)
+    .sort((a,b)=>importance(b)-importance(a));
+  const later=take(laterCandidates,3);
+
+  // Fill sparse stages only with strong established credits, never merely to
+  // force a three-sentence template.
+  const remaining=ranked.filter(m=>!used.has(normalize(m.title)));
+  if(!early.length)early.push(...take(remaining,Math.min(3,remaining.length)));
+
+  // Strict franchise detection:
+  // 1) exact franchise stem must recur in at least 3 released titles;
+  // 2) the stem must be substantial;
+  // 3) do not invent punctuation or split ordinary titles.
+  const franchiseStem=title=>{
+    let raw=String(title||"").trim();
+
+    // Preserve a meaningful colon stem only when the left side + first right-side
+    // word form a recurring title identity, e.g. "Mission: Impossible".
+    if(raw.includes(":")){
+      const [left,...rest]=raw.split(":");
+      const right=rest.join(":").trim();
+      const firstRight=(right.match(/^[A-Za-z0-9]+/)||[])[0];
+      if(left.trim()&&firstRight){
+        return {key:normalize(`${left.trim()} ${firstRight}`),
+                label:`${left.trim()}: ${firstRight}`};
+      }
     }
 
-    let base=raw
-      .replace(/\s*[-–—]\s*(part|chapter|episode)?\s*[ivx0-9]+.*$/i,"")
-      .replace(/\s+(part|chapter|episode)\s+[ivx0-9]+.*$/i,"")
-      .replace(/\s+[ivx]{1,4}$/i,"")
-      .replace(/\s+[2-9]$/,"")
+    // Remove only obvious sequel markers at the END of a title.
+    const base=raw
+      .replace(/\s+(?:part|chapter|episode)\s+(?:[ivx]+|\d+)$/i,"")
+      .replace(/\s+(?:[ivx]{1,4}|[2-9])$/i,"")
       .trim();
 
     return {key:normalize(base),label:base};
   };
 
-  // Also test simpler shared prefixes for colon-based franchises.
-  const familyBuckets=new Map();
+  const buckets=new Map();
   for(const m of movies){
-    const raw=String(m.title||"").trim();
-    const identities=[franchiseIdentity(raw)];
-
-    if(raw.includes(":")){
-      const first=raw.split(":")[0].trim();
-      const second=(raw.split(":")[1]||"").trim();
-      // Mission: Impossible needs two segments; most ordinary subtitle films
-      // should not become a franchise merely because they share one word.
-      if(first&&second){
-        identities.push({key:normalize(`${first}: ${second.split(/\s[-–—]/)[0].trim()}`),
-                         label:`${first}: ${second.split(/\s[-–—]/)[0].trim()}`});
-      }
-    }
-
-    for(const id of identities){
-      if(!id.key||id.key.length<4)continue;
-      if(!familyBuckets.has(id.key))familyBuckets.set(id.key,{label:id.label,items:[]});
-      const bucket=familyBuckets.get(id.key);
-      if(!bucket.items.some(x=>normalize(x.title)===normalize(m.title)))bucket.items.push(m);
-    }
+    const stem=franchiseStem(m.title);
+    if(!stem.key||stem.key.length<7)continue;
+    if(!buckets.has(stem.key))buckets.set(stem.key,{label:stem.label,items:[]});
+    buckets.get(stem.key).items.push(m);
   }
 
-  // Prefix fallback catches series such as Mission: Impossible whose subtitles
-  // differ after the franchise name.
-  const prefixCandidates=[];
+  // For subtitle-heavy franchises, derive a shared multi-word prefix from
+  // normalized titles, but require 3+ titles and at least two meaningful words.
+  const words=s=>normalize(s).split(" ").filter(Boolean);
   for(let i=0;i<movies.length;i++){
+    const a=words(movies[i].title);
+    if(a.length<2)continue;
     for(let j=i+1;j<movies.length;j++){
-      const a=String(movies[i].title||"");
-      const b=String(movies[j].title||"");
-      const aw=a.split(/[\s:–—-]+/).filter(Boolean);
-      const bw=b.split(/[\s:–—-]+/).filter(Boolean);
+      const b=words(movies[j].title);
       const common=[];
-      for(let k=0;k<Math.min(aw.length,bw.length);k++){
-        if(normalize(aw[k])!==normalize(bw[k]))break;
-        common.push(aw[k]);
+      for(let k=0;k<Math.min(a.length,b.length);k++){
+        if(a[k]!==b[k])break;
+        common.push(a[k]);
       }
-      if(common.length>=2){
-        let label=common.join(" ");
-        if(a.includes(":")&&common.length>=2)label=`${common[0]}: ${common.slice(1).join(" ")}`;
-        prefixCandidates.push({key:normalize(label),label});
+      if(common.length<2)continue;
+      const key=common.join(" ");
+      const matches=movies.filter(m=>normalize(m.title).startsWith(key+" ")||normalize(m.title)===key);
+      if(matches.length<3)continue;
+
+      // Use punctuation from a real matching title where possible.
+      const sample=String(matches[0].title);
+      let label=common.map((w,idx)=>idx===0?w.charAt(0).toUpperCase()+w.slice(1):w).join(" ");
+      if(sample.includes(":")&&common.length>=2){
+        const left=sample.split(":")[0].trim();
+        const rightFirst=(sample.split(":")[1].trim().match(/^[A-Za-z0-9]+/)||[])[0];
+        if(left&&rightFirst&&normalize(`${left} ${rightFirst}`)===key){
+          label=`${left}: ${rightFirst}`;
+        }
       }
+      buckets.set(key,{label,items:matches});
     }
   }
 
-  for(const candidate of prefixCandidates){
-    const matches=movies.filter(m=>normalize(m.title).startsWith(candidate.key));
-    if(matches.length>=3){
-      familyBuckets.set(candidate.key,{label:candidate.label,items:matches});
-    }
-  }
-
-  const franchise=[...familyBuckets.values()]
-    .filter(f=>f.items.length>=3)
+  const franchise=[...buckets.values()]
+    .filter(f=>{
+      const uniq=new Set(f.items.map(m=>normalize(m.title)));
+      return uniq.size>=3;
+    })
     .sort((a,b)=>{
       if(b.items.length!==a.items.length)return b.items.length-a.items.length;
       return Math.max(...b.items.map(importance))-Math.max(...a.items.map(importance));
@@ -2600,32 +2610,30 @@ function compactStarBio(person,knownMovies,allMovies){
   const sentences=[];
 
   if(early.length){
-    if(span>=15){
-      sentences.push(`${name} rose to prominence with films including ${titleList(early.slice(0,3))}.`);
+    if(span>=12){
+      sentences.push(`${name} rose to prominence with films including ${titleList(early)}.`);
     }else{
-      sentences.push(`${name} appeared in films including ${titleList(early.slice(0,3))}.`);
+      sentences.push(`${name} has appeared in films including ${titleList(early)}.`);
     }
   }
 
   if(middle.length){
-    sentences.push(`Other major screen roles followed in ${titleList(middle.slice(0,3))}.`);
+    sentences.push(`Other notable screen roles include ${titleList(middle)}.`);
   }
 
   if(franchise){
-    const familyMovies=[...franchise.items].sort((a,b)=>a._year-b._year);
-    const fFirst=familyMovies[0]._year;
-    const fLast=familyMovies[familyMovies.length-1]._year;
-    const label=franchise.label.replace(/\s+/g," ").trim();
-
-    if(label&&fLast>fFirst){
-      sentences.push(`Beginning in ${fFirst}, the ${label} series became a recurring part of ${name}’s film career, continuing through ${fLast}.`);
+    const family=[...franchise.items].sort((a,b)=>a._year-b._year);
+    const fFirst=family[0]._year;
+    const fLast=family[family.length-1]._year;
+    if(fLast>fFirst){
+      sentences.push(`Beginning in ${fFirst}, the ${franchise.label} series became a recurring part of ${name}’s film career, continuing through ${fLast}.`);
     }
   }else if(later.length){
-    sentences.push(`More recent film work includes ${titleList(later.slice(0,3))}.`);
+    sentences.push(`More recent film work includes ${titleList(later)}.`);
   }
 
-  if(sentences.length<3&&span>=25){
-    sentences.push(`${name}’s movie career spans more than ${Math.floor(span/10)*10} years.`);
+  if(sentences.length<2&&span>=20){
+    sentences.push(`${name}’s film career spans more than ${Math.floor(span/10)*10} years.`);
   }
 
   return sentences.slice(0,3).join(" ");
