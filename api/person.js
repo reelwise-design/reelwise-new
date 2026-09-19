@@ -268,7 +268,13 @@ const CAREER_INTELLIGENCE = {
       },
       {
         text: "Indiana Jones became his other signature screen character and franchise.",
-        films: ["Raiders of the Lost Ark", "Indiana Jones"]
+        films: [
+          "Raiders of the Lost Ark",
+          "Indiana Jones and the Temple of Doom",
+          "Indiana Jones and the Last Crusade",
+          "Indiana Jones and the Kingdom of the Crystal Skull",
+          "Indiana Jones and the Dial of Destiny"
+        ]
       }
     ],
     signatureFilms: [
@@ -337,10 +343,22 @@ function findCreditByTitle(person, wantedTitle) {
 function validatedIntelligenceFilms(person, intelligence) {
   if (!intelligence?.signatureFilms) return [];
 
+  /*
+    6.2.1:
+    Career Intelligence titles are editorial facts and must not
+    disappear merely because TMDB uses a slightly different title
+    string, alternate punctuation, or localized credit title.
+
+    When an exact TMDB credit exists, use it. Otherwise preserve
+    the Career Intelligence title itself.
+  */
   return intelligence.signatureFilms
     .map(title => {
       const credit = findCreditByTitle(person, title);
-      return credit || { title };
+
+      return credit
+        ? { ...credit, title: String(title).trim() || credit.title }
+        : { title: String(title).trim() };
     })
     .filter(movie => movie?.title);
 }
@@ -638,7 +656,7 @@ function rolePhrase(roles) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 6.2
+  REELWISE BIO ENGINE 6.2.1
   ============================================================
 
   Hybrid architecture + multi-franchise Career Intelligence:
