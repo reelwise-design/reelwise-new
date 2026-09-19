@@ -157,108 +157,222 @@ function getCareerYears(person) {
   };
 }
 
-function getBiographyTitleSignals(person) {
-  const biography = cleanBiography(person?.biography);
-  const normalizedBio = normalizeTitle(biography);
+function biographySignals(person) {
+  const bio = cleanBiography(person?.biography);
+  const normalizedBio = normalizeTitle(bio);
   const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+
+  const titleSignals = new Map();
+
+  for (const movie of cast) {
+    const key = normalizeTitle(movie?.title);
+    if (!key || key.length < 3) continue;
+
+    const position = normalizedBio.indexOf(key);
+    if (position < 0) continue;
+
+    const signal = Math.max(8, 38 - Math.floor(position / 75));
+    titleSignals.set(key, Math.max(titleSignals.get(key) || 0, signal));
+  }
+
+  return { bio, normalizedBio, titleSignals };
+}
+
+function oscarSignals(accolades) {
+  const map = new Map();
+
+  if (!Array.isArray(accolades?.history)) return map;
+
+  for (const item of accolades.history) {
+    const key = normalizeTitle(item?.movie);
+    if (!key) continue;
+
+    /*
+      Awards are evidence of career importance, not the final
+      editorial decision. Wins matter, but cannot dominate.
+    */
+    const score = item?.winner ? 52 : 24;
+    map.set(key, Math.max(map.get(key) || 0, score));
+  }
+
+  return map;
+}
+
+function baseMovieScores(person, accolades) {
+  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const { titleSignals } = biographySignals(person);
+  const awards = oscarSignals(accolades);
 
   return dedupeMovies(
     cast
-      .filter(movie => {
-        const key = normalizeTitle(movie?.title);
-        return key.length >= 3 && normalizedBio.includes(key);
-      })
+      .filter(movie =>
+        movie &&
+        movie.title &&
+        movie.release_date &&
+        Number(movie.vote_count || 0) >= 100
+      )
       .map(movie => {
         const key = normalizeTitle(movie.title);
-        const position = normalizedBio.indexOf(key);
+        const votes = Number(movie.vote_count || 0);
+        const rating = Number(movie.vote_average || 0);
+        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+
+        let billing = 0;
+        if (order === 0) billing = 58;
+        else if (order === 1) billing = 50;
+        else if (order === 2) billing = 42;
+        else if (order <= 5) billing = 25;
+        else if (order <= 10) billing = 8;
 
         /*
-          Titles appearing earlier in the biography receive a
-          modest editorial signal, but never enough to dominate
-          the structured career score by themselves.
+          Vote count is used as a durable recognition signal.
+          Current TMDB popularity is intentionally excluded.
         */
-        const bioSignal =
-          position >= 0
-            ? Math.max(0, 30 - Math.floor(position / 90))
-            : 0;
+        const recognition =
+          Math.log10(Math.max(votes, 1)) * 20 +
+          Math.max(0, rating - 5) * 4;
 
-        return { ...movie, bioSignal };
+        const score =
+          billing +
+          recognition +
+          (titleSignals.get(key) || 0) +
+          (awards.get(key) || 0);
+
+        return {
+          ...movie,
+          reelwise_score: score
+        };
       })
+      .sort((a, b) => b.reelwise_score - a.reelwise_score)
   );
 }
 
-function getDefiningMovies(person, accolades) {
-  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
-  const bioSignals = getBiographyTitleSignals(person);
-  const bioMap = new Map(
-    bioSignals.map(movie => [normalizeTitle(movie.title), Number(movie.bioSignal || 0)])
-  );
+/*
+  ============================================================
+  FRANCHISE / CHARACTER INTELLIGENCE
+  ============================================================
 
-  const oscarTitles = new Map();
+  Groups obvious recurring title families so a biography does
+  not waste three of five slots on sequels from one franchise.
+*/
 
-  if (Array.isArray(accolades?.history)) {
-    for (const item of accolades.history) {
-      const key = normalizeTitle(item?.movie);
-      if (!key) continue;
+function franchiseKey(title) {
+  const raw = String(title || "").trim();
+  const normalized = normalizeTitle(raw);
 
-      const current = oscarTitles.get(key) || 0;
-      const awardScore = item?.winner ? 95 : 48;
-      oscarTitles.set(key, Math.max(current, awardScore));
+  const explicit = [
+    ["mission impossible", "Mission: Impossible"],
+    ["top gun", "Top Gun"],
+    ["rocky", "Rocky"],
+    ["rambo", "Rambo"],
+    ["creed", "Rocky / Creed"],
+    ["terminator", "Terminator"],
+    ["indiana jones", "Indiana Jones"],
+    ["die hard", "Die Hard"],
+    ["lethal weapon", "Lethal Weapon"],
+    ["jurassic", "Jurassic"],
+    ["fast and furious", "Fast & Furious"],
+    ["fast furious", "Fast & Furious"],
+    ["star wars", "Star Wars"],
+    ["harry potter", "Harry Potter"],
+    ["lord of the rings", "The Lord of the Rings"],
+    ["hobbit", "The Hobbit"],
+    ["pirates of the caribbean", "Pirates of the Caribbean"],
+    ["hunger games", "The Hunger Games"],
+    ["matrix", "The Matrix"],
+    ["bourne", "Bourne"],
+    ["spider man", "Spider-Man"],
+    ["batman", "Batman"],
+    ["avengers", "Avengers"],
+    ["guardians of the galaxy", "Guardians of the Galaxy"],
+    ["toy story", "Toy Story"],
+    ["shrek", "Shrek"]
+  ];
+
+  for (const [needle, label] of explicit) {
+    if (normalized.includes(needle)) {
+      return { key: needle, label };
     }
   }
 
-  const scored = cast
-    .filter(movie =>
-      movie &&
-      movie.title &&
-      movie.release_date &&
-      Number(movie.vote_count || 0) >= 100
-    )
-    .map(movie => {
-      const key = normalizeTitle(movie.title);
-      const votes = Number(movie.vote_count || 0);
-      const rating = Number(movie.vote_average || 0);
-      const popularity = Number(movie.popularity || 0);
-      const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+  /*
+    Generic sequel cleanup catches numbered title families.
+  */
+  const generic = normalized
+    .replace(/\bpart\s+(one|two|three|four|five|six|seven|eight|nine|\d+)\b/g, "")
+    .replace(/\bchapter\s+\d+\b/g, "")
+    .replace(/\bepisode\s+\d+\b/g, "")
+    .replace(/\b(ii|iii|iv|v|vi|vii|viii|ix|x)\b$/g, "")
+    .replace(/\b\d+\b$/g, "")
+    .trim();
 
-      let billingScore = 0;
-      if (order === 0) billingScore = 52;
-      else if (order === 1) billingScore = 46;
-      else if (order === 2) billingScore = 40;
-      else if (order <= 5) billingScore = 24;
-      else if (order <= 10) billingScore = 8;
+  if (generic && generic !== normalized && generic.length >= 4) {
+    return { key: generic, label: raw.replace(/\s+(?:\d+|II|III|IV|V|VI|VII|VIII|IX|X)$/i, "") };
+  }
 
-      const audienceScore =
-        Math.log10(Math.max(votes, 1)) * 17 +
-        Math.max(0, rating - 5) * 5 +
-        Math.log10(Math.max(popularity, 1)) * 0.5;
+  return null;
+}
 
-      const bioScore = bioMap.get(key) || 0;
-      const oscarScore = oscarTitles.get(key) || 0;
+function detectFranchises(scoredMovies) {
+  const groups = new Map();
 
-      /*
-        Engine 4.1:
-        - Oscar recognition remains a major career signal.
-        - Lead/supporting billing remains important.
-        - Long-term audience recognition gets more weight.
-        - Current TMDB popularity gets almost no influence,
-          preventing a recent title from crowding out an
-          enduring signature film.
-      */
-      const score =
-        billingScore +
-        audienceScore +
-        bioScore +
-        oscarScore;
+  for (const movie of scoredMovies) {
+    const family = franchiseKey(movie.title);
+    if (!family) continue;
 
-      return { ...movie, reelwise_score: score };
-    })
-    .sort((a, b) => b.reelwise_score - a.reelwise_score);
+    if (!groups.has(family.key)) {
+      groups.set(family.key, {
+        key: family.key,
+        label: family.label,
+        movies: [],
+        bestScore: 0
+      });
+    }
+
+    const group = groups.get(family.key);
+    group.movies.push(movie);
+    group.bestScore = Math.max(group.bestScore, Number(movie.reelwise_score || 0));
+  }
 
   /*
-    Keep the bio selective: at most five films.
+    A real franchise signal requires multiple credited films,
+    except Rocky/Creed which are one connected screen legacy.
   */
-  return dedupeMovies(scored).slice(0, 5);
+  return Array.from(groups.values())
+    .filter(group =>
+      group.movies.length >= 2 ||
+      group.label === "Rocky / Creed"
+    )
+    .sort((a, b) => b.bestScore - a.bestScore);
+}
+
+function getDefiningCareer(person, accolades) {
+  const scored = baseMovieScores(person, accolades);
+  const franchises = detectFranchises(scored);
+
+  /*
+    Reserve at most one franchise concept in the short bio.
+    This prevents franchise-heavy careers from becoming a list
+    of sequels while still recognizing signature series.
+  */
+  const signatureFranchise = franchises[0] || null;
+
+  const excludedTitles = new Set();
+
+  if (signatureFranchise) {
+    for (const movie of signatureFranchise.movies) {
+      excludedTitles.add(normalizeTitle(movie.title));
+    }
+  }
+
+  const standalone = scored
+    .filter(movie => !excludedTitles.has(normalizeTitle(movie.title)))
+    .slice(0, signatureFranchise ? 4 : 5);
+
+  return {
+    movies: standalone,
+    franchise: signatureFranchise
+  };
 }
 
 function formatFilmList(movies) {
@@ -271,35 +385,31 @@ function formatFilmList(movies) {
   return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
 }
 
-function findCollaborationSentence(person) {
+function collaborationContext(person) {
   const sentences = splitSentences(person?.biography);
 
-  const candidates = sentences.filter(sentence =>
-    /\bcollaborat|\bdirector|\bworked with|\bfilms? with\b/i.test(sentence) &&
-    !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(sentence) &&
-    sentence.length <= 230
+  const candidate = sentences
+    .filter(sentence =>
+      /\bcollaborat|\bworked with|\bfilms? with\b/i.test(sentence) &&
+      !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(sentence) &&
+      sentence.length <= 220 &&
+      (sentence.match(/,/g) || []).length <= 2
+    )
+    .sort((a, b) => a.length - b.length)[0];
+
+  if (!candidate) return "";
+
+  const first = candidate.match(
+    /^(.+?)'?s first collaboration with (.+?) was with /i
   );
 
-  if (!candidates.length) return "";
-
-  const chosen = candidates.sort((a, b) => a.length - b.length)[0];
-
-  /*
-    Turn dry chronology such as "first collaboration with..."
-    into Reelwise-style career context without inventing facts.
-  */
-  const firstCollab = chosen.match(
-    /^(.+?)'?s first collaboration with (.+?) was with (.+?)(?:\.|$)/i
-  );
-
-  if (firstCollab) {
-    const subject = firstCollab[1].trim();
-    const collaborator = firstCollab[2].trim();
-
-    return `${subject}'s long-running collaboration with ${collaborator} became an important part of the career.`;
+  if (first) {
+    const subject = first[1].trim();
+    const collaborator = first[2].trim();
+    return `${subject}'s celebrated collaboration with ${collaborator} became a defining part of the career.`;
   }
 
-  return chosen;
+  return candidate;
 }
 
 function academyRecognition(accolades) {
@@ -307,111 +417,150 @@ function academyRecognition(accolades) {
   const nominations = Number(accolades?.nominations || 0);
 
   if (wins > 0) {
-    return `The Academy has recognized the work with ${wins} Oscar ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
+    return `${wins === 1 ? "An Academy Award win" : `${wins} Academy Award wins`} and ${nominations} total ${nominations === 1 ? "nomination" : "nominations"} reflect the critical recognition earned along the way.`;
   }
 
   if (nominations > 0) {
-    return `The Academy has recognized the work with ${nominations} Oscar ${nominations === 1 ? "nomination" : "nominations"}.`;
+    return `The work has earned ${nominations} Academy Award ${nominations === 1 ? "nomination" : "nominations"}.`;
   }
 
   return "";
 }
 
+function creatorSignals(person) {
+  const bio = cleanBiography(person?.biography);
+
+  return {
+    writer:
+      /\bscreenwriter\b|\bwriter\b|\bwrote\b|\bco-wrote\b|\bwritten by\b/i.test(bio),
+
+    producer:
+      /\bproducer\b|\bproduced\b/i.test(bio),
+
+    director:
+      /\bdirector\b|\bdirected\b/i.test(bio),
+
+    creator:
+      /\bcreated\b|\bcreator\b/i.test(bio)
+  };
+}
+
 /*
   ============================================================
-  REELWISE BIO ENGINE 4.0
+  REELWISE BIO ENGINE 5.0
   ============================================================
 
-  This engine COMPOSES a short biography instead of selecting
-  entire source-biography sentences.
-
-  Structure:
-    1. Identity / career scope
-    2. 3-5 defining films
-    3. Collaboration context when concise and useful
-    4. One short awards statement maximum
-
-  The result is intentionally designed for a mobile star card.
+  Career-aware composition:
+  - signature franchises are grouped
+  - sequels do not consume multiple defining-film slots
+  - current popularity is removed from the ranking
+  - lead billing + durable audience recognition matter
+  - Oscars support selection without controlling it
+  - writer/producer/director identity can enrich the opener
 */
 
 function buildReelwiseBio(person, accolades) {
   const name = String(person?.name || "").trim();
   if (!name) return "";
 
-  const department = String(person?.known_for_department || "Acting").trim().toLowerCase();
-  const movies = getDefiningMovies(person, accolades);
-  const films = formatFilmList(movies);
   const years = getCareerYears(person);
+  const career = getDefiningCareer(person, accolades);
+  const signals = creatorSignals(person);
+  const department = String(person?.known_for_department || "Acting").toLowerCase();
 
-  let identity;
+  let roles = [];
 
   if (department === "directing") {
-    identity = `${name} is a filmmaker whose career spans`;
+    roles.push("filmmaker");
   } else if (department === "writing") {
-    identity = `${name} is a screenwriter and filmmaker whose career spans`;
+    roles.push("screenwriter");
   } else {
-    identity = `${name} is an acclaimed actor whose film career spans`;
+    roles.push("actor");
   }
 
-  if (years && years.first && years.last && years.last > years.first) {
+  if (signals.writer && !roles.includes("screenwriter")) roles.push("screenwriter");
+  if (signals.producer && roles.length < 3) roles.push("producer");
+  if (signals.director && !roles.includes("filmmaker") && roles.length < 3) roles.push("filmmaker");
+
+  const roleText =
+    roles.length === 1
+      ? roles[0]
+      : roles.length === 2
+        ? `${roles[0]} and ${roles[1]}`
+        : `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}`;
+
+  let identity = `${name} is an acclaimed ${roleText}`;
+
+  if (years && years.last > years.first) {
     const decades = Math.max(1, Math.floor((years.last - years.first) / 10));
-    identity += ` more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
+    identity += ` whose film career spans more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
   } else {
-    identity += ` a wide range of movies.`;
+    identity += ` with an extensive career in movies.`;
   }
 
   const parts = [identity];
 
-  if (films) {
-    parts.push(`Defining screen work includes ${films}.`);
+  /*
+    Signature franchise gets narrative treatment instead of
+    appearing as several sequel titles.
+  */
+  if (career.franchise) {
+    const label = career.franchise.label;
+
+    if (label === "Rocky / Creed") {
+      parts.push(`The Rocky and Creed films form one of the defining screen legacies of the career.`);
+    } else {
+      parts.push(`The ${label} films became a signature part of the career.`);
+    }
   }
 
-  const collaboration = findCollaborationSentence(person);
+  const films = formatFilmList(career.movies);
+
+  if (films) {
+    parts.push(`Other defining films include ${films}.`);
+  }
 
   /*
-    A collaboration sentence is useful only if it adds something
-    beyond the films already listed and is not itself a long list.
+    Collaboration context is especially valuable for careers
+    such as De Niro/Scorsese, but remains optional.
   */
-  if (
-    collaboration &&
-    collaboration.length <= 190 &&
-    (collaboration.match(/,/g) || []).length <= 2
-  ) {
-    parts.push(collaboration);
+  const collaboration = collaborationContext(person);
+
+  if (collaboration) {
+    parts.splice(1, 0, collaboration);
   }
 
+  /*
+    Keep awards brief because the dedicated accolades screen
+    contains the full history.
+  */
   const recognition = academyRecognition(accolades);
   if (recognition) parts.push(recognition);
 
-  let bio = parts
-    .join(" ")
-    .replace(/\s+/g, " ")
-    .trim();
+  let bio = parts.join(" ").replace(/\s+/g, " ").trim();
 
   /*
-    Hard ceiling for the profile card. Preserve whole sentences.
+    Mobile card ceiling. Remove awards first, then collaboration,
+    before sacrificing the career identity or defining work.
   */
-  if (bio.length > 560) {
-    const sentences = splitSentences(bio);
+  if (bio.length > 620) {
+    const withoutAwards = recognition
+      ? parts.filter(part => part !== recognition)
+      : [...parts];
 
-    while (sentences.length > 2 && sentences.join(" ").length > 560) {
-      /*
-        Drop collaboration before identity, films or recognition.
-      */
-      if (collaboration) {
-        const index = sentences.findIndex(sentence =>
-          normalizeTitle(sentence) === normalizeTitle(collaboration)
-        );
-        if (index >= 0) {
-          sentences.splice(index, 1);
-          continue;
-        }
-      }
+    bio = withoutAwards.join(" ").replace(/\s+/g, " ").trim();
+  }
 
-      sentences.splice(sentences.length - 2, 1);
-    }
+  if (bio.length > 620 && collaboration) {
+    const withoutCollab = parts.filter(
+      part => part !== collaboration && part !== recognition
+    );
 
-    bio = sentences.join(" ");
+    bio = withoutCollab.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  if (bio.length > 620) {
+    bio = bio.slice(0, 617).replace(/\s+\S*$/, "") + "...";
   }
 
   return bio;
