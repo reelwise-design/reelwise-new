@@ -116,19 +116,13 @@ async function getAccolades(tmdbPersonId) {
 */
 
 function cleanBiography(value) {
-  return String(value || "")
-    .replace(/\s+/g, " ")
-    .trim();
+  return String(value || "").replace(/\s+/g, " ").trim();
 }
 
 function splitSentences(value) {
   const clean = cleanBiography(value);
   if (!clean) return [];
-
-  return clean
-    .match(/[^.!?]+[.!?]+|[^.!?]+$/g)
-    ?.map(sentence => sentence.trim())
-    .filter(Boolean) || [];
+  return clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [];
 }
 
 function normalizeTitle(value) {
@@ -139,20 +133,163 @@ function normalizeTitle(value) {
     .trim();
 }
 
-function isAwardsHeavy(sentence) {
-  return /\bacademy award|\boscar|\bgolden globe|\bbafta|\bemmy|\bscreen actors guild|\baward|\bnomination|\bnominated|\bwon\b/i.test(sentence);
+function dedupeMovies(movies) {
+  const seen = new Set();
+  return movies.filter(movie => {
+    const key = normalizeTitle(movie?.title);
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
-function isHousekeeping(sentence) {
-  return /\bwas born\b|\bborn on\b|\bborn in\b|\braised in\b|\bgrew up\b|\bmother\b|\bfather\b|\bparents\b|\bchildhood\b|\battended\b|\bschool\b|\bfirst credited\b|\bfirst screen role\b|\bmade (?:his|her|their) film debut\b/i.test(sentence);
+function getCareerYears(person) {
+  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const years = cast
+    .map(movie => Number(String(movie?.release_date || "").slice(0, 4)))
+    .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
+
+  if (!years.length) return null;
+
+  return {
+    first: Math.min(...years),
+    last: Math.max(...years)
+  };
 }
 
-function academySummary(accolades) {
+function getBiographyTitleSignals(person) {
+  const biography = cleanBiography(person?.biography);
+  const normalizedBio = normalizeTitle(biography);
+  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+
+  return dedupeMovies(
+    cast
+      .filter(movie => {
+        const key = normalizeTitle(movie?.title);
+        return key.length >= 3 && normalizedBio.includes(key);
+      })
+      .map(movie => {
+        const key = normalizeTitle(movie.title);
+        const position = normalizedBio.indexOf(key);
+
+        /*
+          Titles appearing earlier in the biography receive a
+          modest editorial signal, but never enough to dominate
+          the structured career score by themselves.
+        */
+        const bioSignal =
+          position >= 0
+            ? Math.max(0, 30 - Math.floor(position / 90))
+            : 0;
+
+        return { ...movie, bioSignal };
+      })
+  );
+}
+
+function getDefiningMovies(person, accolades) {
+  const cast = Array.isArray(person?.movie_credits?.cast) ? person.movie_credits.cast : [];
+  const bioSignals = getBiographyTitleSignals(person);
+  const bioMap = new Map(
+    bioSignals.map(movie => [normalizeTitle(movie.title), Number(movie.bioSignal || 0)])
+  );
+
+  const oscarTitles = new Map();
+
+  if (Array.isArray(accolades?.history)) {
+    for (const item of accolades.history) {
+      const key = normalizeTitle(item?.movie);
+      if (!key) continue;
+
+      const current = oscarTitles.get(key) || 0;
+      const awardScore = item?.winner ? 95 : 48;
+      oscarTitles.set(key, Math.max(current, awardScore));
+    }
+  }
+
+  const scored = cast
+    .filter(movie =>
+      movie &&
+      movie.title &&
+      movie.release_date &&
+      Number(movie.vote_count || 0) >= 100
+    )
+    .map(movie => {
+      const key = normalizeTitle(movie.title);
+      const votes = Number(movie.vote_count || 0);
+      const rating = Number(movie.vote_average || 0);
+      const popularity = Number(movie.popularity || 0);
+      const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+
+      let billingScore = 0;
+      if (order === 0) billingScore = 52;
+      else if (order === 1) billingScore = 46;
+      else if (order === 2) billingScore = 40;
+      else if (order <= 5) billingScore = 24;
+      else if (order <= 10) billingScore = 8;
+
+      const audienceScore =
+        Math.log10(Math.max(votes, 1)) * 12 +
+        Math.max(0, rating - 5) * 4 +
+        Math.log10(Math.max(popularity, 1)) * 2;
+
+      const bioScore = bioMap.get(key) || 0;
+      const oscarScore = oscarTitles.get(key) || 0;
+
+      /*
+        Oscar recognition + substantial billing are strong
+        evidence that a film is career-defining. Audience
+        popularity is deliberately a secondary signal.
+      */
+      const score =
+        billingScore +
+        audienceScore +
+        bioScore +
+        oscarScore;
+
+      return { ...movie, reelwise_score: score };
+    })
+    .sort((a, b) => b.reelwise_score - a.reelwise_score);
+
+  /*
+    Keep the bio selective: at most five films.
+  */
+  return dedupeMovies(scored).slice(0, 5);
+}
+
+function formatFilmList(movies) {
+  const titles = movies.map(movie => movie.title).filter(Boolean);
+
+  if (!titles.length) return "";
+  if (titles.length === 1) return titles[0];
+  if (titles.length === 2) return `${titles[0]} and ${titles[1]}`;
+
+  return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
+}
+
+function findCollaborationSentence(person) {
+  const sentences = splitSentences(person?.biography);
+
+  const candidates = sentences.filter(sentence =>
+    /\bcollaborat|\bdirector|\bworked with|\bfilms? with\b/i.test(sentence) &&
+    !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(sentence) &&
+    sentence.length <= 230
+  );
+
+  if (!candidates.length) return "";
+
+  /*
+    Prefer concise collaboration language, not filmography dumps.
+  */
+  return candidates.sort((a, b) => a.length - b.length)[0];
+}
+
+function academyRecognition(accolades) {
   const wins = Number(accolades?.wins || 0);
   const nominations = Number(accolades?.nominations || 0);
 
   if (wins > 0) {
-    return `Academy Award recognition includes ${wins} ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
+    return `The Academy has recognized the work with ${wins} Oscar ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
   }
 
   if (nominations > 0) {
@@ -164,226 +301,69 @@ function academySummary(accolades) {
 
 /*
   ============================================================
-  REELWISE BIO ENGINE 3.0
+  REELWISE BIO ENGINE 4.0
   ============================================================
 
-  Target structure:
-  1. WHO THEY ARE — career identity/significance
-  2. WHY MOVIE FANS KNOW THEM — defining work/collaborations
-  3. RECOGNITION — one short awards statement maximum
+  This engine COMPOSES a short biography instead of selecting
+  entire source-biography sentences.
 
-  Awards never dominate the bio because the profile already
-  has a dedicated Awards & Accolades section.
+  Structure:
+    1. Identity / career scope
+    2. 3-5 defining films
+    3. Collaboration context when concise and useful
+    4. One short awards statement maximum
+
+  The result is intentionally designed for a mobile star card.
 */
 
 function buildReelwiseBio(person, accolades) {
   const name = String(person?.name || "").trim();
-  const biography = cleanBiography(person?.biography);
+  if (!name) return "";
 
-  if (!name || !biography) return biography;
+  const department = String(person?.known_for_department || "Acting").trim().toLowerCase();
+  const movies = getDefiningMovies(person, accolades);
+  const films = formatFilmList(movies);
+  const years = getCareerYears(person);
 
-  const sentences = splitSentences(biography);
-  if (!sentences.length) return biography;
+  let identity;
 
-  const cast = Array.isArray(person?.movie_credits?.cast)
-    ? person.movie_credits.cast
-    : [];
-
-  const credits = cast
-    .map(movie => ({
-      title: String(movie?.title || "").trim(),
-      key: normalizeTitle(movie?.title || "")
-    }))
-    .filter(movie => movie.title && movie.key.length >= 3);
-
-  const identityPatterns = [
-    /\bknown for\b/i,
-    /\bbest known\b/i,
-    /\bacclaimed\b/i,
-    /\bcelebrated\b/i,
-    /\bregarded\b/i,
-    /\bconsidered\b/i,
-    /\bprominent\b/i,
-    /\binfluential\b/i,
-    /\bactor\b/i,
-    /\bactress\b/i,
-    /\bfilmmaker\b/i,
-    /\bdirector\b/i,
-    /\bcomedian\b/i,
-    /\bproducer\b/i
-  ];
-
-  const workPatterns = [
-    /\bperformance/i,
-    /\brole/i,
-    /\bstarred\b/i,
-    /\bportray/i,
-    /\bcollaborat/i,
-    /\bworked with\b/i,
-    /\bdirected by\b/i,
-    /\bfilmography\b/i,
-    /\bcareer\b/i
-  ];
-
-  const analyzed = sentences.map((sentence, index) => {
-    const normalized = normalizeTitle(sentence);
-
-    const movieCount = credits.filter(movie =>
-      normalized.includes(movie.key)
-    ).length;
-
-    const identity =
-      identityPatterns.some(pattern => pattern.test(sentence));
-
-    const work =
-      workPatterns.some(pattern => pattern.test(sentence));
-
-    const awards = isAwardsHeavy(sentence);
-    const housekeeping = isHousekeeping(sentence);
-
-    let identityScore = 0;
-    let workScore = 0;
-
-    if (identity) identityScore += 20;
-    if (work) identityScore += 8;
-    if (movieCount) identityScore += Math.min(movieCount, 3) * 5;
-    if (index === 0) identityScore += 6;
-    if (awards) identityScore -= 24;
-    if (housekeeping) identityScore -= 22;
-
-    workScore += Math.min(movieCount, 5) * 15;
-    if (work) workScore += 12;
-    if (identity) workScore += 5;
-    if (awards) workScore -= 20;
-    if (housekeeping) workScore -= 18;
-
-    return {
-      sentence,
-      index,
-      movieCount,
-      awards,
-      housekeeping,
-      identityScore,
-      workScore
-    };
-  });
-
-  /*
-    Sentence 1: career identity.
-    It must not be an awards résumé or early-life sentence.
-  */
-
-  const identityCandidates = analyzed
-    .filter(item => !item.awards && !item.housekeeping)
-    .sort((a, b) => b.identityScore - a.identityScore);
-
-  let identity = identityCandidates[0] || null;
-
-  /*
-    Sentence 2: defining work/collaborations.
-    Prefer a different sentence containing real movie credits.
-  */
-
-  const workCandidates = analyzed
-    .filter(item =>
-      !item.awards &&
-      !item.housekeeping &&
-      (!identity || item.index !== identity.index)
-    )
-    .sort((a, b) => b.workScore - a.workScore);
-
-  let work =
-    workCandidates.find(item => item.movieCount > 0) ||
-    workCandidates[0] ||
-    null;
-
-  /*
-    If the source biography does not contain a useful identity
-    sentence, create a restrained factual opener rather than
-    forcing an awards sentence into that role.
-  */
-
-  const department =
-    String(person?.known_for_department || "Acting").trim();
-
-  let parts = [];
-
-  if (identity && identity.identityScore > 0) {
-    parts.push(identity.sentence);
+  if (department === "directing") {
+    identity = `${name} is a filmmaker whose career spans`;
+  } else if (department === "writing") {
+    identity = `${name} is a screenwriter and filmmaker whose career spans`;
   } else {
-    if (department.toLowerCase() === "directing") {
-      parts.push(`${name} is a filmmaker with a career spanning a wide range of movies.`);
-    } else if (department.toLowerCase() === "writing") {
-      parts.push(`${name} is a screenwriter and filmmaker with an extensive career in movies.`);
-    } else {
-      parts.push(`${name} is an actor with an extensive career in movies.`);
-    }
+    identity = `${name} is an actor whose film career spans`;
   }
 
-  if (work && work.workScore > 0) {
-    parts.push(work.sentence);
+  if (years && years.first && years.last && years.last > years.first) {
+    const decades = Math.max(1, Math.floor((years.last - years.first) / 10));
+    identity += ` more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
+  } else {
+    identity += ` a wide range of movies.`;
   }
 
-  /*
-    Keep only one short recognition sentence.
-    Prefer a concise source sentence; otherwise use OscarBase's
-    structured totals. Never include a long list of nominations.
-  */
+  const parts = [identity];
 
-  const awardCandidates = analyzed
-    .filter(item => item.awards)
-    .filter(item => item.sentence.length <= 220)
-    .sort((a, b) => {
-      const aListPenalty =
-        (a.sentence.match(/\(\d{4}\)/g) || []).length * 15;
-      const bListPenalty =
-        (b.sentence.match(/\(\d{4}\)/g) || []).length * 15;
+  if (films) {
+    parts.push(`Defining screen work includes ${films}.`);
+  }
 
-      return (
-        (b.movieCount * 4 - bListPenalty) -
-        (a.movieCount * 4 - aListPenalty)
-      );
-    });
-
-  let recognition = awardCandidates[0]?.sentence || "";
+  const collaboration = findCollaborationSentence(person);
 
   /*
-    Reject award sentences that still look like nomination
-    inventories. The Awards & Accolades page is the right place
-    for that level of detail.
+    A collaboration sentence is useful only if it adds something
+    beyond the films already listed and is not itself a long list.
   */
-
   if (
-    recognition &&
-    (
-      recognition.length > 220 ||
-      (recognition.match(/,\s/g) || []).length >= 4 ||
-      (recognition.match(/\(\d{4}\)/g) || []).length >= 3
-    )
+    collaboration &&
+    collaboration.length <= 190 &&
+    (collaboration.match(/,/g) || []).length <= 2
   ) {
-    recognition = "";
+    parts.push(collaboration);
   }
 
-  if (!recognition) {
-    recognition = academySummary(accolades);
-  }
-
-  if (recognition) {
-    parts.push(recognition);
-  }
-
-  /*
-    Remove duplicate sentences and preserve narrative order.
-  */
-
-  const seen = new Set();
-
-  parts = parts.filter(part => {
-    const key = normalizeTitle(part);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
+  const recognition = academyRecognition(accolades);
+  if (recognition) parts.push(recognition);
 
   let bio = parts
     .join(" ")
@@ -391,36 +371,32 @@ function buildReelwiseBio(person, accolades) {
     .trim();
 
   /*
-    The profile already displays birth date separately.
+    Hard ceiling for the profile card. Preserve whole sentences.
   */
+  if (bio.length > 560) {
+    const sentences = splitSentences(bio);
 
-  bio = bio
-    .replace(
-      new RegExp(
-        `^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\([^)]*(?:born|\\d{4})[^)]*\\)\\s*`,
-        "i"
-      ),
-      `${name} `
-    )
-    .replace(/\s+/g, " ")
-    .trim();
+    while (sentences.length > 2 && sentences.join(" ").length > 560) {
+      /*
+        Drop collaboration before identity, films or recognition.
+      */
+      if (collaboration) {
+        const index = sentences.findIndex(sentence =>
+          normalizeTitle(sentence) === normalizeTitle(collaboration)
+        );
+        if (index >= 0) {
+          sentences.splice(index, 1);
+          continue;
+        }
+      }
 
-  /*
-    Mobile-first length ceiling.
-  */
-
-  if (bio.length > 620) {
-    const compact = splitSentences(bio).slice(0, 3);
-    bio = compact.join(" ");
-
-    if (bio.length > 620) {
-      bio = bio
-        .slice(0, 617)
-        .replace(/\s+\S*$/, "") + "...";
+      sentences.splice(sentences.length - 2, 1);
     }
+
+    bio = sentences.join(" ");
   }
 
-  return bio || biography;
+  return bio;
 }
 
 export default async function handler(req, res) {
