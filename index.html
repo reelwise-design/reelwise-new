@@ -2422,39 +2422,61 @@ function compactStarBio(person,knownMovies,allMovies){
   const name=String(person&&person.name||"This performer").trim();
   const known=Array.isArray(knownMovies)?knownMovies.filter(movie=>movie&&movie.title):[];
   const movies=Array.isArray(allMovies)?allMovies.filter(movie=>movie&&movie.title):[];
-  const titles=known.slice(0,4).map(movie=>movie.title);
-  const years=movies.map(movie=>parseInt(String(movie.release_date||"").slice(0,4),10)).filter(Number.isFinite);
+
+  const cleanTitle=title=>String(title||"").trim();
+  const uniqueTitles=[];
+  for(const movie of known){
+    const title=cleanTitle(movie.title);
+    if(title&&!uniqueTitles.some(t=>t.toLowerCase()===title.toLowerCase()))uniqueTitles.push(title);
+    if(uniqueTitles.length===5)break;
+  }
+
+  const years=movies
+    .map(movie=>parseInt(String(movie.release_date||"").slice(0,4),10))
+    .filter(Number.isFinite);
   const firstYear=years.length?Math.min(...years):null;
   const lastYear=years.length?Math.max(...years):null;
-  const span=firstYear&&lastYear?Math.max(1,lastYear-firstYear):null;
-  const joinTitles=list=>list.length<=1?(list[0]||""):list.length===2?list[0]+" and "+list[1]:list.slice(0,-1).join(", ")+", and "+list[list.length-1];
+  const careerYears=firstYear&&lastYear?Math.max(1,lastYear-firstYear):null;
 
-  // Hand-curated Reelwise profile for major stars when we want a distinctive editorial voice.
+  const joinTitles=list=>{
+    if(!list.length)return "";
+    if(list.length===1)return list[0];
+    if(list.length===2)return `${list[0]} and ${list[1]}`;
+    return `${list.slice(0,-1).join(", ")}, and ${list[list.length-1]}`;
+  };
+
+  // A few editorial profiles can still be hand-curated when Reelwise has
+  // genuinely distinctive information worth preserving.
   const curated={
-    "Harrison Ford":"Harrison Ford became one of Hollywood’s defining movie stars through iconic roles including Han Solo in Star Wars and Indiana Jones in Raiders of the Lost Ark. Before his breakthrough, he famously worked as a carpenter while taking smaller acting roles. His career includes classics such as Blade Runner, Witness, The Fugitive, and Air Force One. Known for his dry delivery and reluctant-hero persona, Ford has remained a major screen presence for more than five decades."
+    "Harrison Ford":"Harrison Ford became one of Hollywood’s defining movie stars through Han Solo in Star Wars and Indiana Jones in Raiders of the Lost Ark. His film career also includes Blade Runner, Witness, The Fugitive, and Air Force One, giving him a body of work that spans science fiction, adventure, drama, and thriller roles across more than five decades."
   };
   if(curated[name])return curated[name];
 
+  const leadTitles=uniqueTitles.slice(0,3);
+  const additionalTitles=uniqueTitles.slice(3,5);
   const sentences=[];
-  if(titles.length){
-    sentences.push(`${name} is best known for memorable screen roles in ${joinTitles(titles.slice(0,3))}.`);
+
+  if(leadTitles.length){
+    sentences.push(`${name}’s film career includes ${joinTitles(leadTitles)}.`);
   }else{
-    sentences.push(`${name} has built a career across film and television.`);
+    sentences.push(`${name} has built a screen career across film and television.`);
   }
-  if(titles.length>=4){
-    sentences.push(`The career also includes ${titles[3]}, adding to a filmography that spans a wide range of roles.`);
-  }else if(firstYear&&lastYear&&firstYear!==lastYear){
-    sentences.push(`The film career represented here stretches from ${firstYear} through ${lastYear}.`);
+
+  if(additionalTitles.length){
+    sentences.push(`Other notable movie credits include ${joinTitles(additionalTitles)}.`);
   }
-  if(span&&span>=20){
-    sentences.push(`With more than ${Math.floor(span/10)*10} years of movie credits, ${name} has remained a recognizable presence across generations of films.`);
-  }else if(movies.length>=10){
-    sentences.push(`Across numerous movie credits, ${name} has taken on a variety of characters and genres.`);
-  }else{
-    sentences.push(`${name} has developed a distinctive body of screen work through a range of movie roles.`);
+
+  if(firstYear&&lastYear&&firstYear!==lastYear){
+    if(careerYears>=30){
+      sentences.push(`The movie credits in Reelwise span more than ${Math.floor(careerYears/10)*10} years, from ${firstYear} through ${lastYear}.`);
+    }else{
+      sentences.push(`The movie credits in Reelwise span from ${firstYear} through ${lastYear}.`);
+    }
+  }else if(movies.length){
+    sentences.push(`Reelwise currently tracks ${movies.length} released movie ${movies.length===1?"credit":"credits"} for ${name}.`);
   }
-  sentences.push(`Reelwise highlights the performances and films that have helped define ${name}’s screen career.`);
-  return sentences.slice(0,4).join(" ");
+
+  return sentences.slice(0,3).join(" ");
 }
 
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const response=await fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),person=await response.json();if(!response.ok)throw new Error(person.error||"Actor could not be loaded.");const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
