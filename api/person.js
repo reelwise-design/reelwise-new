@@ -5,32 +5,30 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE PERSON API
   ============================================================
 
-  Handles:
-  - Star profiles
-  - Wikipedia biographies
-  - Known For movies
-  - Academy Awards / Accolades
-
   Normal:
     /api/person?id=123
 
   Academy Awards:
     /api/person?id=123&mode=accolades
 
-  ACCOLADES CONTRACT:
+  ACCOLADES RULES
+  ------------------------------------------------------------
 
-  Successful completed lookup:
-    confirmed: true
+  1. confirmed:true means the lookup completed successfully.
 
-  Genuine technical failure:
-    confirmed: false
-    unavailable: true
+  2. confirmed:false + unavailable:true means the lookup
+     genuinely failed.
 
-  IMPORTANT:
-  Oscar winning claims sometimes omit the film/work in Wikidata.
+  3. Never borrow an Oscar film from an adjacent award year.
 
-  Reelwise now attempts to recover that missing film from the
-  matching nomination record for the same Oscar category/year.
+  4. Wikidata remains the primary Oscar source.
+
+  5. If Wikidata gives us an Oscar category/year but omits the
+     movie, Reelwise may use the person's TMDB movie credits as
+     a tightly constrained fallback.
+
+  6. Blank duplicate Oscar records are removed rather than
+     displayed as "Film".
   ============================================================
 */
 
@@ -50,6 +48,14 @@ function removeWikipediaEnding(text = "") {
   return String(text)
     .replace(/\s*References\s*$/i, "")
     .replace(/\s*External links\s*$/i, "")
+    .trim();
+}
+
+function normalizeText(value = "") {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/[^\w\s]/g, "")
+    .replace(/\s+/g, " ")
     .trim();
 }
 
@@ -447,12 +453,9 @@ function claimYear(claim) {
       ?.datavalue
       ?.value;
 
-  year =
-    timeValueToYear(
-      startTime
-    );
-
-  return year;
+  return timeValueToYear(
+    startTime
+  );
 }
 
 
@@ -502,252 +505,367 @@ function isAcademyAwardEntity(entity) {
    ============================================================ */
 
 function normalizeCategory(value = "") {
-  return cleanText(value)
-    .toLowerCase()
-    .replace(/\s+/g, " ")
-    .trim();
+  return normalizeText(value);
+}
+
+
+function releaseYear(movie) {
+  const date =
+    String(
+      movie?.release_date || ""
+    );
+
+  const match =
+    date.match(/^(\d{4})/);
+
+  return match
+    ? Number(match[1])
+    : null;
 }
 
 
 /*
-  Oscar claims can occasionally disagree about year formatting.
+  ============================================================
+  TMDB FILM RECOVERY
+  ============================================================
 
-  This helper considers:
-    exact year
-    one-year difference
+  Oscar ceremonies are generally held in the calendar year
+  after the eligible film's release.
 
-  A one-year difference is allowed because Wikidata records may
-  represent either the film year or the ceremony year.
+  Therefore an Oscar record for year 1995 normally points to
+  a movie released in 1994.
+
+  IMPORTANT:
+  We only use this fallback when Wikidata has omitted the work.
+
+  We do NOT borrow titles from another Oscar record.
 */
 
-function yearsMatch(a, b) {
-  if (!a || !b) {
-    return false;
+function findMovieCreditForOscarYear(
+  credits = [],
+  oscarYear
+) {
+  const year =
+    Number(oscarYear);
+
+  if (!year) {
+    return "";
   }
 
-  return (
-    Number(a) === Number(b) ||
-    Math.abs(
-      Number(a) - Number(b)
-    ) === 1
+  const filmYear =
+    year - 1;
+
+  const candidates =
+    credits
+      .filter(movie => {
+        if (
+          !movie?.title ||
+          !movie?.id
+        ) {
+          return false;
+        }
+
+        return (
+          releaseYear(movie) ===
+          filmYear
+        );
+      })
+      .sort((a, b) => {
+        /*
+          Prefer substantial/well-known films.
+
+          TMDB popularity + vote count are used only
+          to choose among the actor's films from the
+          exact eligible year.
+        */
+
+        const scoreA =
+          (Number(a.vote_count) || 0) +
+          ((Number(a.popularity) || 0) * 100);
+
+        const scoreB =
+          (Number(b.vote_count) || 0) +
+          ((Number(b.popularity) || 0) * 100);
+
+        return scoreB - scoreA;
+      });
+
+  /*
+    Do not guess if there are no candidates.
+  */
+
+  if (!candidates.length) {
+    return "";
+  }
+
+  /*
+    If only one film exists for the eligible year,
+    it is a strong fallback.
+  */
+
+  if (candidates.length === 1) {
+    return cleanText(
+      candidates[0].title
+    );
+  }
+
+  /*
+    With multiple films, only accept the first movie
+    when it is clearly stronger than the second by
+    TMDB vote activity.
+
+    This reduces accidental guessing.
+  */
+
+  const first =
+    candidates[0];
+
+  const second =
+    candidates[1];
+
+  const firstVotes =
+    Number(
+      first?.vote_count
+    ) || 0;
+
+  const secondVotes =
+    Number(
+      second?.vote_count
+    ) || 0;
+
+  if (
+    firstVotes >= 500 &&
+    firstVotes >=
+      secondVotes * 1.5
+  ) {
+    return cleanText(
+      first.title
+    );
+  }
+
+  return "";
+}
+
+
+/*
+  ============================================================
+  RECOVER MISSING FILMS
+  ============================================================
+*/
+
+function recoverMissingFilms(
+  items = [],
+  credits = []
+) {
+  return items.map(item => {
+
+    if (
+      cleanText(item.movie)
+    ) {
+      return {
+        ...item
+      };
+    }
+
+    const recoveredMovie =
+      findMovieCreditForOscarYear(
+        credits,
+        item.year
+      );
+
+    return {
+      ...item,
+
+      movie:
+        recoveredMovie || ""
+    };
+  });
+}
+
+
+/*
+  ============================================================
+  REMOVE BLANK DUPLICATES
+  ============================================================
+
+  If Wikidata gives us:
+
+    1995 Best Actor WINNER - Forrest Gump
+    1995 Best Actor NOMINEE - blank
+
+  the blank nomination is redundant and should disappear.
+
+  We only compare records from the SAME year.
+*/
+
+function removeBlankDuplicates(items = []) {
+  return items.filter(
+    (item, index, array) => {
+
+      if (
+        cleanText(item.movie)
+      ) {
+        return true;
+      }
+
+      const sameEventWithMovie =
+        array.some(
+          (other, otherIndex) => {
+
+            if (
+              otherIndex === index
+            ) {
+              return false;
+            }
+
+            return (
+              Number(other.year) ===
+                Number(item.year) &&
+
+              normalizeCategory(
+                other.category
+              ) ===
+                normalizeCategory(
+                  item.category
+                ) &&
+
+              Boolean(
+                cleanText(
+                  other.movie
+                )
+              )
+            );
+          }
+        );
+
+      return !sameEventWithMovie;
+    }
   );
 }
 
 
 /*
   ============================================================
-  RECOVER MISSING WINNING FILMS
+  MERGE WINNER / NOMINEE DUPLICATES
   ============================================================
 
-  Example:
+  Only merge records when:
+    year is identical
+    category is identical
+    movie is identical
 
-  WIN CLAIM:
-    1995
-    Academy Award for Best Actor
-    movie: ""
-
-  NOMINATION CLAIM:
-    1995
-    Academy Award for Best Actor
-    movie: "Forrest Gump"
-
-  Result:
-
-    1995
-    Academy Award for Best Actor
-    movie: "Forrest Gump"
-    winner: true
+  NO adjacent-year matching.
 */
 
-function recoverMissingWinningFilms(items = []) {
-  const output =
-    items.map(item => ({
-      ...item
-    }));
-
-  const nominees =
-    output.filter(
-      item =>
-        !item.winner &&
-        cleanText(item.movie)
-    );
-
-  for (const winner of output) {
-    if (!winner.winner) {
-      continue;
-    }
-
-    if (cleanText(winner.movie)) {
-      continue;
-    }
-
-    const winnerCategory =
-      normalizeCategory(
-        winner.category
-      );
-
-    /*
-      First try:
-      Same category + exact year.
-    */
-
-    let match =
-      nominees.find(
-        nominee =>
-          normalizeCategory(
-            nominee.category
-          ) === winnerCategory &&
-          Number(nominee.year) ===
-            Number(winner.year)
-      );
-
-
-    /*
-      Second try:
-      Same category + adjacent year.
-
-      This covers ceremony-year vs film-year
-      differences in Wikidata.
-    */
-
-    if (!match) {
-      match =
-        nominees.find(
-          nominee =>
-            normalizeCategory(
-              nominee.category
-            ) === winnerCategory &&
-            yearsMatch(
-              nominee.year,
-              winner.year
-            )
-        );
-    }
-
-
-    /*
-      Only copy a real film title.
-    */
-
-    if (
-      match &&
-      cleanText(match.movie)
-    ) {
-      winner.movie =
-        cleanText(match.movie);
-    }
-  }
-
-  return output;
-}
-
-
-/* ============================================================
-   DEDUPE HISTORY
-   ============================================================ */
-
-function dedupeHistory(items = []) {
+function mergeExactDuplicates(items = []) {
   const map =
     new Map();
 
   for (const item of items) {
-    if (!item?.category) {
-      continue;
-    }
+    const year =
+      item.year || "";
 
-    const key = [
-      item.year || "",
-
+    const category =
       normalizeCategory(
         item.category
-      ),
+      );
 
-      cleanText(
+    const movie =
+      normalizeText(
         item.movie
-      ).toLowerCase()
+      );
 
-    ].join("|");
+    const key =
+      `${year}|${category}|${movie}`;
 
     const existing =
       map.get(key);
 
+    if (!existing) {
+      map.set(
+        key,
+        {
+          ...item
+        }
+      );
+
+      continue;
+    }
+
+    /*
+      Winner always overrides nominee for
+      the exact same Oscar event.
+    */
+
     if (
-      !existing ||
-      item.winner
+      item.winner &&
+      !existing.winner
     ) {
       map.set(
         key,
-        item
+        {
+          ...item
+        }
       );
     }
   }
 
   return [
     ...map.values()
-  ].sort(
-    (a, b) =>
-      (b.year || 0) -
-      (a.year || 0)
-  );
+  ];
 }
 
 
-/* ============================================================
-   MERGE DUPLICATE WIN / NOMINATION EVENTS
-   ============================================================ */
+/*
+  ============================================================
+  FINAL HISTORY CLEANUP
+  ============================================================
+*/
 
-function mergeWinningDuplicates(items = []) {
-  const winners =
-    items.filter(
-      item => item.winner
+function finalizeHistory(items = []) {
+  let output =
+    removeBlankDuplicates(
+      items
     );
 
-  const output = [];
+  output =
+    mergeExactDuplicates(
+      output
+    );
 
-  for (const item of items) {
-    /*
-      If this is a nomination and there is a
-      winning version for the same category,
-      year and movie, the winning version wins.
-    */
+  return output.sort(
+    (a, b) => {
 
-    if (!item.winner) {
-      const duplicateWinner =
-        winners.find(
-          winner =>
-            normalizeCategory(
-              winner.category
-            ) ===
-              normalizeCategory(
-                item.category
-              ) &&
+      const yearDifference =
+        (b.year || 0) -
+        (a.year || 0);
 
-            yearsMatch(
-              winner.year,
-              item.year
-            ) &&
-
-            cleanText(
-              winner.movie
-            ).toLowerCase() ===
-              cleanText(
-                item.movie
-              ).toLowerCase() &&
-
-            cleanText(
-              item.movie
-            )
-        );
-
-      if (duplicateWinner) {
-        continue;
+      if (yearDifference) {
+        return yearDifference;
       }
+
+      /*
+        Winner first when two entries share a year.
+      */
+
+      if (
+        a.winner !==
+        b.winner
+      ) {
+        return a.winner
+          ? -1
+          : 1;
+      }
+
+      return cleanText(
+        a.category
+      ).localeCompare(
+        cleanText(
+          b.category
+        )
+      );
     }
-
-    output.push(item);
-  }
-
-  return output;
+  );
 }
 
 
@@ -757,7 +875,8 @@ function mergeWinningDuplicates(items = []) {
 
 async function getAccolades(
   personId,
-  personName = ""
+  personName = "",
+  suppliedCredits = null
 ) {
   let stage =
     "start";
@@ -773,7 +892,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 1
-      Resolve TMDB person.
+      Resolve person.
       ----------------------------------------------------------
     */
 
@@ -804,7 +923,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 2
-      Exact Wikidata ID from TMDB.
+      Exact Wikidata identity from TMDB.
       ----------------------------------------------------------
     */
 
@@ -838,7 +957,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 3
-      Wikidata person entity.
+      Person entity.
       ----------------------------------------------------------
     */
 
@@ -872,7 +991,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 4
-      Award claims.
+      Awards.
 
       P166 = award received
       P1411 = nominated for
@@ -905,10 +1024,6 @@ async function getAccolades(
       ...nominationClaims
     ];
 
-
-    /*
-      Completed lookup with zero claims.
-    */
 
     if (!allClaims.length) {
       return {
@@ -1028,14 +1143,10 @@ async function getAccolades(
             "complete_zero_academy_awards",
 
           message:
-            "Academy Awards lookup completed. No Academy Award categories were found among this person's Wikidata award claims.",
+            "Academy Awards lookup completed. No Academy Award categories were found.",
 
           name,
-
-          qid,
-
-          total_award_claims:
-            allClaims.length
+          qid
         }
       };
     }
@@ -1044,10 +1155,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 7
-      Load films and ceremonies.
-
-      P1686 = for work
-      P805  = statement is subject of
+      Load related films and ceremonies.
       ----------------------------------------------------------
     */
 
@@ -1073,23 +1181,20 @@ async function getAccolades(
       );
     }
 
-    const uniqueRelatedIds =
-      [
-        ...new Set(
-          relatedIds.filter(Boolean)
-        )
-      ];
-
     const relatedEntities =
       await getWikidataEntities(
-        uniqueRelatedIds
+        [
+          ...new Set(
+            relatedIds.filter(Boolean)
+          )
+        ]
       );
 
 
     /*
       ----------------------------------------------------------
       STEP 8
-      Build raw Oscar history.
+      Build raw history.
       ----------------------------------------------------------
     */
 
@@ -1102,7 +1207,9 @@ async function getAccolades(
       winner
     ) {
       const awardId =
-        claimItemId(claim);
+        claimItemId(
+          claim
+        );
 
       const awardEntity =
         awardEntities[
@@ -1136,7 +1243,9 @@ async function getAccolades(
       */
 
       let year =
-        claimYear(claim);
+        claimYear(
+          claim
+        );
 
 
       /*
@@ -1169,7 +1278,7 @@ async function getAccolades(
 
 
       /*
-        FILM
+        MOVIE
       */
 
       const movie =
@@ -1206,14 +1315,6 @@ async function getAccolades(
     }
 
 
-    /*
-      Build the raw claim list FIRST.
-
-      We intentionally do not dedupe yet because
-      the nomination version may contain a movie
-      title missing from the winning version.
-    */
-
     let rawHistory = [
       ...academyWinClaims.map(
         claim =>
@@ -1236,43 +1337,79 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 9
-      Recover missing winner films.
-
-      This is the important fix for:
-        Tom Hanks
-        1995
-        Forrest Gump
+      Load TMDB credits only if we need them.
       ----------------------------------------------------------
     */
 
-    rawHistory =
-      recoverMissingWinningFilms(
-        rawHistory
+    const hasMissingMovie =
+      rawHistory.some(
+        item =>
+          !cleanText(
+            item.movie
+          )
       );
+
+    let movieCredits =
+      Array.isArray(
+        suppliedCredits
+      )
+        ? suppliedCredits
+        : [];
+
+
+    if (
+      hasMissingMovie &&
+      !movieCredits.length
+    ) {
+      stage =
+        "load_tmdb_movie_fallback";
+
+      try {
+        movieCredits =
+          await getMovieCredits(
+            personId
+          );
+      } catch (error) {
+        console.error(
+          "TMDB Oscar film fallback error:",
+          error
+        );
+
+        movieCredits = [];
+      }
+    }
 
 
     /*
       ----------------------------------------------------------
       STEP 10
-      Remove duplicate winner/nominee entries.
+      Recover missing movie titles.
+
+      NO adjacent Oscar-year matching.
       ----------------------------------------------------------
     */
 
-    rawHistory =
-      mergeWinningDuplicates(
-        rawHistory
-      );
+    if (
+      hasMissingMovie &&
+      movieCredits.length
+    ) {
+      rawHistory =
+        recoverMissingFilms(
+          rawHistory,
+          movieCredits
+        );
+    }
 
 
     /*
       ----------------------------------------------------------
       STEP 11
-      Final dedupe + sorting.
+      Clean exact duplicates.
       ----------------------------------------------------------
     */
 
     const history =
-      dedupeHistory(
+      finalizeHistory(
         rawHistory
       );
 
@@ -1297,7 +1434,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 13
-      Response aliases expected by index.html.
+      Build aliases expected by Reelwise.
       ----------------------------------------------------------
     */
 
@@ -1332,12 +1469,6 @@ async function getAccolades(
         })
       );
 
-
-    /*
-      ----------------------------------------------------------
-      SUCCESS
-      ----------------------------------------------------------
-    */
 
     return {
       confirmed: true,
@@ -1387,13 +1518,7 @@ async function getAccolades(
         message:
           "Academy Awards lookup completed.",
 
-        qid,
-
-        total_award_claims:
-          allClaims.length,
-
-        academy_award_claims:
-          academyClaims.length
+        qid
       }
     };
 
@@ -1444,7 +1569,9 @@ function buildKnownFor(
         return false;
       }
 
-      seen.add(movie.id);
+      seen.add(
+        movie.id
+      );
 
       return true;
     })
@@ -1511,10 +1638,6 @@ export default async function handler(
 ) {
   try {
 
-    /*
-      TOKEN
-    */
-
     if (!TOKEN) {
       return res
         .status(500)
@@ -1525,14 +1648,11 @@ export default async function handler(
     }
 
 
-    /*
-      PERSON ID
-    */
-
     const personId =
       req.query.id ||
       req.query.personId ||
       req.query.person_id;
+
 
     if (!personId) {
       return res
@@ -1543,10 +1663,6 @@ export default async function handler(
         });
     }
 
-
-    /*
-      MODE
-    */
 
     const mode =
       String(
@@ -1642,8 +1758,8 @@ export default async function handler(
     /*
       ACCOLADES
 
-      An awards failure must never prevent
-      the star profile from loading.
+      Awards can never prevent the normal
+      star profile from loading.
     */
 
     let awardsData;
@@ -1652,7 +1768,8 @@ export default async function handler(
       awardsData =
         await getAccolades(
           personId,
-          person.name
+          person.name,
+          credits
         );
 
     } catch (error) {
@@ -1743,10 +1860,6 @@ export default async function handler(
           knownFor,
 
 
-        /*
-          Oscar summary
-        */
-
         reelwise_academy_awards: {
           confirmed:
             awardsData.confirmed === true,
@@ -1758,10 +1871,6 @@ export default async function handler(
             awardsData.nominations || 0
         },
 
-
-        /*
-          Existing Reelwise aliases
-        */
 
         academy_awards:
           awardsData.academy_awards ||
