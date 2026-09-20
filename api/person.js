@@ -1,4 +1,6 @@
-    const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
+    import { getOscarVaultRecord } from "../data/oscars.js";
+
+const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
 /*
   ============================================================
@@ -2916,6 +2918,18 @@ function isGoodAccolades(data) {
       name,
       knownWikidataId = ""
     ) {
+      /*
+        REELWISE OSCAR VAULT FIRST
+        A confirmed local record wins immediately, including a
+        confirmed zero-nomination record.
+      */
+      const vaultRecord =
+        getOscarVaultRecord(name);
+
+      if (vaultRecord?.confirmed === true) {
+        return vaultRecord;
+      }
+
       /*
         1. Official Academy database first.
         2. Existing Wikidata engine only if official lookup fails.
