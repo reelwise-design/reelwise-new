@@ -2940,19 +2940,50 @@ async function showPersonAccolades(id,name){
   }
 
   try{
-    const response=await fetch(
-      "/api/person?id="+encodeURIComponent(safeId)+"&mode=accolades"
-    );
+    let data=null;
+    let lastError=null;
 
-    let data={};
-    try{
-      data=await response.json();
-    }catch(error){
-      throw new Error("The Academy Awards response could not be read.");
+    /*
+      Retry first-load accolades quietly. Only a response containing
+      actual Academy Award history counts as success.
+    */
+    for(let attempt=1;attempt<=3;attempt++){
+      try{
+        const response=await fetch(
+          "/api/person?id="+encodeURIComponent(safeId)+
+          "&mode=accolades&attempt="+attempt,
+          {cache:"no-store"}
+        );
+
+        let candidate={};
+        try{
+          candidate=await response.json();
+        }catch(error){
+          throw new Error("The Academy Awards response could not be read.");
+        }
+
+        if(!response.ok){
+          throw new Error(candidate.error||"Accolades could not be loaded.");
+        }
+
+        const history=Array.isArray(candidate?.history)?candidate.history:[];
+        if(candidate?.found && history.length){
+          data=candidate;
+          break;
+        }
+
+        lastError=new Error("Academy Awards data was temporarily unavailable.");
+      }catch(error){
+        lastError=error;
+      }
+
+      if(attempt<3){
+        await new Promise(resolve=>setTimeout(resolve,350*attempt));
+      }
     }
 
-    if(!response.ok){
-      throw new Error(data.error||"Accolades could not be loaded.");
+    if(!data){
+      throw lastError||new Error("Accolades could not be loaded.");
     }
 
     renderPersonAccoladesData(data,safeId,safeName);
