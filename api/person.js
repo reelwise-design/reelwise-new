@@ -170,6 +170,29 @@ function emptyAccolades(personId, unavailable = false) {
   };
 }
 
+function diagnosticAccolades(personId, stage, error, extra = {}) {
+  return {
+    found: false,
+    tmdb_person_id: Number(personId) || null,
+    wins: 0,
+    nominations: 0,
+    history: [],
+    academy_awards: [],
+    academyAwards: [],
+    accolades: [],
+    unavailable: true,
+    source: "Wikidata",
+    diagnostic: {
+      stage,
+      message:
+        error instanceof Error
+          ? error.message
+          : String(error || "Unknown error"),
+      ...extra
+    }
+  };
+}
+
 async function getWikipediaIdentity(name) {
   const searchUrl =
     "https://en.wikipedia.org/w/api.php?" +
@@ -329,8 +352,14 @@ function dedupeHistory(items = []) {
 }
 
 async function getAccolades(personId, personName = "") {
+  let stage = "start";
+  let name = "";
+  let identity = null;
+
   try {
-    let name = cleanText(personName);
+    stage = "resolve_tmdb_name";
+
+    name = cleanText(personName);
 
     if (!name) {
       const tmdbPerson = await getPersonDetails(personId);
@@ -338,18 +367,27 @@ async function getAccolades(personId, personName = "") {
     }
 
     if (!name) {
-      return emptyAccolades(personId, true);
+      return diagnosticAccolades(
+        personId,
+        stage,
+        "TMDB returned no person name."
+      );
     }
 
-    /*
-      Resolve the exact Wikipedia page and its Wikidata QID.
-      This replaces the SPARQL TMDB-ID lookup that was failing.
-    */
-    const identity = await getWikipediaIdentity(name);
+    stage = "wikipedia_identity";
+
+    identity = await getWikipediaIdentity(name);
 
     if (!identity?.qid) {
-      return emptyAccolades(personId, true);
+      return diagnosticAccolades(
+        personId,
+        stage,
+        "Wikipedia page was found without a Wikidata QID.",
+        { name }
+      );
     }
+
+    stage = "wikidata_person_entity";
 
     const personEntities =
       await getWikidataEntities([identity.qid]);
@@ -358,8 +396,19 @@ async function getAccolades(personId, personName = "") {
       personEntities[identity.qid];
 
     if (!personEntity || personEntity.missing !== undefined) {
-      return emptyAccolades(personId, true);
+      return diagnosticAccolades(
+        personId,
+        stage,
+        "Wikidata person entity was missing.",
+        {
+          name,
+          qid: identity.qid,
+          wikipedia_title: identity.title
+        }
+      );
     }
+
+    stage = "read_award_claims";
 
     const winClaims =
       Array.isArray(personEntity?.claims?.P166)
@@ -376,19 +425,28 @@ async function getAccolades(personId, personName = "") {
       ...nominationClaims
     ];
 
-    /*
-      No award/nominated-for statements is a clean zero result,
-      not an API failure.
-    */
     if (!allClaims.length) {
-      return emptyAccolades(personId, false);
+      return {
+        ...emptyAccolades(personId, false),
+        diagnostic: {
+          stage: "complete_zero_award_claims",
+          message: "Wikidata person resolved successfully but contains no P166/P1411 award claims.",
+          name,
+          qid: identity.qid,
+          wikipedia_title: identity.title
+        }
+      };
     }
 
+    stage = "load_award_entities";
+
     const awardIds =
-      allClaims.map(claimItemId);
+      allClaims.map(claimItemId).filter(Boolean);
 
     const awardEntities =
       await getWikidataEntities(awardIds);
+
+    stage = "filter_academy_awards";
 
     const academyWinClaims =
       winClaims.filter(claim =>
@@ -409,13 +467,22 @@ async function getAccolades(personId, personName = "") {
       ...academyNominationClaims
     ];
 
-    /*
-      Person has awards, but none of them are Academy Awards.
-      That is also a clean zero result.
-    */
     if (!academyClaims.length) {
-      return emptyAccolades(personId, false);
+      return {
+        ...emptyAccolades(personId, false),
+        diagnostic: {
+          stage: "complete_zero_academy_awards",
+          message: "Wikidata resolved successfully, but none of the person's award claims matched an Academy Award category.",
+          name,
+          qid: identity.qid,
+          wikipedia_title: identity.title,
+          total_award_claims: allClaims.length,
+          award_ids: awardIds
+        }
+      };
     }
+
+    stage = "load_award_details";
 
     const relatedIds = [];
 
@@ -428,6 +495,8 @@ async function getAccolades(personId, personName = "") {
 
     const relatedEntities =
       await getWikidataEntities(relatedIds);
+
+    stage = "build_award_history";
 
     function buildHistoryItem(claim, winner) {
       const awardId = claimItemId(claim);
@@ -445,10 +514,6 @@ async function getAccolades(personId, personName = "") {
 
       let year = claimYear(claim);
 
-      /*
-        If the nomination statement doesn't carry P585 directly,
-        try the linked ceremony's date.
-      */
       if (!year && ceremonyId) {
         const ceremony =
           relatedEntities[ceremonyId];
@@ -521,15 +586,31 @@ async function getAccolades(personId, personName = "") {
       academyAwards,
       accolades: academyAwards,
       unavailable: false,
-      source: "Wikidata"
+      source: "Wikidata",
+      diagnostic: {
+        stage: "complete",
+        message: "Academy Awards lookup completed.",
+        qid: identity.qid,
+        wikipedia_title: identity.title
+      }
     };
   } catch (error) {
     console.error(
-      "Reelwise Wikidata accolades error:",
+      "Reelwise accolades diagnostic error:",
+      stage,
       error
     );
 
-    return emptyAccolades(personId, true);
+    return diagnosticAccolades(
+      personId,
+      stage,
+      error,
+      {
+        name,
+        qid: identity?.qid || null,
+        wikipedia_title: identity?.title || null
+      }
+    );
   }
 }
 
