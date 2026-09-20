@@ -2765,14 +2765,53 @@
 
         /*
           REELWISE BIO QUALITY GUARD:
-          never publish the weak random-credit fallback.
+          if the story engine falls into the weak random-credit path,
+          build a compact career narrative from source-supported sentences
+          instead of dumping Wikipedia's awards-heavy opening paragraph.
         */
         if (/\bearly film work included\b/i.test(String(biography || ""))) {
+          const sourceText =
+            cleanText(wikipediaExtract || wikipediaSummary || person.biography || "");
+
+          const sourceSentences =
+            sentenceSplit(sourceText)
+              .map(sentence => cleanText(sentence))
+              .filter(Boolean);
+
+          const intro =
+            sourceSentences.find(sentence =>
+              /\b(actor|actress|filmmaker|director|producer|performer)\b/i.test(sentence)
+            );
+
+          const career =
+            sourceSentences.filter(sentence => {
+              if (sentence === intro) return false;
+
+              const tellsCareerStory =
+                /\b(debut|breakthrough|recognition|acclaim|starred|role|performance|film|portrayed|played|career)\b/i
+                  .test(sentence);
+
+              const mostlyAwards =
+                /\b(nominations?|awards?|golden globe|emmy|grammy|tony|bafta|screen actors guild)\b/i
+                  .test(sentence) &&
+                !/\b(role|performance|film|starred|portrayed|played)\b/i.test(sentence);
+
+              return tellsCareerStory && !mostlyAwards;
+            });
+
+          const selected=[];
+          if (intro) selected.push(intro);
+
+          for (const sentence of career) {
+            if (selected.length >= 4) break;
+            if (!selected.includes(sentence)) selected.push(sentence);
+          }
+
           biography =
-            cleanText(wikipediaSummary || "") ||
-            cleanText(wikipediaExtract || "") ||
-            cleanText(person.biography || "") ||
-            `${person.name} is a film actor and filmmaker.`;
+            selected.length >= 2
+              ? selected.slice(0,4).join(" ")
+              : cleanText(wikipediaSummary || person.biography || "") ||
+                `${person.name} is a film actor and filmmaker.`;
         }
 
         const knownFor =
