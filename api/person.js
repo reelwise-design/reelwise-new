@@ -678,37 +678,35 @@
         );
 
       /*
-        REELWISE COMPACT BIOGRAPHY
-
-        The star card is intentionally a short career story,
-        not a decade-by-decade filmography.
+        REELWISE COMPACT BIOGRAPHY — STORY FIRST
 
         Target:
         1. Who the person is.
         2. Breakthrough / early defining moment when supported.
-        3. One strong career-highlight sentence.
-        4. One later/current-career sentence.
+        3. A concise defining-career highlight.
+        4. A concise later-career highlight.
 
-        Never exceed four sentences.
+        No decade-by-decade résumé.
+        No giant movie-list sentences.
+        Maximum four sentences.
       */
 
       const candidates = [];
       const used = new Set();
 
+      function normalizeSentence(value = "") {
+        return cleanText(value)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, " ")
+          .trim();
+      }
+
       function addCandidate(sentence) {
         const value = cleanText(sentence);
-
         if (!value) return;
 
-        const key =
-          value
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, " ")
-            .trim();
-
-        if (!key || used.has(key)) {
-          return;
-        }
+        const key = normalizeSentence(value);
+        if (!key || used.has(key)) return;
 
         used.add(key);
         candidates.push(
@@ -717,18 +715,56 @@
       }
 
       /*
-        OPENING
+        Count how many known/notable movie titles a source sentence
+        contains. Sentences that read like a résumé are rejected.
+      */
 
-        Prefer the concise encyclopedia introduction.
+      const notableMovies =
+        (timeline.notable || [])
+          .filter(movie => movie?.title);
+
+      const notableTitles =
+        notableMovies
+          .slice(0, 18)
+          .map(movie => movie.title);
+
+      function movieTitlesInSentence(sentence = "") {
+        return notableTitles.filter(title =>
+          sentenceMentionsTitle(
+            sentence,
+            title
+          )
+        );
+      }
+
+      function isMovieListSentence(sentence = "") {
+        const titles =
+          movieTitlesInSentence(sentence);
+
+        /*
+          Three or more detected titles usually means the source
+          sentence is functioning as a filmography list rather than
+          a readable biography sentence.
+        */
+        return titles.length >= 3;
+      }
+
+      /*
+        OPENING
       */
 
       const intro =
         summarySentences.find(
           sentence =>
             sentence.length >= 45 &&
+            sentence.length <= 240 &&
+            !isMovieListSentence(sentence)
+        ) ||
+        summarySentences.find(
+          sentence =>
+            sentence.length >= 35 &&
             sentence.length <= 260
         ) ||
-        summarySentences[0] ||
         "";
 
       if (intro) {
@@ -741,8 +777,6 @@
 
       /*
         BREAKTHROUGH
-
-        Use only source-supported breakthrough language.
       */
 
       if (breakthrough) {
@@ -750,71 +784,69 @@
       }
 
       /*
-        CAREER HIGHLIGHTS
+        SOURCE-SUPPORTED CAREER SENTENCES
 
-        Rank useful source sentences by how many of the person's
-        notable films they mention. This gives Reelwise a compact
-        narrative instead of forcing one fallback sentence for
-        every decade.
+        Prefer sentences about a role, performance, recognition,
+        acclaim or awards. Reject giant title lists.
       */
-
-      const notableTitles =
-        (timeline.notable || [])
-          .slice(0, 12)
-          .map(movie => movie.title)
-          .filter(Boolean);
 
       const scoredCareer =
         careerSentences
           .filter(sentence => {
-            const lower =
-              sentence.toLowerCase();
-
             if (
               intro &&
-              lower ===
-                ensurePeriod(intro).toLowerCase()
+              normalizeSentence(sentence) ===
+                normalizeSentence(intro)
             ) {
               return false;
             }
 
             if (
               breakthrough &&
-              lower ===
-                breakthrough.toLowerCase()
+              normalizeSentence(sentence) ===
+                normalizeSentence(breakthrough)
             ) {
               return false;
             }
 
-            return true;
+            return !isMovieListSentence(
+              sentence
+            );
           })
           .map(sentence => {
             const titleHits =
-              notableTitles.filter(title =>
-                sentenceMentionsTitle(
-                  sentence,
-                  title
-                )
+              movieTitlesInSentence(
+                sentence
               ).length;
 
-            const awardBonus =
-              /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed)\b/i
+            const performanceBonus =
+              /\b(performance|role|portrayed|played|starred|acclaim|acclaimed|recognition)\b/i
                 .test(sentence)
-                ? 2
+                ? 4
                 : 0;
 
-            const roleBonus =
-              /\b(starred|portrayed|played|role|performance|directed|producer|filmmaker)\b/i
+            const awardBonus =
+              /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i
                 .test(sentence)
-                ? 1
+                ? 3
                 : 0;
+
+            /*
+              Favor focused sentences containing one or two films.
+            */
+            const focusedTitleBonus =
+              titleHits === 1
+                ? 4
+                : titleHits === 2
+                  ? 3
+                  : 0;
 
             return {
               sentence,
               score:
-                titleHits * 4 +
+                performanceBonus +
                 awardBonus +
-                roleBonus
+                focusedTitleBonus
             };
           })
           .sort(
@@ -827,14 +859,7 @@
           break;
         }
 
-        /*
-          Avoid weak generic sentences unless we still need
-          material to complete the profile.
-        */
-        if (
-          item.score <= 0 &&
-          candidates.length >= 3
-        ) {
+        if (item.score <= 0) {
           continue;
         }
 
@@ -842,39 +867,73 @@
       }
 
       /*
-        If source narrative is sparse, add ONE concise filmography
-        sentence — never one for every decade.
+        CURATED FILMOGRAPHY FALLBACK
+
+        If Wikipedia does not provide enough concise narrative,
+        create ONE short highlight sentence from TMDB. Limit it to
+        three films so the biography never turns into a résumé.
       */
 
       if (
-        candidates.length < 3 &&
-        timeline.notable?.length
+        candidates.length < 4 &&
+        notableMovies.length
       ) {
-        const selected =
-          timeline.notable
-            .slice(0, 3)
-            .map(movie => movie.title)
-            .filter(Boolean);
+        const alreadyMentioned =
+          new Set();
 
-        if (selected.length) {
-          let titles = selected[0];
+        for (const sentence of candidates) {
+          for (const movie of notableMovies) {
+            if (
+              sentenceMentionsTitle(
+                sentence,
+                movie.title
+              )
+            ) {
+              alreadyMentioned.add(
+                movie.id
+              );
+            }
+          }
+        }
 
-          if (selected.length === 2) {
-            titles =
-              `${selected[0]} and ${selected[1]}`;
-          } else if (selected.length >= 3) {
-            titles =
-              `${selected[0]}, ${selected[1]}, and ${selected[2]}`;
+        const remaining =
+          notableMovies
+            .filter(
+              movie =>
+                !alreadyMentioned.has(
+                  movie.id
+                )
+            )
+            .slice(0, 3);
+
+        if (remaining.length) {
+          const titles =
+            remaining
+              .map(movie => movie.title)
+              .filter(Boolean);
+
+          let titleText = titles[0] || "";
+
+          if (titles.length === 2) {
+            titleText =
+              `${titles[0]} and ${titles[1]}`;
+          } else if (titles.length >= 3) {
+            titleText =
+              `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
           }
 
-          addCandidate(
-            `${name}'s notable film work includes ${titles}`
-          );
+          if (titleText) {
+            addCandidate(
+              `${name}'s other notable film work includes ${titleText}`
+            );
+          }
         }
       }
 
       /*
-        Final compact profile: maximum four complete sentences.
+        FINAL PROFILE
+
+        Keep the biography to four complete sentences.
       */
 
       const finalSentences =
@@ -883,29 +942,29 @@
       const story =
         finalSentences.join(" ");
 
-      /*
-        If the assembled story is too thin, use only the first
-        few complete sentences from the strongest factual source.
-        This keeps the mobile profile compact.
-      */
-
-      if (story.length < 120) {
-        const fallbackSentences =
-          sentenceSplit(
-            wikipediaSummary ||
-            cleanText(
-              person?.biography || ""
-            )
-          )
-            .slice(0, 4)
-            .map(ensurePeriod);
-
-        if (fallbackSentences.length) {
-          return fallbackSentences.join(" ");
-        }
+      if (story.length >= 120) {
+        return story;
       }
 
+      /*
+        Last-resort factual fallback: only a few complete sentences,
+        never an unbounded source biography.
+      */
+
+      const fallback =
+        sentenceSplit(
+          wikipediaSummary ||
+          cleanText(
+            person?.biography || ""
+          )
+        )
+          .filter(Boolean)
+          .slice(0, 3)
+          .map(ensurePeriod)
+          .join(" ");
+
       return (
+        fallback ||
         story ||
         `${name} is a film actor and filmmaker.`
       );
