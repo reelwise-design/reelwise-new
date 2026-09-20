@@ -28,9 +28,8 @@ function accoladesCacheKey(personId = "", name = "") {
 function isGoodAccolades(data) {
   return Boolean(
     data &&
-    data.found &&
-    Array.isArray(data.history) &&
-    data.history.length
+    data.confirmed === true &&
+    Array.isArray(data.history)
   );
 }
 
@@ -2997,6 +2996,62 @@ function isGoodAccolades(data) {
            the current Reelwise index.html.
            ======================================================== */
 
+        /*
+          Academy Awards has THREE states:
+          1. confirmed history (one or more nominations)
+          2. confirmed zero nominations
+          3. temporary source failure
+
+          A legitimate zero must never be presented as a source failure.
+        */
+        function normalizeConfirmedAccolades(candidate) {
+          if (!candidate) return null;
+
+          const history =
+            Array.isArray(candidate.history)
+              ? candidate.history
+              : Array.isArray(candidate.academy_awards)
+                ? candidate.academy_awards
+                : Array.isArray(candidate.academyAwards)
+                  ? candidate.academyAwards
+                  : Array.isArray(candidate.accolades)
+                    ? candidate.accolades
+                    : [];
+
+          const wins =
+            Number(candidate.wins) || 0;
+
+          const nominations =
+            Number(candidate.nominations) || 0;
+
+          /*
+            found=true with an array is a confirmed source response.
+            It is valid even when history is empty and nominations=0.
+          */
+          if (
+            candidate.found === true &&
+            Array.isArray(history)
+          ) {
+            return {
+              ...candidate,
+              confirmed: true,
+              found:
+                history.length > 0 ||
+                nominations > 0 ||
+                wins > 0,
+              wins,
+              nominations,
+              history,
+              academy_awards: history,
+              academyAwards: history,
+              accolades: history
+            };
+          }
+
+          return null;
+        }
+
+
         if (mode === "accolades") {
 
           const cacheKey =
@@ -3025,6 +3080,7 @@ function isGoodAccolades(data) {
               .json({
                 id: person.id,
                 name: person.name || "",
+                confirmed: true,
                 found: cached.found,
                 wins: cached.wins,
                 nominations: cached.nominations,
@@ -3058,8 +3114,18 @@ function isGoodAccolades(data) {
                   wikipediaPage.wikidataId
                 );
 
-              if (isGoodAccolades(candidate)) {
-                awardsData = candidate;
+              const confirmedCandidate =
+                normalizeConfirmedAccolades(
+                  candidate
+                );
+
+              if (
+                isGoodAccolades(
+                  confirmedCandidate
+                )
+              ) {
+                awardsData =
+                  confirmedCandidate;
                 break;
               }
 
@@ -3098,6 +3164,7 @@ function isGoodAccolades(data) {
               .json({
                 id: person.id,
                 name: person.name || "",
+                confirmed: false,
                 found: false,
                 temporary: true,
                 error:
@@ -3119,6 +3186,7 @@ function isGoodAccolades(data) {
             .json({
               id: person.id,
               name: person.name || "",
+              confirmed: true,
               found: awardsData.found,
               wins: awardsData.wins,
               nominations: awardsData.nominations,
