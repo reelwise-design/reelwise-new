@@ -1536,7 +1536,7 @@
        ACADEMY AWARDS / ACCOLADES
        ============================================================ */
 
-    async function getAwardsAndAccolades(
+    async function getWikidataAwardsAndAccolades(
       name,
       knownWikidataId = ""
     ) {
@@ -1808,6 +1808,461 @@
           accolades: []
         };
       }
+    }
+
+
+    /* ============================================================
+       OFFICIAL ACADEMY AWARDS DATABASE
+       ============================================================
+
+       Primary Oscar source:
+       Academy of Motion Picture Arts and Sciences official database.
+
+       Wikidata remains available as a fallback if the Academy
+       database is temporarily unavailable or its response format
+       changes.
+       ============================================================ */
+
+    function decodeAcademyHTML(value = "") {
+      return String(value)
+        .replace(/&nbsp;/gi, " ")
+        .replace(/&amp;/gi, "&")
+        .replace(/&quot;/gi, '"')
+        .replace(/&#39;|&apos;/gi, "'")
+        .replace(/&lt;/gi, "<")
+        .replace(/&gt;/gi, ">")
+        .replace(/&#(\d+);/g, (_, code) =>
+          String.fromCharCode(
+            Number(code)
+          )
+        );
+    }
+
+    function academyHTMLToLines(
+      html = ""
+    ) {
+      let value = String(html);
+
+      /*
+        Preserve image ALT text because the Academy results use
+        an Oscar statuette marker to identify winning entries.
+      */
+
+      value = value.replace(
+        /<img\b[^>]*\balt=["']([^"']*)["'][^>]*>/gi,
+        "\n[$1]\n"
+      );
+
+      value = value
+        .replace(
+          /<(?:br|\/p|\/div|\/li|\/tr|\/td|\/th|\/a|\/h\d)>/gi,
+          "\n"
+        )
+        .replace(
+          /<script\b[\s\S]*?<\/script>/gi,
+          ""
+        )
+        .replace(
+          /<style\b[\s\S]*?<\/style>/gi,
+          ""
+        )
+        .replace(
+          /<[^>]+>/g,
+          "\n"
+        );
+
+      value =
+        decodeAcademyHTML(value);
+
+      return value
+        .split(/\n+/)
+        .map(line =>
+          cleanText(line)
+        )
+        .filter(Boolean);
+    }
+
+    function formatOfficialOscarCategory(
+      category = ""
+    ) {
+      const raw =
+        cleanText(category)
+          .toUpperCase();
+
+      const exact = {
+        "ACTOR IN A LEADING ROLE":
+          "Best Actor",
+        "ACTRESS IN A LEADING ROLE":
+          "Best Actress",
+        "ACTOR IN A SUPPORTING ROLE":
+          "Best Supporting Actor",
+        "ACTRESS IN A SUPPORTING ROLE":
+          "Best Supporting Actress",
+        "DIRECTING":
+          "Best Director",
+        "BEST PICTURE":
+          "Best Picture",
+        "WRITING (ADAPTED SCREENPLAY)":
+          "Best Adapted Screenplay",
+        "WRITING (ORIGINAL SCREENPLAY)":
+          "Best Original Screenplay",
+        "WRITING (SCREENPLAY—ADAPTED)":
+          "Best Adapted Screenplay",
+        "WRITING (SCREENPLAY—ORIGINAL)":
+          "Best Original Screenplay"
+      };
+
+      if (exact[raw]) {
+        return exact[raw];
+      }
+
+      return raw
+        .toLowerCase()
+        .replace(
+          /\b\w/g,
+          char =>
+            char.toUpperCase()
+        );
+    }
+
+    function isOfficialOscarCategoryLine(
+      value = ""
+    ) {
+      const line =
+        cleanText(value)
+          .toUpperCase();
+
+      if (!line) {
+        return false;
+      }
+
+      return (
+        /^(ACTOR|ACTRESS) IN A (LEADING|SUPPORTING) ROLE$/.test(
+          line
+        ) ||
+        /^(DIRECTING|BEST PICTURE)$/.test(
+          line
+        ) ||
+        /^WRITING\b/.test(
+          line
+        ) ||
+        /^(MUSIC|CINEMATOGRAPHY|FILM EDITING|DOCUMENTARY|ANIMATED|SHORT FILM|SOUND|VISUAL EFFECTS|COSTUME DESIGN|MAKEUP|PRODUCTION DESIGN)\b/.test(
+          line
+        )
+      );
+    }
+
+    function parseOfficialAcademyResults(
+      html = "",
+      requestedName = ""
+    ) {
+      const lines =
+        academyHTMLToLines(html);
+
+      if (!lines.length) {
+        return [];
+      }
+
+      const history = [];
+
+      const yearPattern =
+        /^(\d{4})\s+\(\d+(?:st|nd|rd|th)\)$/i;
+
+      for (
+        let i = 0;
+        i < lines.length;
+        i++
+      ) {
+        const yearMatch =
+          lines[i].match(
+            yearPattern
+          );
+
+        if (!yearMatch) {
+          continue;
+        }
+
+        const year =
+          yearMatch[1];
+
+        let nextYearIndex =
+          lines.length;
+
+        for (
+          let j = i + 1;
+          j < lines.length;
+          j++
+        ) {
+          if (
+            yearPattern.test(
+              lines[j]
+            )
+          ) {
+            nextYearIndex = j;
+            break;
+          }
+        }
+
+        const block =
+          lines.slice(
+            i,
+            nextYearIndex
+          );
+
+        const categoryIndex =
+          block.findIndex(
+            line =>
+              isOfficialOscarCategoryLine(
+                line
+              )
+          );
+
+        if (categoryIndex < 0) {
+          continue;
+        }
+
+        const category =
+          formatOfficialOscarCategory(
+            block[categoryIndex]
+          );
+
+        /*
+          Academy nominee display places "--" between category and
+          film title. Use it when available. If markup changes,
+          fall back to the first plausible title after the category.
+        */
+
+        let movie = "";
+
+        const separatorIndex =
+          block.findIndex(
+            (line, index) =>
+              index >
+                categoryIndex &&
+              line === "--"
+          );
+
+        if (
+          separatorIndex >= 0 &&
+          block[
+            separatorIndex + 1
+          ]
+        ) {
+          movie =
+            block[
+              separatorIndex + 1
+            ];
+        } else {
+          for (
+            let j =
+              categoryIndex + 1;
+            j < block.length;
+            j++
+          ) {
+            const candidate =
+              block[j];
+
+            if (
+              !candidate ||
+              candidate === "--" ||
+              candidate ===
+                requestedName ||
+              /^\{.*\}$/.test(
+                candidate
+              ) ||
+              /^\[.*\]$/.test(
+                candidate
+              )
+            ) {
+              continue;
+            }
+
+            movie = candidate;
+            break;
+          }
+        }
+
+        if (!movie) {
+          continue;
+        }
+
+        const winner =
+          block.some(line =>
+            /\b(statuette|winner|won)\b/i
+              .test(line)
+          );
+
+        history.push({
+          year,
+          movie,
+          category,
+          winner
+        });
+
+        i =
+          nextYearIndex - 1;
+      }
+
+      return dedupeAwardHistory(
+        history
+      ).sort(
+        (a, b) =>
+          (Number(b.year) || 0) -
+          (Number(a.year) || 0)
+      );
+    }
+
+    async function getOfficialAcademyAwards(
+      name = ""
+    ) {
+      try {
+        const cleanName =
+          cleanText(name);
+
+        if (!cleanName) {
+          return null;
+        }
+
+        const query = {
+          Nominee:
+            cleanName.toLowerCase(),
+          Sort:
+            "1-Nominee-Alpha",
+          AwardShowNumberFrom: 0,
+          AwardShowNumberTo: 0,
+          Search: 30
+        };
+
+        const url =
+          "https://awardsdatabase.oscars.org/search/getresults?query=" +
+          encodeURIComponent(
+            JSON.stringify(query)
+          );
+
+        const response =
+          await fetch(url, {
+            headers: {
+              Accept:
+                "text/html,application/xhtml+xml",
+              "User-Agent":
+                "Reelwise/1.0"
+            }
+          });
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const html =
+          await response.text();
+
+        /*
+          Guard against a search page/error page being mistaken for
+          a valid zero-nomination result.
+        */
+
+        if (
+          !html ||
+          !/Results displayed by nominee/i
+            .test(html)
+        ) {
+          return null;
+        }
+
+        const history =
+          parseOfficialAcademyResults(
+            html,
+            cleanName
+          );
+
+        if (!history.length) {
+          return null;
+        }
+
+        const wins =
+          history.filter(
+            item => item.winner
+          ).length;
+
+        const nominations =
+          history.length;
+
+        const academyAwards =
+          history.map(item => ({
+            award:
+              item.category,
+            result:
+              item.winner
+                ? "Winner"
+                : "Nominee",
+            year:
+              item.year,
+            work:
+              item.movie,
+            ceremony: ""
+          }));
+
+        return {
+          found: true,
+          wins,
+          nominations,
+          history,
+          academy_awards:
+            academyAwards,
+          academyAwards,
+          accolades:
+            academyAwards,
+          source:
+            "Academy of Motion Picture Arts and Sciences"
+        };
+
+      } catch (error) {
+        console.error(
+          "Official Academy Awards lookup error:",
+          error
+        );
+
+        return null;
+      }
+    }
+
+
+    /* ============================================================
+       ACADEMY AWARDS / ACCOLADES — PRIMARY + FALLBACK
+       ============================================================ */
+
+    async function getAwardsAndAccolades(
+      name,
+      knownWikidataId = ""
+    ) {
+      /*
+        1. Official Academy database first.
+        2. Existing Wikidata engine only if official lookup fails.
+
+        IMPORTANT:
+        A failed network request is not treated as proof that the
+        performer has zero nominations.
+      */
+
+      const official =
+        await getOfficialAcademyAwards(
+          name
+        );
+
+      if (
+        official &&
+        official.found &&
+        official.history.length
+      ) {
+        return official;
+      }
+
+      return (
+        await getWikidataAwardsAndAccolades(
+          name,
+          knownWikidataId
+        )
+      );
     }
 
 
