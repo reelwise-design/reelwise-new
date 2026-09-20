@@ -673,6 +673,170 @@ function isGoodAccolades(data) {
       );
     }
 
+    /*
+      ============================================================
+      REELWISE DEFINING-FILM BIOGRAPHY ANCHOR
+      ============================================================
+
+      A biography should explain the movies audiences actually know
+      the performer for. This is GENERAL logic, not an actor-specific
+      exception.
+
+      TMDB's credit signals identify a highly recognized movie.
+      Wikipedia remains the source for career context when it mentions
+      that title. If the current biography omits all highly recognized
+      films, add one concise, factual career sentence.
+      ============================================================
+    */
+
+    function definingMovieForBiography(credits = [], biography = "") {
+      const movies =
+        validMovieCredits(credits)
+          .filter(movie => {
+            const title = cleanText(movie?.title || "");
+            if (!title) return false;
+
+            return !sentenceMentionsTitle(
+              biography,
+              title
+            );
+          })
+          .sort((a, b) =>
+            movieRecognitionScore(b) -
+            movieRecognitionScore(a)
+          );
+
+      return movies[0] || null;
+    }
+
+    function addDefiningFilmToBiography({
+      biography,
+      credits,
+      wikipediaText
+    }) {
+      const current =
+        cleanText(biography || "");
+
+      const movie =
+        definingMovieForBiography(
+          credits,
+          current
+        );
+
+      if (!movie) {
+        return current;
+      }
+
+      const title =
+        cleanText(movie.title || "");
+
+      const year =
+        yearFromDate(
+          movie.release_date || ""
+        );
+
+      if (!title) {
+        return current;
+      }
+
+      /*
+        Prefer source wording when Wikipedia contains a focused sentence
+        about the recognized film.
+      */
+      const sourceSentence =
+        sentenceSplit(
+          cleanText(wikipediaText || "")
+        )
+          .filter(sentence =>
+            sentenceMentionsTitle(
+              sentence,
+              title
+            )
+          )
+          .filter(sentence =>
+            sentence.length >= 35 &&
+            sentence.length <= 280
+          )
+          .filter(sentence =>
+            !/\bfilmography\b/i.test(sentence)
+          )
+          .sort((a, b) => {
+            const significance =
+              value =>
+                (
+                  /\b(acclaim|acclaimed|recognition|successful|success|iconic|notable|known|role|performance|portrayed|played|starred|nominated|won)\b/i
+                    .test(value)
+                    ? 10
+                    : 0
+                ) -
+                (
+                  (value.match(/,\s/g) || []).length >= 5
+                    ? 4
+                    : 0
+                );
+
+            return (
+              significance(b) -
+              significance(a)
+            );
+          })[0];
+
+      let definingSentence = "";
+
+      if (sourceSentence) {
+        definingSentence =
+          ensurePeriod(
+            cleanText(sourceSentence)
+          );
+      } else {
+        /*
+          The title/year come directly from the performer's verified
+          TMDB film credits. Keep fallback wording modest: do not invent
+          awards, breakthrough claims, or critical reception.
+        */
+        definingSentence =
+          ensurePeriod(
+            `Among ${year ? `the performer's ${year} films` : "the performer's films"} is ${title}, one of the prominent titles in the filmography`
+          );
+      }
+
+      const existing =
+        sentenceSplit(current);
+
+      /*
+        Keep Reelwise biographies compact. Preserve the opening and
+        strongest existing career material, then guarantee the defining
+        movie is represented.
+      */
+      const output = [];
+      if (existing[0]) output.push(existing[0]);
+
+      for (let i = 1; i < existing.length && output.length < 3; i += 1) {
+        const sentence = existing[i];
+
+        /*
+          Do not spend scarce biography space on award-inventory sentences.
+        */
+        const awardInventory =
+          /\b(two|three|four|five|six|seven|eight|nine|ten|\d+)\b.*\b(awards?|nominations?)\b/i
+            .test(sentence) &&
+          !/\b(role|performance|film|portrayed|played|starred)\b/i
+            .test(sentence);
+
+        if (!awardInventory) {
+          output.push(sentence);
+        }
+      }
+
+      output.push(definingSentence);
+
+      return output
+        .slice(0, 4)
+        .map(ensurePeriod)
+        .join(" ");
+    }
+
+
     function buildReelwiseBiography({
       person,
       credits,
@@ -2932,6 +3096,21 @@ function isGoodAccolades(data) {
               : cleanText(wikipediaSummary || person.biography || "") ||
                 `${person.name} is a film actor and filmmaker.`;
         }
+
+        /*
+          Final Reelwise biography pass:
+          guarantee that a highly recognized film is represented instead
+          of allowing the bio to collapse into award totals.
+        */
+        biography =
+          addDefiningFilmToBiography({
+            biography,
+            credits,
+            wikipediaText:
+              wikipediaExtract ||
+              wikipediaSummary ||
+              ""
+          });
 
         const knownFor =
           buildKnownFor(
