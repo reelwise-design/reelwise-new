@@ -1,0 +1,42 @@
+/*
+  Reelwise local Oscar acting database.
+  This placeholder is replaced automatically by
+  scripts/build-oscar-acting-data.mjs in GitHub Actions.
+*/
+export const OSCAR_ACTING_COMPLETE = false;
+export const OSCAR_ACTING_LATEST_CEREMONY = 0;
+export const OSCAR_ACTING_LATEST_AWARD_YEAR = "";
+export const OSCAR_ACTING_BY_PERSON = {};
+
+export function normalizeOscarActorName(value=""){
+  return String(value)
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[’‘]/g,"'")
+    .replace(/\s+/g," ")
+    .trim();
+}
+
+export function getLocalOscarActingRecord(name=""){
+  if(!OSCAR_ACTING_COMPLETE) return null;
+
+  const history=
+    OSCAR_ACTING_BY_PERSON[
+      normalizeOscarActorName(name)
+    ] || [];
+
+  const wins=history.filter(item=>item.winner).length;
+
+  return {
+    confirmed:true,
+    found:history.length>0,
+    wins,
+    nominations:history.length,
+    history,
+    academy_awards:history,
+    academyAwards:history,
+    accolades:history,
+    source:"Reelwise local Oscar acting database"
+  };
+}
