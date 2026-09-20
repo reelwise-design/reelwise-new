@@ -2853,7 +2853,7 @@ const found=
 
 if(!found||!history.length){
   page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
-    '<div class="message">"+escapeHTML(String(safeName||"This performer"))+" has not received an Academy Award nomination.</div>'
+    '<div class="message">'+escapeHTML(safeName||"This performer")+' has not received an Academy Award nomination.</div>'
   );
   return;
 }
