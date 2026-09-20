@@ -946,213 +946,270 @@
       }
 
       /*
-        LATER-CAREER MILESTONE — STRUCTURED, NOT COPIED
+        LATER-CAREER MILESTONE — NATURAL SOURCE PROSE
 
-        Do not copy an entire Wikipedia sentence here. Source
-        sentences often combine a meaningful milestone with several
-        unrelated later credits. Instead:
+        Sentence #4 is no longer generated from a generic template.
 
-        1. Find a later-career source sentence with strong milestone
+        Instead:
+        1. Find a later-career Wikipedia sentence with real milestone
            language.
-        2. Identify the ONE movie in that sentence most directly tied
-           to the milestone.
-        3. Build a short factual sentence from the supported facts.
-        4. Never append unrelated titles from the source sentence.
+        2. Prefer returns, reprises, revivals, awards, directing,
+           writing, producing, or major franchise developments.
+        3. Keep Wikipedia's natural wording.
+        4. Trim unrelated trailing credits only when we can do so at
+           a clean clause boundary.
+        5. Reject awkward/incomplete results rather than force one.
       */
 
       if (selected.length === 3) {
         const currentYear =
           new Date().getFullYear();
 
-        function movieYear(movie) {
-          return yearFromDate(
-            movie?.release_date || ""
-          );
-        }
-
-        function sourceHasAwardLanguage(
+        function yearsInSentence(
           sentence = ""
         ) {
-          return /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed|critical acclaim)\b/i
-            .test(sentence);
+          return (
+            sentence.match(
+              /\b(?:19|20)\d{2}\b/g
+            ) || []
+          ).map(Number);
         }
 
-        function sourceHasReturnLanguage(
+        function cleanLaterCareerSentence(
           sentence = ""
         ) {
-          return /\b(returned|return|reprised|reprise|revival|comeback|reunited|again)\b/i
-            .test(sentence);
+          let value =
+            cleanText(sentence);
+
+          if (!value) {
+            return "";
+          }
+
+          /*
+            Remove a trailing list introduced by common connectors
+            only when the first clause already contains a complete
+            milestone statement. This avoids endings such as
+            "and Guardians of the Galaxy Vol."
+          */
+
+          const splitPatterns = [
+            /\.\s+(?:He|She|They)\s+(?:also|then|later)\b/i,
+            /;\s+(?:he|she|they)\s+(?:also|then|later)\b/i
+          ];
+
+          for (const pattern of splitPatterns) {
+            const parts =
+              value.split(pattern);
+
+            if (
+              parts.length > 1 &&
+              parts[0].length >= 70
+            ) {
+              value = parts[0];
+              break;
+            }
+          }
+
+          /*
+            If a sentence contains several recognized movie titles,
+            try to keep the milestone clause ending before an
+            unrelated "and [new action]" clause.
+          */
+
+          const mentioned =
+            allMovies.filter(movie =>
+              sentenceMentionsTitle(
+                value,
+                movie.title
+              )
+            );
+
+          if (mentioned.length >= 2) {
+            const clauseMatch =
+              value.match(
+                /^(.+?\b(?:returned|reprised|revived|directed|wrote|produced|earned|received|nominated|won|acclaim|acclaimed)\b.+?)(?:,\s+and\s+|\s+and\s+(?:later|then|also)\s+)/i
+              );
+
+            if (
+              clauseMatch &&
+              clauseMatch[1] &&
+              clauseMatch[1].length >= 70
+            ) {
+              value =
+                clauseMatch[1];
+            }
+          }
+
+          value =
+            value
+              .replace(
+                /[,;:\-–—]\s*$/,
+                ""
+              )
+              .trim();
+
+          /*
+            Reject obvious fragments or awkward cutoffs.
+          */
+
+          if (
+            value.length < 65 ||
+            value.length > 330
+          ) {
+            return "";
+          }
+
+          if (
+            /\b(?:and|or|with|in|of|the|a|an|to|for|from|vol|vol\.)$/i
+              .test(value)
+          ) {
+            return "";
+          }
+
+          return ensurePeriod(value);
         }
 
-        function sourceHasCreativeLanguage(
-          sentence = ""
-        ) {
-          return /\b(created|wrote|screenplay|writer|directed|director|produced|producer)\b/i
-            .test(sentence);
-        }
-
-        function sourceHasFranchiseLanguage(
-          sentence = ""
-        ) {
-          return /\b(franchise|series|sequel|legacy)\b/i
-            .test(sentence);
-        }
-
-        const laterMilestones =
+        const laterCandidates =
           careerSentences
             .map((sentence, index) => {
-              const movies =
-                titlesMentioned(sentence)
-                  .map(movie => ({
-                    ...movie,
-                    _year:
-                      movieYear(movie)
-                  }))
-                  .filter(
-                    movie =>
-                      movie._year &&
-                      movie._year <=
-                        currentYear
-                  );
+              const years =
+                yearsInSentence(
+                  sentence
+                );
 
-              if (!movies.length) {
+              const latestYear =
+                years.length
+                  ? Math.max(...years)
+                  : null;
+
+              /*
+                A later-career sentence needs either an explicit
+                later date or language that clearly describes a
+                return/revival.
+              */
+
+              const returnLanguage =
+                /\b(returned|return|reprised|reprise|revived|revival|comeback|reunited)\b/i
+                  .test(sentence);
+
+              const awardsLanguage =
+                /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed|critical acclaim)\b/i
+                  .test(sentence);
+
+              const creativeLanguage =
+                /\b(wrote|writer|screenplay|directed|director|produced|producer)\b/i
+                  .test(sentence);
+
+              const franchiseLanguage =
+                /\b(franchise|series|sequel|legacy)\b/i
+                  .test(sentence);
+
+              if (
+                !returnLanguage &&
+                !awardsLanguage &&
+                !creativeLanguage &&
+                !franchiseLanguage
+              ) {
                 return null;
               }
 
-              /*
-                The milestone film should be a later-career film.
-                Prefer the earliest title in the source sentence
-                that belongs to the later phase of the career,
-                because source sentences often begin with the
-                meaningful event and then list unrelated projects.
-              */
-
               const careerStart =
                 timeline.firstYear ||
-                movies[0]._year;
-
-              const careerSpan =
-                Math.max(
-                  1,
-                  currentYear -
-                    careerStart
-                );
+                1900;
 
               const laterThreshold =
                 Math.max(
                   careerStart + 15,
-                  Math.floor(
-                    careerStart +
-                    careerSpan * 0.55
-                  )
+                  2000
                 );
 
-              const laterMovies =
-                movies
-                  .filter(
-                    movie =>
-                      movie._year >=
-                        laterThreshold
-                  )
-                  .sort(
-                    (a, b) =>
-                      a._year - b._year
-                  );
-
-              if (!laterMovies.length) {
+              if (
+                latestYear &&
+                latestYear < laterThreshold &&
+                !returnLanguage
+              ) {
                 return null;
               }
 
-              const milestoneMovie =
-                laterMovies[0];
-
               let score = 0;
 
-              const hasAwards =
-                sourceHasAwardLanguage(
-                  sentence
-                );
+              if (returnLanguage) {
+                score += 18;
+              }
 
-              const hasReturn =
-                sourceHasReturnLanguage(
-                  sentence
-                );
-
-              const hasCreative =
-                sourceHasCreativeLanguage(
-                  sentence
-                );
-
-              const hasFranchise =
-                sourceHasFranchiseLanguage(
-                  sentence
-                );
-
-              if (hasReturn) {
+              if (awardsLanguage) {
                 score += 14;
               }
 
-              if (hasAwards) {
-                score += 12;
+              if (creativeLanguage) {
+                score += 10;
               }
 
-              if (hasFranchise) {
+              if (franchiseLanguage) {
                 score += 8;
               }
 
-              if (hasCreative) {
-                score += 6;
-              }
-
               if (
-                /\b(role|performance|portrayed|played|starred)\b/i
-                  .test(sentence)
+                latestYear &&
+                latestYear >=
+                  currentYear - 20
               ) {
-                score += 4;
+                score += 5;
+              } else if (
+                latestYear &&
+                latestYear >= 2000
+              ) {
+                score += 3;
               }
 
               /*
-                Later dates help, but cannot by themselves turn
-                an incidental recent credit into a milestone.
+                Prefer focused source sentences over lists.
               */
-              if (
-                milestoneMovie._year >=
-                  currentYear - 15
+
+              const titleCount =
+                allMovies.filter(movie =>
+                  sentenceMentionsTitle(
+                    sentence,
+                    movie.title
+                  )
+                ).length;
+
+              if (titleCount === 1) {
+                score += 7;
+              } else if (
+                titleCount === 2
               ) {
                 score += 4;
               } else if (
-                milestoneMovie._year >=
-                  currentYear - 25
+                titleCount >= 4
               ) {
-                score += 3;
-              } else {
-                score += 1;
+                score -= 8;
               }
 
-              /*
-                Require real milestone evidence. A sentence that
-                merely says "starred in..." is not enough.
-              */
-              const meaningful =
-                hasReturn ||
-                hasAwards ||
-                hasFranchise ||
-                hasCreative;
+              const cleaned =
+                cleanLaterCareerSentence(
+                  sentence
+                );
 
-              if (!meaningful) {
+              if (!cleaned) {
+                return null;
+              }
+
+              if (
+                selected.some(
+                  existing =>
+                    keyOf(existing) ===
+                    keyOf(cleaned)
+                )
+              ) {
                 return null;
               }
 
               return {
-                sentence,
-                index,
+                sentence: cleaned,
                 score,
-                movie:
-                  milestoneMovie,
-                hasAwards,
-                hasReturn,
-                hasCreative,
-                hasFranchise
+                latestYear,
+                index
               };
             })
             .filter(Boolean)
@@ -1162,174 +1219,22 @@
               }
 
               if (
-                b.movie._year !==
-                a.movie._year
+                (b.latestYear || 0) !==
+                (a.latestYear || 0)
               ) {
                 return (
-                  b.movie._year -
-                  a.movie._year
+                  (b.latestYear || 0) -
+                  (a.latestYear || 0)
                 );
               }
 
               return b.index - a.index;
             });
 
-        if (laterMilestones.length) {
-          const milestone =
-            laterMilestones[0];
-
-          const title =
-            milestone.movie.title;
-
-          const year =
-            milestone.movie._year;
-
-          let sentence = "";
-
-          /*
-            Build ONE human-sounding, source-grounded sentence.
-
-            Do not use vague phrases such as "an important new
-            chapter" or "extending a major franchise." Explain the
-            supported event itself: return, revival, recognition,
-            or creative involvement.
-
-            We can safely describe elapsed time when the source
-            connects the later film to a previously established
-            role/franchise and the dates are present in the credits.
-          */
-
-          const priorSelectedText =
-            selected.join(" ");
-
-          const priorMovies =
-            allMovies
-              .map(movie => ({
-                ...movie,
-                _year:
-                  movieYear(movie)
-              }))
-              .filter(movie =>
-                movie._year &&
-                movie._year < year &&
-                sentenceMentionsTitle(
-                  priorSelectedText,
-                  movie.title
-                )
-              )
-              .sort(
-                (a, b) =>
-                  a._year - b._year
-              );
-
-          const earliestPrior =
-            priorMovies[0] || null;
-
-          const yearsSince =
-            earliestPrior
-              ? year - earliestPrior._year
-              : null;
-
-          const source =
-            milestone.sentence;
-
-          /*
-            If the source explicitly describes a return/reprise,
-            preserve that meaning and, when possible, give the
-            reader useful time perspective.
-          */
-
-          if (milestone.hasReturn) {
-            if (
-              yearsSince &&
-              yearsSince >= 10
-            ) {
-              const rounded =
-                yearsSince >= 25
-                  ? Math.round(
-                      yearsSince / 5
-                    ) * 5
-                  : yearsSince;
-
-              const spanText =
-                rounded >= 25
-                  ? `Nearly ${rounded} years after an earlier defining role`
-                  : `${rounded} years after an earlier defining role`;
-
-              sentence =
-                `${spanText}, ${name} returned in ${title} (${year})`;
-
-              if (milestone.hasAwards) {
-                sentence +=
-                  `, earning renewed critical and awards recognition`;
-              } else if (
-                milestone.hasFranchise
-              ) {
-                sentence +=
-                  `, reviving a major screen franchise`;
-              }
-            } else {
-              sentence =
-                `${name} later returned in ${title} (${year})`;
-
-              if (milestone.hasAwards) {
-                sentence +=
-                  `, earning renewed critical and awards recognition`;
-              } else if (
-                milestone.hasFranchise
-              ) {
-                sentence +=
-                  `, reviving a major screen franchise`;
-              }
-            }
-          } else if (
-            milestone.hasAwards
-          ) {
-            sentence =
-              `${title} (${year}) became a later-career milestone for ${name}, bringing renewed critical and awards recognition`;
-          } else if (
-            milestone.hasCreative &&
-            milestone.hasFranchise
-          ) {
-            sentence =
-              `${name} continued shaping a major screen franchise with ${title} (${year}), contributing both on screen and behind the scenes`;
-          } else if (
-            milestone.hasCreative
-          ) {
-            sentence =
-              `${name}'s later work on ${title} (${year}) also reflected continued creative involvement behind the scenes`;
-          } else if (
-            milestone.hasFranchise
-          ) {
-            /*
-              A franchise reference alone is not enough to justify
-              a generic importance claim. Use a simple factual
-              sentence rather than inventing significance.
-            */
-            sentence =
-              `${name} later appeared in ${title} (${year}), continuing a long-running screen franchise`;
-          }
-
-          /*
-            If the constructed sentence is still generic and the
-            source contains explicit revival/comeback language,
-            use that supported wording instead.
-          */
-
-          if (
-            sentence &&
-            /\b(revival|revived|comeback)\b/i
-              .test(source) &&
-            !/\b(revival|revived|comeback)\b/i
-              .test(sentence)
-          ) {
-            sentence =
-              `${name}'s later career included a revival with ${title} (${year})`;
-          }
-
-          if (sentence) {
-            add(sentence);
-          }
+        if (laterCandidates.length) {
+          add(
+            laterCandidates[0].sentence
+          );
         }
       }
 
