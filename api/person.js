@@ -678,286 +678,323 @@
         );
 
       /*
-        REELWISE COMPACT BIOGRAPHY — STORY FIRST
+        REELWISE BIOGRAPHY V3
+        ---------------------
+        Wikipedia decides career importance.
+        TMDB supplies credits/dates only.
 
-        Target:
-        1. Who the person is.
-        2. Breakthrough / early defining moment when supported.
-        3. A concise defining-career highlight.
-        4. A concise later-career highlight.
-
-        No decade-by-decade résumé.
-        No giant movie-list sentences.
-        Maximum four sentences.
+        We intentionally do NOT use TMDB popularity, vote count,
+        or current trending behavior to decide which films define
+        a person's career. That caused later supporting appearances
+        to outrank genuinely defining roles.
       */
 
-      const candidates = [];
-      const used = new Set();
+      const selected = [];
+      const seen = new Set();
 
-      function normalizeSentence(value = "") {
+      function keyOf(value = "") {
         return cleanText(value)
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, " ")
           .trim();
       }
 
-      function addCandidate(sentence) {
+      function add(sentence) {
         const value = cleanText(sentence);
         if (!value) return;
 
-        const key = normalizeSentence(value);
-        if (!key || used.has(key)) return;
+        const key = keyOf(value);
+        if (!key || seen.has(key)) return;
 
-        used.add(key);
-        candidates.push(
+        seen.add(key);
+        selected.push(
           ensurePeriod(value)
         );
       }
 
       /*
-        Count how many known/notable movie titles a source sentence
-        contains. Sentences that read like a résumé are rejected.
+        Count titles using the COMPLETE movie credit list rather
+        than only TMDB's popularity-ranked "notable" subset.
+        This lets Wikipedia references to older defining films such
+        as Rocky, First Blood, etc. be recognized correctly.
       */
 
-      const notableMovies =
-        (timeline.notable || [])
-          .filter(movie => movie?.title);
+      const allMovies =
+        validMovieCredits(credits);
 
-      const notableTitles =
-        notableMovies
-          .slice(0, 18)
-          .map(movie => movie.title);
-
-      function movieTitlesInSentence(sentence = "") {
-        return notableTitles.filter(title =>
+      function titlesMentioned(sentence = "") {
+        return allMovies.filter(movie =>
           sentenceMentionsTitle(
             sentence,
-            title
+            movie.title
           )
         );
       }
 
-      function isMovieListSentence(sentence = "") {
-        const titles =
-          movieTitlesInSentence(sentence);
+      function titleCount(sentence = "") {
+        return titlesMentioned(sentence)
+          .length;
+      }
 
-        /*
-          Three or more detected titles usually means the source
-          sentence is functioning as a filmography list rather than
-          a readable biography sentence.
-        */
-        return titles.length >= 3;
+      function isResumeList(sentence = "") {
+        return titleCount(sentence) >= 4;
       }
 
       /*
         OPENING
+        Keep this short and descriptive.
       */
 
       const intro =
         summarySentences.find(
           sentence =>
-            sentence.length >= 45 &&
-            sentence.length <= 240 &&
-            !isMovieListSentence(sentence)
-        ) ||
-        summarySentences.find(
-          sentence =>
             sentence.length >= 35 &&
-            sentence.length <= 260
+            sentence.length <= 240 &&
+            !isResumeList(sentence)
         ) ||
+        summarySentences[0] ||
         "";
 
       if (intro) {
-        addCandidate(intro);
-      } else if (timeline.firstYear) {
-        addCandidate(
-          `${name} began appearing in films in the ${decadeLabel(timeline.firstYear)}`
-        );
+        add(intro);
       }
 
       /*
         BREAKTHROUGH
+        This remains source-supported only.
       */
 
       if (breakthrough) {
-        addCandidate(breakthrough);
+        add(breakthrough);
       }
 
       /*
-        SOURCE-SUPPORTED CAREER SENTENCES
+        CAREER IMPORTANCE FROM WIKIPEDIA
 
-        Prefer sentences about a role, performance, recognition,
-        acclaim or awards. Reject giant title lists.
+        Score source sentences by career-significance LANGUAGE,
+        not TMDB popularity. Earlier defining-role language gets
+        priority, as do sentences about signature characters,
+        breakthrough, acclaim, awards, writing/directing, franchises,
+        and major career recognition.
       */
 
-      const scoredCareer =
+      const scored =
         careerSentences
           .filter(sentence => {
+            const key = keyOf(sentence);
+
             if (
               intro &&
-              normalizeSentence(sentence) ===
-                normalizeSentence(intro)
+              key === keyOf(intro)
             ) {
               return false;
             }
 
             if (
               breakthrough &&
-              normalizeSentence(sentence) ===
-                normalizeSentence(breakthrough)
+              key === keyOf(breakthrough)
             ) {
               return false;
             }
 
-            return !isMovieListSentence(
-              sentence
-            );
+            return !isResumeList(sentence);
           })
-          .map(sentence => {
-            const titleHits =
-              movieTitlesInSentence(
-                sentence
-              ).length;
+          .map((sentence, index) => {
+            let score = 0;
 
-            const performanceBonus =
-              /\b(performance|role|portrayed|played|starred|acclaim|acclaimed|recognition)\b/i
-                .test(sentence)
-                ? 4
-                : 0;
+            const films =
+              titlesMentioned(sentence);
 
-            const awardBonus =
-              /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i
+            const yearMatch =
+              sentence.match(
+                /\b(19|20)\d{2}\b/
+              );
+
+            const year =
+              yearMatch
+                ? Number(yearMatch[0])
+                : null;
+
+            if (
+              /\b(breakthrough|breakout|rose to prominence|came to prominence|gained (?:wider |wide |international )?(?:recognition|attention)|became widely known)\b/i
                 .test(sentence)
-                ? 3
-                : 0;
+            ) {
+              score += 20;
+            }
+
+            if (
+              /\b(signature|iconic|best known|known for|defining|most famous|most notable|star-making|career-defining)\b/i
+                .test(sentence)
+            ) {
+              score += 15;
+            }
+
+            if (
+              /\b(created|wrote|screenplay|writer|directed|director|produced|producer)\b/i
+                .test(sentence)
+            ) {
+              score += 8;
+            }
+
+            if (
+              /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed|critical acclaim)\b/i
+                .test(sentence)
+            ) {
+              score += 8;
+            }
+
+            if (
+              /\b(franchise|series|sequel|character|role|performance|portrayed|played|starred)\b/i
+                .test(sentence)
+            ) {
+              score += 5;
+            }
 
             /*
-              Favor focused sentences containing one or two films.
+              One or two films usually makes a focused story
+              sentence. Three is acceptable; four+ was filtered.
             */
-            const focusedTitleBonus =
-              titleHits === 1
-                ? 4
-                : titleHits === 2
-                  ? 3
-                  : 0;
+            if (films.length === 1) {
+              score += 6;
+            } else if (films.length === 2) {
+              score += 5;
+            } else if (films.length === 3) {
+              score += 2;
+            }
+
+            /*
+              When significance language is otherwise comparable,
+              give a modest advantage to earlier career-defining
+              material. This prevents a recent cameo/supporting role
+              from displacing the foundation of a long career.
+            */
+            if (year) {
+              if (year < 1990) {
+                score += 4;
+              } else if (year < 2005) {
+                score += 3;
+              } else if (year < 2015) {
+                score += 2;
+              } else {
+                score += 1;
+              }
+            }
+
+            /*
+              Wikipedia's own narrative order is meaningful.
+              Earlier relevant sentences get a small tie-breaker.
+            */
+            score +=
+              Math.max(
+                0,
+                4 - Math.floor(index / 5)
+              );
 
             return {
               sentence,
-              score:
-                performanceBonus +
-                awardBonus +
-                focusedTitleBonus
+              score,
+              index
             };
           })
-          .sort(
-            (a, b) =>
-              b.score - a.score
-          );
+          .sort((a, b) => {
+            if (b.score !== a.score) {
+              return b.score - a.score;
+            }
 
-      for (const item of scoredCareer) {
-        if (candidates.length >= 4) {
+            return a.index - b.index;
+          });
+
+      /*
+        Choose up to two strong Wikipedia career sentences.
+      */
+
+      for (const item of scored) {
+        if (selected.length >= 4) {
           break;
         }
 
-        if (item.score <= 0) {
+        if (item.score < 6) {
           continue;
         }
 
-        addCandidate(item.sentence);
+        add(item.sentence);
       }
 
       /*
-        CURATED FILMOGRAPHY FALLBACK
+        If we still have fewer than three sentences, use Wikipedia
+        narrative order as the fallback — NOT TMDB popularity.
+      */
 
-        If Wikipedia does not provide enough concise narrative,
-        create ONE short highlight sentence from TMDB. Limit it to
-        three films so the biography never turns into a résumé.
+      if (selected.length < 3) {
+        for (
+          const sentence of careerSentences
+        ) {
+          if (selected.length >= 3) {
+            break;
+          }
+
+          if (isResumeList(sentence)) {
+            continue;
+          }
+
+          add(sentence);
+        }
+      }
+
+      /*
+        Last resort:
+        use the earliest actual film credits chronologically.
+        This is intentionally chronology-based rather than
+        popularity-based and is only used when Wikipedia is sparse.
       */
 
       if (
-        candidates.length < 4 &&
-        notableMovies.length
+        selected.length < 3 &&
+        allMovies.length
       ) {
-        const alreadyMentioned =
-          new Set();
-
-        for (const sentence of candidates) {
-          for (const movie of notableMovies) {
-            if (
-              sentenceMentionsTitle(
-                sentence,
-                movie.title
-              )
-            ) {
-              alreadyMentioned.add(
-                movie.id
-              );
-            }
-          }
-        }
-
-        const remaining =
-          notableMovies
-            .filter(
-              movie =>
-                !alreadyMentioned.has(
-                  movie.id
+        const chronological =
+          [...allMovies]
+            .map(movie => ({
+              ...movie,
+              year:
+                yearFromDate(
+                  movie.release_date
                 )
+            }))
+            .filter(movie => movie.year)
+            .sort(
+              (a, b) =>
+                a.year - b.year
             )
-            .slice(0, 3);
+            .slice(0, 2);
 
-        if (remaining.length) {
-          const titles =
-            remaining
+        if (chronological.length) {
+          const titleText =
+            chronological
               .map(movie => movie.title)
-              .filter(Boolean);
+              .join(" and ");
 
-          let titleText = titles[0] || "";
-
-          if (titles.length === 2) {
-            titleText =
-              `${titles[0]} and ${titles[1]}`;
-          } else if (titles.length >= 3) {
-            titleText =
-              `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
-          }
-
-          if (titleText) {
-            addCandidate(
-              `${name}'s other notable film work includes ${titleText}`
-            );
-          }
+          add(
+            `${name}'s early film work included ${titleText}`
+          );
         }
       }
 
       /*
-        FINAL PROFILE
-
-        Keep the biography to four complete sentences.
+        Final mobile profile: four complete sentences maximum.
       */
 
-      const finalSentences =
-        candidates.slice(0, 4);
-
       const story =
-        finalSentences.join(" ");
+        selected
+          .slice(0, 4)
+          .join(" ");
 
-      if (story.length >= 120) {
+      if (story.length >= 110) {
         return story;
       }
 
-      /*
-        Last-resort factual fallback: only a few complete sentences,
-        never an unbounded source biography.
-      */
-
       const fallback =
-        sentenceSplit(
-          wikipediaSummary ||
-          cleanText(
-            person?.biography || ""
-          )
-        )
+        summarySentences
           .filter(Boolean)
           .slice(0, 3)
           .map(ensurePeriod)
