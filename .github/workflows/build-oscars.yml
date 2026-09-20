@@ -1,0 +1,39 @@
+name: Build Reelwise Oscar Acting Database
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/build-oscar-acting-data.mjs"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Reelwise
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Build local Oscar acting database
+        run: node scripts/build-oscar-acting-data.mjs
+
+      - name: Commit generated database
+        run: |
+          if git diff --quiet -- data/oscar-acting.js; then
+            echo "Oscar database is already current."
+            exit 0
+          fi
+
+          git config user.name "reelwise-oscar-bot"
+          git config user.email "reelwise-oscar-bot@users.noreply.github.com"
+          git add data/oscar-acting.js
+          git commit -m "Update Reelwise Oscar acting database"
+          git push
