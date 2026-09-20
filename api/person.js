@@ -1,5 +1,40 @@
     const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
+/*
+  ============================================================
+  REELWISE ACCOLADES RELIABILITY CACHE
+  ============================================================
+
+  Successful Academy Award histories are cached in the Vercel
+  server instance. Temporary upstream failures never overwrite
+  a known-good result.
+
+  The browser already caches successful results during a visit;
+  this adds a second reliability layer on the API side.
+  ============================================================
+*/
+
+const ACCOLADES_CACHE =
+  globalThis.__REELWISE_ACCOLADES_CACHE__ ||
+  new Map();
+
+globalThis.__REELWISE_ACCOLADES_CACHE__ =
+  ACCOLADES_CACHE;
+
+function accoladesCacheKey(personId = "", name = "") {
+  return `${String(personId)}::${cleanText(name).toLowerCase()}`;
+}
+
+function isGoodAccolades(data) {
+  return Boolean(
+    data &&
+    data.found &&
+    Array.isArray(data.history) &&
+    data.history.length
+  );
+}
+
+
     /*
       ============================================================
       REELWISE PERSON API
@@ -2687,41 +2722,125 @@
 
         if (mode === "accolades") {
 
-          const awardsData =
-            await getAwardsAndAccolades(
-              person.name,
-              wikipediaPage.wikidataId
+          const cacheKey =
+            accoladesCacheKey(
+              person.id,
+              person.name
             );
+
+          /*
+            CACHE FIRST:
+            if this Vercel instance has already retrieved a real
+            Oscar history for this performer, return it immediately.
+          */
+          const cached =
+            ACCOLADES_CACHE.get(
+              cacheKey
+            );
+
+          if (isGoodAccolades(cached)) {
+            return res
+              .status(200)
+              .json({
+                id: person.id,
+                name: person.name || "",
+                found: cached.found,
+                wins: cached.wins,
+                nominations: cached.nominations,
+                history: cached.history,
+                academy_awards: cached.academy_awards,
+                academyAwards: cached.academyAwards,
+                accolades: cached.accolades,
+                source:
+                  `${cached.source || "Reelwise"} (cached)`
+              });
+          }
+
+          /*
+            FIRST LOAD:
+            External award sources can fail intermittently.
+            Make several spaced attempts on the server before
+            returning a temporary-unavailable response.
+          */
+          let awardsData = null;
+          let lastError = null;
+
+          for (
+            let attempt = 1;
+            attempt <= 3;
+            attempt += 1
+          ) {
+            try {
+              const candidate =
+                await getAwardsAndAccolades(
+                  person.name,
+                  wikipediaPage.wikidataId
+                );
+
+              if (isGoodAccolades(candidate)) {
+                awardsData = candidate;
+                break;
+              }
+
+              lastError =
+                new Error(
+                  "No usable Academy Awards history returned."
+                );
+            } catch (error) {
+              lastError = error;
+            }
+
+            if (attempt < 3) {
+              await new Promise(resolve =>
+                setTimeout(
+                  resolve,
+                  attempt * 450
+                )
+              );
+            }
+          }
+
+          /*
+            Never cache an empty/failed result. That is crucial:
+            a temporary upstream failure must not become the actor's
+            permanent Reelwise awards record.
+          */
+          if (!isGoodAccolades(awardsData)) {
+            console.error(
+              "Accolades temporarily unavailable:",
+              person.name,
+              lastError
+            );
+
+            return res
+              .status(503)
+              .json({
+                id: person.id,
+                name: person.name || "",
+                found: false,
+                temporary: true,
+                error:
+                  "Academy Awards data is temporarily unavailable."
+              });
+          }
+
+          ACCOLADES_CACHE.set(
+            cacheKey,
+            awardsData
+          );
 
           return res
             .status(200)
             .json({
               id: person.id,
-
-              name:
-                person.name || "",
-
-              found:
-                awardsData.found,
-
-              wins:
-                awardsData.wins,
-
-              nominations:
-                awardsData.nominations,
-
-              history:
-                awardsData.history,
-
-              academy_awards:
-                awardsData.academy_awards,
-
-              academyAwards:
-                awardsData.academyAwards,
-
-              accolades:
-                awardsData.accolades,
-
+              name: person.name || "",
+              found: awardsData.found,
+              wins: awardsData.wins,
+              nominations: awardsData.nominations,
+              history: awardsData.history,
+              academy_awards: awardsData.academy_awards,
+              academyAwards: awardsData.academyAwards,
+              accolades: awardsData.accolades,
               source:
                 awardsData.source || "Wikidata"
             });
