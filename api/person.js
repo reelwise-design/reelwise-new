@@ -689,27 +689,165 @@ function isGoodAccolades(data) {
       ============================================================
     */
 
-    function definingMovieForBiography(credits = [], biography = "") {
-      const movies =
-        validMovieCredits(credits)
-          .filter(movie => {
-            const title = cleanText(movie?.title || "");
-            if (!title) return false;
+    /*
+      ============================================================
+      REELWISE CAREER-LANDMARK BIOGRAPHY PASS
+      ============================================================
 
-            return !sentenceMentionsTitle(
-              biography,
-              title
-            );
-          })
-          .sort((a, b) =>
-            movieRecognitionScore(b) -
-            movieRecognitionScore(a)
+      Rules:
+      - Never use unreleased/future films as career-defining evidence.
+      - Prefer established films from the performer's completed career.
+      - Prefer films Wikipedia itself discusses in career context.
+      - Favor sustained recognition over recency.
+      - Never generate robotic "Among the performer's films..." copy.
+      ============================================================
+    */
+
+    function releasedCareerMovies(credits = []) {
+      const today = new Date();
+
+      return validMovieCredits(credits)
+        .filter(movie => {
+          const date = String(movie?.release_date || "");
+          if (!date) return false;
+
+          const released = new Date(`${date}T00:00:00Z`);
+          return (
+            !Number.isNaN(released.getTime()) &&
+            released <= today
           );
-
-      return movies[0] || null;
+        });
     }
 
-    function addDefiningFilmToBiography({
+    function careerLandmarkCandidates(
+      credits = [],
+      wikipediaText = "",
+      currentBiography = ""
+    ) {
+      const source =
+        cleanText(wikipediaText || "");
+
+      const current =
+        cleanText(currentBiography || "");
+
+      const movies =
+        releasedCareerMovies(credits);
+
+      return movies
+        .map(movie => {
+          const title =
+            cleanText(movie?.title || "");
+
+          const year =
+            yearFromDate(
+              movie?.release_date || ""
+            );
+
+          if (
+            !title ||
+            sentenceMentionsTitle(
+              current,
+              title
+            )
+          ) {
+            return null;
+          }
+
+          const sourceSentences =
+            sentenceSplit(source)
+              .filter(sentence =>
+                sentenceMentionsTitle(
+                  sentence,
+                  title
+                )
+              );
+
+          const focusedSource =
+            sourceSentences
+              .filter(sentence =>
+                sentence.length >= 35 &&
+                sentence.length <= 300
+              )
+              .filter(sentence =>
+                !/\bfilmography\b/i.test(sentence)
+              )
+              .sort((a, b) => {
+                function significance(value = "") {
+                  let score = 0;
+
+                  if (
+                    /\b(breakthrough|breakout|prominence|recognition|acclaim|acclaimed|successful|success|iconic|signature|defining|known for)\b/i
+                      .test(value)
+                  ) score += 15;
+
+                  if (
+                    /\b(academy award|oscar|golden globe|bafta|nominated|nomination|won)\b/i
+                      .test(value)
+                  ) score += 8;
+
+                  if (
+                    /\b(role|performance|portrayed|played|starred)\b/i
+                      .test(value)
+                  ) score += 6;
+
+                  if (
+                    (value.match(/,\s/g) || []).length >= 5
+                  ) score -= 5;
+
+                  return score;
+                }
+
+                return (
+                  significance(b) -
+                  significance(a)
+                );
+              })[0] || "";
+
+          let score =
+            movieRecognitionScore(movie);
+
+          /*
+            Wikipedia discussing the film is a powerful signal that it
+            belongs in the career story, not merely in a popularity list.
+          */
+          if (focusedSource) {
+            score += 60;
+          }
+
+          /*
+            Favor established work. Recent completed films remain eligible,
+            but they must overcome the career-history advantage rather than
+            automatically displacing older defining roles.
+          */
+          const currentYear =
+            new Date().getFullYear();
+
+          const age =
+            year
+              ? currentYear - year
+              : 0;
+
+          if (age >= 25) score += 22;
+          else if (age >= 15) score += 16;
+          else if (age >= 8) score += 10;
+          else if (age >= 3) score += 4;
+
+          return {
+            movie,
+            title,
+            year,
+            sourceSentence:
+              focusedSource,
+            score
+          };
+        })
+        .filter(Boolean)
+        .sort((a, b) =>
+          b.score - a.score
+        );
+    }
+
+    function improveBiographyWithCareerLandmark({
       biography,
       credits,
       wikipediaText
@@ -717,122 +855,97 @@ function isGoodAccolades(data) {
       const current =
         cleanText(biography || "");
 
-      const movie =
-        definingMovieForBiography(
+      const candidates =
+        careerLandmarkCandidates(
           credits,
+          wikipediaText,
           current
         );
 
-      if (!movie) {
-        return current;
-      }
-
-      const title =
-        cleanText(movie.title || "");
-
-      const year =
-        yearFromDate(
-          movie.release_date || ""
-        );
-
-      if (!title) {
+      if (!candidates.length) {
         return current;
       }
 
       /*
-        Prefer source wording when Wikipedia contains a focused sentence
-        about the recognized film.
+        A film only enters the bio automatically when Wikipedia provides
+        usable career context for it. This prevents fabricated importance
+        claims and database-sounding filler.
       */
-      const sourceSentence =
-        sentenceSplit(
-          cleanText(wikipediaText || "")
-        )
-          .filter(sentence =>
-            sentenceMentionsTitle(
-              sentence,
-              title
-            )
-          )
-          .filter(sentence =>
-            sentence.length >= 35 &&
-            sentence.length <= 280
-          )
-          .filter(sentence =>
-            !/\bfilmography\b/i.test(sentence)
-          )
-          .sort((a, b) => {
-            const significance =
-              value =>
-                (
-                  /\b(acclaim|acclaimed|recognition|successful|success|iconic|notable|known|role|performance|portrayed|played|starred|nominated|won)\b/i
-                    .test(value)
-                    ? 10
-                    : 0
-                ) -
-                (
-                  (value.match(/,\s/g) || []).length >= 5
-                    ? 4
-                    : 0
-                );
+      const landmark =
+        candidates.find(item =>
+          item.sourceSentence
+        );
 
-            return (
-              significance(b) -
-              significance(a)
-            );
-          })[0];
-
-      let definingSentence = "";
-
-      if (sourceSentence) {
-        definingSentence =
-          ensurePeriod(
-            cleanText(sourceSentence)
-          );
-      } else {
-        /*
-          The title/year come directly from the performer's verified
-          TMDB film credits. Keep fallback wording modest: do not invent
-          awards, breakthrough claims, or critical reception.
-        */
-        definingSentence =
-          ensurePeriod(
-            `Among ${year ? `the performer's ${year} films` : "the performer's films"} is ${title}, one of the prominent titles in the filmography`
-          );
+      if (!landmark) {
+        return current;
       }
 
       const existing =
         sentenceSplit(current);
 
-      /*
-        Keep Reelwise biographies compact. Preserve the opening and
-        strongest existing career material, then guarantee the defining
-        movie is represented.
-      */
+      const usefulExisting =
+        existing.filter((sentence, index) => {
+          if (index === 0) return true;
+
+          /*
+            Drop award-inventory paragraphs that consume the biography
+            without telling the performer's movie career story.
+          */
+          const awardInventory =
+            /\b(awards?|nominations?|grammy|emmy|bafta|golden globe|screen actors guild|tony)\b/i
+              .test(sentence) &&
+            !/\b(role|performance|film|portrayed|played|starred)\b/i
+              .test(sentence);
+
+          return !awardInventory;
+        });
+
       const output = [];
-      if (existing[0]) output.push(existing[0]);
 
-      for (let i = 1; i < existing.length && output.length < 3; i += 1) {
-        const sentence = existing[i];
-
-        /*
-          Do not spend scarce biography space on award-inventory sentences.
-        */
-        const awardInventory =
-          /\b(two|three|four|five|six|seven|eight|nine|ten|\d+)\b.*\b(awards?|nominations?)\b/i
-            .test(sentence) &&
-          !/\b(role|performance|film|portrayed|played|starred)\b/i
-            .test(sentence);
-
-        if (!awardInventory) {
-          output.push(sentence);
-        }
+      if (usefulExisting[0]) {
+        output.push(
+          ensurePeriod(
+            usefulExisting[0]
+          )
+        );
       }
 
-      output.push(definingSentence);
+      for (
+        let i = 1;
+        i < usefulExisting.length &&
+        output.length < 3;
+        i += 1
+      ) {
+        output.push(
+          ensurePeriod(
+            usefulExisting[i]
+          )
+        );
+      }
+
+      const landmarkSentence =
+        ensurePeriod(
+          cleanText(
+            landmark.sourceSentence
+          )
+        );
+
+      if (
+        landmarkSentence &&
+        !output.some(sentence =>
+          sentenceMentionsTitle(
+            sentence,
+            landmark.title
+          )
+        )
+      ) {
+        output.push(
+          landmarkSentence
+        );
+      }
 
       return output
         .slice(0, 4)
-        .map(ensurePeriod)
         .join(" ");
     }
 
@@ -2905,6 +3018,10 @@ function isGoodAccolades(data) {
           if (isGoodAccolades(cached)) {
             return res
               .status(200)
+              .setHeader(
+                "Cache-Control",
+                "public, s-maxage=86400, stale-while-revalidate=604800"
+              )
               .json({
                 id: person.id,
                 name: person.name || "",
@@ -2995,6 +3112,10 @@ function isGoodAccolades(data) {
 
           return res
             .status(200)
+            .setHeader(
+              "Cache-Control",
+              "public, s-maxage=86400, stale-while-revalidate=604800"
+            )
             .json({
               id: person.id,
               name: person.name || "",
@@ -3103,7 +3224,7 @@ function isGoodAccolades(data) {
           of allowing the bio to collapse into award totals.
         */
         biography =
-          addDefiningFilmToBiography({
+          improveBiographyWithCareerLandmark({
             biography,
             credits,
             wikipediaText:
