@@ -144,28 +144,14 @@ async function getMovieCredits(personId) {
 
 /*
   ============================================================
-  ACADEMY AWARDS / WIKIDATA
+  ACADEMY AWARDS / WIKIPEDIA + WIKIDATA ACTION API
   ============================================================
 
-  OscarBase has been removed.
-
-  Flow:
-  1. Resolve the exact Wikidata person using the TMDB ID (P4947).
-  2. Read award received (P166) and nominated for (P1411).
-  3. Keep only Academy Award categories.
-  4. Read point in time (P585), for work (P1686), and ceremony
-     information when available.
-  5. Return the same Reelwise response shape already expected by
-     index.html.
-
-  Wikidata models:
-    P166  = award received
-    P1411 = nominated for
-    P585  = point in time
-    P1686 = for work
-    P805  = statement is subject of
-    P31   = instance of
-    Q19020 = Academy Awards
+  IMPORTANT:
+  - OscarBase is removed.
+  - Wikidata SPARQL is removed.
+  - We resolve the person's exact Wikipedia page, obtain its
+    wikibase_item QID, then use Wikidata's Action API directly.
   ============================================================
 */
 
@@ -184,89 +170,54 @@ function emptyAccolades(personId, unavailable = false) {
   };
 }
 
-async function wikidataEntitySearchByTmdb(personId) {
-  const sparql = `
-    SELECT ?person WHERE {
-      ?person wdt:P4947 "${String(personId).replace(/"/g, '\\"')}" .
-    }
-    LIMIT 2
-  `;
-
-  const url =
-    "https://query.wikidata.org/sparql?" +
+async function getWikipediaIdentity(name) {
+  const searchUrl =
+    "https://en.wikipedia.org/w/api.php?" +
     new URLSearchParams({
-      query: sparql,
-      format: "json"
+      action: "query",
+      generator: "search",
+      gsrsearch: name,
+      gsrlimit: "5",
+      prop: "pageprops|info",
+      ppprop: "wikibase_item",
+      inprop: "url",
+      format: "json",
+      origin: "*"
     });
 
-  const data = await fetchJSON(url, {
-    headers: {
-      accept: "application/sparql-results+json",
-      "user-agent": "Reelwise/1.0 (movie information website)"
-    }
-  });
+  const data = await fetchJSON(searchUrl);
+  const pages = Object.values(data?.query?.pages || {});
 
-  const value =
-    data?.results?.bindings?.[0]?.person?.value || "";
+  if (!pages.length) return null;
 
-  const match = value.match(/\/(Q\d+)$/);
+  const normalize = value =>
+    cleanText(value)
+      .toLowerCase()
+      .replace(/[.,'’"-]/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
 
-  return match ? match[1] : "";
-}
+  const wanted = normalize(name);
 
-async function getWikidataEntity(qid) {
+  const exact =
+    pages.find(page => normalize(page?.title) === wanted) ||
+    pages.find(page =>
+      normalize(page?.title).startsWith(wanted + " (")
+    ) ||
+    pages[0];
+
+  const qid = exact?.pageprops?.wikibase_item || "";
+
   if (!qid) return null;
 
-  const url =
-    "https://www.wikidata.org/wiki/Special:EntityData/" +
-    encodeURIComponent(qid) +
-    ".json";
-
-  const data = await fetchJSON(url, {
-    headers: {
-      accept: "application/json",
-      "user-agent": "Reelwise/1.0 (movie information website)"
-    }
-  });
-
-  return data?.entities?.[qid] || null;
+  return {
+    title: exact?.title || name,
+    qid
+  };
 }
 
-function entityEnglishLabel(entity, fallback = "") {
-  return cleanText(
-    entity?.labels?.en?.value ||
-    entity?.labels?.["en-gb"]?.value ||
-    fallback
-  );
-}
-
-function claimItemId(claim) {
-  const value =
-    claim?.mainsnak?.datavalue?.value;
-
-  return value?.id || "";
-}
-
-function qualifierItemId(claim, property) {
-  const value =
-    claim?.qualifiers?.[property]?.[0]?.datavalue?.value;
-
-  return value?.id || "";
-}
-
-function qualifierYear(claim) {
-  const value =
-    claim?.qualifiers?.P585?.[0]?.datavalue?.value;
-
-  const time = value?.time || "";
-
-  const match = String(time).match(/[+-](\d{4,})-/);
-
-  return match ? Number(match[1]) : null;
-}
-
-async function loadEntities(qids = []) {
-  const unique = [...new Set(qids.filter(Boolean))];
+async function getWikidataEntities(ids = []) {
+  const unique = [...new Set(ids.filter(Boolean))];
 
   if (!unique.length) return {};
 
@@ -288,8 +239,7 @@ async function loadEntities(qids = []) {
 
     const data = await fetchJSON(url, {
       headers: {
-        accept: "application/json",
-        "user-agent": "Reelwise/1.0 (movie information website)"
+        accept: "application/json"
       }
     });
 
@@ -299,87 +249,58 @@ async function loadEntities(qids = []) {
   return output;
 }
 
-function isAcademyAwardEntity(entity) {
-  if (!entity) return false;
-
-  const label =
-    entityEnglishLabel(entity).toLowerCase();
-
-  if (
-    label.includes("academy award") ||
-    label.includes("academy honorary award") ||
-    label.includes("scientific and technical award")
-  ) {
-    return true;
-  }
-
-  const instanceClaims =
-    entity?.claims?.P31 || [];
-
-  return instanceClaims.some(
-    claim => claimItemId(claim) === "Q19020"
+function englishLabel(entity, fallback = "") {
+  return cleanText(
+    entity?.labels?.en?.value ||
+    entity?.labels?.["en-gb"]?.value ||
+    fallback
   );
 }
 
-function academyAwardResult({
-  claim,
-  winner,
-  awardEntities,
-  relatedEntities
-}) {
-  const awardId = claimItemId(claim);
-
-  if (!awardId) return null;
-
-  const awardEntity = awardEntities[awardId];
-
-  if (!isAcademyAwardEntity(awardEntity)) {
-    return null;
-  }
-
-  const workId =
-    qualifierItemId(claim, "P1686");
-
-  const ceremonyId =
-    qualifierItemId(claim, "P805");
-
-  let year = qualifierYear(claim);
-
-  const ceremonyEntity =
-    relatedEntities[ceremonyId];
-
-  if (!year && ceremonyEntity) {
-    const ceremonyTime =
-      ceremonyEntity?.claims?.P585?.[0];
-
-    const value =
-      ceremonyTime?.mainsnak?.datavalue?.value;
-
-    const match =
-      String(value?.time || "").match(/[+-](\d{4,})-/);
-
-    if (match) {
-      year = Number(match[1]);
-    }
-  }
-
-  return {
-    year,
-    category:
-      entityEnglishLabel(
-        awardEntity,
-        "Academy Award"
-      ),
-    movie:
-      entityEnglishLabel(
-        relatedEntities[workId],
-        ""
-      ),
-    winner: Boolean(winner)
-  };
+function claimItemId(claim) {
+  return (
+    claim?.mainsnak?.datavalue?.value?.id ||
+    ""
+  );
 }
 
-function dedupeAcademyHistory(items = []) {
+function qualifierItemId(claim, property) {
+  return (
+    claim?.qualifiers?.[property]?.[0]?.datavalue?.value?.id ||
+    ""
+  );
+}
+
+function timeValueToYear(value) {
+  const time = value?.time || "";
+  const match = String(time).match(/[+-](\d{4,})-/);
+  return match ? Number(match[1]) : null;
+}
+
+function claimYear(claim) {
+  const direct =
+    claim?.qualifiers?.P585?.[0]?.datavalue?.value;
+
+  return timeValueToYear(direct);
+}
+
+function isAcademyAwardEntity(entity) {
+  if (!entity) return false;
+
+  const label = englishLabel(entity).toLowerCase();
+
+  /*
+    Oscar category labels in Wikidata normally contain
+    "Academy Award", e.g. Academy Award for Best Actor.
+  */
+  return (
+    label.includes("academy award") ||
+    label.includes("academy honorary award") ||
+    label.includes("scientific and technical award")
+  );
+}
+
+function dedupeHistory(items = []) {
   const map = new Map();
 
   for (const item of items) {
@@ -394,47 +315,60 @@ function dedupeAcademyHistory(items = []) {
     const existing = map.get(key);
 
     /*
-      P166 proves a win. If Wikidata also contains the same event
-      as P1411, keep the winning version instead of counting twice.
+      If a nomination statement and an award-received statement
+      describe the same event, preserve the winning version.
     */
     if (!existing || item.winner) {
       map.set(key, item);
     }
   }
 
-  return [...map.values()].sort((a, b) => {
-    return (b.year || 0) - (a.year || 0);
-  });
+  return [...map.values()].sort(
+    (a, b) => (b.year || 0) - (a.year || 0)
+  );
 }
 
-async function getAccolades(personId) {
+async function getAccolades(personId, personName = "") {
   try {
-    const qid =
-      await wikidataEntitySearchByTmdb(personId);
+    let name = cleanText(personName);
 
-    /*
-      Failure to resolve the TMDB ID is different from a confirmed
-      zero-Oscar record, so report the source as unavailable.
-    */
-    if (!qid) {
+    if (!name) {
+      const tmdbPerson = await getPersonDetails(personId);
+      name = cleanText(tmdbPerson?.name || "");
+    }
+
+    if (!name) {
       return emptyAccolades(personId, true);
     }
 
-    const person =
-      await getWikidataEntity(qid);
+    /*
+      Resolve the exact Wikipedia page and its Wikidata QID.
+      This replaces the SPARQL TMDB-ID lookup that was failing.
+    */
+    const identity = await getWikipediaIdentity(name);
 
-    if (!person) {
+    if (!identity?.qid) {
+      return emptyAccolades(personId, true);
+    }
+
+    const personEntities =
+      await getWikidataEntities([identity.qid]);
+
+    const personEntity =
+      personEntities[identity.qid];
+
+    if (!personEntity || personEntity.missing !== undefined) {
       return emptyAccolades(personId, true);
     }
 
     const winClaims =
-      Array.isArray(person?.claims?.P166)
-        ? person.claims.P166
+      Array.isArray(personEntity?.claims?.P166)
+        ? personEntity.claims.P166
         : [];
 
     const nominationClaims =
-      Array.isArray(person?.claims?.P1411)
-        ? person.claims.P1411
+      Array.isArray(personEntity?.claims?.P1411)
+        ? personEntity.claims.P1411
         : [];
 
     const allClaims = [
@@ -443,9 +377,8 @@ async function getAccolades(personId) {
     ];
 
     /*
-      No P166/P1411 statements means Wikidata has no award record
-      to inspect. For Reelwise this is returned as a clean zero
-      record instead of a transport/API error.
+      No award/nominated-for statements is a clean zero result,
+      not an API failure.
     */
     if (!allClaims.length) {
       return emptyAccolades(personId, false);
@@ -455,7 +388,7 @@ async function getAccolades(personId) {
       allClaims.map(claimItemId);
 
     const awardEntities =
-      await loadEntities(awardIds);
+      await getWikidataEntities(awardIds);
 
     const academyWinClaims =
       winClaims.filter(claim =>
@@ -476,6 +409,10 @@ async function getAccolades(personId) {
       ...academyNominationClaims
     ];
 
+    /*
+      Person has awards, but none of them are Academy Awards.
+      That is also a clean zero result.
+    */
     if (!academyClaims.length) {
       return emptyAccolades(personId, false);
     }
@@ -490,25 +427,63 @@ async function getAccolades(personId) {
     }
 
     const relatedEntities =
-      await loadEntities(relatedIds);
+      await getWikidataEntities(relatedIds);
+
+    function buildHistoryItem(claim, winner) {
+      const awardId = claimItemId(claim);
+      const awardEntity = awardEntities[awardId];
+
+      if (!isAcademyAwardEntity(awardEntity)) {
+        return null;
+      }
+
+      const workId =
+        qualifierItemId(claim, "P1686");
+
+      const ceremonyId =
+        qualifierItemId(claim, "P805");
+
+      let year = claimYear(claim);
+
+      /*
+        If the nomination statement doesn't carry P585 directly,
+        try the linked ceremony's date.
+      */
+      if (!year && ceremonyId) {
+        const ceremony =
+          relatedEntities[ceremonyId];
+
+        const ceremonyDateClaim =
+          ceremony?.claims?.P585?.[0];
+
+        year = timeValueToYear(
+          ceremonyDateClaim?.mainsnak?.datavalue?.value
+        );
+      }
+
+      return {
+        year,
+        category:
+          englishLabel(
+            awardEntity,
+            "Academy Award"
+          ),
+        movie:
+          englishLabel(
+            relatedEntities[workId],
+            ""
+          ),
+        winner: Boolean(winner)
+      };
+    }
 
     const history =
-      dedupeAcademyHistory([
+      dedupeHistory([
         ...academyWinClaims.map(claim =>
-          academyAwardResult({
-            claim,
-            winner: true,
-            awardEntities,
-            relatedEntities
-          })
+          buildHistoryItem(claim, true)
         ),
         ...academyNominationClaims.map(claim =>
-          academyAwardResult({
-            claim,
-            winner: false,
-            awardEntities,
-            relatedEntities
-          })
+          buildHistoryItem(claim, false)
         )
       ].filter(Boolean));
 
@@ -532,14 +507,12 @@ async function getAccolades(personId) {
 
     return {
       found: history.length > 0,
-      tmdb_person_id:
-        Number(personId) || null,
+      tmdb_person_id: Number(personId) || null,
       person: {
-        name:
-          entityEnglishLabel(person, ""),
-        tmdb_person_id:
-          Number(personId) || null,
-        wikidata_id: qid
+        name,
+        tmdb_person_id: Number(personId) || null,
+        wikidata_id: identity.qid,
+        wikipedia_title: identity.title
       },
       wins,
       nominations: history.length,
