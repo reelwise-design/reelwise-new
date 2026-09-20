@@ -2737,53 +2737,118 @@ async function showPersonAccolades(id,name){
   homeContent.style.display="none";
   revealResults();
   resultsTitle.textContent="";
+
+  const safeId=String(id||"");
+  const safeName=String(name||"Star");
+
+  function accoladesShell(body,eyebrow="REELWISE ACCOLADES"){
+    return `
+      <button class="back-button" onclick="showPerson('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
+      <div class="accolades-head">
+        <div class="eyebrow">${escapeHTML(eyebrow)}</div>
+        <h1>${escapeHTML(safeName)}</h1>
+        <div class="award-body-label">ACADEMY AWARDS</div>
+      </div>
+      ${body}
+    `;
+  }
+
   results.innerHTML=`
     <div class="accolades-page">
-      <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
-      <div class="accolades-head">
-        <div class="eyebrow">REELWISE STAR PROFILE</div>
-        <h1>${escapeHTML(name||"Accolades")}</h1>
-      </div>
-      <div class="message">Loading accolades...</div>
+      ${accoladesShell('<div class="message">Loading Academy Awards...</div>')}
     </div>
   `;
   goToResults();
 
   try{
     const response=await fetch(
-      "/api/person?id="+encodeURIComponent(id)+"&mode=accolades"
+      "/api/person?id="+encodeURIComponent(safeId)+"&mode=accolades"
     );
-    const data=await response.json();
-    if(!response.ok)throw new Error(data.error||"Accolades could not be loaded.");
+
+    let data={};
+    try{
+      data=await response.json();
+    }catch(error){
+      throw new Error("The Academy Awards response could not be read.");
+    }
+
+    if(!response.ok){
+      throw new Error(data.error||"Accolades could not be loaded.");
+    }
 
     const page=results.querySelector(".accolades-page");
     if(!page)return;
 
     if(!data||data.unavailable){
-      page.innerHTML=`
-        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
-        <div class="accolades-head">
-          <div class="eyebrow">REELWISE STAR PROFILE</div>
-          <h1>${escapeHTML(name||"Accolades")}</h1>
-        </div>
-        <div class="message">Accolades are temporarily unavailable.</div>
-      `;
+      page.innerHTML=accoladesShell(
+        '<div class="message">Academy Awards are temporarily unavailable.</div>'
+      );
       return;
     }
 
-    const history=Array.isArray(data.history)?data.history:[];
-    const wins=Number(data.wins||0);
-    const nominations=Number(data.nominations||history.length||0);
+    /*
+      person.js can expose the same Academy data as history,
+      academy_awards, academyAwards, or accolades. Normalize all
+      supported shapes here so the profile does not falsely report
+      that an actor has no nominations when valid award data exists.
+    */
+    let rawHistory=[];
 
-    if(!data.found||!history.length){
-      page.innerHTML=`
-        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
-        <div class="accolades-head">
-          <div class="eyebrow">REELWISE STAR PROFILE</div>
-          <h1>${escapeHTML(name||"Accolades")}</h1>
-        </div>
-        <div class="message">No Academy Award nominations found.</div>
-      `;
+    if(Array.isArray(data.history)&&data.history.length){
+      rawHistory=data.history;
+    }else if(Array.isArray(data.academy_awards)&&data.academy_awards.length){
+      rawHistory=data.academy_awards;
+    }else if(Array.isArray(data.academyAwards)&&data.academyAwards.length){
+      rawHistory=data.academyAwards;
+    }else if(Array.isArray(data.accolades)&&data.accolades.length){
+      rawHistory=data.accolades;
+    }
+
+    const history=rawHistory.map(item=>{
+      const result=String(item?.result||item?.status||"").trim().toLowerCase();
+      const winner=
+        item?.winner===true ||
+        item?.won===true ||
+        result==="winner" ||
+        result==="won" ||
+        result==="win";
+
+      return {
+        year:String(item?.year||item?.ceremonyYear||item?.ceremony_year||""),
+        movie:String(item?.movie||item?.work||item?.film||item?.title||"Film"),
+        category:String(item?.category||item?.award||item?.name||"Academy Award"),
+        winner
+      };
+    }).filter(item=>item.year||item.movie!=="Film"||item.category!=="Academy Award");
+
+    history.sort((a,b)=>{
+      const ay=parseInt(a.year,10)||0;
+      const by=parseInt(b.year,10)||0;
+      return by-ay;
+    });
+
+    const calculatedWins=history.filter(item=>item.winner).length;
+    const suppliedWins=Number(data.wins);
+    const suppliedNominations=Number(data.nominations);
+
+    const wins=Number.isFinite(suppliedWins)
+      ?suppliedWins
+      :calculatedWins;
+
+    const nominations=Number.isFinite(suppliedNominations)&&suppliedNominations>0
+      ?suppliedNominations
+      :history.length;
+
+    const found=
+      data.found===true ||
+      history.length>0 ||
+      wins>0 ||
+      nominations>0;
+
+    if(!found||!history.length){
+      page.innerHTML=accoladesShell(
+        '<div class="message">No Academy Award nominations found.</div>'
+      );
       return;
     }
 
@@ -2801,10 +2866,11 @@ async function showPersonAccolades(id,name){
     `).join("");
 
     page.innerHTML=`
-      <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
+      <button class="back-button" onclick="showPerson('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
       <div class="accolades-head">
-        <div class="eyebrow">REELWISE ACCOLADES</div>\n<h1>${escapeHTML(name||"Star")}</h1>
-<div class="award-body-label">ACADEMY AWARDS</div>
+        <div class="eyebrow">REELWISE ACCOLADES</div>
+        <h1>${escapeHTML(safeName)}</h1>
+        <div class="award-body-label">ACADEMY AWARDS</div>
         <div class="accolades-summary">
           <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
           <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
@@ -2815,14 +2881,10 @@ async function showPersonAccolades(id,name){
   }catch(error){
     const page=results.querySelector(".accolades-page");
     if(page){
-      page.innerHTML=`
-        <button class="back-button" onclick="showPerson('${escapeHTML(String(id))}')">← Back to ${escapeHTML(name||"Star")}</button>
-        <div class="accolades-head">
-          <div class="eyebrow">REELWISE STAR PROFILE</div>
-          <h1>${escapeHTML(name||"Accolades")}</h1>
-        </div>
-        <div class="message">${escapeHTML(error.message||"Accolades could not be loaded.")}</div>
-      `;
+      page.innerHTML=accoladesShell(
+        `<div class="message">${escapeHTML(error.message||"Accolades could not be loaded.")}</div>`,
+        "REELWISE STAR PROFILE"
+      );
     }
   }
 }
