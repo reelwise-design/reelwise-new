@@ -669,19 +669,6 @@
           name
         );
 
-      const used =
-        new Set();
-
-      const paragraphs = [];
-
-      /*
-        OPENING
-
-        Use a concise factual introduction from Wikipedia/TMDB,
-        but do not let a generic encyclopedia introduction become
-        the entire Reelwise profile.
-      */
-
       const summarySentences =
         sentenceSplit(
           wikipediaSummary ||
@@ -690,169 +677,28 @@
           )
         );
 
-      const intro =
-        summarySentences.find(
-          sentence =>
-            sentence.length >= 50 &&
-            sentence.length <= 420
-        ) || "";
-
-      if (intro) {
-        paragraphs.push(
-          ensurePeriod(intro)
-        );
-      } else if (timeline.firstYear) {
-        paragraphs.push(
-          ensurePeriod(
-            `${name} began appearing in films in the ${decadeLabel(timeline.firstYear)}`
-          )
-        );
-      }
-
       /*
-        BREAKTHROUGH
+        REELWISE COMPACT BIOGRAPHY
 
-        Only label a breakthrough when our factual career source
-        explicitly supports that interpretation.
+        The star card is intentionally a short career story,
+        not a decade-by-decade filmography.
+
+        Target:
+        1. Who the person is.
+        2. Breakthrough / early defining moment when supported.
+        3. One strong career-highlight sentence.
+        4. One later/current-career sentence.
+
+        Never exceed four sentences.
       */
 
-      if (
-        breakthrough &&
-        !paragraphs.some(
-          paragraph =>
-            paragraph.toLowerCase() ===
-            breakthrough.toLowerCase()
-        )
-      ) {
-        paragraphs.push(
-          breakthrough
-        );
+      const candidates = [];
+      const used = new Set();
 
-        used.add(
-          breakthrough
-        );
-      }
+      function addCandidate(sentence) {
+        const value = cleanText(sentence);
 
-      /*
-        CAREER BY DECADE
-
-        Prefer real narrative sentences from the source that mention
-        the actor's notable films in that period. If Wikipedia does
-        not provide a useful sentence for a decade, use TMDB only to
-        state which films appeared in that period; do not invent why
-        a film was important.
-      */
-
-      const decades =
-        Object.keys(
-          timeline.byDecade
-        )
-          .sort(
-            (a, b) =>
-              Number(a.slice(0, 4)) -
-              Number(b.slice(0, 4))
-          );
-
-      for (const decade of decades) {
-        const movies =
-          timeline.byDecade[decade];
-
-        /*
-          Skip extremely thin decades unless they contain a
-          recognizable/high-engagement film.
-        */
-
-        if (!movies?.length) {
-          continue;
-        }
-
-        const sourceSentence =
-          chooseDecadeCareerSentence(
-            careerSentences,
-            movies,
-            used
-          );
-
-        if (sourceSentence) {
-          paragraphs.push(
-            sourceSentence
-          );
-
-          used.add(
-            sourceSentence
-          );
-        } else {
-          /*
-            For fallback chronology, only include a decade when
-            there is enough filmography evidence to make it useful.
-          */
-
-          const meaningfulMovies =
-            movies.filter(
-              movie =>
-                (Number(movie.vote_count) || 0) >= 500 ||
-                (Number(movie.popularity) || 0) >= 8
-            );
-
-          if (
-            meaningfulMovies.length
-          ) {
-            const fallback =
-              buildFilmographySentence(
-                name,
-                decade,
-                meaningfulMovies
-              );
-
-            if (fallback) {
-              paragraphs.push(
-                fallback
-              );
-            }
-          }
-        }
-      }
-
-      /*
-        Add a small number of additional useful career sentences
-        if the decade pass produced a profile that is too short.
-      */
-
-      for (const sentence of careerSentences) {
-        if (paragraphs.length >= 7) {
-          break;
-        }
-
-        if (
-          used.has(sentence) ||
-          paragraphs.some(
-            paragraph =>
-              paragraph.toLowerCase() ===
-              sentence.toLowerCase()
-          )
-        ) {
-          continue;
-        }
-
-        paragraphs.push(sentence);
-        used.add(sentence);
-      }
-
-      /*
-        Remove near-duplicates and cap the biography so the star
-        page remains readable on mobile.
-      */
-
-      const finalParagraphs = [];
-      const normalized = [];
-
-      for (const paragraph of paragraphs) {
-        const value =
-          cleanText(paragraph);
-
-        if (!value) {
-          continue;
-        }
+        if (!value) return;
 
         const key =
           value
@@ -860,55 +706,210 @@
             .replace(/[^a-z0-9]+/g, " ")
             .trim();
 
-        const duplicate =
-          normalized.some(existing => {
+        if (!key || used.has(key)) {
+          return;
+        }
+
+        used.add(key);
+        candidates.push(
+          ensurePeriod(value)
+        );
+      }
+
+      /*
+        OPENING
+
+        Prefer the concise encyclopedia introduction.
+      */
+
+      const intro =
+        summarySentences.find(
+          sentence =>
+            sentence.length >= 45 &&
+            sentence.length <= 260
+        ) ||
+        summarySentences[0] ||
+        "";
+
+      if (intro) {
+        addCandidate(intro);
+      } else if (timeline.firstYear) {
+        addCandidate(
+          `${name} began appearing in films in the ${decadeLabel(timeline.firstYear)}`
+        );
+      }
+
+      /*
+        BREAKTHROUGH
+
+        Use only source-supported breakthrough language.
+      */
+
+      if (breakthrough) {
+        addCandidate(breakthrough);
+      }
+
+      /*
+        CAREER HIGHLIGHTS
+
+        Rank useful source sentences by how many of the person's
+        notable films they mention. This gives Reelwise a compact
+        narrative instead of forcing one fallback sentence for
+        every decade.
+      */
+
+      const notableTitles =
+        (timeline.notable || [])
+          .slice(0, 12)
+          .map(movie => movie.title)
+          .filter(Boolean);
+
+      const scoredCareer =
+        careerSentences
+          .filter(sentence => {
+            const lower =
+              sentence.toLowerCase();
+
             if (
-              existing === key ||
-              existing.includes(key) ||
-              key.includes(existing)
+              intro &&
+              lower ===
+                ensurePeriod(intro).toLowerCase()
             ) {
-              return true;
+              return false;
             }
 
-            return false;
-          });
+            if (
+              breakthrough &&
+              lower ===
+                breakthrough.toLowerCase()
+            ) {
+              return false;
+            }
 
-        if (duplicate) {
+            return true;
+          })
+          .map(sentence => {
+            const titleHits =
+              notableTitles.filter(title =>
+                sentenceMentionsTitle(
+                  sentence,
+                  title
+                )
+              ).length;
+
+            const awardBonus =
+              /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed)\b/i
+                .test(sentence)
+                ? 2
+                : 0;
+
+            const roleBonus =
+              /\b(starred|portrayed|played|role|performance|directed|producer|filmmaker)\b/i
+                .test(sentence)
+                ? 1
+                : 0;
+
+            return {
+              sentence,
+              score:
+                titleHits * 4 +
+                awardBonus +
+                roleBonus
+            };
+          })
+          .sort(
+            (a, b) =>
+              b.score - a.score
+          );
+
+      for (const item of scoredCareer) {
+        if (candidates.length >= 4) {
+          break;
+        }
+
+        /*
+          Avoid weak generic sentences unless we still need
+          material to complete the profile.
+        */
+        if (
+          item.score <= 0 &&
+          candidates.length >= 3
+        ) {
           continue;
         }
 
-        normalized.push(key);
-        finalParagraphs.push(
-          ensurePeriod(value)
-        );
+        addCandidate(item.sentence);
+      }
 
-        if (finalParagraphs.length >= 7) {
-          break;
+      /*
+        If source narrative is sparse, add ONE concise filmography
+        sentence — never one for every decade.
+      */
+
+      if (
+        candidates.length < 3 &&
+        timeline.notable?.length
+      ) {
+        const selected =
+          timeline.notable
+            .slice(0, 3)
+            .map(movie => movie.title)
+            .filter(Boolean);
+
+        if (selected.length) {
+          let titles = selected[0];
+
+          if (selected.length === 2) {
+            titles =
+              `${selected[0]} and ${selected[1]}`;
+          } else if (selected.length >= 3) {
+            titles =
+              `${selected[0]}, ${selected[1]}, and ${selected[2]}`;
+          }
+
+          addCandidate(
+            `${name}'s notable film work includes ${titles}`
+          );
         }
       }
 
-      const story =
-        finalParagraphs.join(" ");
-
       /*
-        If the career engine cannot build something substantial,
-        use the strongest factual biography source rather than
-        manufacturing a career narrative.
+        Final compact profile: maximum four complete sentences.
       */
 
-      if (story.length < 180) {
-        return (
-          wikipediaSummary ||
-          cleanText(
-            person?.biography || ""
-          ) ||
-          `${name} is a film actor and filmmaker.`
-        );
+      const finalSentences =
+        candidates.slice(0, 4);
+
+      const story =
+        finalSentences.join(" ");
+
+      /*
+        If the assembled story is too thin, use only the first
+        few complete sentences from the strongest factual source.
+        This keeps the mobile profile compact.
+      */
+
+      if (story.length < 120) {
+        const fallbackSentences =
+          sentenceSplit(
+            wikipediaSummary ||
+            cleanText(
+              person?.biography || ""
+            )
+          )
+            .slice(0, 4)
+            .map(ensurePeriod);
+
+        if (fallbackSentences.length) {
+          return fallbackSentences.join(" ");
+        }
       }
 
-      return story;
+      return (
+        story ||
+        `${name} is a film actor and filmmaker.`
+      );
     }
-
 
     /* ============================================================
        WIKIDATA HELPERS
