@@ -946,161 +946,282 @@
       }
 
       /*
-        LATER-CAREER MILESTONE
+        LATER-CAREER MILESTONE — STRUCTURED, NOT COPIED
 
-        The fourth sentence should advance the story rather than
-        simply taking the next eligible credit. Prefer later-career
-        material involving a return, revival, franchise, acclaimed
-        performance, major award recognition, directing/writing,
-        or another clearly meaningful career development.
+        Do not copy an entire Wikipedia sentence here. Source
+        sentences often combine a meaningful milestone with several
+        unrelated later credits. Instead:
 
-        This fixes cases such as Sylvester Stallone, where Rocky
-        and Rambo were correctly selected but an incidental comedy
-        sentence was previously chosen as the final highlight.
+        1. Find a later-career source sentence with strong milestone
+           language.
+        2. Identify the ONE movie in that sentence most directly tied
+           to the milestone.
+        3. Build a short factual sentence from the supported facts.
+        4. Never append unrelated titles from the source sentence.
       */
 
       if (selected.length === 3) {
         const currentYear =
           new Date().getFullYear();
 
-        const laterCandidates =
+        function movieYear(movie) {
+          return yearFromDate(
+            movie?.release_date || ""
+          );
+        }
+
+        function sourceHasAwardLanguage(
+          sentence = ""
+        ) {
+          return /\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won|acclaim|acclaimed|critical acclaim)\b/i
+            .test(sentence);
+        }
+
+        function sourceHasReturnLanguage(
+          sentence = ""
+        ) {
+          return /\b(returned|return|reprised|reprise|revival|comeback|reunited|again)\b/i
+            .test(sentence);
+        }
+
+        function sourceHasCreativeLanguage(
+          sentence = ""
+        ) {
+          return /\b(created|wrote|screenplay|writer|directed|director|produced|producer)\b/i
+            .test(sentence);
+        }
+
+        function sourceHasFranchiseLanguage(
+          sentence = ""
+        ) {
+          return /\b(franchise|series|sequel|legacy)\b/i
+            .test(sentence);
+        }
+
+        const laterMilestones =
           careerSentences
-            .filter(sentence => {
-              const key =
-                keyOf(sentence);
-
-              if (
-                selected.some(
-                  existing =>
-                    keyOf(existing) === key
-                )
-              ) {
-                return false;
-              }
-
-              if (isResumeList(sentence)) {
-                return false;
-              }
-
-              return true;
-            })
             .map((sentence, index) => {
-              const years =
-                sentence.match(
-                  /\b(?:19|20)\d{2}\b/g
-                ) || [];
+              const movies =
+                titlesMentioned(sentence)
+                  .map(movie => ({
+                    ...movie,
+                    _year:
+                      movieYear(movie)
+                  }))
+                  .filter(
+                    movie =>
+                      movie._year &&
+                      movie._year <=
+                        currentYear
+                  );
 
-              const latestYear =
-                years.length
-                  ? Math.max(
-                      ...years.map(Number)
-                    )
-                  : null;
+              if (!movies.length) {
+                return null;
+              }
+
+              /*
+                The milestone film should be a later-career film.
+                Prefer the earliest title in the source sentence
+                that belongs to the later phase of the career,
+                because source sentences often begin with the
+                meaningful event and then list unrelated projects.
+              */
+
+              const careerStart =
+                timeline.firstYear ||
+                movies[0]._year;
+
+              const careerSpan =
+                Math.max(
+                  1,
+                  currentYear -
+                    careerStart
+                );
+
+              const laterThreshold =
+                Math.max(
+                  careerStart + 15,
+                  Math.floor(
+                    careerStart +
+                    careerSpan * 0.55
+                  )
+                );
+
+              const laterMovies =
+                movies
+                  .filter(
+                    movie =>
+                      movie._year >=
+                        laterThreshold
+                  )
+                  .sort(
+                    (a, b) =>
+                      a._year - b._year
+                  );
+
+              if (!laterMovies.length) {
+                return null;
+              }
+
+              const milestoneMovie =
+                laterMovies[0];
 
               let score = 0;
 
-              /*
-                Later-career chronology matters here.
-              */
-              if (latestYear) {
-                if (
-                  latestYear >=
-                  currentYear - 12
-                ) {
-                  score += 10;
-                } else if (
-                  latestYear >=
-                  currentYear - 22
-                ) {
-                  score += 8;
-                } else if (
-                  latestYear >= 2000
-                ) {
-                  score += 5;
-                }
+              const hasAwards =
+                sourceHasAwardLanguage(
+                  sentence
+                );
+
+              const hasReturn =
+                sourceHasReturnLanguage(
+                  sentence
+                );
+
+              const hasCreative =
+                sourceHasCreativeLanguage(
+                  sentence
+                );
+
+              const hasFranchise =
+                sourceHasFranchiseLanguage(
+                  sentence
+                );
+
+              if (hasReturn) {
+                score += 14;
               }
 
-              /*
-                Reward sentences that actually describe a career
-                development rather than merely naming another film.
-              */
-              if (
-                /\b(returned|return|reprised|reprise|revival|comeback|reunited|launched|created|developed|directed|wrote|screenplay|produced|producer)\b/i
-                  .test(sentence)
-              ) {
-                score += 10;
+              if (hasAwards) {
+                score += 12;
               }
 
-              if (
-                /\b(franchise|series|sequel|legacy|career|recognition|acclaim|acclaimed|award|nominated|nomination|won|academy award|oscar|golden globe|bafta|emmy)\b/i
-                  .test(sentence)
-              ) {
+              if (hasFranchise) {
                 score += 8;
+              }
+
+              if (hasCreative) {
+                score += 6;
               }
 
               if (
                 /\b(role|performance|portrayed|played|starred)\b/i
                   .test(sentence)
               ) {
-                score += 3;
-              }
-
-              const films =
-                titlesMentioned(sentence);
-
-              /*
-                Focused later-career sentences are preferred.
-                Do not reward long lists.
-              */
-              if (films.length === 1) {
-                score += 5;
-              } else if (films.length === 2) {
-                score += 3;
+                score += 4;
               }
 
               /*
-                Slightly prefer later source material when scores
-                otherwise tie.
+                Later dates help, but cannot by themselves turn
+                an incidental recent credit into a milestone.
               */
-              score +=
-                Math.min(
-                  4,
-                  Math.floor(index / 5)
-                );
+              if (
+                milestoneMovie._year >=
+                  currentYear - 15
+              ) {
+                score += 4;
+              } else if (
+                milestoneMovie._year >=
+                  currentYear - 25
+              ) {
+                score += 3;
+              } else {
+                score += 1;
+              }
+
+              /*
+                Require real milestone evidence. A sentence that
+                merely says "starred in..." is not enough.
+              */
+              const meaningful =
+                hasReturn ||
+                hasAwards ||
+                hasFranchise ||
+                hasCreative;
+
+              if (!meaningful) {
+                return null;
+              }
 
               return {
                 sentence,
+                index,
                 score,
-                latestYear,
-                index
+                movie:
+                  milestoneMovie,
+                hasAwards,
+                hasReturn,
+                hasCreative,
+                hasFranchise
               };
             })
-            .filter(
-              item =>
-                item.score >= 8
-            )
+            .filter(Boolean)
             .sort((a, b) => {
               if (b.score !== a.score) {
                 return b.score - a.score;
               }
 
               if (
-                (b.latestYear || 0) !==
-                (a.latestYear || 0)
+                b.movie._year !==
+                a.movie._year
               ) {
                 return (
-                  (b.latestYear || 0) -
-                  (a.latestYear || 0)
+                  b.movie._year -
+                  a.movie._year
                 );
               }
 
               return b.index - a.index;
             });
 
-        if (laterCandidates.length) {
-          add(
-            laterCandidates[0].sentence
-          );
+        if (laterMilestones.length) {
+          const milestone =
+            laterMilestones[0];
+
+          const title =
+            milestone.movie.title;
+
+          const year =
+            milestone.movie._year;
+
+          let sentence = "";
+
+          /*
+            Build ONE concise sentence. We intentionally do not
+            reproduce the rest of the source sentence.
+          */
+
+          if (
+            milestone.hasReturn &&
+            milestone.hasAwards
+          ) {
+            sentence =
+              `${name} later returned to a major screen role in ${title} (${year}), earning renewed critical and awards recognition`;
+          } else if (
+            milestone.hasReturn
+          ) {
+            sentence =
+              `${name} later returned to a major screen role in ${title} (${year}), marking an important new chapter in the career`;
+          } else if (
+            milestone.hasAwards
+          ) {
+            sentence =
+              `${name}'s later career included ${title} (${year}), which brought significant critical and awards recognition`;
+          } else if (
+            milestone.hasFranchise
+          ) {
+            sentence =
+              `${name}'s later career included ${title} (${year}), extending one of the major franchises associated with the career`;
+          } else if (
+            milestone.hasCreative
+          ) {
+            sentence =
+              `${name}'s later career included ${title} (${year}), continuing work both on screen and behind the scenes`;
+          }
+
+          if (sentence) {
+            add(sentence);
+          }
         }
       }
 
