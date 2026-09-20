@@ -1,4 +1,5 @@
     import { getOscarVaultRecord } from "../data/oscars.js";
+import { getLocalOscarActingRecord } from "../data/oscar-acting.js";
 
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
@@ -2919,8 +2920,21 @@ function isGoodAccolades(data) {
       knownWikidataId = ""
     ) {
       /*
-        1. REELWISE OSCAR VAULT
-        Confirmed local records always win, including confirmed zero.
+        1. COMPLETE LOCAL OSCAR ACTING DATABASE
+        Once generated, this is authoritative for acting nominations.
+        A missing name is therefore a confirmed zero — no live lookup.
+      */
+      const localOscarRecord =
+        getLocalOscarActingRecord(name);
+
+      if (localOscarRecord?.confirmed === true) {
+        return localOscarRecord;
+      }
+
+      /*
+        2. REELWISE OSCAR VAULT
+        Used while the generated dataset is unavailable and as a
+        hand-verified fallback.
       */
       const vaultRecord =
         getOscarVaultRecord(name);
