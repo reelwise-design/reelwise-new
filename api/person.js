@@ -260,58 +260,66 @@ function dedupeHistory(items = []) {
   );
 }
 
-async function getAccolades(personId) {
+async function getAccolades(personId, personName = "") {
   try {
-    const search = await oscarbase(
-      `/nominees?tmdb_person_id=${encodeURIComponent(personId)}&limit=10`
-    );
-
-    const nominees =
-      Array.isArray(search)
-        ? search
-        : Array.isArray(search?.data)
-          ? search.data
-          : Array.isArray(search?.results)
-            ? search.results
-            : [];
-
-    const nominee =
-      nominees.find(
-        item =>
-          Number(item?.tmdb_person_id) === Number(personId)
-      ) ||
-      nominees[0] ||
-      null;
-
     /*
-      A person who has never been nominated is NOT an API error.
-      Return a clean zero-Oscar response.
+      OscarBase's documented /api/nominations endpoint can search
+      directly by nominee name. This avoids depending on the
+      /nominees/{id} detail lookup that was causing the temporary
+      unavailable message.
     */
-    if (!nominee?.id) {
+
+    let name = cleanText(personName);
+
+    if (!name) {
+      const person = await getPersonDetails(personId);
+      name = cleanText(person?.name || "");
+    }
+
+    if (!name) {
       return emptyAccolades(personId, false);
     }
 
-    const detailResponse = await oscarbase(
-      `/nominees/${encodeURIComponent(nominee.id)}`
+    const response = await oscarbase(
+      `/nominations?nominee=${encodeURIComponent(name)}&limit=100`
     );
 
-    const detail =
-      detailResponse?.data &&
-      !Array.isArray(detailResponse.data)
-        ? detailResponse.data
-        : detailResponse;
-
-    const rawNominations =
-      Array.isArray(detail?.nominations)
-        ? detail.nominations
-        : Array.isArray(detail?.history)
-          ? detail.history
-          : Array.isArray(detail?.awards)
-            ? detail.awards
+    const rows =
+      Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.results)
+            ? response.results
             : [];
 
+    /*
+      The API's nominee filter is a partial-name search, so require
+      an exact normalized nominee match before displaying anything.
+      This prevents a similarly named person from receiving another
+      person's Oscar history.
+    */
+    const normalizeName = value =>
+      cleanText(value)
+        .toLowerCase()
+        .replace(/[.,'’"-]/g, "")
+        .replace(/\s+/g, " ")
+        .trim();
+
+    const wantedName = normalizeName(name);
+
+    const exactRows = rows.filter(item => {
+      const nomineeName =
+        item?.nominee ??
+        item?.name ??
+        item?.nominee_name ??
+        "";
+
+      return normalizeName(nomineeName) === wantedName;
+    });
+
     const history = dedupeHistory(
-      rawNominations.map(normalizeAwardItem)
+      exactRows.map(normalizeAwardItem)
     );
 
     const wins =
@@ -332,7 +340,7 @@ async function getAccolades(personId) {
       found: history.length > 0,
       tmdb_person_id: Number(personId) || null,
       person: {
-        name: detail?.name || nominee?.name || "",
+        name,
         tmdb_person_id: Number(personId) || null
       },
       wins,
@@ -346,10 +354,6 @@ async function getAccolades(personId) {
   } catch (error) {
     console.error("Reelwise accolades lookup error:", error);
 
-    /*
-      Most important protection:
-      return JSON instead of allowing the route to crash.
-    */
     return emptyAccolades(personId, true);
   }
 }
