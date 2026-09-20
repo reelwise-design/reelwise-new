@@ -193,6 +193,18 @@ function diagnosticAccolades(personId, stage, error, extra = {}) {
   };
 }
 
+async function getPersonExternalIds(personId) {
+  return fetchJSON(
+    `https://api.themoviedb.org/3/person/${encodeURIComponent(personId)}/external_ids`,
+    {
+      headers: {
+        Authorization: `Bearer ${TOKEN}`,
+        accept: "application/json"
+      }
+    }
+  );
+}
+
 async function getWikipediaIdentity(name) {
   const searchUrl =
     "https://en.wikipedia.org/w/api.php?" +
@@ -354,7 +366,7 @@ function dedupeHistory(items = []) {
 async function getAccolades(personId, personName = "") {
   let stage = "start";
   let name = "";
-  let identity = null;
+  let qid = null;
 
   try {
     stage = "resolve_tmdb_name";
@@ -374,15 +386,18 @@ async function getAccolades(personId, personName = "") {
       );
     }
 
-    stage = "wikipedia_identity";
+    stage = "tmdb_external_ids";
 
-    identity = await getWikipediaIdentity(name);
+    const externalIds =
+      await getPersonExternalIds(personId);
 
-    if (!identity?.qid) {
+    qid = cleanText(externalIds?.wikidata_id || "");
+
+    if (!qid) {
       return diagnosticAccolades(
         personId,
         stage,
-        "Wikipedia page was found without a Wikidata QID.",
+        "TMDB returned no Wikidata ID for this person.",
         { name }
       );
     }
@@ -390,21 +405,17 @@ async function getAccolades(personId, personName = "") {
     stage = "wikidata_person_entity";
 
     const personEntities =
-      await getWikidataEntities([identity.qid]);
+      await getWikidataEntities([qid]);
 
     const personEntity =
-      personEntities[identity.qid];
+      personEntities[qid];
 
     if (!personEntity || personEntity.missing !== undefined) {
       return diagnosticAccolades(
         personId,
         stage,
         "Wikidata person entity was missing.",
-        {
-          name,
-          qid: identity.qid,
-          wikipedia_title: identity.title
-        }
+        { name, qid }
       );
     }
 
@@ -428,12 +439,17 @@ async function getAccolades(personId, personName = "") {
     if (!allClaims.length) {
       return {
         ...emptyAccolades(personId, false),
+        person: {
+          name,
+          tmdb_person_id: Number(personId) || null,
+          wikidata_id: qid
+        },
         diagnostic: {
           stage: "complete_zero_award_claims",
-          message: "Wikidata person resolved successfully but contains no P166/P1411 award claims.",
+          message:
+            "TMDB and Wikidata resolved successfully, but Wikidata contains no P166/P1411 award claims for this person.",
           name,
-          qid: identity.qid,
-          wikipedia_title: identity.title
+          qid
         }
       };
     }
@@ -441,7 +457,7 @@ async function getAccolades(personId, personName = "") {
     stage = "load_award_entities";
 
     const awardIds =
-      allClaims.map(claimItemId).filter(Boolean);
+      [...new Set(allClaims.map(claimItemId).filter(Boolean))];
 
     const awardEntities =
       await getWikidataEntities(awardIds);
@@ -470,14 +486,18 @@ async function getAccolades(personId, personName = "") {
     if (!academyClaims.length) {
       return {
         ...emptyAccolades(personId, false),
+        person: {
+          name,
+          tmdb_person_id: Number(personId) || null,
+          wikidata_id: qid
+        },
         diagnostic: {
           stage: "complete_zero_academy_awards",
-          message: "Wikidata resolved successfully, but none of the person's award claims matched an Academy Award category.",
+          message:
+            "TMDB and Wikidata resolved successfully, but none of the person's award claims matched an Academy Award category.",
           name,
-          qid: identity.qid,
-          wikipedia_title: identity.title,
-          total_award_claims: allClaims.length,
-          award_ids: awardIds
+          qid,
+          total_award_claims: allClaims.length
         }
       };
     }
@@ -494,7 +514,9 @@ async function getAccolades(personId, personName = "") {
     }
 
     const relatedEntities =
-      await getWikidataEntities(relatedIds);
+      await getWikidataEntities(
+        [...new Set(relatedIds.filter(Boolean))]
+      );
 
     stage = "build_award_history";
 
@@ -576,8 +598,7 @@ async function getAccolades(personId, personName = "") {
       person: {
         name,
         tmdb_person_id: Number(personId) || null,
-        wikidata_id: identity.qid,
-        wikipedia_title: identity.title
+        wikidata_id: qid
       },
       wins,
       nominations: history.length,
@@ -586,12 +607,11 @@ async function getAccolades(personId, personName = "") {
       academyAwards,
       accolades: academyAwards,
       unavailable: false,
-      source: "Wikidata",
+      source: "TMDB + Wikidata",
       diagnostic: {
         stage: "complete",
         message: "Academy Awards lookup completed.",
-        qid: identity.qid,
-        wikipedia_title: identity.title
+        qid
       }
     };
   } catch (error) {
@@ -607,8 +627,7 @@ async function getAccolades(personId, personName = "") {
       error,
       {
         name,
-        qid: identity?.qid || null,
-        wikipedia_title: identity?.title || null
+        qid
       }
     );
   }
