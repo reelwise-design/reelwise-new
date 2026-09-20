@@ -2030,6 +2030,34 @@ window.addEventListener("unhandledrejection",event=>{
 });
 const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),searchInput=document.getElementById("searchInput"),searchForm=document.getElementById("searchForm"),homeContent=document.getElementById("homeContent");
 let lastQuery="",currentMovie=null,currentCast=[];
+
+/*
+  STAR -> ACCOLADES RETURN STATE
+  Preserve the exact rendered star profile before opening Accolades.
+  Returning from Accolades restores that page instead of refetching
+  /api/person and accidentally producing a different biography/state.
+*/
+let reelwiseSavedStarPageHTML="";
+let reelwiseSavedStarId="";
+let reelwiseSavedStarName="";
+
+function returnFromPersonAccolades(id){
+  const safeId=String(id||"");
+
+  if(
+    reelwiseSavedStarPageHTML &&
+    reelwiseSavedStarId===safeId
+  ){
+    homeContent.style.display="none";
+    revealResults();
+    resultsTitle.textContent="";
+    results.innerHTML=reelwiseSavedStarPageHTML;
+    goToResults();
+    return;
+  }
+
+  showPerson(safeId);
+}
 if(searchForm&&searchInput){searchForm.addEventListener("submit",event=>{event.preventDefault();searchReelwise(searchInput.value)});}
 function revealResults(){searchArea.style.display="block"}
 function goToResults(){setTimeout(()=>searchArea.scrollIntoView({behavior:"smooth",block:"start"}),50)}
@@ -2734,16 +2762,29 @@ const filmographyHTML=[
 results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
 async function showPersonAccolades(id,name){
+  /*
+    Save the exact profile currently on screen BEFORE Accolades replaces it.
+    This preserves the biography, person ID, Known For and filmography.
+  */
+  const safeId=String(id||"");
+  const safeName=String(name||"Star");
+
+  if(
+    results.innerHTML &&
+    results.querySelector(".detail")
+  ){
+    reelwiseSavedStarPageHTML=results.innerHTML;
+    reelwiseSavedStarId=safeId;
+    reelwiseSavedStarName=safeName;
+  }
+
   homeContent.style.display="none";
   revealResults();
   resultsTitle.textContent="";
 
-  const safeId=String(id||"");
-  const safeName=String(name||"Star");
-
   function accoladesShell(body,eyebrow="REELWISE ACCOLADES"){
     return `
-      <button class="back-button" onclick="showPerson('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
+      <button class="back-button" onclick="returnFromPersonAccolades('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
       <div class="accolades-head">
         <div class="eyebrow">${escapeHTML(eyebrow)}</div>
         <h1>${escapeHTML(safeName)}</h1>
@@ -2866,7 +2907,7 @@ async function showPersonAccolades(id,name){
     `).join("");
 
     page.innerHTML=`
-      <button class="back-button" onclick="showPerson('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
+      <button class="back-button" onclick="returnFromPersonAccolades('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
       <div class="accolades-head">
         <div class="eyebrow">REELWISE ACCOLADES</div>
         <h1>${escapeHTML(safeName)}</h1>
