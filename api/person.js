@@ -905,11 +905,15 @@
           });
 
       /*
-        Choose up to two strong Wikipedia career sentences.
+        Choose the strongest early/mid-career source material first.
+
+        IMPORTANT:
+        Stop at three total biography sentences here. Sentence #4
+        is reserved for a meaningful later-career milestone.
       */
 
       for (const item of scored) {
-        if (selected.length >= 4) {
+        if (selected.length >= 3) {
           break;
         }
 
@@ -938,6 +942,165 @@
           }
 
           add(sentence);
+        }
+      }
+
+      /*
+        LATER-CAREER MILESTONE
+
+        The fourth sentence should advance the story rather than
+        simply taking the next eligible credit. Prefer later-career
+        material involving a return, revival, franchise, acclaimed
+        performance, major award recognition, directing/writing,
+        or another clearly meaningful career development.
+
+        This fixes cases such as Sylvester Stallone, where Rocky
+        and Rambo were correctly selected but an incidental comedy
+        sentence was previously chosen as the final highlight.
+      */
+
+      if (selected.length === 3) {
+        const currentYear =
+          new Date().getFullYear();
+
+        const laterCandidates =
+          careerSentences
+            .filter(sentence => {
+              const key =
+                keyOf(sentence);
+
+              if (
+                selected.some(
+                  existing =>
+                    keyOf(existing) === key
+                )
+              ) {
+                return false;
+              }
+
+              if (isResumeList(sentence)) {
+                return false;
+              }
+
+              return true;
+            })
+            .map((sentence, index) => {
+              const years =
+                sentence.match(
+                  /\b(?:19|20)\d{2}\b/g
+                ) || [];
+
+              const latestYear =
+                years.length
+                  ? Math.max(
+                      ...years.map(Number)
+                    )
+                  : null;
+
+              let score = 0;
+
+              /*
+                Later-career chronology matters here.
+              */
+              if (latestYear) {
+                if (
+                  latestYear >=
+                  currentYear - 12
+                ) {
+                  score += 10;
+                } else if (
+                  latestYear >=
+                  currentYear - 22
+                ) {
+                  score += 8;
+                } else if (
+                  latestYear >= 2000
+                ) {
+                  score += 5;
+                }
+              }
+
+              /*
+                Reward sentences that actually describe a career
+                development rather than merely naming another film.
+              */
+              if (
+                /\b(returned|return|reprised|reprise|revival|comeback|reunited|launched|created|developed|directed|wrote|screenplay|produced|producer)\b/i
+                  .test(sentence)
+              ) {
+                score += 10;
+              }
+
+              if (
+                /\b(franchise|series|sequel|legacy|career|recognition|acclaim|acclaimed|award|nominated|nomination|won|academy award|oscar|golden globe|bafta|emmy)\b/i
+                  .test(sentence)
+              ) {
+                score += 8;
+              }
+
+              if (
+                /\b(role|performance|portrayed|played|starred)\b/i
+                  .test(sentence)
+              ) {
+                score += 3;
+              }
+
+              const films =
+                titlesMentioned(sentence);
+
+              /*
+                Focused later-career sentences are preferred.
+                Do not reward long lists.
+              */
+              if (films.length === 1) {
+                score += 5;
+              } else if (films.length === 2) {
+                score += 3;
+              }
+
+              /*
+                Slightly prefer later source material when scores
+                otherwise tie.
+              */
+              score +=
+                Math.min(
+                  4,
+                  Math.floor(index / 5)
+                );
+
+              return {
+                sentence,
+                score,
+                latestYear,
+                index
+              };
+            })
+            .filter(
+              item =>
+                item.score >= 8
+            )
+            .sort((a, b) => {
+              if (b.score !== a.score) {
+                return b.score - a.score;
+              }
+
+              if (
+                (b.latestYear || 0) !==
+                (a.latestYear || 0)
+              ) {
+                return (
+                  (b.latestYear || 0) -
+                  (a.latestYear || 0)
+                );
+              }
+
+              return b.index - a.index;
+            });
+
+        if (laterCandidates.length) {
+          add(
+            laterCandidates[0].sentence
+          );
         }
       }
 
