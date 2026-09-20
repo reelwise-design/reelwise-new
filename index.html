@@ -2967,6 +2967,21 @@ async function showPersonAccolades(id,name){
         }
 
         const history=Array.isArray(candidate?.history)?candidate.history:[];
+
+        /*
+          THREE-STATE ACCOLADES:
+          confirmed:true is a successful lookup even when found:false
+          and history is empty. That is a legitimate zero-nomination
+          performer, not a temporary failure.
+        */
+        if(candidate?.confirmed===true){
+          data=candidate;
+          break;
+        }
+
+        /*
+          Backward compatibility for older successful API responses.
+        */
         if(candidate?.found && history.length){
           data=candidate;
           break;
