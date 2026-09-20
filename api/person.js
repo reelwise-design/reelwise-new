@@ -242,6 +242,95 @@
             .match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [];
         }
 
+        function stripWikiMarkup(value) {
+          return String(value || "")
+            .replace(/<!--[\s\S]*?-->/g, " ")
+            .replace(/<ref\b[^>]*>[\s\S]*?<\/ref>/gi, " ")
+            .replace(/<ref\b[^>]*\/>/gi, " ")
+            .replace(/\{\{[\s\S]*?\}\}/g, " ")
+            .replace(/\[\[(?:[^|\]]*\|)?([^\]]+)\]\]/g, "$1")
+            .replace(/''+/g, "")
+            .replace(/={2,}[^=]+={2,}/g, " ")
+            .replace(/\s+/g, " ")
+            .trim();
+        }
+
+        async function getWikipediaCareerText(name) {
+          try {
+            const searchUrl =
+              "https://en.wikipedia.org/w/api.php?" +
+              new URLSearchParams({
+                action: "query",
+                list: "search",
+                srsearch: name,
+                format: "json",
+                origin: "*"
+              });
+
+            const searchData = await fetchJSON(searchUrl);
+            const results = searchData?.query?.search || [];
+
+            if (!results.length) return "";
+
+            const exactMatch = results.find(
+              item =>
+                item.title &&
+                item.title.toLowerCase() === String(name).toLowerCase()
+            );
+
+            const pageTitle = exactMatch?.title || results[0]?.title;
+            if (!pageTitle) return "";
+
+            /*
+              Pull the article's parsed plain-text sections instead of relying
+              only on Wikipedia's short REST summary. The summary often omits
+              the breakthrough film that Reelwise needs for a career biography.
+            */
+            const parseUrl =
+              "https://en.wikipedia.org/w/api.php?" +
+              new URLSearchParams({
+                action: "parse",
+                page: pageTitle,
+                prop: "text|sections",
+                format: "json",
+                origin: "*"
+              });
+
+            const parsed = await fetchJSON(parseUrl, {}, 10000);
+            const html = parsed?.parse?.text?.["*"] || "";
+
+            if (!html) return "";
+
+            let text = html
+              .replace(/<style[\s\S]*?<\/style>/gi, " ")
+              .replace(/<script[\s\S]*?<\/script>/gi, " ")
+              .replace(/<table[\s\S]*?<\/table>/gi, " ")
+              .replace(/<sup[\s\S]*?<\/sup>/gi, " ")
+              .replace(/<li\b[^>]*>/gi, " ")
+              .replace(/<\/li>/gi, ". ")
+              .replace(/<\/p>/gi, ". ")
+              .replace(/<br\s*\/?>/gi, " ")
+              .replace(/<[^>]+>/g, " ");
+
+            text = cleanText(text)
+              .replace(/\[\d+\]/g, "")
+              .replace(/\s+\./g, ".")
+              .replace(/\.{2,}/g, ".")
+              .trim();
+
+            /*
+              Keep enough article text to capture early career, breakthrough,
+              defining work and later career without sending enormous pages
+              through the biography selector.
+            */
+            return text.slice(0, 18000);
+
+          } catch (error) {
+            console.error("Wikipedia career text error:", error);
+            return "";
+          }
+        }
+
         function getMovieCredits(person) {
           const cast = Array.isArray(person?.combined_credits?.cast)
             ? person.combined_credits.cast
@@ -272,51 +361,21 @@
             });
         }
 
-        function movieScore(movie) {
-          const votes = Number(movie?.vote_count || 0);
-          const popularity = Number(movie?.popularity || 0);
-          const rating = Number(movie?.vote_average || 0);
-          const order = Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 30;
+        function sentenceMovieMatches(sentence, movies) {
+          const lower = String(sentence || "").toLowerCase();
 
-          let billing = 0;
-          if (order <= 2) billing = 55;
-          else if (order <= 5) billing = 42;
-          else if (order <= 10) billing = 28;
-          else if (order <= 20) billing = 12;
-
-          return billing +
-            Math.log10(votes + 1) * 18 +
-            Math.min(popularity, 100) * 0.16 +
-            rating * 1.5;
+          return movies.filter(movie => {
+            const title = String(movie.title || "").toLowerCase().trim();
+            return title && lower.includes(title);
+          });
         }
 
-        function sourceMentionsMovie(sentence, movie) {
-          const s = String(sentence || "").toLowerCase();
-          const title = String(movie?.title || "").toLowerCase();
-          return title && s.includes(title);
-        }
-
-        function findBreakthroughSentence(sentences, movies) {
-          const breakthroughTerms =
-            /\b(debut|film debut|breakthrough|breakthrough role|breakout|rose to prominence|gained recognition|gained acclaim|first major role|first film role|career-making)\b/i;
-
-          return sentences.find(sentence =>
-            breakthroughTerms.test(sentence) &&
-            movies.some(movie => sourceMentionsMovie(sentence, movie))
-          ) || "";
-        }
-
-        function moviesMentionedInSentence(sentence, movies) {
-          return movies
-            .filter(movie => sourceMentionsMovie(sentence, movie))
-            .sort((a, b) =>
-              String(a.release_date || "").localeCompare(String(b.release_date || ""))
-            );
+        function movieYear(movie) {
+          return parseInt(String(movie?.release_date || "").slice(0, 4), 10) || 0;
         }
 
         function formatFilm(movie) {
-          if (!movie) return "";
-          const year = String(movie.release_date || "").slice(0, 4);
+          const year = movieYear(movie);
           return year ? `${movie.title} (${year})` : movie.title;
         }
 
@@ -330,175 +389,199 @@
           return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
         }
 
-        function pickDefiningMovies(person, sourceBio, excludedIds = new Set(), limit = 3) {
-          const movies = getMovieCredits(person);
-          const source = String(sourceBio || "").toLowerCase();
-
-          /*
-            Movies actually named by the biography get priority over raw
-            popularity. This prevents commercially large but less defining
-            credits from displacing films central to the actor's career story.
-          */
-          const mentioned = movies
-            .filter(movie =>
-              !excludedIds.has(movie.id) &&
-              source.includes(String(movie.title || "").toLowerCase())
-            )
-            .sort((a, b) => {
-              const scoreDiff = movieScore(b) - movieScore(a);
-              if (Math.abs(scoreDiff) > 12) return scoreDiff;
-              return String(a.release_date || "").localeCompare(String(b.release_date || ""));
-            });
-
-          const selected = [];
-          const used = new Set(excludedIds);
-
-          for (const movie of mentioned) {
-            if (selected.length >= limit) break;
-            selected.push(movie);
-            used.add(movie.id);
-          }
-
-          const ranked = movies
-            .filter(movie => !used.has(movie.id))
-            .sort((a, b) => movieScore(b) - movieScore(a));
-
-          for (const movie of ranked) {
-            if (selected.length >= limit) break;
-            selected.push(movie);
-            used.add(movie.id);
-          }
-
-          return selected;
-        }
-
-        function pickLaterMovies(person, sourceBio, excludedIds = new Set(), limit = 3) {
-          const movies = getMovieCredits(person);
-          const source = String(sourceBio || "").toLowerCase();
-
-          const available = movies.filter(movie => !excludedIds.has(movie.id));
-          if (!available.length) return [];
-
-          const years = available
-            .map(movie => parseInt(String(movie.release_date || "").slice(0, 4), 10))
-            .filter(Number.isFinite);
-
-          const latestYear = years.length ? Math.max(...years) : 0;
-          const laterFloor = latestYear ? latestYear - 14 : 0;
-
-          const later = available
-            .filter(movie => {
-              const year = parseInt(String(movie.release_date || "").slice(0, 4), 10);
-              return !laterFloor || year >= laterFloor;
-            })
-            .sort((a, b) => {
-              const aMentioned = source.includes(String(a.title || "").toLowerCase()) ? 1 : 0;
-              const bMentioned = source.includes(String(b.title || "").toLowerCase()) ? 1 : 0;
-              if (aMentioned !== bMentioned) return bMentioned - aMentioned;
-              return movieScore(b) - movieScore(a);
-            });
-
-          return later.slice(0, limit).sort((a, b) =>
-            String(a.release_date || "").localeCompare(String(b.release_date || ""))
-          );
-        }
-
-        function careerFocusedBiography(sourceBio, person) {
-          const sentences = splitBioSentences(sourceBio);
+        function chooseCareerSentences(articleText, person) {
+          const sentences = splitBioSentences(articleText);
           const movies = getMovieCredits(person);
           const name = cleanText(person?.name || "This performer");
-
-          if (!sentences.length) return "";
 
           const personalTerms =
             /\b(married|marriage|wife|husband|spouse|children|daughter|son|activist|political|politics|religion|charity|philanthrop|personal life|resides|lives in)\b/i;
 
+          const breakthroughTerms =
+            /\b(film debut|debut|breakthrough|breakout|rose to prominence|gained recognition|gained critical acclaim|first major role|first film role|career-making)\b/i;
+
+          const careerTerms =
+            /\b(film|films|movie|movies|role|roles|starred|starring|performance|performances|acting|actor|actress|filmmaker|director|directed|portrayed|appeared in)\b/i;
+
           const awardTerms =
             /\b(academy award|oscar|golden globe|bafta|emmy|award|awards|accolade|accolades|nomination|nominations)\b/i;
 
-          const identity =
-            sentences.find(sentence =>
-              /\b(actor|actress|filmmaker|director|comedian|performer)\b/i.test(sentence)
-            ) || `${name} is a film performer.`;
-
-          const breakthroughSentence = findBreakthroughSentence(sentences, movies);
-          const breakthroughMovies = moviesMentionedInSentence(breakthroughSentence, movies);
-          const excluded = new Set(breakthroughMovies.map(movie => movie.id));
-
-          const defining = pickDefiningMovies(person, sourceBio, excluded, 3);
-          defining.forEach(movie => excluded.add(movie.id));
-
-          const later = pickLaterMovies(person, sourceBio, excluded, 3);
-
-          const parts = [];
-
           /*
-            1. Identity: keep it short. Awards belong in Accolades unless they
-               directly explain the breakthrough or a defining performance.
+            Find a concise identity sentence.
           */
-          if (awardTerms.test(identity) && identity.length > 190) {
-            const actorType =
-              /\bfilmmaker\b/i.test(identity)
-                ? "actor and filmmaker"
-                : /\bactress\b/i.test(identity)
-                  ? "actress"
-                  : "actor";
+          let identity = sentences.find(sentence =>
+            sentence.length <= 260 &&
+            /\b(actor|actress|filmmaker|director|comedian|performer)\b/i.test(sentence) &&
+            !personalTerms.test(sentence)
+          );
 
-            parts.push(`${name} is an ${actorType}.`);
-          } else {
-            parts.push(identity);
+          if (!identity || awardTerms.test(identity)) {
+            const isFilmmaker = sentences.some(sentence => /\bfilmmaker|director\b/i.test(sentence));
+            const isActress = sentences.some(sentence => /\bactress\b/i.test(sentence));
+            identity = isFilmmaker
+              ? `${name} is an actor and filmmaker.`
+              : isActress
+                ? `${name} is an actress.`
+                : `${name} is an actor.`;
           }
 
           /*
-            2. Breakthrough/debut ALWAYS comes before popularity-ranked credits.
-               Preserve the source wording because it often contains the useful
-               context: debut, acclaim, and the award nomination tied to the role.
+            Breakthrough is the most important selection rule.
+            It must contain both breakthrough language AND a real TMDB film title.
           */
-          if (breakthroughSentence) {
-            parts.push(breakthroughSentence);
-          } else if (defining.length) {
-            parts.push(
-              `${name}'s defining films include ${formatFilmList(defining)}.`
+          let breakthrough = "";
+          let breakthroughMovies = [];
+
+          for (const sentence of sentences) {
+            if (!breakthroughTerms.test(sentence)) continue;
+            if (personalTerms.test(sentence)) continue;
+
+            const matches = sentenceMovieMatches(sentence, movies);
+            if (!matches.length) continue;
+
+            breakthrough = sentence;
+            breakthroughMovies = matches;
+            break;
+          }
+
+          /*
+            Some articles split the breakthrough across adjacent sentences:
+            one sentence says "film debut" and the next names the film.
+          */
+          if (!breakthrough) {
+            for (let i = 0; i < sentences.length - 1; i++) {
+              if (!breakthroughTerms.test(sentences[i])) continue;
+
+              const combined = `${sentences[i]} ${sentences[i + 1]}`;
+              const matches = sentenceMovieMatches(combined, movies);
+
+              if (matches.length && !personalTerms.test(combined)) {
+                breakthrough = combined;
+                breakthroughMovies = matches;
+                break;
+              }
+            }
+          }
+
+          const usedMovieIds = new Set(breakthroughMovies.map(movie => movie.id));
+
+          /*
+            Gather career sentences that contain actual movie titles.
+          */
+          const careerCandidates = sentences
+            .map((sentence, index) => ({
+              sentence,
+              index,
+              matches: sentenceMovieMatches(sentence, movies)
+            }))
+            .filter(item =>
+              item.matches.length &&
+              careerTerms.test(item.sentence) &&
+              !personalTerms.test(item.sentence) &&
+              item.sentence !== breakthrough
             );
-            defining.length = 0;
+
+          /*
+            Defining work: prefer the earliest strong post-breakthrough sentence.
+            This preserves career chronology instead of popularity ranking.
+          */
+          let defining = "";
+
+          const breakthroughYear = breakthroughMovies.length
+            ? Math.min(...breakthroughMovies.map(movieYear).filter(Boolean))
+            : 0;
+
+          for (const item of careerCandidates) {
+            const fresh = item.matches.filter(movie => !usedMovieIds.has(movie.id));
+            if (!fresh.length) continue;
+
+            const years = fresh.map(movieYear).filter(Boolean);
+            const earliest = years.length ? Math.min(...years) : 0;
+
+            if (!breakthroughYear || !earliest || earliest >= breakthroughYear) {
+              defining = item.sentence;
+              fresh.forEach(movie => usedMovieIds.add(movie.id));
+              break;
+            }
           }
 
           /*
-            3. Defining work after the breakthrough.
+            Later career: search from the end for a movie-rich sentence that adds
+            new films. This gives the bio a real career arc.
           */
-          if (defining.length) {
-            parts.push(
-              `Other defining films include ${formatFilmList(defining)}.`
-            );
+          let later = "";
+
+          for (let i = careerCandidates.length - 1; i >= 0; i--) {
+            const item = careerCandidates[i];
+            if (item.sentence === defining) continue;
+
+            const fresh = item.matches.filter(movie => !usedMovieIds.has(movie.id));
+            if (!fresh.length) continue;
+
+            later = item.sentence;
+            break;
           }
 
           /*
-            4. Later career.
+            If Wikipedia parsing does not yield enough usable prose, use actual
+            chronology from TMDB only as a fallback—not as the primary selector.
           */
-          if (later.length) {
-            parts.push(
-              `Later notable work includes ${formatFilmList(later)}.`
-            );
+          if (!breakthrough) {
+            const chronological = [...movies]
+              .sort((a, b) => movieYear(a) - movieYear(b))
+              .filter(movie => movieYear(movie) > 0);
+
+            const firstMeaningful = chronological.find(movie => {
+              const votes = Number(movie.vote_count || 0);
+              const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+              return votes >= 100 || order <= 10;
+            });
+
+            if (firstMeaningful) {
+              breakthrough =
+                `${name}'s early film career included ${formatFilm(firstMeaningful)}.`;
+              usedMovieIds.add(firstMeaningful.id);
+            }
           }
+
+          if (!defining) {
+            const sourceLower = String(articleText || "").toLowerCase();
+
+            const mentioned = movies
+              .filter(movie =>
+                !usedMovieIds.has(movie.id) &&
+                sourceLower.includes(String(movie.title || "").toLowerCase())
+              )
+              .sort((a, b) => movieYear(a) - movieYear(b))
+              .slice(0, 3);
+
+            if (mentioned.length) {
+              defining = `Defining films include ${formatFilmList(mentioned)}.`;
+              mentioned.forEach(movie => usedMovieIds.add(movie.id));
+            }
+          }
+
+          const parts = [identity, breakthrough, defining, later]
+            .map(value => String(value || "").replace(/\s+/g, " ").trim())
+            .filter(Boolean);
 
           const unique = [];
           const seen = new Set();
 
           for (const sentence of parts) {
-            const clean = String(sentence || "").replace(/\s+/g, " ").trim();
-            const key = clean.toLowerCase();
-            if (!clean || seen.has(key) || personalTerms.test(clean)) continue;
+            const key = sentence.toLowerCase();
+            if (seen.has(key)) continue;
             seen.add(key);
-            unique.push(clean);
+            unique.push(sentence);
             if (unique.length >= 4) break;
           }
 
           let bio = unique.join(" ");
 
           /*
-            Mobile-friendly limit, but never cut a sentence in half.
+            Keep it mobile-friendly without cutting a sentence.
           */
-          const MAX_CHARS = 1100;
+          const MAX_CHARS = 1150;
 
           if (bio.length > MAX_CHARS) {
             const compact = [];
@@ -528,23 +611,43 @@
 
           const tmdbBio = cleanText(person?.biography || "");
 
-          let wikipediaBio = "";
+          /*
+            Primary biography source: richer Wikipedia article text.
+            Fallback: Wikipedia summary, then TMDB biography.
+          */
+          let wikipediaCareerText = "";
+          let wikipediaSummary = "";
+
           try {
-            wikipediaBio = await getWikipediaBiography(person?.name || "");
+            wikipediaCareerText = await getWikipediaCareerText(person?.name || "");
           } catch (error) {
-            wikipediaBio = "";
+            wikipediaCareerText = "";
           }
 
-          const sourceBio =
-            wikipediaBio && wikipediaBio.length >= 120
-              ? wikipediaBio
-              : tmdbBio;
+          try {
+            wikipediaSummary = await getWikipediaBiography(person?.name || "");
+          } catch (error) {
+            wikipediaSummary = "";
+          }
 
-          const biography =
-            careerFocusedBiography(sourceBio, person) ||
-            careerFocusedBiography(tmdbBio, person) ||
+          let biography = "";
+
+          if (wikipediaCareerText) {
+            biography = chooseCareerSentences(wikipediaCareerText, person);
+          }
+
+          if (!biography && wikipediaSummary) {
+            biography = chooseCareerSentences(wikipediaSummary, person);
+          }
+
+          if (!biography && tmdbBio) {
+            biography = chooseCareerSentences(tmdbBio, person);
+          }
+
+          biography =
+            biography ||
             tmdbBio ||
-            wikipediaBio ||
+            wikipediaSummary ||
             "";
 
           return {
