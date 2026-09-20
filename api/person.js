@@ -2919,9 +2919,8 @@ function isGoodAccolades(data) {
       knownWikidataId = ""
     ) {
       /*
-        REELWISE OSCAR VAULT FIRST
-        A confirmed local record wins immediately, including a
-        confirmed zero-nomination record.
+        1. REELWISE OSCAR VAULT
+        Confirmed local records always win, including confirmed zero.
       */
       const vaultRecord =
         getOscarVaultRecord(name);
@@ -2931,55 +2930,168 @@ function isGoodAccolades(data) {
       }
 
       /*
-        1. Official Academy database first.
-        2. Existing Wikidata engine only if official lookup fails.
-
-        IMPORTANT:
-        A failed network request is not treated as proof that the
-        performer has zero nominations.
+        2. OFFICIAL ACADEMY
+        Use a positive result immediately. An empty result here is not
+        enough by itself to prove zero because this endpoint can fail
+        intermittently in serverless environments.
       */
+      try {
+        const official =
+          await getOfficialAcademyAwards(name);
 
-      const official =
-        await getOfficialAcademyAwards(
-          name
+        if (
+          official?.found === true &&
+          Array.isArray(official.history) &&
+          official.history.length
+        ) {
+          return {
+            ...official,
+            confirmed: true,
+            source: "Academy Awards"
+          };
+        }
+      } catch (error) {
+        console.error(
+          "Official Academy lookup failed:",
+          error
         );
-
-      if (
-        official &&
-        official.found &&
-        official.history.length
-      ) {
-        return official;
       }
 
       /*
-        If the Academy endpoint is unavailable from Vercel, use the
-        performer's Wikipedia Academy Awards table. This is especially
-        important for highly nominated performers whose Wikidata records
-        can be large or incomplete when resolved through many claims.
+        3. WIKIPEDIA AWARDS TABLE
+        Again, a positive Oscar history is accepted immediately.
       */
+      try {
+        const wikipedia =
+          await getWikipediaAcademyAwards(name);
 
-      const wikipediaAwards =
-        await getWikipediaAcademyAwards(
-          name
+        if (
+          wikipedia?.found === true &&
+          Array.isArray(wikipedia.history) &&
+          wikipedia.history.length
+        ) {
+          return {
+            ...wikipedia,
+            confirmed: true,
+            source: "Wikipedia"
+          };
+        }
+      } catch (error) {
+        console.error(
+          "Wikipedia awards lookup failed:",
+          error
         );
-
-      if (
-        wikipediaAwards &&
-        wikipediaAwards.found &&
-        wikipediaAwards.history.length
-      ) {
-        return wikipediaAwards;
       }
 
-      return (
-        await getWikidataAwardsAndAccolades(
-          name,
-          knownWikidataId
-        )
-      );
-    }
+      /*
+        4. WIKIDATA — POSITIVE OR CONFIRMED ZERO
 
+        This is the crucial distinction:
+        If the person's Wikidata entity itself loads successfully, we can
+        inspect P1411 (nominated for) and P166 (award received).
+
+        - Academy claims present -> return Oscar history.
+        - Entity loaded successfully but contains no Academy claims ->
+          confirmed zero nominations.
+        - Entity could not be loaded -> genuine temporary failure.
+
+        This works for actors such as Henry Winkler without manually adding
+        every zero-nomination performer to the Oscar Vault.
+      */
+      try {
+        let wikidataId =
+          knownWikidataId;
+
+        if (!wikidataId) {
+          const page =
+            await getWikipediaPage(name);
+
+          wikidataId =
+            page?.wikidataId || "";
+        }
+
+        if (!wikidataId) {
+          throw new Error(
+            "No Wikidata identity was available."
+          );
+        }
+
+        /*
+          Force an entity read here so we can distinguish a real empty
+          awards record from a failed source request.
+        */
+        const entity =
+          await getWikidataEntity(
+            wikidataId
+          );
+
+        if (
+          !entity ||
+          !entity.claims
+        ) {
+          throw new Error(
+            "Wikidata entity could not be read."
+          );
+        }
+
+        const wikidata =
+          await getWikidataAwardsAndAccolades(
+            name,
+            wikidataId
+          );
+
+        if (
+          wikidata?.found === true &&
+          Array.isArray(wikidata.history) &&
+          wikidata.history.length
+        ) {
+          return {
+            ...wikidata,
+            confirmed: true,
+            source: "Wikidata"
+          };
+        }
+
+        /*
+          The entity read succeeded and no Academy Award claims survived
+          the Oscar filter. This is a legitimate confirmed zero.
+        */
+        return {
+          confirmed: true,
+          found: false,
+          wins: 0,
+          nominations: 0,
+          history: [],
+          academy_awards: [],
+          academyAwards: [],
+          accolades: [],
+          source: "Wikidata confirmed zero"
+        };
+
+      } catch (error) {
+        console.error(
+          "Wikidata Oscar verification failed:",
+          error
+        );
+      }
+
+      /*
+        All verification sources failed. Only this state should produce
+        "Academy Awards data is temporarily unavailable."
+      */
+      return {
+        confirmed: false,
+        found: false,
+        wins: 0,
+        nominations: 0,
+        history: [],
+        academy_awards: [],
+        academyAwards: [],
+        accolades: [],
+        temporary: true,
+        source: "Unavailable"
+      };
+    }
 
     /* ============================================================
        API HANDLER
