@@ -5,7 +5,11 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   REELWISE PERSON API
   ============================================================
 
-  Handles Reelwise star profiles AND Academy Awards.
+  Handles:
+  - Star profiles
+  - Wikipedia biographies
+  - Known For movies
+  - Academy Awards / Accolades
 
   Normal:
     /api/person?id=123
@@ -13,17 +17,20 @@ const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
   Academy Awards:
     /api/person?id=123&mode=accolades
 
-  IMPORTANT:
-  A completed Academy Awards lookup returns:
+  ACCOLADES CONTRACT:
+
+  Successful completed lookup:
     confirmed: true
 
-  This tells the Reelwise front end that the lookup genuinely
-  completed — including when the person has zero Oscar
-  nominations.
-
-  A genuine lookup failure returns:
+  Genuine technical failure:
     confirmed: false
     unavailable: true
+
+  IMPORTANT:
+  Oscar winning claims sometimes omit the film/work in Wikidata.
+
+  Reelwise now attempts to recover that missing film from the
+  matching nomination record for the same Oscar category/year.
   ============================================================
 */
 
@@ -48,7 +55,7 @@ function removeWikipediaEnding(text = "") {
 
 
 /* ============================================================
-   FETCH HELPER
+   FETCH
    ============================================================ */
 
 async function fetchJSON(url, options = {}) {
@@ -68,7 +75,9 @@ async function fetchJSON(url, options = {}) {
       .toLowerCase()
       .includes("application/json")
   ) {
-    throw new Error("Expected JSON response.");
+    throw new Error(
+      "Expected JSON response."
+    );
   }
 
   return response.json();
@@ -133,8 +142,7 @@ async function getWikipediaBiography(name) {
       removeWikipediaEnding(bio);
 
     if (
-      summaryData?.type ===
-        "disambiguation" ||
+      summaryData?.type === "disambiguation" ||
       bio.length < 80
     ) {
       return "";
@@ -205,7 +213,7 @@ async function getPersonExternalIds(personId) {
 
 
 /* ============================================================
-   ACADEMY AWARDS RESPONSE HELPERS
+   ACCOLADES RESPONSE HELPERS
    ============================================================ */
 
 function emptyAccolades(
@@ -293,9 +301,7 @@ function diagnosticAccolades(
    WIKIDATA
    ============================================================ */
 
-async function getWikidataEntities(
-  ids = []
-) {
+async function getWikidataEntities(ids = []) {
   const unique =
     [
       ...new Set(
@@ -308,11 +314,6 @@ async function getWikidataEntities(
   }
 
   const output = {};
-
-  /*
-    Keep batches small enough for the
-    Wikidata Action API.
-  */
 
   for (
     let i = 0;
@@ -421,10 +422,6 @@ function timeValueToYear(value) {
 
 
 function claimYear(claim) {
-  /*
-    Point in time
-  */
-
   const pointInTime =
     claim
       ?.qualifiers
@@ -441,10 +438,6 @@ function claimYear(claim) {
   if (year) {
     return year;
   }
-
-  /*
-    Start time fallback
-  */
 
   const startTime =
     claim
@@ -480,18 +473,6 @@ function isAcademyAwardEntity(entity) {
     return false;
   }
 
-  /*
-    Most Oscar categories appear in Wikidata as:
-      Academy Award for Best Actor
-      Academy Award for Best Actress
-      Academy Award for Best Supporting Actor
-      Academy Award for Best Supporting Actress
-      Academy Award for Best Director
-      etc.
-
-    Honorary Academy Awards are also accepted.
-  */
-
   return (
     label.includes(
       "academy award"
@@ -517,12 +498,155 @@ function isAcademyAwardEntity(entity) {
 
 
 /* ============================================================
-   HISTORY CLEANUP
+   HISTORY HELPERS
    ============================================================ */
 
-function dedupeHistory(
-  items = []
-) {
+function normalizeCategory(value = "") {
+  return cleanText(value)
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+
+/*
+  Oscar claims can occasionally disagree about year formatting.
+
+  This helper considers:
+    exact year
+    one-year difference
+
+  A one-year difference is allowed because Wikidata records may
+  represent either the film year or the ceremony year.
+*/
+
+function yearsMatch(a, b) {
+  if (!a || !b) {
+    return false;
+  }
+
+  return (
+    Number(a) === Number(b) ||
+    Math.abs(
+      Number(a) - Number(b)
+    ) === 1
+  );
+}
+
+
+/*
+  ============================================================
+  RECOVER MISSING WINNING FILMS
+  ============================================================
+
+  Example:
+
+  WIN CLAIM:
+    1995
+    Academy Award for Best Actor
+    movie: ""
+
+  NOMINATION CLAIM:
+    1995
+    Academy Award for Best Actor
+    movie: "Forrest Gump"
+
+  Result:
+
+    1995
+    Academy Award for Best Actor
+    movie: "Forrest Gump"
+    winner: true
+*/
+
+function recoverMissingWinningFilms(items = []) {
+  const output =
+    items.map(item => ({
+      ...item
+    }));
+
+  const nominees =
+    output.filter(
+      item =>
+        !item.winner &&
+        cleanText(item.movie)
+    );
+
+  for (const winner of output) {
+    if (!winner.winner) {
+      continue;
+    }
+
+    if (cleanText(winner.movie)) {
+      continue;
+    }
+
+    const winnerCategory =
+      normalizeCategory(
+        winner.category
+      );
+
+    /*
+      First try:
+      Same category + exact year.
+    */
+
+    let match =
+      nominees.find(
+        nominee =>
+          normalizeCategory(
+            nominee.category
+          ) === winnerCategory &&
+          Number(nominee.year) ===
+            Number(winner.year)
+      );
+
+
+    /*
+      Second try:
+      Same category + adjacent year.
+
+      This covers ceremony-year vs film-year
+      differences in Wikidata.
+    */
+
+    if (!match) {
+      match =
+        nominees.find(
+          nominee =>
+            normalizeCategory(
+              nominee.category
+            ) === winnerCategory &&
+            yearsMatch(
+              nominee.year,
+              winner.year
+            )
+        );
+    }
+
+
+    /*
+      Only copy a real film title.
+    */
+
+    if (
+      match &&
+      cleanText(match.movie)
+    ) {
+      winner.movie =
+        cleanText(match.movie);
+    }
+  }
+
+  return output;
+}
+
+
+/* ============================================================
+   DEDUPE HISTORY
+   ============================================================ */
+
+function dedupeHistory(items = []) {
   const map =
     new Map();
 
@@ -534,9 +658,9 @@ function dedupeHistory(
     const key = [
       item.year || "",
 
-      cleanText(
+      normalizeCategory(
         item.category
-      ).toLowerCase(),
+      ),
 
       cleanText(
         item.movie
@@ -546,15 +670,6 @@ function dedupeHistory(
 
     const existing =
       map.get(key);
-
-    /*
-      A Wikidata person can sometimes
-      contain both a nomination claim
-      and a received-award claim for the
-      same Oscar.
-
-      Preserve the winning version.
-    */
 
     if (
       !existing ||
@@ -574,6 +689,65 @@ function dedupeHistory(
       (b.year || 0) -
       (a.year || 0)
   );
+}
+
+
+/* ============================================================
+   MERGE DUPLICATE WIN / NOMINATION EVENTS
+   ============================================================ */
+
+function mergeWinningDuplicates(items = []) {
+  const winners =
+    items.filter(
+      item => item.winner
+    );
+
+  const output = [];
+
+  for (const item of items) {
+    /*
+      If this is a nomination and there is a
+      winning version for the same category,
+      year and movie, the winning version wins.
+    */
+
+    if (!item.winner) {
+      const duplicateWinner =
+        winners.find(
+          winner =>
+            normalizeCategory(
+              winner.category
+            ) ===
+              normalizeCategory(
+                item.category
+              ) &&
+
+            yearsMatch(
+              winner.year,
+              item.year
+            ) &&
+
+            cleanText(
+              winner.movie
+            ).toLowerCase() ===
+              cleanText(
+                item.movie
+              ).toLowerCase() &&
+
+            cleanText(
+              item.movie
+            )
+        );
+
+      if (duplicateWinner) {
+        continue;
+      }
+    }
+
+    output.push(item);
+  }
+
+  return output;
 }
 
 
@@ -599,17 +773,15 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 1
-      Resolve the exact TMDB person.
+      Resolve TMDB person.
       ----------------------------------------------------------
     */
 
     stage =
       "resolve_tmdb_person";
 
-    let tmdbPerson = null;
-
     if (!name) {
-      tmdbPerson =
+      const tmdbPerson =
         await getPersonDetails(
           personId
         );
@@ -632,11 +804,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 2
-      Get the exact Wikidata QID directly
-      from TMDB.
-
-      This avoids guessing which person
-      Wikipedia/Wikidata search results mean.
+      Exact Wikidata ID from TMDB.
       ----------------------------------------------------------
     */
 
@@ -655,13 +823,6 @@ async function getAccolades(
         ""
       );
 
-    /*
-      If TMDB has no Wikidata ID, this
-      does NOT prove the person has zero
-      Oscars. It means Reelwise cannot
-      confirm the lookup.
-    */
-
     if (!qid) {
       return diagnosticAccolades(
         personId,
@@ -677,7 +838,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 3
-      Load the Wikidata person record.
+      Wikidata person entity.
       ----------------------------------------------------------
     */
 
@@ -711,8 +872,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 4
-      Read award received + nomination
-      claims.
+      Award claims.
 
       P166 = award received
       P1411 = nominated for
@@ -747,10 +907,7 @@ async function getAccolades(
 
 
     /*
-      Wikidata resolved successfully.
-
-      No award claims is therefore a
-      COMPLETED lookup, not an outage.
+      Completed lookup with zero claims.
     */
 
     if (!allClaims.length) {
@@ -789,8 +946,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 5
-      Load every award category referenced
-      by those claims.
+      Load award entities.
       ----------------------------------------------------------
     */
 
@@ -815,7 +971,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 6
-      Keep Academy Awards only.
+      Academy Awards only.
       ----------------------------------------------------------
     */
 
@@ -847,16 +1003,6 @@ async function getAccolades(
       ...academyNominationClaims
     ];
 
-
-    /*
-      We successfully examined the person's
-      awards and found no Academy Awards.
-
-      This MUST return confirmed:true.
-
-      Otherwise the Reelwise front end will
-      think the API failed and retry.
-    */
 
     if (!academyClaims.length) {
       return {
@@ -898,7 +1044,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 7
-      Load related works and ceremonies.
+      Load films and ceremonies.
 
       P1686 = for work
       P805  = statement is subject of
@@ -943,7 +1089,7 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       STEP 8
-      Build Reelwise award cards.
+      Build raw Oscar history.
       ----------------------------------------------------------
     */
 
@@ -994,8 +1140,7 @@ async function getAccolades(
 
 
       /*
-        If the claim itself has no year,
-        attempt to get the ceremony date.
+        Ceremony date fallback.
       */
 
       if (
@@ -1024,7 +1169,7 @@ async function getAccolades(
 
 
       /*
-        MOVIE / WORK
+        FILM
       */
 
       const movie =
@@ -1061,32 +1206,81 @@ async function getAccolades(
     }
 
 
-    const history =
-      dedupeHistory(
-        [
-          ...academyWinClaims.map(
-            claim =>
-              buildHistoryItem(
-                claim,
-                true
-              )
-          ),
+    /*
+      Build the raw claim list FIRST.
 
-          ...academyNominationClaims.map(
-            claim =>
-              buildHistoryItem(
-                claim,
-                false
-              )
+      We intentionally do not dedupe yet because
+      the nomination version may contain a movie
+      title missing from the winning version.
+    */
+
+    let rawHistory = [
+      ...academyWinClaims.map(
+        claim =>
+          buildHistoryItem(
+            claim,
+            true
           )
-        ].filter(Boolean)
-      );
+      ),
+
+      ...academyNominationClaims.map(
+        claim =>
+          buildHistoryItem(
+            claim,
+            false
+          )
+      )
+    ].filter(Boolean);
 
 
     /*
       ----------------------------------------------------------
       STEP 9
-      Calculate totals.
+      Recover missing winner films.
+
+      This is the important fix for:
+        Tom Hanks
+        1995
+        Forrest Gump
+      ----------------------------------------------------------
+    */
+
+    rawHistory =
+      recoverMissingWinningFilms(
+        rawHistory
+      );
+
+
+    /*
+      ----------------------------------------------------------
+      STEP 10
+      Remove duplicate winner/nominee entries.
+      ----------------------------------------------------------
+    */
+
+    rawHistory =
+      mergeWinningDuplicates(
+        rawHistory
+      );
+
+
+    /*
+      ----------------------------------------------------------
+      STEP 11
+      Final dedupe + sorting.
+      ----------------------------------------------------------
+    */
+
+    const history =
+      dedupeHistory(
+        rawHistory
+      );
+
+
+    /*
+      ----------------------------------------------------------
+      STEP 12
+      Totals.
       ----------------------------------------------------------
     */
 
@@ -1102,13 +1296,8 @@ async function getAccolades(
 
     /*
       ----------------------------------------------------------
-      STEP 10
-      Build all response aliases expected
-      by Reelwise.
-
-      Keeping these aliases means the
-      existing index.html does not need
-      to be changed.
+      STEP 13
+      Response aliases expected by index.html.
       ----------------------------------------------------------
     */
 
@@ -1147,13 +1336,6 @@ async function getAccolades(
     /*
       ----------------------------------------------------------
       SUCCESS
-      ----------------------------------------------------------
-
-      confirmed:true is critical.
-
-      The current Reelwise index.html uses
-      this field to distinguish a completed
-      lookup from a failed API request.
       ----------------------------------------------------------
     */
 
@@ -1222,13 +1404,6 @@ async function getAccolades(
       stage,
       error
     );
-
-    /*
-      Genuine technical failure.
-
-      confirmed:false tells the front end
-      that retrying may be appropriate.
-    */
 
     return diagnosticAccolades(
       personId,
@@ -1337,9 +1512,7 @@ export default async function handler(
   try {
 
     /*
-      ----------------------------------------------------------
-      TOKEN CHECK
-      ----------------------------------------------------------
+      TOKEN
     */
 
     if (!TOKEN) {
@@ -1353,9 +1526,7 @@ export default async function handler(
 
 
     /*
-      ----------------------------------------------------------
       PERSON ID
-      ----------------------------------------------------------
     */
 
     const personId =
@@ -1374,9 +1545,7 @@ export default async function handler(
 
 
     /*
-      ----------------------------------------------------------
       MODE
-      ----------------------------------------------------------
     */
 
     const mode =
@@ -1389,15 +1558,13 @@ export default async function handler(
 
     /*
       ==========================================================
-      ACADEMY AWARDS / ACCOLADES MODE
+      ACCOLADES MODE
       ==========================================================
     */
 
     if (
-      mode ===
-      "accolades"
+      mode === "accolades"
     ) {
-
       const awardsData =
         await getAccolades(
           personId
@@ -1423,7 +1590,7 @@ export default async function handler(
 
     /*
       ==========================================================
-      NORMAL STAR PROFILE MODE
+      NORMAL STAR PROFILE
       ==========================================================
     */
 
@@ -1473,10 +1640,10 @@ export default async function handler(
 
 
     /*
-      ACADEMY AWARDS
+      ACCOLADES
 
-      Failure here must NEVER stop the
-      normal star profile from loading.
+      An awards failure must never prevent
+      the star profile from loading.
     */
 
     let awardsData;
@@ -1487,6 +1654,7 @@ export default async function handler(
           personId,
           person.name
         );
+
     } catch (error) {
 
       console.error(
@@ -1508,9 +1676,7 @@ export default async function handler(
 
 
     /*
-      ----------------------------------------------------------
       RESPONSE
-      ----------------------------------------------------------
     */
 
     res.setHeader(
@@ -1578,7 +1744,7 @@ export default async function handler(
 
 
         /*
-          Academy Award summary
+          Oscar summary
         */
 
         reelwise_academy_awards: {
@@ -1594,8 +1760,7 @@ export default async function handler(
 
 
         /*
-          Keep all aliases currently
-          understood by Reelwise.
+          Existing Reelwise aliases
         */
 
         academy_awards:
