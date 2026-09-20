@@ -1187,36 +1187,144 @@
           let sentence = "";
 
           /*
-            Build ONE concise sentence. We intentionally do not
-            reproduce the rest of the source sentence.
+            Build ONE human-sounding, source-grounded sentence.
+
+            Do not use vague phrases such as "an important new
+            chapter" or "extending a major franchise." Explain the
+            supported event itself: return, revival, recognition,
+            or creative involvement.
+
+            We can safely describe elapsed time when the source
+            connects the later film to a previously established
+            role/franchise and the dates are present in the credits.
           */
 
-          if (
-            milestone.hasReturn &&
+          const priorSelectedText =
+            selected.join(" ");
+
+          const priorMovies =
+            allMovies
+              .map(movie => ({
+                ...movie,
+                _year:
+                  movieYear(movie)
+              }))
+              .filter(movie =>
+                movie._year &&
+                movie._year < year &&
+                sentenceMentionsTitle(
+                  priorSelectedText,
+                  movie.title
+                )
+              )
+              .sort(
+                (a, b) =>
+                  a._year - b._year
+              );
+
+          const earliestPrior =
+            priorMovies[0] || null;
+
+          const yearsSince =
+            earliestPrior
+              ? year - earliestPrior._year
+              : null;
+
+          const source =
+            milestone.sentence;
+
+          /*
+            If the source explicitly describes a return/reprise,
+            preserve that meaning and, when possible, give the
+            reader useful time perspective.
+          */
+
+          if (milestone.hasReturn) {
+            if (
+              yearsSince &&
+              yearsSince >= 10
+            ) {
+              const rounded =
+                yearsSince >= 25
+                  ? Math.round(
+                      yearsSince / 5
+                    ) * 5
+                  : yearsSince;
+
+              const spanText =
+                rounded >= 25
+                  ? `Nearly ${rounded} years after an earlier defining role`
+                  : `${rounded} years after an earlier defining role`;
+
+              sentence =
+                `${spanText}, ${name} returned in ${title} (${year})`;
+
+              if (milestone.hasAwards) {
+                sentence +=
+                  `, earning renewed critical and awards recognition`;
+              } else if (
+                milestone.hasFranchise
+              ) {
+                sentence +=
+                  `, reviving a major screen franchise`;
+              }
+            } else {
+              sentence =
+                `${name} later returned in ${title} (${year})`;
+
+              if (milestone.hasAwards) {
+                sentence +=
+                  `, earning renewed critical and awards recognition`;
+              } else if (
+                milestone.hasFranchise
+              ) {
+                sentence +=
+                  `, reviving a major screen franchise`;
+              }
+            }
+          } else if (
             milestone.hasAwards
           ) {
             sentence =
-              `${name} later returned to a major screen role in ${title} (${year}), earning renewed critical and awards recognition`;
+              `${title} (${year}) became a later-career milestone for ${name}, bringing renewed critical and awards recognition`;
           } else if (
-            milestone.hasReturn
-          ) {
-            sentence =
-              `${name} later returned to a major screen role in ${title} (${year}), marking an important new chapter in the career`;
-          } else if (
-            milestone.hasAwards
-          ) {
-            sentence =
-              `${name}'s later career included ${title} (${year}), which brought significant critical and awards recognition`;
-          } else if (
+            milestone.hasCreative &&
             milestone.hasFranchise
           ) {
             sentence =
-              `${name}'s later career included ${title} (${year}), extending one of the major franchises associated with the career`;
+              `${name} continued shaping a major screen franchise with ${title} (${year}), contributing both on screen and behind the scenes`;
           } else if (
             milestone.hasCreative
           ) {
             sentence =
-              `${name}'s later career included ${title} (${year}), continuing work both on screen and behind the scenes`;
+              `${name}'s later work on ${title} (${year}) also reflected continued creative involvement behind the scenes`;
+          } else if (
+            milestone.hasFranchise
+          ) {
+            /*
+              A franchise reference alone is not enough to justify
+              a generic importance claim. Use a simple factual
+              sentence rather than inventing significance.
+            */
+            sentence =
+              `${name} later appeared in ${title} (${year}), continuing a long-running screen franchise`;
+          }
+
+          /*
+            If the constructed sentence is still generic and the
+            source contains explicit revival/comeback language,
+            use that supported wording instead.
+          */
+
+          if (
+            sentence &&
+            /\b(revival|revived|comeback)\b/i
+              .test(source) &&
+            !/\b(revival|revived|comeback)\b/i
+              .test(sentence)
+          ) {
+            sentence =
+              `${name}'s later career included a revival with ${title} (${year})`;
           }
 
           if (sentence) {
