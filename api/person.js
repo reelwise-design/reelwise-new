@@ -2034,14 +2034,21 @@ function isGoodAccolades(data) {
         );
 
         if (!rawClaims.length) {
+          /*
+            The Wikidata entity loaded successfully and contains no
+            award/nominated-for claims. That is a CONFIRMED zero,
+            not a network/source failure.
+          */
           return {
+            confirmed: true,
             found: false,
             wins: 0,
             nominations: 0,
             history: [],
             academy_awards: [],
             academyAwards: [],
-            accolades: []
+            accolades: [],
+            source: "Wikidata"
           };
         }
 
@@ -2096,6 +2103,24 @@ function isGoodAccolades(data) {
               `${item.award} ${item.ceremony}`
             )
           );
+
+        if (!academy.length) {
+          /*
+            Award data loaded successfully, but none of the person's
+            awards/nominations are Academy Awards. Confirm zero Oscars.
+          */
+          return {
+            confirmed: true,
+            found: false,
+            wins: 0,
+            nominations: 0,
+            history: [],
+            academy_awards: [],
+            academyAwards: [],
+            accolades: [],
+            source: "Wikidata"
+          };
+        }
 
         let history =
           academy.map(item => ({
@@ -2180,6 +2205,8 @@ function isGoodAccolades(data) {
           }));
 
         return {
+          confirmed: true,
+
           found:
             history.length > 0,
 
@@ -2205,13 +2232,15 @@ function isGoodAccolades(data) {
         );
 
         return {
+          confirmed: false,
           found: false,
           wins: 0,
           nominations: 0,
           history: [],
           academy_awards: [],
           academyAwards: [],
-          accolades: []
+          accolades: [],
+          source: "Wikidata"
         };
       }
     }
@@ -3025,12 +3054,15 @@ function isGoodAccolades(data) {
             Number(candidate.nominations) || 0;
 
           /*
-            found=true with an array is a confirmed source response.
-            It is valid even when history is empty and nominations=0.
+            A source may explicitly confirm a zero-nomination result.
+            Otherwise a populated award history also confirms success.
           */
           if (
-            candidate.found === true &&
-            Array.isArray(history)
+            candidate.confirmed === true ||
+            (
+              candidate.found === true &&
+              Array.isArray(history)
+            )
           ) {
             return {
               ...candidate,
