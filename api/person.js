@@ -1811,6 +1811,245 @@
     }
 
 
+
+    /* ============================================================
+       WIKIPEDIA ACADEMY AWARDS FALLBACK
+       ============================================================
+
+       Why this exists:
+       Some serverless environments can fail to retrieve the Academy
+       search endpoint even when the Academy site works in a browser.
+       Wikipedia's awards tables provide a second dynamic source for
+       Oscar history instead of incorrectly displaying zero nominations.
+       ============================================================ */
+
+    function decodeBasicHTML(value = "") {
+      return cleanText(
+        decodeAcademyHTML(
+          String(value)
+            .replace(/<br\s*\/?>/gi, " ")
+            .replace(/<[^>]+>/g, " ")
+        )
+      );
+    }
+
+    async function findWikipediaAwardsPage(name = "") {
+      try {
+        const exactTitle =
+          `List of awards and nominations received by ${cleanText(name)}`;
+
+        const exactUrl =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "query",
+            titles: exactTitle,
+            prop: "info",
+            format: "json",
+            origin: "*"
+          });
+
+        const exactData = await fetchJSON(exactUrl);
+        const exactPages = Object.values(exactData?.query?.pages || {});
+        const exactPage = exactPages.find(page => page && !page.missing);
+
+        if (exactPage?.title) {
+          return exactPage.title;
+        }
+
+        const searchUrl =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "query",
+            list: "search",
+            srsearch: `"${cleanText(name)}" "Academy Awards" awards nominations`,
+            srlimit: "8",
+            format: "json",
+            origin: "*"
+          });
+
+        const searchData = await fetchJSON(searchUrl);
+        const results = searchData?.query?.search || [];
+
+        const best = results.find(item =>
+          /awards and nominations/i.test(item.title || "") &&
+          String(item.title || "").toLowerCase().includes(
+            cleanText(name).toLowerCase()
+          )
+        );
+
+        return best?.title || "";
+      } catch (error) {
+        console.error("Wikipedia awards page lookup error:", error);
+        return "";
+      }
+    }
+
+    function parseWikipediaOscarTable(html = "") {
+      const source = String(html);
+      if (!source) return [];
+
+      const academyHeading =
+        /<h[2-4][^>]*>[\s\S]*?Academy Awards[\s\S]*?<\/h[2-4]>/i.exec(source);
+
+      if (!academyHeading) return [];
+
+      const start = academyHeading.index + academyHeading[0].length;
+      const tail = source.slice(start);
+
+      const nextHeading = /<h[2-4][^>]*>/i.exec(tail);
+      const section = nextHeading ? tail.slice(0, nextHeading.index) : tail;
+
+      const tableMatch = /<table\b[\s\S]*?<\/table>/i.exec(section);
+      if (!tableMatch) return [];
+
+      const table = tableMatch[0];
+      const rowMatches = [...table.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/gi)];
+      if (!rowMatches.length) return [];
+
+      let lastYear = "";
+      let lastCategory = "";
+      const history = [];
+
+      for (const rowMatch of rowMatches) {
+        const row = rowMatch[1];
+
+        const cells = [...row.matchAll(
+          /<(th|td)\b([^>]*)>([\s\S]*?)<\/\1>/gi
+        )].map(match => ({
+          tag: match[1].toLowerCase(),
+          attrs: match[2] || "",
+          text: decodeBasicHTML(match[3] || "")
+        })).filter(cell => cell.text);
+
+        if (!cells.length) continue;
+
+        const joined = cells.map(cell => cell.text).join(" | ");
+
+        if (
+          /year\s*\|\s*category/i.test(joined) ||
+          /nominated work/i.test(joined) ||
+          /^year$/i.test(joined)
+        ) {
+          continue;
+        }
+
+        let year = "";
+        let category = "";
+        let movie = "";
+        let result = "";
+
+        for (const cell of cells) {
+          const text = cell.text;
+
+          if (!year && /^(19|20)\d{2}$/.test(text)) {
+            year = text;
+            continue;
+          }
+
+          if (
+            !category &&
+            /^(best|academy honorary award|honorary award)/i.test(text)
+          ) {
+            category = text;
+            continue;
+          }
+
+          if (!result && /^(won|winner|nominated|nominee)$/i.test(text)) {
+            result = text;
+            continue;
+          }
+        }
+
+        if (year) lastYear = year;
+        if (category) lastCategory = category;
+
+        year = year || lastYear;
+        category = category || lastCategory;
+
+        const ignored = new Set(
+          [year, category, result].filter(Boolean).map(v => v.toLowerCase())
+        );
+
+        const candidates = cells
+          .map(cell => cell.text)
+          .filter(text => {
+            const lower = text.toLowerCase();
+            return (
+              text &&
+              !ignored.has(lower) &&
+              !/^(ref\.?|received by)$/i.test(text) &&
+              !/^\[\d+\]$/.test(text)
+            );
+          });
+
+        movie = candidates[0] || "";
+
+        if (!year || !category || !movie) continue;
+
+        const winner = /^(won|winner)$/i.test(result);
+
+        history.push({
+          year: String(year),
+          movie,
+          category: cleanText(category),
+          winner
+        });
+      }
+
+      return dedupeAwardHistory(history).sort(
+        (a, b) => (Number(b.year) || 0) - (Number(a.year) || 0)
+      );
+    }
+
+    async function getWikipediaAcademyAwards(name = "") {
+      try {
+        const title = await findWikipediaAwardsPage(name);
+        if (!title) return null;
+
+        const url =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "parse",
+            page: title,
+            prop: "text",
+            format: "json",
+            origin: "*"
+          });
+
+        const data = await fetchJSON(url);
+        const html = data?.parse?.text?.["*"] || "";
+        const history = parseWikipediaOscarTable(html);
+
+        if (!history.length) return null;
+
+        const wins = history.filter(item => item.winner).length;
+        const nominations = history.length;
+
+        const academyAwards = history.map(item => ({
+          award: item.category,
+          result: item.winner ? "Winner" : "Nominee",
+          year: item.year,
+          work: item.movie,
+          ceremony: ""
+        }));
+
+        return {
+          found: true,
+          wins,
+          nominations,
+          history,
+          academy_awards: academyAwards,
+          academyAwards,
+          accolades: academyAwards,
+          source: "Wikipedia Academy Awards table"
+        };
+      } catch (error) {
+        console.error("Wikipedia Academy Awards lookup error:", error);
+        return null;
+      }
+    }
+
+
     /* ============================================================
        OFFICIAL ACADEMY AWARDS DATABASE
        ============================================================
@@ -2264,6 +2503,26 @@
         return official;
       }
 
+      /*
+        If the Academy endpoint is unavailable from Vercel, use the
+        performer's Wikipedia Academy Awards table. This is especially
+        important for highly nominated performers whose Wikidata records
+        can be large or incomplete when resolved through many claims.
+      */
+
+      const wikipediaAwards =
+        await getWikipediaAcademyAwards(
+          name
+        );
+
+      if (
+        wikipediaAwards &&
+        wikipediaAwards.found &&
+        wikipediaAwards.history.length
+      ) {
+        return wikipediaAwards;
+      }
+
       return (
         await getWikidataAwardsAndAccolades(
           name,
@@ -2366,7 +2625,10 @@
                 awardsData.academyAwards,
 
               accolades:
-                awardsData.accolades
+                awardsData.accolades,
+
+              source:
+                awardsData.source || "Wikidata"
             });
         }
 
