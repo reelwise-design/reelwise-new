@@ -2769,12 +2769,24 @@ const filmographyHTML=[
 
 results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
+function reelwiseAccoladesShell(safeId,safeName,body,eyebrow="REELWISE ACCOLADES"){
+  return `
+    <button class="back-button" onclick="returnFromPersonAccolades('${escapeHTML(String(safeId||""))}')">← Back to ${escapeHTML(String(safeName||"Star"))}</button>
+    <div class="accolades-head">
+      <div class="eyebrow">${escapeHTML(eyebrow)}</div>
+      <h1>${escapeHTML(String(safeName||"Star"))}</h1>
+      <div class="award-body-label">ACADEMY AWARDS</div>
+    </div>
+    ${body}
+  `;
+}
+
 function renderPersonAccoladesData(data,safeId,safeName){
 const page=results.querySelector(".accolades-page");
 if(!page)return;
 
 if(!data||data.unavailable){
-  page.innerHTML=accoladesShell(
+  page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
     '<div class="message">Academy Awards are temporarily unavailable.</div>'
   );
   return;
@@ -2840,7 +2852,7 @@ const found=
   nominations>0;
 
 if(!found||!history.length){
-  page.innerHTML=accoladesShell(
+  page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
     '<div class="message">No Academy Award nominations found.</div>'
   );
   return;
