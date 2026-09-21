@@ -3062,7 +3062,45 @@ async function showPersonAccolades(id,name){
 function toggleStarBio(){const bio=document.getElementById("starBio"),button=document.getElementById("bioToggle");if(!bio||!button)return;const collapsed=bio.classList.contains("collapsed");bio.classList.toggle("collapsed",!collapsed);button.textContent=collapsed?"Show Less ↑":"Read Full Bio ↓"}
 
 function showSixDegrees(){resultsTitle.textContent="Six Degrees";results.innerHTML=`<div class="section-page six-page"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="six-game-hero"><div class="six-game-copy"><div class="eyebrow">REELWISE SIX DEGREES</div><h1>Every star is <span>connected.</span></h1><p>Choose two movie stars and Reelwise will trace the shortest connection through the movies and co-stars that link them.</p></div><div class="degree-box"><div class="degree-inputs"><div><label class="six-field-label" for="actorOne">STARTING STAR</label><div class="degree-input-wrap"><input id="actorOne" placeholder="e.g., Tom Cruise" autocomplete="off"></div></div><div class="six-versus">TO</div><div><label class="six-field-label" for="actorTwo">ENDING STAR</label><div class="degree-input-wrap"><input id="actorTwo" placeholder="e.g., Robert De Niro" autocomplete="off"></div></div></div><button class="six-find-button" onclick="findSixDegrees()">Find the Connection →</button><div class="six-game-hint">Actors and movies in the result are clickable.</div><div id="degreeMessage"></div></div></div></div>`;goToResults()}
-async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.innerHTML='<div class="six-story" style="margin-top:14px!important">Enter two actor names.</div>';return}box.innerHTML='<div class="six-story" style="margin-top:14px!important">Finding the shortest connection...</div>';try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.innerHTML='<div class="six-story" style="margin-top:14px!important">'+escapeHTML(data.message||"No connection found.")+'</div>';return}const chain=Array.isArray(data.chain)?data.chain:[];let connectionStory="";if(chain.length>=3){connectionStory=`${escapeHTML(chain[0].name||"Actor")} was in <strong>${escapeHTML(chain[1].title||"Movie")}</strong> with ${escapeHTML(chain[2].name||"Actor")}`;for(let i=3;i<chain.length;i+=2){const movie=chain[i],actor=chain[i+1];if(movie&&actor){connectionStory+=`, who was in <strong>${escapeHTML(movie.title||"Movie")}</strong> with ${escapeHTML(actor.name||"Actor")}`}}connectionStory+=".";}let degreeNumber=0;const visual=chain.map((item,index)=>{const isMovie=item.type==="movie";if(isMovie){degreeNumber++;const poster=item.poster_path?"https://image.tmdb.org/t/p/w185"+item.poster_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-movie-card clickable" onclick="showMovie('${item.id}')">${poster?`<img class="six-movie-poster" src="${poster}" alt="${escapeHTML(item.title||"Movie")}">`:`<div class="six-movie-poster-fallback">🎬</div>`}<div><div class="six-movie-label">DEGREE ${degreeNumber} · CONNECTED THROUGH</div><div class="six-movie-title">${escapeHTML(item.title||"Movie")}</div>${item.year?`<div class="six-movie-year">${escapeHTML(item.year)}</div>`:""}<div class="six-degree-marker">${degreeNumber}° CONNECTION</div></div></div>`}const photo=item.profile_path?"https://image.tmdb.org/t/p/w185"+item.profile_path:"";const role=index===0?"STARTING STAR":index===chain.length-1?"ENDING STAR":"CO-STAR";return `${index?'<div class="six-link-line"></div>':''}<div class="six-actor-card clickable" onclick="showPerson('${item.id}')">${photo?`<img class="six-actor-photo" src="${photo}" alt="${escapeHTML(item.name||"Actor")}">`:`<div class="six-actor-fallback">⭐</div>`}<div><div class="six-actor-name">${escapeHTML(item.name||"Actor")}</div><div class="six-actor-role">${role}</div></div></div>`}).join("");const degreeLabel=Number(data.degrees)===1?"DEGREE":"DEGREES";box.innerHTML=`<div class="six-result"><div class="six-result-head"><div><div class="six-result-kicker">CONNECTION FOUND</div><div class="six-result-title">${escapeHTML(one)} → ${escapeHTML(two)}</div></div><div class="six-degree-badge"><div class="six-degree-number">${escapeHTML(data.degrees)}°</div><div class="six-degree-word">${degreeLabel}</div></div></div><div class="six-result-body">${connectionStory?`<div class="six-story">${connectionStory}</div>`:""}<div class="six-visual-path">${visual}</div><button class="six-again" onclick="resetSixDegrees()">Try Another Connection</button></div></div>`}catch(error){box.innerHTML='<div class="six-story" style="margin-top:14px!important">'+escapeHTML(error.message)+'</div>'}}
+async function findSixDegrees(){const one=document.getElementById("actorOne").value.trim(),two=document.getElementById("actorTwo").value.trim(),box=document.getElementById("degreeMessage");if(!one||!two){box.innerHTML='<div class="six-story" style="margin-top:14px!important">Enter two actor names.</div>';return}box.innerHTML='<div class="six-story" style="margin-top:14px!important">Finding the shortest connection...</div>';try{const response=await fetch("/api/degrees?actor1="+encodeURIComponent(one)+"&actor2="+encodeURIComponent(two)),data=await response.json();if(!response.ok)throw new Error(data.error||"Six Degrees search failed.");if(!data.found){box.innerHTML='<div class="six-story" style="margin-top:14px!important">'+escapeHTML(data.message||"No connection found.")+'</div>';return}const chain=Array.isArray(data.chain)?data.chain:[];let connectionStory="";if(chain.length>=3){connectionStory=`${escapeHTML(chain[0].name||"Actor")} was in <strong>${escapeHTML(chain[1].title||"Movie")}</strong> with ${escapeHTML(chain[2].name||"Actor")}`;for(let i=3;i<chain.length;i+=2){const movie=chain[i],actor=chain[i+1];if(movie&&actor){connectionStory+=`, who was in <strong>${escapeHTML(movie.title||"Movie")}</strong> with ${escapeHTML(actor.name||"Actor")}`}}connectionStory+=".";}let degreeNumber=0;const visual=chain.map((item,index)=>{const isMovie=item.type==="movie";if(isMovie){degreeNumber++;const poster=item.poster_path?"https://image.tmdb.org/t/p/w185"+item.poster_path:"";return `${index?'<div class="six-link-line"></div>':''}<div class="six-movie-card clickable" onclick="openFromSixDegrees('movie','${item.id}')">${poster?`<img class="six-movie-poster" src="${poster}" alt="${escapeHTML(item.title||"Movie")}">`:`<div class="six-movie-poster-fallback">🎬</div>`}<div><div class="six-movie-label">DEGREE ${degreeNumber} · CONNECTED THROUGH</div><div class="six-movie-title">${escapeHTML(item.title||"Movie")}</div>${item.year?`<div class="six-movie-year">${escapeHTML(item.year)}</div>`:""}<div class="six-degree-marker">${degreeNumber}° CONNECTION</div></div></div>`}const photo=item.profile_path?"https://image.tmdb.org/t/p/w185"+item.profile_path:"";const role=index===0?"STARTING STAR":index===chain.length-1?"ENDING STAR":"CO-STAR";return `${index?'<div class="six-link-line"></div>':''}<div class="six-actor-card clickable" onclick="openFromSixDegrees('person','${item.id}')">${photo?`<img class="six-actor-photo" src="${photo}" alt="${escapeHTML(item.name||"Actor")}">`:`<div class="six-actor-fallback">⭐</div>`}<div><div class="six-actor-name">${escapeHTML(item.name||"Actor")}</div><div class="six-actor-role">${role}</div></div></div>`}).join("");const degreeLabel=Number(data.degrees)===1?"DEGREE":"DEGREES";box.innerHTML=`<div class="six-result"><div class="six-result-head"><div><div class="six-result-kicker">CONNECTION FOUND</div><div class="six-result-title">${escapeHTML(one)} → ${escapeHTML(two)}</div></div><div class="six-degree-badge"><div class="six-degree-number">${escapeHTML(data.degrees)}°</div><div class="six-degree-word">${degreeLabel}</div></div></div><div class="six-result-body">${connectionStory?`<div class="six-story">${connectionStory}</div>`:""}<div class="six-visual-path">${visual}</div><button class="six-again" onclick="resetSixDegrees()">Try Another Connection</button></div></div>`}catch(error){box.innerHTML='<div class="six-story" style="margin-top:14px!important">'+escapeHTML(error.message)+'</div>'}}
+
+
+let sixDegreesReturnState=null;
+
+function openFromSixDegrees(type,id){
+  const one=document.getElementById("actorOne");
+  const two=document.getElementById("actorTwo");
+  const box=document.getElementById("degreeMessage");
+
+  sixDegreesReturnState={
+    actorOne:one?one.value:"",
+    actorTwo:two?two.value:"",
+    resultHTML:box?box.innerHTML:""
+  };
+
+  reelwiseNav.current={type:"sixDegreesResult",args:[]};
+
+  if(type==="movie"){
+    showMovie(id);
+  }else{
+    showPerson(id);
+  }
+}
+
+function restoreSixDegreesResult(){
+  const saved=sixDegreesReturnState;
+  showSixDegrees();
+
+  if(!saved)return;
+
+  const one=document.getElementById("actorOne");
+  const two=document.getElementById("actorTwo");
+  const box=document.getElementById("degreeMessage");
+
+  if(one)one.value=saved.actorOne||"";
+  if(two)two.value=saved.actorTwo||"";
+  if(box)box.innerHTML=saved.resultHTML||"";
+}
 
 function resetSixDegrees(){
   const one=document.getElementById("actorOne"),two=document.getElementById("actorTwo"),box=document.getElementById("degreeMessage");
@@ -3314,6 +3352,8 @@ function goBackReelwise(){
       _rwShowMovie(...previous.args);
     }else if(previous.type==="person"){
       _rwShowPerson(...previous.args);
+    }else if(previous.type==="sixDegreesResult"){
+      restoreSixDegreesResult();
     }else{
       reelwiseRenderHome();
     }
