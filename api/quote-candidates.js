@@ -4,11 +4,33 @@ const sql = neon(process.env.DATABASE_URL);
 
 export default async function handler(req, res) {
   try {
+    if (!process.env.DATABASE_URL) {
+      return res.status(500).json({
+        success: false,
+        error: "DATABASE_URL is not configured"
+      });
+    }
+
+    // =========================================================
+    // GET — retrieve quote candidates
+    // =========================================================
     if (req.method === "GET") {
       const rows = await sql`
-        SELECT *
+        SELECT
+          id,
+          tmdb_movie_id,
+          movie_title,
+          release_year,
+          candidate_text,
+          possible_character,
+          possible_actor,
+          discovery_source,
+          source_reference,
+          review_status,
+          discovered_at,
+          reviewed_at
         FROM reelwise_quote_candidates
-        ORDER BY created_at DESC
+        ORDER BY discovered_at DESC
         LIMIT 100
       `;
 
@@ -19,22 +41,26 @@ export default async function handler(req, res) {
       });
     }
 
+    // =========================================================
+    // POST — save a new candidate for later verification
+    // =========================================================
     if (req.method === "POST") {
       const {
         tmdb_movie_id,
         movie_title,
         release_year,
         candidate_text,
-        character_name,
-        actor_name,
-        source_type,
+        possible_character,
+        possible_actor,
+        discovery_source,
         source_reference
       } = req.body || {};
 
-      if (!tmdb_movie_id || !candidate_text) {
+      if (!tmdb_movie_id || !movie_title || !candidate_text) {
         return res.status(400).json({
           success: false,
-          error: "tmdb_movie_id and candidate_text are required"
+          error:
+            "tmdb_movie_id, movie_title and candidate_text are required"
         });
       }
 
@@ -44,20 +70,20 @@ export default async function handler(req, res) {
           movie_title,
           release_year,
           candidate_text,
-          character_name,
-          actor_name,
-          source_type,
+          possible_character,
+          possible_actor,
+          discovery_source,
           source_reference,
           review_status
         )
         VALUES (
           ${tmdb_movie_id},
-          ${movie_title || null},
+          ${movie_title},
           ${release_year || null},
           ${candidate_text},
-          ${character_name || null},
-          ${actor_name || null},
-          ${source_type || null},
+          ${possible_character || null},
+          ${possible_actor || null},
+          ${discovery_source || null},
           ${source_reference || null},
           'pending'
         )
