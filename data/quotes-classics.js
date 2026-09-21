@@ -136,9 +136,24 @@ const QUOTES_CLASSICS = {
   ],
 
   "rocky": [
-    "Yo, Adrian!",
-    "All I wanna do is go the distance.",
-    "Nobody's ever gone the distance with Creed."
+    {
+      quote: "Yo, Adrian!",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    },
+    {
+      quote: "All I wanna do is go the distance.",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    },
+    {
+      quote: "Nobody's ever gone the distance with Creed.",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    }
   ],
 
   "star wars": [
