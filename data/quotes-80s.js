@@ -89,10 +89,30 @@ const QUOTES_80S = {
   ],
 
   "rocky iv": [
-    "I must break you.",
-    "If he dies, he dies.",
-    "He's not a machine. He's a man!",
-    "If I can change, and you can change, everybody can change!"
+    {
+      quote: "I must break you.",
+      character: "Ivan Drago",
+      actor: "Dolph Lundgren",
+      verified: true
+    },
+    {
+      quote: "If he dies, he dies.",
+      character: "Ivan Drago",
+      actor: "Dolph Lundgren",
+      verified: true
+    },
+    {
+      quote: "He's not a machine, he's a man!",
+      character: "Duke",
+      actor: "Tony Burton",
+      verified: true
+    },
+    {
+      quote: "If I can change, and you can change, everybody can change!",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    }
   ],
 
   "back to the future": [
