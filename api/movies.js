@@ -78,6 +78,92 @@ function isBestPicture(category = "") {
 
 /*
   ============================================================
+  ACADEMY AWARD NOMINATION CLEANUP
+  ============================================================
+
+  Keep the complete nomination history available to the Reelwise
+  movie page. OscarBase records can vary slightly in field naming,
+  so Reelwise normalizes the useful fields while retaining the raw
+  record as a fallback for future display improvements.
+*/
+
+function isWinner(item = {}) {
+  return (
+    item?.winner === true ||
+    item?.winner === 1 ||
+    String(item?.winner).toLowerCase() === "true"
+  );
+}
+
+function firstText(...values) {
+  for (const value of values) {
+    if (typeof value === "string" && value.trim()) {
+      return value.trim();
+    }
+  }
+  return "";
+}
+
+function nomineeName(item = {}) {
+  return firstText(
+    item?.nominee,
+    item?.nominee_name,
+    item?.person_name,
+    item?.name,
+    item?.recipient,
+    item?.recipient_name,
+    item?.credited_name,
+    item?.credit
+  );
+}
+
+function nominationYear(item = {}) {
+  const value =
+    item?.ceremony_year ??
+    item?.year ??
+    item?.award_year ??
+    item?.ceremony?.year ??
+    "";
+
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0
+    ? number
+    : "";
+}
+
+function cleanNomination(item = {}) {
+  return {
+    category: cleanCategory(
+      item?.category ||
+      item?.category_name
+    ),
+
+    nominee: nomineeName(item),
+
+    winner: isWinner(item),
+
+    ceremonyYear: nominationYear(item),
+
+    ceremony:
+      firstText(
+        item?.ceremony_name,
+        item?.ceremony?.name
+      ),
+
+    film:
+      firstText(
+        item?.film,
+        item?.film_title,
+        item?.movie_title,
+        item?.title
+      ),
+
+    raw: item
+  };
+}
+
+/*
+  ============================================================
   AUTOMATIC ACADEMY AWARDS LOOKUP
   ============================================================
 */
@@ -123,7 +209,8 @@ async function getAwards(tmdbId) {
       bestPictureWinner: false,
       winningCategories: [],
       nominatedCategories: [],
-      ceremonyYears: []
+      ceremonyYears: [],
+      history: []
     };
   }
 
@@ -163,11 +250,7 @@ async function getAwards(tmdbId) {
     OscarBase uses winner:true for winning nominations.
   */
 
-  const wins = nominations.filter(item =>
-    item?.winner === true ||
-    item?.winner === 1 ||
-    String(item?.winner).toLowerCase() === "true"
-  );
+  const wins = nominations.filter(isWinner);
 
   const winningCategories = [
     ...new Set(
@@ -198,12 +281,7 @@ async function getAwards(tmdbId) {
   const ceremonyYears = [
     ...new Set(
       nominations
-        .map(item =>
-          Number(
-            item?.ceremony_year ||
-            item?.year
-          )
-        )
+        .map(nominationYear)
         .filter(Boolean)
     )
   ].sort((a, b) => a - b);
@@ -215,6 +293,22 @@ async function getAwards(tmdbId) {
         item?.category_name
       )
     );
+
+  /*
+    NEW:
+    Send every Academy Award nomination to index.html instead of
+    discarding the individual records after calculating totals.
+  */
+
+  const history = nominations
+    .map(cleanNomination)
+    .filter(item => item.category)
+    .sort((a, b) => {
+      if (a.ceremonyYear && b.ceremonyYear) {
+        return a.ceremonyYear - b.ceremonyYear;
+      }
+      return 0;
+    });
 
   return {
     found: nominations.length > 0,
@@ -240,7 +334,9 @@ async function getAwards(tmdbId) {
 
     winningCategories,
     nominatedCategories,
-    ceremonyYears
+    ceremonyYears,
+
+    history
   };
 }
 
@@ -334,6 +430,7 @@ export default async function handler(req, res) {
           winningCategories: [],
           nominatedCategories: [],
           ceremonyYears: [],
+          history: [],
           unavailable: true
         });
       }
