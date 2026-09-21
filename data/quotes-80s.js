@@ -37,10 +37,30 @@ const QUOTES_80S = {
   ],
 
   "rocky iii": [
-    "I don't hate Balboa. I pity the fool.",
-    "There is no tomorrow!",
-    "You ain't so bad!",
-    "Nothing is real if you don't believe in who you are."
+    {
+      quote: "I don't hate Balboa. I pity the fool.",
+      character: "Clubber Lang",
+      actor: "Mr. T",
+      verified: true
+    },
+    {
+      quote: "There is no tomorrow!",
+      character: "Apollo Creed",
+      actor: "Carl Weathers",
+      verified: true
+    },
+    {
+      quote: "You ain't so bad!",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    },
+    {
+      quote: "Nothing is real if you don't believe in who you are.",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    }
   ],
 
   "e.t. the extra-terrestrial": [
