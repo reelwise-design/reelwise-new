@@ -1773,6 +1773,39 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
 }
 
 
+/* ===== REELWISE VERIFIED QUOTE CARDS ===== */
+.vault-page .quote-card{
+  display:block;
+}
+.vault-page .quote-text{
+  color:#f5f7fa;
+}
+.vault-page .quote-attribution{
+  margin-top:10px;
+  color:#b7c0cc;
+  font-size:12px;
+  font-weight:750;
+}
+.vault-page .quote-verified{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  margin-top:9px;
+  padding:5px 8px;
+  border:1px solid rgba(228,179,77,.28);
+  border-radius:999px;
+  background:rgba(228,179,77,.08);
+  color:var(--gold);
+  font-size:9px;
+  font-weight:950;
+  letter-spacing:1px;
+}
+@media(max-width:700px){
+  .vault-page .quote-attribution{font-size:11px;margin-top:9px}
+  .vault-page .quote-verified{font-size:8.5px;margin-top:8px}
+}
+
+
 /* ===== STAR ACCOLADES ===== */
 .star-accolades-link{
   display:inline-flex;
@@ -2427,10 +2460,23 @@ async function showMovieFeature(feature){
           const text=String(typeof item==="string"?item:item.text||item.fact||"").trim();
           return text && !explanatory.test(text);
         });
+
+        const details=Array.isArray(data.quoteDetails)?data.quoteDetails:[];
+        const detailMap=new Map(details.map(item=>[String(item?.quote||item?.text||"").trim(),item]));
+        const quoteCards=list.map(item=>{
+          const text=String(typeof item==="string"?item:item.text||item.quote||"").trim();
+          const detail=detailMap.get(text)||((item&&typeof item==="object")?item:{});
+          const character=String(detail?.character||"").trim();
+          const actor=String(detail?.actor||"").trim();
+          const attribution=[character,actor].filter(Boolean).join(" · ");
+          const verified=detail?.verified===true;
+          return `<div class="fact-item quote-card"><div class="quote-text">${escapeHTML(text)}</div>${attribution?`<div class="quote-attribution">${escapeHTML(attribution)}</div>`:""}${verified?`<div class="quote-verified">✓ REELWISE VERIFIED</div>`:""}</div>`;
+        }).join("");
+        const emptyState="<p><strong>No verified quotes available yet.</strong><br>Reelwise only displays quotes verified for this movie.</p>";
+        view.innerHTML=`<div class="feature-view"><div class="fact-grid">${quoteCards||emptyState}</div></div>`;
+        return;
       }
-      const emptyState=feature==="quotes"
-        ?"<p><strong>No verified quotes available yet.</strong><br>Reelwise only displays quotes verified for this movie.</p>"
-        :"<p>No information available yet.</p>";
+      const emptyState="<p>No information available yet.</p>";
       view.innerHTML=`<div class="feature-view"><div class="fact-grid">${list.map(item=>`<div class="fact-item">${escapeHTML(typeof item==="string"?item:item.text||item.fact||"")}</div>`).join("")||emptyState}</div></div>`;
     }catch(error){
       view.innerHTML='<div class="feature-view"><p>'+escapeHTML(error.message)+'</p></div>';
