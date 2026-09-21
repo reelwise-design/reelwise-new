@@ -2374,23 +2374,53 @@ function showMovieAwardHistory(){
       </div>
 
       <div class="movie-awards-list">
-        ${history.map(item=>{
-          const category=String(item?.category||"Academy Award Nomination");
-          const nominee=String(item?.nominee||"");
-          const ceremonyYear=String(item?.ceremonyYear||"");
-          const winner=item?.winner===true;
+        ${(()=>{
+          const grouped=[];
+          const byKey=new Map();
 
-          return `
-            <div class="movie-award-row${winner?" winner":""}">
-              <div class="movie-award-status">${winner?"WINNER":"NOMINEE"}</div>
+          history.forEach(item=>{
+            const category=String(item?.category||"Academy Award Nomination").trim();
+            const ceremonyYear=String(item?.ceremonyYear||"").trim();
+            const winner=item?.winner===true;
+            const key=[
+              category.toLowerCase(),
+              ceremonyYear,
+              winner?"winner":"nominee"
+            ].join("|");
+
+            let group=byKey.get(key);
+
+            if(!group){
+              group={
+                category,
+                ceremonyYear,
+                winner,
+                nominees:[]
+              };
+              byKey.set(key,group);
+              grouped.push(group);
+            }
+
+            const nominee=String(item?.nominee||"").trim();
+            if(
+              nominee &&
+              !group.nominees.some(name=>name.toLowerCase()===nominee.toLowerCase())
+            ){
+              group.nominees.push(nominee);
+            }
+          });
+
+          return grouped.map(item=>`
+            <div class="movie-award-row${item.winner?" winner":""}">
+              <div class="movie-award-status">${item.winner?"WINNER":"NOMINEE"}</div>
               <div>
-                <div class="movie-award-category">${escapeHTML(category)}</div>
-                ${nominee?`<div class="movie-award-nominee">${escapeHTML(nominee)}</div>`:""}
-                ${ceremonyYear?`<div class="movie-award-year">${escapeHTML(ceremonyYear)} Academy Awards</div>`:""}
+                <div class="movie-award-category">${escapeHTML(item.category)}</div>
+                ${item.nominees.length?`<div class="movie-award-nominee">${item.nominees.map(escapeHTML).join(" · ")}</div>`:""}
+                ${item.ceremonyYear?`<div class="movie-award-year">${escapeHTML(item.ceremonyYear)} Academy Awards</div>`:""}
               </div>
             </div>
-          `;
-        }).join("")}
+          `).join("");
+        })()}
       </div>
     </div>
   `;
