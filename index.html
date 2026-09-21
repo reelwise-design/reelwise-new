@@ -2341,6 +2341,61 @@ function getMovieAwardHTML(movie,award){
   `;
 }
 
+function cleanOscarCategoryLabel(category=""){
+  const raw=String(category||"").trim();
+  const value=raw.toLowerCase();
+
+  /*
+    Reelwise display labels:
+    Keep OscarBase's underlying historical category untouched,
+    but shorten older official wording for a cleaner mobile display.
+  */
+  if(
+    value.includes("screenplay written directly for the screen") ||
+    value.includes("story material not previously published or produced")
+  ){
+    return "Original Screenplay";
+  }
+
+  if(
+    value.includes("screenplay based on material") ||
+    value.includes("screenplay adapted") ||
+    value.includes("adapted screenplay")
+  ){
+    return "Adapted Screenplay";
+  }
+
+  if(value.includes("music") && value.includes("original song")){
+    return "Original Song";
+  }
+
+  if(value.includes("music") && value.includes("original score")){
+    return "Original Score";
+  }
+
+  if(value.includes("actor in a leading role")){
+    return "Best Actor";
+  }
+
+  if(value.includes("actress in a leading role")){
+    return "Best Actress";
+  }
+
+  if(value.includes("actor in a supporting role")){
+    return "Best Supporting Actor";
+  }
+
+  if(value.includes("actress in a supporting role")){
+    return "Best Supporting Actress";
+  }
+
+  if(value==="directing"){
+    return "Best Director";
+  }
+
+  return raw;
+}
+
 function showMovieAwardHistory(){
   if(!currentMovie||!currentMovieAwards)return;
 
@@ -2379,7 +2434,9 @@ function showMovieAwardHistory(){
           const byKey=new Map();
 
           history.forEach(item=>{
-            const category=String(item?.category||"Academy Award Nomination").trim();
+            const category=cleanOscarCategoryLabel(
+              String(item?.category||"Academy Award Nomination").trim()
+            );
             const ceremonyYear=String(item?.ceremonyYear||"").trim();
             const winner=item?.winner===true;
             const key=[
