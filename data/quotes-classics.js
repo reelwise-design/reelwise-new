@@ -172,8 +172,18 @@ const QUOTES_CLASSICS = {
   ],
 
   "rocky ii": [
-    "Yo, Adrian! I did it!",
-    "There's one thing I want you to do for me. Win."
+    {
+      quote: "Yo, Adrian! I did it!",
+      character: "Rocky Balboa",
+      actor: "Sylvester Stallone",
+      verified: true
+    },
+    {
+      quote: "There's one thing I want you to do for me. Win.",
+      character: "Adrian",
+      actor: "Talia Shire",
+      verified: true
+    }
   ],
 
   "apocalypse now": [
