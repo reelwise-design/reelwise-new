@@ -2042,6 +2042,123 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   font-weight:800;
   letter-spacing:.16em;
 }
+
+/* ===== MOVIE ACADEMY AWARDS — CLICKABLE HISTORY ===== */
+.movie-award.clickable{
+  cursor:pointer;
+  position:relative;
+  border-radius:14px;
+  padding-left:14px;
+  padding-right:14px;
+  transition:.18s ease;
+}
+.movie-award.clickable:hover,
+.movie-award.clickable:focus{
+  background:rgba(228,179,77,.06);
+  outline:1px solid rgba(228,179,77,.22);
+}
+.movie-award-action{
+  margin-top:10px;
+  color:var(--gold);
+  font-size:11px;
+  font-weight:900;
+}
+.movie-awards-page{
+  grid-column:1/-1;
+  width:100%;
+  max-width:900px;
+  margin:0 auto;
+}
+.movie-awards-head{
+  margin-bottom:22px;
+  padding:24px;
+  border:1px solid var(--line);
+  border-radius:18px;
+  background:
+    radial-gradient(circle at 95% 0,rgba(228,179,77,.10),transparent 34%),
+    linear-gradient(145deg,#151b24,#0d1117);
+}
+.movie-awards-head h1{
+  margin:6px 0 8px;
+  font-size:clamp(34px,6vw,54px);
+  line-height:1;
+  letter-spacing:-2px;
+}
+.movie-awards-summary{
+  color:var(--muted);
+  font-size:14px;
+  line-height:1.5;
+}
+.movie-awards-list{
+  display:grid;
+  gap:10px;
+}
+.movie-award-row{
+  display:grid;
+  grid-template-columns:105px minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+  padding:16px;
+  border:1px solid #303845;
+  border-radius:13px;
+  background:#12171e;
+}
+.movie-award-row.winner{
+  border-color:rgba(228,179,77,.42);
+  background:
+    linear-gradient(145deg,rgba(228,179,77,.06),transparent),
+    #12171e;
+}
+.movie-award-status{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  min-height:28px;
+  padding:6px 9px;
+  border-radius:999px;
+  border:1px solid #394352;
+  color:var(--muted);
+  font-size:10px;
+  font-weight:950;
+  letter-spacing:1px;
+}
+.movie-award-row.winner .movie-award-status{
+  color:var(--gold);
+  border-color:rgba(228,179,77,.45);
+  background:rgba(228,179,77,.08);
+}
+.movie-award-category{
+  color:#f5f7fa;
+  font-size:16px;
+  font-weight:900;
+  line-height:1.3;
+}
+.movie-award-nominee{
+  margin-top:5px;
+  color:#b3bcc8;
+  font-size:13px;
+  line-height:1.4;
+}
+.movie-award-year{
+  margin-top:5px;
+  color:var(--gold);
+  font-size:11px;
+  font-weight:800;
+}
+@media(max-width:700px){
+  .movie-award.clickable{padding-left:8px;padding-right:8px}
+  .movie-awards-head{padding:18px}
+  .movie-awards-head h1{font-size:34px}
+  .movie-award-row{
+    grid-template-columns:82px minmax(0,1fr);
+    gap:11px;
+    padding:13px;
+  }
+  .movie-award-status{font-size:9px;padding:5px 7px}
+  .movie-award-category{font-size:14px}
+  .movie-award-nominee{font-size:12px}
+}
+
 </style>
 </head>
 <body>
@@ -2063,6 +2180,9 @@ window.addEventListener("unhandledrejection",event=>{
 });
 const results=document.getElementById("results"),resultsTitle=document.getElementById("resultsTitle"),searchArea=document.getElementById("searchArea"),searchInput=document.getElementById("searchInput"),searchForm=document.getElementById("searchForm"),homeContent=document.getElementById("homeContent");
 let lastQuery="",currentMovie=null,currentCast=[];
+let currentMovieAwards=null;
+let reelwiseSavedMoviePageHTML="";
+let reelwiseSavedMovieId="";
 
 /*
   STAR -> ACCOLADES RETURN STATE
@@ -2205,12 +2325,97 @@ function getMovieAwardHTML(movie,award){
   }
 
   return `
-    <div class="movie-award">
+    <div
+      class="movie-award clickable"
+      role="button"
+      tabindex="0"
+      onclick="showMovieAwardHistory()"
+      onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();showMovieAwardHistory()}"
+      aria-label="View all Academy Award nominations for ${escapeHTML(movie&&movie.title||"this movie")}"
+    >
       <div class="movie-award-kicker">${escapeHTML(kicker)}</div>
       <div class="movie-award-title">${escapeHTML(title)}</div>
       <div class="movie-award-detail">${escapeHTML(detailParts.join(" · "))}</div>
+      <div class="movie-award-action">View all nominations →</div>
     </div>
   `;
+}
+
+function showMovieAwardHistory(){
+  if(!currentMovie||!currentMovieAwards)return;
+
+  const history=Array.isArray(currentMovieAwards.history)
+    ?currentMovieAwards.history
+    :[];
+
+  if(!history.length)return;
+
+  reelwiseSavedMoviePageHTML=results.innerHTML;
+  reelwiseSavedMovieId=String(currentMovie.id||"");
+
+  const wins=Number(currentMovieAwards.wins||0);
+  const nominations=Number(currentMovieAwards.nominations||history.length);
+  const title=String(currentMovie.title||"Movie");
+  const filmYear=String(currentMovie.release_date||"").slice(0,4);
+
+  resultsTitle.textContent="";
+  results.innerHTML=`
+    <div class="movie-awards-page">
+      <button class="back-button" onclick="returnFromMovieAwardHistory()">← Back to ${escapeHTML(title)}</button>
+
+      <div class="movie-awards-head">
+        <div class="eyebrow">ACADEMY AWARDS</div>
+        <h1>${escapeHTML(title)}</h1>
+        <div class="movie-awards-summary">
+          ${filmYear?escapeHTML(filmYear)+" film · ":""}
+          ${wins} Oscar ${wins===1?"win":"wins"} ·
+          ${nominations} ${nominations===1?"nomination":"nominations"}
+        </div>
+      </div>
+
+      <div class="movie-awards-list">
+        ${history.map(item=>{
+          const category=String(item?.category||"Academy Award Nomination");
+          const nominee=String(item?.nominee||"");
+          const ceremonyYear=String(item?.ceremonyYear||"");
+          const winner=item?.winner===true;
+
+          return `
+            <div class="movie-award-row${winner?" winner":""}">
+              <div class="movie-award-status">${winner?"WINNER":"NOMINEE"}</div>
+              <div>
+                <div class="movie-award-category">${escapeHTML(category)}</div>
+                ${nominee?`<div class="movie-award-nominee">${escapeHTML(nominee)}</div>`:""}
+                ${ceremonyYear?`<div class="movie-award-year">${escapeHTML(ceremonyYear)} Academy Awards</div>`:""}
+              </div>
+            </div>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+
+  goToResults();
+}
+
+function returnFromMovieAwardHistory(){
+  if(
+    currentMovie &&
+    reelwiseSavedMoviePageHTML &&
+    reelwiseSavedMovieId===String(currentMovie.id||"")
+  ){
+    resultsTitle.textContent="Movie";
+    results.innerHTML=reelwiseSavedMoviePageHTML;
+    goToResults();
+    return;
+  }
+
+  if(currentMovie&&currentMovie.id){
+    showMovie(currentMovie.id);
+    return;
+  }
+
+  goBackReelwise();
 }
 
 async function showMovie(id){
@@ -2232,6 +2437,7 @@ async function showMovie(id){
     currentMovie=movie;
 
     const movieAwards=await fetchMovieAwards(movie.id);
+    currentMovieAwards=movieAwards;
 
     const poster=movie.poster_path
       ?"https://image.tmdb.org/t/p/w500"+movie.poster_path
@@ -3317,6 +3523,9 @@ function reelwiseRenderHome(){
   resultsTitle.textContent="";
   currentMovie=null;
   currentCast=[];
+  currentMovieAwards=null;
+  reelwiseSavedMoviePageHTML="";
+  reelwiseSavedMovieId="";
   window.scrollTo({top:0,behavior:"smooth"});
 }
 
