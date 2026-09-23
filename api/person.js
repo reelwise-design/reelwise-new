@@ -265,6 +265,10 @@
                         .replace(/\bFor other people named\s+[^.]+(?:disambiguation)?\.?\s*/gi, "")
                         .replace(/\bFor other people with (?:the same|a similar) name[^.]*\.\s*/gi, "")
                         .replace(/\bFor other uses, see[^.]*\.\s*/gi, "")
+                        // Remove Wikipedia navigation text such as:
+                        // "edit Main article: Tobey Maguire filmography"
+                        .replace(/\b(?:edit\s*)?Main article:\s*[^.!?]+(?:filmography|career|works|roles)\b[.!?]?/gi, " ")
+                        .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
                         .replace(/\s+/g, " ")
                         .trim();
 
@@ -444,6 +448,7 @@
                           !/\bdisambiguation\b/i.test(sentence) &&
                           !/\bFor other uses, see\b/i.test(sentence) &&
                           !/\[\s*edit\s*\]/i.test(sentence) &&
+                          !/\b(?:edit\s*)?Main article:/i.test(sentence) &&
                           !/^(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b/i.test(sentence) &&
                           !/(?:\/[^/]{2,80}\/|\[[^\]]{0,80}(?:IPA|pronunciation)[^\]]*\])/i.test(sentence) &&
                           !new RegExp(`^${String(person?.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\([^)]*born\\s+[^)]*\\)`, "i").test(sentence)
@@ -478,6 +483,36 @@
 
                       const dependentTransitionTerms =
                         /^(?:later that year|earlier that year|the same year|that same year|the following year|the next year|the previous year|the year before|the year after|later that month|earlier that month|the following month|the next month|soon afterward|soon afterwards|afterward|afterwards|subsequently|thereafter)\b[,:]?\s*/i;
+
+                      /*
+                        Reject sentences that begin with a different named person and never
+                        mention the Reelwise profile star. This prevents neighboring Wikipedia
+                        material from becoming part of the wrong actor's biography.
+                      */
+                      const isOtherPersonSentence = sentence => {
+                        const value = cleanText(sentence);
+                        const profileName = cleanText(name).toLowerCase();
+
+                        if (!value || !profileName) return false;
+                        if (value.toLowerCase().includes(profileName)) return false;
+
+                        const firstWords = value.match(/^([A-Z][a-z'’-]+(?:\s+[A-Z][a-z'’-]+){0,2})\b/);
+                        if (!firstWords) return false;
+
+                        const subject = firstWords[1].toLowerCase();
+
+                        // Do not mistake ordinary sentence starters for a person's name.
+                        const ordinaryStarters = new Set([
+                          "In", "The", "His", "Her", "Their", "He", "She", "They",
+                          "After", "Before", "During", "Following", "Later", "That",
+                          "This", "For", "With", "As", "At", "By", "From"
+                        ]);
+
+                        const first = firstWords[1].split(/\s+/)[0];
+                        if (ordinaryStarters.has(first)) return false;
+
+                        return subject !== profileName;
+                      };
 
                       const isFilmmaker = sentences.some(
                         sentence => /\bfilmmaker|director\b/i.test(sentence)
@@ -542,6 +577,7 @@
                         if (weakCareerTerms.test(sentence)) continue;
                         if (incompleteFragmentTerms.test(sentence)) continue;
                         if (dependentTransitionTerms.test(sentence)) continue;
+                        if (isOtherPersonSentence(sentence)) continue;
 
                         const matches = sentenceMovieMatches(sentence, movies);
                         if (!matches.length) continue;
@@ -603,6 +639,7 @@
                           !weakCareerTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
+                          !isOtherPersonSentence(item.sentence) &&
                           item.sentence !== breakthrough
                         )
                         .map(item => ({
@@ -777,7 +814,9 @@
                         .filter(sentence =>
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
-                          !weakCareerTerms.test(sentence)
+                          !weakCareerTerms.test(sentence) &&
+                          !/\b(?:edit\s*)?Main article:/i.test(sentence) &&
+                          !isOtherPersonSentence(sentence)
                         );
 
                       const unique = [];
