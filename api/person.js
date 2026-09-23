@@ -445,10 +445,10 @@
                           !/\bFor other uses, see\b/i.test(sentence) &&
                           !/\[\s*edit\s*\]/i.test(sentence) &&
                           !/^(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b/i.test(sentence) &&
-                          // Reject pronunciation/IPA-heavy lead fragments and duplicate birth-date introductions.
                           !/(?:\/[^/]{2,80}\/|\[[^\]]{0,80}(?:IPA|pronunciation)[^\]]*\])/i.test(sentence) &&
                           !new RegExp(`^${String(person?.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\([^)]*born\\s+[^)]*\\)`, "i").test(sentence)
                         );
+
                       const movies = getMovieCredits(person);
                       const name = cleanText(person?.name || "This performer");
 
@@ -459,40 +459,26 @@
                         /\b(film debut|debut|breakthrough|breakout|rose to prominence|gained recognition|gained critical acclaim|first major role|first film role|career-making|critical and commercial success|major success|became a star|established him|established her)\b/i;
 
                       const careerTerms =
-                        /\b(film|films|movie|movies|role|roles|starred|starring|performance|performances|acting|actor|actress|filmmaker|director|directed|portrayed|appeared in)\b/i;
+                        /\b(film|films|movie|movies|role|roles|starred|starring|performance|performances|acting|actor|actress|filmmaker|director|directed|portrayed|appeared in|voiced|voice role)\b/i;
 
                       const awardTerms =
-                        /\b(academy award|oscar|golden globe|bafta|emmy|award|awards|accolade|accolades|nomination|nominations)\b/i;
+                        /\b(academy award|oscar|golden globe|bafta|emmy|award|awards|accolade|accolades|nomination|nominations|won|nominated)\b/i;
+
+                      const strongCareerTerms =
+                        /\b(acclaim|acclaimed|recognition|success|successful|blockbuster|franchise|leading role|lead role|title role|portrayed|starred|starring|won|nominated|award|awards)\b/i;
 
                       const weakCareerTerms =
-                        /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received|only role|only film|only movie)\b/i;
+                        /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received|mixed reviews|only role|only film|only movie)\b/i;
 
-                      /*
-                        Reelwise biographies should focus on career milestones rather than
-                        publicity activity. Reject interviews, magazine-cover stories,
-                        promotional appearances and similar press anecdotes.
-                      */
                       const publicityTerms =
                         /\b(promoting|promoted|promotion|promotional|publicity|press tour|press junket|interview|interviewed|magazine|cover of|photo shoot|photoshoot|talk show|late[- ]night|appeared on the cover|spoke to the press)\b/i;
 
-                      /*
-                        Reject broken Wikipedia fragments that cannot stand alone,
-                        such as "4 billion worldwide..." after surrounding markup
-                        has been removed.
-                      */
                       const incompleteFragmentTerms =
                         /^(?:[\d.,$£€¥%]+(?:\s|$)|[,;:)\]])/;
 
-                      /*
-                        Reject context-dependent transition sentences when Reelwise
-                        selects individual career sentences from a longer article.
-                      */
                       const dependentTransitionTerms =
                         /^(?:later that year|earlier that year|the same year|that same year|the following year|the next year|the previous year|the year before|the year after|later that month|earlier that month|the following month|the next month|soon afterward|soon afterwards|afterward|afterwards|subsequently|thereafter)\b[,:]?\s*/i;
 
-                      /*
-                        Find a concise identity sentence.
-                      */
                       const isFilmmaker = sentences.some(
                         sentence => /\bfilmmaker|director\b/i.test(sentence)
                       );
@@ -500,20 +486,51 @@
                         sentence => /\bactress\b/i.test(sentence)
                       );
 
-                      /*
-                        Reelwise writes its own clean identity line rather than trusting
-                        Wikipedia's first sentence. This prevents hatnotes, birth-year
-                        fragments and disambiguation text from appearing in the profile.
-                      */
-                      let identity = isFilmmaker
+                      const identity = isFilmmaker
                         ? `${name} is an actor and filmmaker.`
                         : isActress
                           ? `${name} is an actress.`
                           : `${name} is an actor.`;
 
                       /*
-                        Breakthrough is the most important selection rule.
-                        It must contain both breakthrough language AND a real TMDB film title.
+                        Score a movie by how useful it is for a short Reelwise career arc.
+                        Popularity and vote count help identify culturally prominent work,
+                        while chronology is handled separately below.
+                      */
+                      const movieImportance = movie => {
+                        const popularity = Number(movie?.popularity || 0);
+                        const votes = Number(movie?.vote_count || 0);
+                        const rating = Number(movie?.vote_average || 0);
+                        const order = Number.isFinite(Number(movie?.order))
+                          ? Number(movie.order)
+                          : 99;
+
+                        return (
+                          Math.log10(Math.max(votes, 1)) * 18 +
+                          Math.min(popularity, 100) * 0.35 +
+                          Math.max(rating - 5, 0) * 3 +
+                          Math.max(0, 12 - Math.min(order, 12))
+                        );
+                      };
+
+                      const sentenceImportance = item => {
+                        const bestMovie = item.matches.length
+                          ? Math.max(...item.matches.map(movieImportance))
+                          : 0;
+
+                        let score = bestMovie;
+
+                        if (awardTerms.test(item.sentence)) score += 24;
+                        if (strongCareerTerms.test(item.sentence)) score += 14;
+                        if (item.matches.length >= 2) score += 8;
+                        if (breakthroughTerms.test(item.sentence)) score += 8;
+
+                        return score;
+                      };
+
+                      /*
+                        1. BREAKTHROUGH / EARLY RECOGNITION
+                        Prefer explicit breakthrough language tied to real TMDB films.
                       */
                       let breakthrough = "";
                       let breakthroughMovies = [];
@@ -521,6 +538,9 @@
                       for (const sentence of sentences) {
                         if (!breakthroughTerms.test(sentence)) continue;
                         if (personalTerms.test(sentence)) continue;
+                        if (publicityTerms.test(sentence)) continue;
+                        if (weakCareerTerms.test(sentence)) continue;
+                        if (incompleteFragmentTerms.test(sentence)) continue;
                         if (dependentTransitionTerms.test(sentence)) continue;
 
                         const matches = sentenceMovieMatches(sentence, movies);
@@ -531,21 +551,25 @@
                         break;
                       }
 
-                      /*
-                        Some articles split the breakthrough across adjacent sentences:
-                        one sentence says "film debut" and the next names the film.
-                      */
                       if (!breakthrough) {
                         for (let i = 0; i < sentences.length - 1; i++) {
                           if (!breakthroughTerms.test(sentences[i])) continue;
 
-                          if (dependentTransitionTerms.test(sentences[i])) continue;
-                          if (dependentTransitionTerms.test(sentences[i + 1])) continue;
-
                           const combined = `${sentences[i]} ${sentences[i + 1]}`;
+
+                          if (
+                            personalTerms.test(combined) ||
+                            publicityTerms.test(combined) ||
+                            weakCareerTerms.test(combined) ||
+                            dependentTransitionTerms.test(sentences[i]) ||
+                            dependentTransitionTerms.test(sentences[i + 1])
+                          ) {
+                            continue;
+                          }
+
                           const matches = sentenceMovieMatches(combined, movies);
 
-                          if (matches.length && !personalTerms.test(combined)) {
+                          if (matches.length) {
                             breakthrough = combined;
                             breakthroughMovies = matches;
                             break;
@@ -553,10 +577,17 @@
                         }
                       }
 
-                      const usedMovieIds = new Set(breakthroughMovies.map(movie => movie.id));
+                      const usedMovieIds = new Set(
+                        breakthroughMovies.map(movie => movie.id)
+                      );
+
+                      const breakthroughYear = breakthroughMovies.length
+                        ? Math.min(...breakthroughMovies.map(movieYear).filter(Boolean))
+                        : 0;
 
                       /*
-                        Gather career sentences that contain actual movie titles.
+                        Build clean career candidates. These are scored for significance,
+                        not simply selected because they appear next in Wikipedia.
                       */
                       const careerCandidates = sentences
                         .map((sentence, index) => ({
@@ -568,57 +599,111 @@
                           item.matches.length &&
                           careerTerms.test(item.sentence) &&
                           !personalTerms.test(item.sentence) &&
-                          !weakCareerTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
+                          !weakCareerTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
                           item.sentence !== breakthrough
-                        );
+                        )
+                        .map(item => ({
+                          ...item,
+                          earliestYear: Math.min(
+                            ...item.matches.map(movieYear).filter(Boolean)
+                          ) || 0,
+                          latestYear: Math.max(
+                            ...item.matches.map(movieYear).filter(Boolean)
+                          ) || 0,
+                          importance: sentenceImportance(item)
+                        }));
 
                       /*
-                        Defining work: prefer the earliest strong post-breakthrough sentence.
-                        This preserves career chronology instead of popularity ranking.
+                        2. DEFINING WORK
+                        Choose the strongest meaningful sentence after the breakthrough.
+                        This replaces the old "first sentence after breakthrough" behavior.
                       */
                       let defining = "";
 
-                      const breakthroughYear = breakthroughMovies.length
-                        ? Math.min(...breakthroughMovies.map(movieYear).filter(Boolean))
-                        : 0;
+                      const definingPool = careerCandidates
+                        .filter(item => {
+                          const fresh = item.matches.filter(
+                            movie => !usedMovieIds.has(movie.id)
+                          );
 
-                      for (const item of careerCandidates) {
-                        const fresh = item.matches.filter(movie => !usedMovieIds.has(movie.id));
-                        if (!fresh.length) continue;
+                          if (!fresh.length) return false;
 
-                        const years = fresh.map(movieYear).filter(Boolean);
-                        const earliest = years.length ? Math.min(...years) : 0;
+                          return (
+                            !breakthroughYear ||
+                            !item.latestYear ||
+                            item.latestYear >= breakthroughYear
+                          );
+                        })
+                        .sort((a, b) =>
+                          b.importance - a.importance ||
+                          a.index - b.index
+                        );
 
-                        if (!breakthroughYear || !earliest || earliest >= breakthroughYear) {
-                          defining = item.sentence;
-                          fresh.forEach(movie => usedMovieIds.add(movie.id));
-                          break;
-                        }
+                      if (definingPool.length) {
+                        const selected = definingPool[0];
+                        defining = selected.sentence;
+                        selected.matches.forEach(movie => usedMovieIds.add(movie.id));
                       }
 
                       /*
-                        Later career: search from the end for a movie-rich sentence that adds
-                        new films. This gives the bio a real career arc.
+                        3. MAJOR LATER WORK
+                        Prefer a strong sentence from a meaningfully later stage of the
+                        career, rather than the last or next chronological sentence.
                       */
                       let later = "";
 
-                      for (let i = careerCandidates.length - 1; i >= 0; i--) {
-                        const item = careerCandidates[i];
-                        if (item.sentence === defining) continue;
+                      const definingMatches = defining
+                        ? sentenceMovieMatches(defining, movies)
+                        : [];
 
-                        const fresh = item.matches.filter(movie => !usedMovieIds.has(movie.id));
-                        if (!fresh.length) continue;
+                      const definingYear = definingMatches.length
+                        ? Math.max(...definingMatches.map(movieYear).filter(Boolean))
+                        : breakthroughYear;
 
-                        later = item.sentence;
-                        break;
+                      const careerYears = movies.map(movieYear).filter(Boolean);
+                      const latestCareerYear = careerYears.length
+                        ? Math.max(...careerYears)
+                        : 0;
+
+                      const laterThreshold = definingYear
+                        ? definingYear + 4
+                        : breakthroughYear
+                          ? breakthroughYear + 5
+                          : latestCareerYear
+                            ? latestCareerYear - 8
+                            : 0;
+
+                      const laterPool = careerCandidates
+                        .filter(item => {
+                          if (item.sentence === defining) return false;
+
+                          const fresh = item.matches.filter(
+                            movie => !usedMovieIds.has(movie.id)
+                          );
+                          if (!fresh.length) return false;
+
+                          if (laterThreshold && item.latestYear < laterThreshold) {
+                            return false;
+                          }
+
+                          return true;
+                        })
+                        .sort((a, b) =>
+                          b.importance - a.importance ||
+                          b.latestYear - a.latestYear ||
+                          a.index - b.index
+                        );
+
+                      if (laterPool.length) {
+                        later = laterPool[0].sentence;
                       }
 
                       /*
-                        If Wikipedia parsing does not yield enough usable prose, use actual
-                        chronology from TMDB only as a fallback—not as the primary selector.
+                        TMDB fallbacks are used only when Wikipedia cannot supply a useful
+                        stage of the career arc.
                       */
                       if (!breakthrough) {
                         const chronological = [...movies]
@@ -627,7 +712,9 @@
 
                         const firstMeaningful = chronological.find(movie => {
                           const votes = Number(movie.vote_count || 0);
-                          const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+                          const order = Number.isFinite(Number(movie.order))
+                            ? Number(movie.order)
+                            : 99;
                           return votes >= 100 || order <= 10;
                         });
 
@@ -646,12 +733,27 @@
                             !usedMovieIds.has(movie.id) &&
                             sourceLower.includes(String(movie.title || "").toLowerCase())
                           )
-                          .sort((a, b) => movieYear(a) - movieYear(b))
+                          .sort((a, b) => movieImportance(b) - movieImportance(a))
                           .slice(0, 3);
 
                         if (mentioned.length) {
                           defining = `Defining films include ${formatFilmList(mentioned)}.`;
                           mentioned.forEach(movie => usedMovieIds.add(movie.id));
+                        }
+                      }
+
+                      if (!later) {
+                        const laterMovies = movies
+                          .filter(movie =>
+                            !usedMovieIds.has(movie.id) &&
+                            movieYear(movie) >= laterThreshold &&
+                            Number(movie.vote_count || 0) >= 250
+                          )
+                          .sort((a, b) => movieImportance(b) - movieImportance(a))
+                          .slice(0, 2);
+
+                        if (laterMovies.length) {
+                          later = `${name}'s later film work includes ${formatFilmList(laterMovies)}.`;
                         }
                       }
 
@@ -675,7 +777,7 @@
                         .filter(sentence =>
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
-                          !/\b(?:only role|only film|only movie)\b/i.test(sentence)
+                          !weakCareerTerms.test(sentence)
                         );
 
                       const unique = [];
@@ -712,6 +814,7 @@
 
                       return bio;
                     }
+
 
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
