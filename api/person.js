@@ -60,6 +60,15 @@
                         .replace(/&quot;/gi, '"')
                         .replace(/&#39;/gi, "'")
                         .replace(/&apos;/gi, "'")
+                        // Decode decimal and hexadecimal numeric HTML entities such as &#32; or &#x20;.
+                        .replace(/&#(\d+);/g, (_, n) => {
+                          const code = Number(n);
+                          return Number.isFinite(code) ? String.fromCodePoint(code) : " ";
+                        })
+                        .replace(/&#x([0-9a-f]+);/gi, (_, n) => {
+                          const code = parseInt(n, 16);
+                          return Number.isFinite(code) ? String.fromCodePoint(code) : " ";
+                        })
                         .replace(/\s+/g, " ")
                         .trim();
                     }
@@ -435,13 +444,16 @@
                           !/\bdisambiguation\b/i.test(sentence) &&
                           !/\bFor other uses, see\b/i.test(sentence) &&
                           !/\[\s*edit\s*\]/i.test(sentence) &&
-                          !/^(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b/i.test(sentence)
+                          !/^(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b/i.test(sentence) &&
+                          // Reject pronunciation/IPA-heavy lead fragments and duplicate birth-date introductions.
+                          !/(?:\/[^/]{2,80}\/|\[[^\]]{0,80}(?:IPA|pronunciation)[^\]]*\])/i.test(sentence) &&
+                          !new RegExp(`^${String(person?.name || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*\\([^)]*born\\s+[^)]*\\)`, "i").test(sentence)
                         );
                       const movies = getMovieCredits(person);
                       const name = cleanText(person?.name || "This performer");
 
                       const personalTerms =
-                        /\b(married|marriage|wife|husband|spouse|children|daughter|son|activist|political|politics|religion|charity|philanthrop|personal life|resides|lives in)\b/i;
+                        /\b(married|marriage|wife|husband|spouse|children|daughter|son|activist|political|politics|religion|charity|philanthrop|personal life|resides|lives in|born on|date of birth)\b/i;
 
                       const breakthroughTerms =
                         /\b(film debut|debut|breakthrough|breakout|rose to prominence|gained recognition|gained critical acclaim|first major role|first film role|career-making|critical and commercial success|major success|became a star|established him|established her)\b/i;
