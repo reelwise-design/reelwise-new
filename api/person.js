@@ -468,6 +468,14 @@
                         /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received|only role|only film|only movie)\b/i;
 
                       /*
+                        Reelwise biographies should focus on career milestones rather than
+                        publicity activity. Reject interviews, magazine-cover stories,
+                        promotional appearances and similar press anecdotes.
+                      */
+                      const publicityTerms =
+                        /\b(promoting|promoted|promotion|promotional|publicity|press tour|press junket|interview|interviewed|magazine|cover of|photo shoot|photoshoot|talk show|late[- ]night|appeared on the cover|spoke to the press)\b/i;
+
+                      /*
                         Reject broken Wikipedia fragments that cannot stand alone,
                         such as "4 billion worldwide..." after surrounding markup
                         has been removed.
@@ -561,6 +569,7 @@
                           careerTerms.test(item.sentence) &&
                           !personalTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
+                          !publicityTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
                           item.sentence !== breakthrough
@@ -665,6 +674,7 @@
                         .filter(Boolean)
                         .filter(sentence =>
                           !incompleteFragmentTerms.test(sentence) &&
+                          !publicityTerms.test(sentence) &&
                           !/\b(?:only role|only film|only movie)\b/i.test(sentence)
                         );
 
