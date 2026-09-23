@@ -465,7 +465,15 @@
                         /\b(academy award|oscar|golden globe|bafta|emmy|award|awards|accolade|accolades|nomination|nominations)\b/i;
 
                       const weakCareerTerms =
-                        /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received)\b/i;
+                        /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received|only role|only film|only movie)\b/i;
+
+                      /*
+                        Reject broken Wikipedia fragments that cannot stand alone,
+                        such as "4 billion worldwide..." after surrounding markup
+                        has been removed.
+                      */
+                      const incompleteFragmentTerms =
+                        /^(?:[\d.,$£€¥%]+(?:\s|$)|[,;:)\]])/;
 
                       /*
                         Reject context-dependent transition sentences when Reelwise
@@ -553,6 +561,7 @@
                           careerTerms.test(item.sentence) &&
                           !personalTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
+                          !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
                           item.sentence !== breakthrough
                         );
@@ -653,7 +662,11 @@
 
                       const parts = [identity, breakthrough, defining, later]
                         .map(polishCareerSentence)
-                        .filter(Boolean);
+                        .filter(Boolean)
+                        .filter(sentence =>
+                          !incompleteFragmentTerms.test(sentence) &&
+                          !/\b(?:only role|only film|only movie)\b/i.test(sentence)
+                        );
 
                       const unique = [];
                       const seen = new Set();
