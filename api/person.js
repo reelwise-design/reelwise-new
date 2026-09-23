@@ -269,6 +269,7 @@
                         // "edit Main article: Tobey Maguire filmography"
                         .replace(/\b(?:edit\s*)?Main article:\s*[^.!?]+(?:filmography|career|works|roles)\b[.!?]?/gi, " ")
                         .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
+                        .replace(/\bedit\s+(?=[A-Z][a-z])/g, " ")
                         .replace(/\s+/g, " ")
                         .trim();
 
@@ -482,7 +483,13 @@
                         /^(?:[\d.,$£€¥%]+(?:\s|$)|[,;:)\]])/;
 
                       const dependentTransitionTerms =
-                        /^(?:later that year|earlier that year|the same year|that same year|the following year|the next year|the previous year|the year before|the year after|later that month|earlier that month|the following month|the next month|soon afterward|soon afterwards|afterward|afterwards|subsequently|thereafter)\b[,:]?\s*/i;
+                        /^(?:later that year|earlier that year|the same year|that same year|the following year|the next year|the previous year|the year before|the year after|later that month|earlier that month|the following month|the next month|soon afterward|soon afterwards|afterward|afterwards|subsequently|thereafter|that year)\b[,:]?\s*/i;
+
+                      const contextlessTerms =
+                        /^(?:the film|the movie|the role|the performance|the project|the sequel|the series|the production|the picture)\b/i;
+
+                      const plotSummaryTerms =
+                        /\b(?:plot|story follows|centers on|revolves around|who cannot stand each other|unknowingly|falls in love|tries to|attempts to|sets out to|must save|must stop|in search of his estranged|in search of her estranged)\b/i;
 
                       /*
                         Reject sentences that begin with a different named person and never
@@ -514,18 +521,34 @@
                         return subject !== profileName;
                       };
 
-                      const isFilmmaker = sentences.some(
-                        sentence => /\bfilmmaker|director\b/i.test(sentence)
-                      );
-                      const isActress = sentences.some(
-                        sentence => /\bactress\b/i.test(sentence)
-                      );
+                      /*
+                        Identity must describe the person, not words that happen to appear
+                        elsewhere in the article. TMDB's known_for_department is the safest
+                        primary signal. Only the opening biography sentences may add a genuine
+                        filmmaker/director credit.
+                      */
+                      const introText = sentences.slice(0, 2).join(" ");
+                      const department = String(person?.known_for_department || "").toLowerCase();
+                      const introSaysFilmmaker =
+                        /\b(?:is|was)\s+(?:an?\s+)?(?:actor|actress)[^.!?]{0,90}\b(?:filmmaker|director|producer|screenwriter)\b/i.test(introText) ||
+                        /\b(?:actor|actress),?\s+(?:and\s+)?(?:filmmaker|director)\b/i.test(introText);
 
-                      const identity = isFilmmaker
+                      const introSaysActress = /\bactress\b/i.test(introText);
+                      const isActingProfile =
+                        department === "acting" ||
+                        /\bactor\b|\bactress\b/i.test(introText);
+
+                      const isFilmmaker =
+                        introSaysFilmmaker ||
+                        (!isActingProfile && /directing|production|writing/.test(department));
+
+                      const identity = isFilmmaker && isActingProfile
                         ? `${name} is an actor and filmmaker.`
-                        : isActress
+                        : introSaysActress
                           ? `${name} is an actress.`
-                          : `${name} is an actor.`;
+                          : isActingProfile
+                            ? `${name} is an actor.`
+                            : `${name} is a film professional.`;
 
                       /*
                         Score a movie by how useful it is for a short Reelwise career arc.
@@ -577,6 +600,9 @@
                         if (weakCareerTerms.test(sentence)) continue;
                         if (incompleteFragmentTerms.test(sentence)) continue;
                         if (dependentTransitionTerms.test(sentence)) continue;
+                        if (contextlessTerms.test(sentence)) continue;
+                        if (plotSummaryTerms.test(sentence)) continue;
+                        if (/^edit\b/i.test(sentence)) continue;
                         if (isOtherPersonSentence(sentence)) continue;
 
                         const matches = sentenceMovieMatches(sentence, movies);
@@ -598,7 +624,12 @@
                             publicityTerms.test(combined) ||
                             weakCareerTerms.test(combined) ||
                             dependentTransitionTerms.test(sentences[i]) ||
-                            dependentTransitionTerms.test(sentences[i + 1])
+                            dependentTransitionTerms.test(sentences[i + 1]) ||
+                            contextlessTerms.test(sentences[i]) ||
+                            contextlessTerms.test(sentences[i + 1]) ||
+                            plotSummaryTerms.test(combined) ||
+                            /^edit\b/i.test(sentences[i]) ||
+                            /^edit\b/i.test(sentences[i + 1])
                           ) {
                             continue;
                           }
@@ -639,6 +670,9 @@
                           !weakCareerTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
+                          !contextlessTerms.test(item.sentence) &&
+                          !plotSummaryTerms.test(item.sentence) &&
+                          !/^edit\b/i.test(item.sentence) &&
                           !isOtherPersonSentence(item.sentence) &&
                           item.sentence !== breakthrough
                         )
@@ -744,20 +778,22 @@
                       */
                       if (!breakthrough) {
                         const chronological = [...movies]
-                          .sort((a, b) => movieYear(a) - movieYear(b))
-                          .filter(movie => movieYear(movie) > 0);
+                          .filter(movie => movieYear(movie) > 0)
+                          .sort((a, b) => movieYear(a) - movieYear(b));
 
+                        /*
+                          Do not manufacture weak early-career filler. A fallback film must
+                          already have meaningful audience recognition.
+                        */
                         const firstMeaningful = chronological.find(movie => {
                           const votes = Number(movie.vote_count || 0);
-                          const order = Number.isFinite(Number(movie.order))
-                            ? Number(movie.order)
-                            : 99;
-                          return votes >= 100 || order <= 10;
+                          const popularity = Number(movie.popularity || 0);
+                          return votes >= 750 || popularity >= 18;
                         });
 
                         if (firstMeaningful) {
                           breakthrough =
-                            `${name}'s early film career included ${formatFilm(firstMeaningful)}.`;
+                            `${name}'s early notable film work included ${formatFilm(firstMeaningful)}.`;
                           usedMovieIds.add(firstMeaningful.id);
                         }
                       }
@@ -794,6 +830,47 @@
                         }
                       }
 
+                      /*
+                        DEFINING-CREDIT SAFETY NET
+                        Wikipedia prose can skip the movie audiences most strongly associate
+                        with a star. Compare the selected bio against TMDB's strongest credits.
+                        If a very prominent credit is missing, use it instead of a weak/generic
+                        later sentence. This is generic — no actor or movie is hard-coded.
+                      */
+                      const selectedText = [breakthrough, defining, later].join(" ").toLowerCase();
+
+                      const definingCredits = [...movies]
+                        .filter(movie => {
+                          const votes = Number(movie.vote_count || 0);
+                          const popularity = Number(movie.popularity || 0);
+                          return votes >= 1500 || popularity >= 25;
+                        })
+                        .sort((a, b) => movieImportance(b) - movieImportance(a));
+
+                      const missingDefining = definingCredits
+                        .filter(movie =>
+                          !selectedText.includes(String(movie.title || "").toLowerCase())
+                        )
+                        .slice(0, 2);
+
+                      if (missingDefining.length) {
+                        const definingLine =
+                          `${name}'s defining films include ${formatFilmList(missingDefining)}.`;
+
+                        const laterLooksGeneric =
+                          !later ||
+                          /later film work includes|early notable film work included/i.test(later);
+
+                        if (laterLooksGeneric) {
+                          later = definingLine;
+                        } else if (!defining || sentenceImportance({
+                          sentence: defining,
+                          matches: sentenceMovieMatches(defining, movies)
+                        }) < 45) {
+                          defining = definingLine;
+                        }
+                      }
+
                       const polishCareerSentence = value => {
                         let sentence = cleanText(value);
 
@@ -815,6 +892,9 @@
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
                           !weakCareerTerms.test(sentence) &&
+                          !contextlessTerms.test(sentence) &&
+                          !plotSummaryTerms.test(sentence) &&
+                          !/^edit\b/i.test(sentence) &&
                           !/\b(?:edit\s*)?Main article:/i.test(sentence) &&
                           !isOtherPersonSentence(sentence)
                         );
@@ -908,6 +988,8 @@
                       return {
                         ...person,
                         biography,
+                        deathday: person?.deathday || null,
+                        deceased: Boolean(person?.deathday),
                         combined_credits:
                           person?.combined_credits &&
                           typeof person.combined_credits === "object"
