@@ -1245,14 +1245,18 @@
                       let otherMajorLine = "";
 
                       /*
-                        When Wikipedia supplies a genuine later award/acclaim milestone,
-                        keep the biography focused and do not insert another popularity-
-                        based movie between the signature role and that achievement.
+                        Preserve one additional distinct high-significance film whenever
+                        the filmography supports it. An award/acclaim milestone must not
+                        suppress this slot: the milestone describes recognition, while
+                        this line broadens the actual screen-career story.
+
+                        The candidate is still filtered above to avoid the signature film,
+                        repeated franchise/character entries, posthumous releases, and
+                        movies already represented in the selected career beats.
                       */
                       if (
                         otherMajor &&
-                        releasedDuringLifetime(otherMajor) &&
-                        !strongestAwardMilestone
+                        releasedDuringLifetime(otherMajor)
                       ) {
                         otherMajorLine =
                           `Other major work includes ${formatFilmList([otherMajor])}.`;
