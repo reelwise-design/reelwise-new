@@ -1560,11 +1560,9 @@
                           if (alreadyNamed(movie)) return false;
 
                           /*
-                            Do not eliminate a qualified later-career movie here merely
-                            because an earlier installment is represented. Final assembly
-                            performs franchise deduplication after independent milestones
-                            have been ranked, so a verified later achievement cannot vanish
-                            before the final career beats are chosen.
+                            Keep every otherwise-qualified later-career film in the ranked
+                            pool. Franchise deduplication happens only after ranking so a
+                            verified independent milestone cannot be discarded prematurely.
                           */
                           return true;
                         })
@@ -1590,21 +1588,16 @@
                       const laterEraLimit = careerSpanYears >= 30 ? 2 : 1;
 
                       /*
-                        FINAL LATER-CAREER ASSEMBLY
-
-                        Rank all eligible films first. A verified independent milestone is
-                        allowed even when its franchise appeared earlier in the biography.
-                        Routine franchise repeats remain deduplicated. This ordering fixes
-                        the previous behavior where an independently qualified milestone
-                        could pass every gate but disappear before the final sentence.
+                        Final later-career assembly:
+                        independently verified milestones survive even when an earlier film
+                        from the same franchise is already represented. Routine franchise
+                        repeats remain deduplicated.
                       */
                       for (const movie of laterEraPool) {
                         const independentMilestone = hasIndependentLaterMilestone(movie);
-
                         const repeatsEarlierFranchise = representedBeforeEra.some(existing =>
                           sameCareerFranchise(movie, existing)
                         );
-
                         const repeatsPickedFranchise = laterEraPicks.some(existing =>
                           sameCareerFranchise(movie, existing)
                         );
@@ -1779,6 +1772,292 @@
                       return bio;
                     }
 
+
+                    async function getPersonProfile(personId) {
+                      const person = await fetchTMDB(
+                        `/person/${encodeURIComponent(personId)}`,
+                        {
+                          language: "en-US",
+                          append_to_response: "combined_credits"
+                        }
+                      );
+
+                      const tmdbBio = cleanText(person?.biography || "");
+
+                      /*
+                        Primary biography source: richer Wikipedia article text.
+                        Fallback: Wikipedia summary, then TMDB biography.
+                      */
+                      let wikipediaCareerText = "";
+                      let wikipediaSummary = "";
+
+                      try {
+                        wikipediaCareerText = await getWikipediaCareerText(person?.name || "");
+                      } catch (error) {
+                        wikipediaCareerText = "";
+                      }
+
+                      try {
+                        wikipediaSummary = await getWikipediaBiography(person?.name || "");
+                      } catch (error) {
+                        wikipediaSummary = "";
+                      }
+
+                      let biography = "";
+
+                      if (wikipediaCareerText) {
+                        try {
+                          biography = chooseCareerSentences(wikipediaCareerText, person);
+                        } catch (error) {
+                          console.error("Reelwise career biography error:", error);
+                          biography = "";
+                        }
+                      }
+
+                      if (!biography && wikipediaSummary) {
+                        try {
+                          biography = chooseCareerSentences(wikipediaSummary, person);
+                        } catch (error) {
+                          console.error("Reelwise summary biography error:", error);
+                          biography = "";
+                        }
+                      }
+
+                      if (!biography && tmdbBio) {
+                        try {
+                          biography = chooseCareerSentences(tmdbBio, person);
+                        } catch (error) {
+                          console.error("Reelwise TMDB biography error:", error);
+                          biography = "";
+                        }
+                      }
+
+                      biography =
+                        biography ||
+                        wikipediaSummary ||
+                        tmdbBio ||
+                        "";
+
+                      if (biography.length > 1150) {
+                        const fallbackSentences = splitBioSentences(biography);
+                        const compactFallback = [];
+                        let fallbackLength = 0;
+
+                        for (const sentence of fallbackSentences) {
+                          const cleanSentence = cleanText(sentence);
+                          if (!cleanSentence) continue;
+
+                          const addition =
+                            cleanSentence.length + (compactFallback.length ? 1 : 0);
+
+                          if (fallbackLength + addition > 760) break;
+
+                          compactFallback.push(cleanSentence);
+                          fallbackLength += addition;
+
+                          if (compactFallback.length >= 4) break;
+                        }
+
+                        biography = compactFallback.join(" ");
+
+                        /*
+                          Absolute last-resort guard: never let a malformed source paragraph
+                          fill the entire Reelwise star card.
+                        */
+                        if (biography.length > 820) {
+                          biography = biography.slice(0, 817).replace(/\s+\S*$/, "") + "...";
+                        }
+                      }
+
+                      return {
+                        ...person,
+                        biography,
+                        deathday: person?.deathday || null,
+                        deceased: Boolean(person?.deathday),
+                        combined_credits:
+                          person?.combined_credits &&
+                          typeof person.combined_credits === "object"
+                            ? person.combined_credits
+                            : { cast: [], crew: [] }
+                      };
+                    }
+
+
+                    /* ============================================================
+                       ACADEMY AWARDS / ACCOLADES
+                       ============================================================ */
+
+                    function academyCategoryLooksPersonal(category) {
+                      const text = String(category || "").toLowerCase();
+
+                      /*
+                        A person search can theoretically match names in non-person contexts.
+                        Reelwise's Star Accolades section should show awards credited to the
+                        performer/filmmaker as nominee. OscarBase's nominee field is the main
+                        identity check; this helper only rejects obviously empty categories.
+                      */
+                      return text.length > 0;
+                    }
+
+                    function mapAcademyNomination(item) {
+                      return {
+                        year: String(
+                          item?.ceremony_year ||
+                          item?.year ||
+                          ""
+                        ),
+                        movie: cleanText(
+                          typeof item?.movie === "string"
+                            ? item.movie
+                            : item?.movie?.title || item?.film || item?.work || ""
+                        ) || "Film",
+                        category: cleanText(
+                          typeof item?.category === "string"
+                            ? item.category
+                            : item?.category?.category_name ||
+                              item?.category?.name ||
+                              item?.award ||
+                              ""
+                        ) || "Academy Award",
+                        winner:
+                          item?.winner === true ||
+                          item?.won === true ||
+                          String(item?.result || "").toLowerCase() === "winner"
+                      };
+                    }
+
+                    async function getOscarBasePage(name, page = 1) {
+                      const url = new URL(OSCARBASE_BASE + "/nominations");
+
+                      url.searchParams.set("nominee", name);
+                      url.searchParams.set("page", String(page));
+                      url.searchParams.set("limit", "100");
+
+                      return fetchJSON(url.toString(), {}, 9000);
+                    }
+
+                    async function getAcademyAwards(person) {
+                      const name = cleanText(person?.name || "");
+
+                      if (!name) {
+                        throw new Error("The star's name could not be resolved.");
+                      }
+
+                      const expectedName = normalizeName(name);
+
+                      let firstPage = await getOscarBasePage(name, 1);
+
+                      let rows = Array.isArray(firstPage?.data)
+                        ? [...firstPage.data]
+                        : Array.isArray(firstPage?.nominations)
+                          ? [...firstPage.nominations]
+                          : [];
+
+                      const totalPages = Math.min(
+                        Math.max(
+                          Number(firstPage?.pagination?.totalPages) || 1,
+                          1
+                        ),
+                        10
+                      );
+
+                      /*
+                        A single performer is extremely unlikely to exceed 100 nominations,
+                        but paging makes the contract correct if the API ever returns more.
+                      */
+                      for (let page = 2; page <= totalPages; page++) {
+                        const next = await getOscarBasePage(name, page);
+
+                        const more = Array.isArray(next?.data)
+                          ? next.data
+                          : Array.isArray(next?.nominations)
+                            ? next.nominations
+                            : [];
+
+                        rows.push(...more);
+                      }
+
+                      /*
+                        OscarBase supports partial nominee-name matching. Require the returned
+                        nominee to equal the TMDB person's name after normalization so a search
+                        for one performer cannot silently show another person's awards.
+                      */
+                      rows = rows.filter(item => {
+                        const nominee =
+                          typeof item?.nominee === "string"
+                            ? item.nominee
+                            : item?.nominee?.name || "";
+
+                        return (
+                          normalizeName(nominee) === expectedName &&
+                          academyCategoryLooksPersonal(
+                            typeof item?.category === "string"
+                              ? item.category
+                              : item?.category?.category_name || item?.category?.name || ""
+                          )
+                        );
+                      });
+
+                      /*
+                        Deduplicate defensively in case pagination or upstream data repeats
+                        the same nomination.
+                      */
+                      const seen = new Set();
+
+                      const history = rows
+                        .map(mapAcademyNomination)
+                        .filter(item => {
+                          const key = [
+                            item.year,
+                            item.movie.toLowerCase(),
+                            item.category.toLowerCase()
+                          ].join("|");
+
+                          if (seen.has(key)) {
+                            return false;
+                          }
+
+                          seen.add(key);
+                          return true;
+                        })
+                        .sort((a, b) => {
+                          const yearDifference =
+                            (parseInt(b.year, 10) || 0) -
+                            (parseInt(a.year, 10) || 0);
+
+                          if (yearDifference) {
+                            return yearDifference;
+                          }
+
+                          return a.category.localeCompare(b.category);
+                        });
+
+                      const wins = history.filter(item => item.winner).length;
+                      const nominations = history.length;
+
+                      /*
+                        IMPORTANT:
+                        confirmed:true means OscarBase completed the lookup successfully.
+                        found:false + history:[] is therefore a real zero-nomination result,
+                        exactly as the current Reelwise index expects.
+                      */
+                      return {
+                        confirmed: true,
+                        found: history.length > 0,
+                        person_id: person?.id || null,
+                        name,
+                        wins,
+                        nominations,
+                        history,
+
+                        /*
+                          Compatibility aliases already supported by index.html.
+                        */
+                        academy_awards: history,
+                        academyAwards: history,
+                        accolades: history
+                      };
+                    }
 
 
                     /* ============================================================
