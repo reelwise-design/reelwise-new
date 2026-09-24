@@ -1416,18 +1416,68 @@
                       */
                       const laterMilestoneTerms = /\b(?:academy award|oscar|golden globe|bafta|sag award|screen actors guild|emmy|cannes|venice|volpi|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|comeback|revival|returned|returning|reprise|reprised|reprising)\b/i;
 
+                      /*
+                        AWARD / ACCLAIM ASSOCIATION LAYER
+
+                        Do not depend on careerCandidates here. Award sentences are often
+                        filtered out of the prose candidate pool because they contain no
+                        generic words such as "film", "role" or "starred". A milestone
+                        can also be split across adjacent source sentences: one names the
+                        movie and the next describes the nomination or win.
+
+                        Build evidence directly from the cleaned source sentences, attach
+                        the neighboring context to each exact movie-title occurrence, and
+                        only then let the later-career scorer rank the movie. This is
+                        generic: no performer, movie, franchise or award result is coded.
+                      */
+                      const sourceEvidenceForMovie = movie => {
+                        const title = String(movie?.title || "").trim();
+                        if (!title) return [];
+
+                        const titleLower = title.toLowerCase();
+                        const evidence = [];
+
+                        for (let i = 0; i < sentences.length; i += 1) {
+                          const current = String(sentences[i] || "");
+                          if (!current.toLowerCase().includes(titleLower)) continue;
+
+                          const contextParts = [];
+                          if (i > 0) contextParts.push(sentences[i - 1]);
+                          contextParts.push(current);
+                          if (i + 1 < sentences.length) contextParts.push(sentences[i + 1]);
+
+                          evidence.push({
+                            sentence: current,
+                            context: contextParts.join(" ")
+                          });
+                        }
+
+                        return evidence;
+                      };
+
                       const sourceSentencesForMovie = movie =>
-                        careerCandidates.filter(item =>
-                          item.matches.some(match => match.id === movie.id)
-                        );
+                        sourceEvidenceForMovie(movie).map(item => ({
+                          sentence: item.sentence,
+                          context: item.context
+                        }));
 
                       const laterMilestoneEvidence = movie => {
                         const sourceItems = sourceSentencesForMovie(movie);
                         let milestoneEvidence = sourceItems.reduce((score, item) => {
+                          const direct = String(item.sentence || "");
+                          const context = String(item.context || direct);
                           let boost = 0;
-                          if (awardTerms.test(item.sentence)) boost += 90;
-                          if (laterMilestoneTerms.test(item.sentence)) boost += 55;
-                          if (signatureCareerTerms.test(item.sentence)) boost += 30;
+
+                          // Direct movie + award/acclaim evidence is the strongest signal.
+                          if (awardTerms.test(direct)) boost += 180;
+                          if (laterMilestoneTerms.test(direct)) boost += 90;
+                          if (signatureCareerTerms.test(direct)) boost += 45;
+
+                          // Adjacent sentences can carry the award clause for the named film.
+                          if (awardTerms.test(context)) boost = Math.max(boost, 150);
+                          if (laterMilestoneTerms.test(context)) boost = Math.max(boost, 110);
+                          if (signatureCareerTerms.test(context)) boost = Math.max(boost, 70);
+
                           return Math.max(score, boost);
                         }, 0);
 
@@ -1453,7 +1503,7 @@
                               Math.min(sourceText.length, at + title.length + 520)
                             );
 
-                            if (awardTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 140);
+                            if (awardTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 170);
                             if (laterMilestoneTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 95);
                             if (signatureCareerTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 60);
                             from = at + Math.max(needle.length, 1);
