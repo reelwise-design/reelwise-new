@@ -2181,14 +2181,33 @@
                         }
 
                         /*
+                          CAREER DEBUG MODE
+                          Uses the same established `mode` query mechanism as accolades.
+                          Return ONLY the compact diagnostic payload so there is no ambiguity
+                          about whether the diagnostic branch executed.
+                        */
+                        if (mode === "career-debug") {
+                          const debugProfile = await getPersonProfile(id, true);
+
+                          return sendJSON(
+                            res,
+                            200,
+                            {
+                              diagnostic: "REELWISE_CAREER_DEBUG_V3",
+                              person_id: debugProfile?.id || Number(id),
+                              name: debugProfile?.name || "",
+                              biography: debugProfile?.biography || "",
+                              career_debug: debugProfile?.career_debug || {
+                                error: "Career diagnostic payload was not generated."
+                              }
+                            }
+                          );
+                        }
+
+                        /*
                           NORMAL STAR PROFILE MODE
                         */
-                        const rawDebug = Array.isArray(req.query?.debug)
-                          ? req.query.debug[0]
-                          : req.query?.debug;
-                        const debugCareer = String(rawDebug || "").trim().toLowerCase() === "career";
-
-                        const profile = await getPersonProfile(id, debugCareer);
+                        const profile = await getPersonProfile(id, false);
 
                         return sendJSON(
                           res,
