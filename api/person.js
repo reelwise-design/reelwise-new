@@ -1878,6 +1878,14 @@
                           biography = chooseCareerSentences(wikipediaCareerText, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
+                          if (debugCareer && careerDebug) {
+                            careerDebug.error = {
+                              stage: "wikipediaCareerText",
+                              name: String(error?.name || "Error"),
+                              message: String(error?.message || error || "Unknown error"),
+                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
+                            };
+                          }
                           biography = "";
                         }
                       }
@@ -1887,6 +1895,14 @@
                           biography = chooseCareerSentences(wikipediaSummary, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise summary biography error:", error);
+                          if (debugCareer && careerDebug && !careerDebug.error) {
+                            careerDebug.error = {
+                              stage: "wikipediaSummary",
+                              name: String(error?.name || "Error"),
+                              message: String(error?.message || error || "Unknown error"),
+                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
+                            };
+                          }
                           biography = "";
                         }
                       }
@@ -1896,6 +1912,14 @@
                           biography = chooseCareerSentences(tmdbBio, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise TMDB biography error:", error);
+                          if (debugCareer && careerDebug && !careerDebug.error) {
+                            careerDebug.error = {
+                              stage: "tmdbBio",
+                              name: String(error?.name || "Error"),
+                              message: String(error?.message || error || "Unknown error"),
+                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
+                            };
+                          }
                           biography = "";
                         }
                       }
@@ -2219,7 +2243,7 @@
                         if (mode === "final-slot-debug") {
                           const profile = await getPersonProfile(id, true);
                           return sendJSON(res, 200, {
-                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V1",
+                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V2",
                             person: { id: profile?.id || Number(id), name: profile?.name || "" },
                             biography: profile?.biography || "",
                             career_debug: profile?.career_debug || {}
