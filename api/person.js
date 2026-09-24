@@ -516,6 +516,12 @@
                       const contractDetailTerms =
                         /\b(signed on|signed a deal|signed a contract|contracted to|optioned for|multi[- ]picture deal|multi[- ]film deal|negotiated|salary|paycheck|insurance bond|reprise (?:his|her|their) role in (?:two|three|multiple) sequels)\b/i;
 
+                      const headlineArtifactTerms =
+                        /(?:^|["'])[^.]{0,90}\b(?:final film|shelved for|festival debut|exclusive:|interview:|review:|obituary:)\b[^.]{0,140}["']?(?:\.|$)/i;
+
+                      const releaseHistoryTerms =
+                        /\b(?:in (?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{4},?\s+)?(?:the )?(?:screen adaptation|film adaptation|motion-picture adaptation|film version)\b.{0,90}\b(?:was released|opened|premiered|debuted)\b|\b(?:was released|opened|premiered|debuted)\b.{0,90}\b(?:directed by|distributed by|produced by)\b/i;
+
                       const incompleteFragmentTerms =
                         /^(?:[\d.,$£€¥%]+(?:\s|$)|[,;:)\]])/;
 
@@ -643,6 +649,8 @@
                         if (personalTerms.test(sentence)) continue;
                         if (publicityTerms.test(sentence)) continue;
                         if (contractDetailTerms.test(sentence)) continue;
+                        if (headlineArtifactTerms.test(sentence)) continue;
+                        if (releaseHistoryTerms.test(sentence)) continue;
                         if (weakCareerTerms.test(sentence)) continue;
                         if (incompleteFragmentTerms.test(sentence)) continue;
                         if (dependentTransitionTerms.test(sentence)) continue;
@@ -669,6 +677,8 @@
                             personalTerms.test(combined) ||
                             publicityTerms.test(combined) ||
                             contractDetailTerms.test(combined) ||
+                            headlineArtifactTerms.test(combined) ||
+                            releaseHistoryTerms.test(combined) ||
                             weakCareerTerms.test(combined) ||
                             dependentTransitionTerms.test(sentences[i]) ||
                             dependentTransitionTerms.test(sentences[i + 1]) ||
@@ -715,6 +725,8 @@
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
                           !contractDetailTerms.test(item.sentence) &&
+                          !headlineArtifactTerms.test(item.sentence) &&
+                          !releaseHistoryTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
@@ -1001,9 +1013,47 @@
                       const alreadyNamed = movie =>
                         selectedText.includes(String(movie.title || "").toLowerCase());
 
+                      const nonFranchiseSignatureScore = movie => {
+                        const votes = Number(movie?.vote_count || 0);
+                        const rating = Number(movie?.vote_average || 0);
+                        const order = Number.isFinite(Number(movie?.order))
+                          ? Number(movie.order)
+                          : 99;
+                        const title = String(movie?.title || "").trim();
+                        const normalizedTitle = normalizeFilmTitle(title);
+                        const normalizedSource = normalizeFilmTitle(cleanedArticleText);
+
+                        const billing =
+                          order === 0 ? 55 :
+                          order === 1 ? 42 :
+                          order === 2 ? 30 :
+                          order <= 4 ? 14 : 0;
+
+                        /*
+                          Durable recognition matters more than today's TMDB popularity.
+                          Log scaling prevents giant modern blockbusters from overwhelming
+                          older signature films purely through raw vote totals.
+                        */
+                        const recognition = Math.log10(Math.max(votes, 1)) * 22;
+                        const quality = Math.max(rating - 5, 0) * 4;
+                        const sourceMention =
+                          normalizedTitle && normalizedSource.includes(normalizedTitle)
+                            ? 24
+                            : 0;
+
+                        return billing + recognition + quality + sourceMention;
+                      };
+
+                      const nonFranchiseSignature = majorCentralCredits
+                        .filter(movie => !alreadyNamed(movie))
+                        .sort((a, b) =>
+                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                          movieYear(a) - movieYear(b)
+                        )[0] || null;
+
                       const signatureFilm =
                         recurringRoleCredits.find(movie => !alreadyNamed(movie)) ||
-                        majorCentralCredits.find(movie => !alreadyNamed(movie)) ||
+                        nonFranchiseSignature ||
                         null;
 
                       const definingIsSignature =
@@ -1045,6 +1095,8 @@
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
                           !contractDetailTerms.test(item.sentence) &&
+                          !headlineArtifactTerms.test(item.sentence) &&
+                          !releaseHistoryTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
                           !plotSummaryTerms.test(item.sentence) &&
                           !isDuplicateMeaning(item.sentence, breakthrough) &&
@@ -1076,7 +1128,11 @@
                             !alreadyNamed(movie) &&
                             (!laterThreshold || movieYear(movie) >= laterThreshold)
                           )
-                          .slice(0, 1);
+                          .sort((a, b) =>
+                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                            movieYear(a) - movieYear(b)
+                          )
+                          .slice(0, 2);
 
                         if (laterMovies.length) {
                           later = `Later work includes ${formatFilmList(laterMovies)}.`;
@@ -1164,6 +1220,8 @@
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
                           !contractDetailTerms.test(sentence) &&
+                          !headlineArtifactTerms.test(sentence) &&
+                          !releaseHistoryTerms.test(sentence) &&
                           !weakCareerTerms.test(sentence) &&
                           !contextlessTerms.test(sentence) &&
                           !plotSummaryTerms.test(sentence) &&
