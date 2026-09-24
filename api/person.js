@@ -1731,6 +1731,202 @@
                     }
 
 
+
+                    /*
+                      FOCUSED LATER-CAREER DIAGNOSTIC
+                      Compare exactly three requested film titles supplied through
+                      mode=career-compare. This is diagnostic only and does not alter
+                      the normal Reelwise biography response.
+                    */
+                    async function buildFocusedCareerCompare(personId) {
+                      const person = await fetchTMDB(
+                        `/person/${encodeURIComponent(personId)}`,
+                        {
+                          language: "en-US",
+                          append_to_response: "combined_credits"
+                        }
+                      );
+
+                      let sourceText = "";
+                      try {
+                        sourceText = await getWikipediaCareerText(person?.name || "");
+                      } catch (error) {
+                        sourceText = "";
+                      }
+                      if (!sourceText) {
+                        try {
+                          sourceText = await getWikipediaBiography(person?.name || "");
+                        } catch (error) {
+                          sourceText = "";
+                        }
+                      }
+                      if (!sourceText) sourceText = cleanText(person?.biography || "");
+
+                      const cleanedSource = cleanBiographySource(sourceText, person?.name || "");
+                      const sourceLower = cleanedSource.toLowerCase();
+                      const sentences = splitBioSentences(cleanedSource);
+
+                      const credits = getMovieCredits(person);
+                      const wanted = ["creed", "the expendables", "escape plan"];
+                      const movies = wanted.map(wantedTitle =>
+                        credits
+                          .filter(movie => String(movie?.title || "").trim().toLowerCase() === wantedTitle)
+                          .sort((a, b) => movieYear(a) - movieYear(b))[0] || null
+                      );
+
+                      const lifetimeYears = credits
+                        .filter(movie => {
+                          const year = movieYear(movie);
+                          const deathYear = parseInt(String(person?.deathday || "").slice(0, 4), 10) || 0;
+                          return year && (!deathYear || year <= deathYear);
+                        })
+                        .map(movieYear)
+                        .filter(Boolean);
+
+                      const careerStartYear = lifetimeYears.length ? Math.min(...lifetimeYears) : 0;
+                      const careerEndYear = lifetimeYears.length ? Math.max(...lifetimeYears) : 0;
+                      const careerSpanYears = careerStartYear && careerEndYear
+                        ? careerEndYear - careerStartYear
+                        : 0;
+
+                      const awardRx = /\b(?:academy award|oscar|golden globe|bafta|sag award|screen actors guild|emmy|cannes|venice|volpi|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|comeback|revival|returned|returning|reprise|reprised|reprising)\b/i;
+                      const signatureRx = /\b(?:iconic|signature role|defining role|career-defining|franchise|series of films|reprising|reprise|title character|leading role|lead role|recognition|prominence)\b/i;
+
+                      const normCharacter = value =>
+                        String(value || "")
+                          .toLowerCase()
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/\b(?:voice|uncredited|archive footage|cameo)\b/g, " ")
+                          .replace(/[^a-z0-9]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      const charKey = movie =>
+                        normCharacter(movie?.character)
+                          .split(" ")
+                          .filter(word => word.length > 2)
+                          .slice(0, 3)
+                          .join(" ");
+
+                      const root = value =>
+                        String(value || "")
+                          .toLowerCase()
+                          .replace(/[’']/g, "'")
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/[^a-z0-9' ]+/g, " ")
+                          .replace(/\s+(?:part|chapter|episode)\s+(?:[ivxlcdm]+|\d+)$/i, "")
+                          .replace(/\s+(?:[ivxlcdm]{1,6}|\d+)$/i, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      const tokens = value => {
+                        const stop = new Set(["the","a","an","and","of","in","on","to","for","part","chapter","episode","movie","film"]);
+                        return root(value).split(/[^a-z0-9]+/).filter(word =>
+                          word.length >= 3 && !stop.has(word) && !/^(?:[ivxlcdm]+|\d+)$/.test(word)
+                        );
+                      };
+
+                      const sameFranchise = (a, b) => {
+                        if (!a || !b) return false;
+                        if (root(a.title) && root(a.title) === root(b.title)) return true;
+                        if (charKey(a) && charKey(a) === charKey(b)) return true;
+                        const shared = tokens(a.title).filter(token => tokens(b.title).includes(token));
+                        return shared.length >= 2;
+                      };
+
+                      const baseScore = movie => {
+                        if (!movie) return 0;
+                        const votes = Number(movie.vote_count || 0);
+                        const rating = Number(movie.vote_average || 0);
+                        const popularity = Number(movie.popularity || 0);
+                        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+                        const billing = order === 0 ? 78 : order === 1 ? 62 : order === 2 ? 46 : order === 3 ? 28 : order <= 5 ? 12 : 0;
+                        return billing +
+                          Math.log10(Math.max(votes, 1)) * 30 +
+                          Math.max(rating - 5, 0) * 5 +
+                          Math.min(popularity, 60) * 0.08;
+                      };
+
+                      const evidenceFor = movie => {
+                        if (!movie) return { titleFound: false, awardBoost: 0, evidence: "" };
+                        const title = String(movie.title || "");
+                        const titleLower = title.toLowerCase();
+                        let bestBoost = 0;
+                        let bestEvidence = "";
+
+                        for (let i = 0; i < sentences.length; i += 1) {
+                          if (!String(sentences[i] || "").toLowerCase().includes(titleLower)) continue;
+                          const parts = [];
+                          if (i > 0) parts.push(sentences[i - 1]);
+                          parts.push(sentences[i]);
+                          if (i + 1 < sentences.length) parts.push(sentences[i + 1]);
+                          const context = cleanText(parts.join(" "));
+                          let boost = 0;
+                          if (awardRx.test(sentences[i])) boost = Math.max(boost, 180);
+                          if (awardRx.test(context)) boost = Math.max(boost, 170);
+                          if (signatureRx.test(sentences[i])) boost = Math.max(boost, 90);
+                          if (signatureRx.test(context)) boost = Math.max(boost, 70);
+                          if (boost >= bestBoost) {
+                            bestBoost = boost;
+                            bestEvidence = context.slice(0, 700);
+                          }
+                        }
+
+                        return {
+                          titleFound: sourceLower.includes(titleLower),
+                          awardBoost: bestBoost,
+                          evidence: bestEvidence
+                        };
+                      };
+
+                      const rows = movies.map(movie => {
+                        if (!movie) return { found: false };
+                        const evidence = evidenceFor(movie);
+                        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+                        const votes = Number(movie.vote_count || 0);
+                        return {
+                          found: true,
+                          id: movie.id,
+                          title: movie.title,
+                          year: movieYear(movie),
+                          character: movie.character || "",
+                          billingOrder: order,
+                          voteCount: votes,
+                          voteAverage: Number(movie.vote_average || 0),
+                          popularity: Number(movie.popularity || 0),
+                          passesCentrality: order <= 5,
+                          passesAudience: votes >= 750,
+                          titleFoundInSource: evidence.titleFound,
+                          awardAcclaimBoost: evidence.awardBoost,
+                          baseSignificanceScore: Number(baseScore(movie).toFixed(2)),
+                          totalSignificanceScore: Number((baseScore(movie) + evidence.awardBoost).toFixed(2)),
+                          evidence: evidence.evidence
+                        };
+                      });
+
+                      const creed = movies[0];
+                      const expendables = movies[1];
+                      const escapePlan = movies[2];
+
+                      for (const row of rows) {
+                        if (!row.found) continue;
+                        const movie = movies.find(item => item && item.id === row.id);
+                        row.sameFranchiseAsCreed = Boolean(creed && movie && movie.id !== creed.id && sameFranchise(movie, creed));
+                        row.sameFranchiseAsExpendables = Boolean(expendables && movie && movie.id !== expendables.id && sameFranchise(movie, expendables));
+                        row.sameFranchiseAsEscapePlan = Boolean(escapePlan && movie && movie.id !== escapePlan.id && sameFranchise(movie, escapePlan));
+                      }
+
+                      return {
+                        diagnostic: "REELWISE_FOCUSED_CAREER_COMPARE_V1",
+                        person: { id: person?.id || Number(personId), name: person?.name || "" },
+                        careerStartYear,
+                        careerEndYear,
+                        careerSpanYears,
+                        films: rows
+                      };
+                    }
+
+
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -2099,6 +2295,15 @@
                               }
                             );
                           }
+                        }
+
+                        /*
+                          FOCUSED CAREER COMPARISON MODE
+                          Diagnostic only; normal profile behavior is unchanged.
+                        */
+                        if (mode === "career-compare") {
+                          const comparison = await buildFocusedCareerCompare(id);
+                          return sendJSON(res, 200, comparison);
                         }
 
                         /*
