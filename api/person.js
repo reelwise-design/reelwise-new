@@ -1707,41 +1707,6 @@
                       const consolidatedPicks = [];
                       const consolidatedLimit = careerSpanYears >= 30 ? 2 : 1;
 
-                      /*
-                        Small final-slot deduplication only.
-
-                        The established biography prose can name a signature character even
-                        when TMDB's exact character string differs between installments.
-                        Build a compact set of meaningful character-name tokens from movies
-                        already represented in the earlier career beats. A routine later
-                        film sharing one of those distinctive role tokens is treated as a
-                        repeated career chapter.
-
-                        Independent milestones keep their exception. This changes only the
-                        final movie selection and does not alter source retrieval, biography
-                        construction, or fallback behavior.
-                      */
-                      const genericRoleTokens = new Set([
-                        "jr", "sr", "young", "older", "younger", "himself", "herself",
-                        "voice", "uncredited", "cameo"
-                      ]);
-
-                      const roleTokens = movie =>
-                        normalizedCharacter(movie?.character)
-                          .split(" ")
-                          .map(token => token.trim())
-                          .filter(token =>
-                            token.length >= 4 &&
-                            !genericRoleTokens.has(token)
-                          );
-
-                      const establishedRoleTokens = new Set(
-                        establishedMovies.flatMap(roleTokens)
-                      );
-
-                      const repeatsEstablishedRoleToken = movie =>
-                        roleTokens(movie).some(token => establishedRoleTokens.has(token));
-
                       for (const movie of consolidatedPool) {
                         const independentMilestone = hasIndependentLaterMilestone(movie);
 
@@ -1749,21 +1714,52 @@
                           sameCareerFranchise(movie, existing)
                         );
 
-                        const repeatsEstablishedRole = repeatsEstablishedRoleToken(movie);
-
                         const repeatsSelectedFranchise = consolidatedPicks.some(existing =>
                           sameCareerFranchise(movie, existing)
                         );
 
-                        if (
-                          !independentMilestone &&
-                          (repeatsEstablishedFranchise || repeatsEstablishedRole)
-                        ) continue;
-
+                        if (!independentMilestone && repeatsEstablishedFranchise) continue;
                         if (!independentMilestone && repeatsSelectedFranchise) continue;
 
                         consolidatedPicks.push(movie);
                         if (consolidatedPicks.length >= consolidatedLimit) break;
+                      }
+
+                      if (debug && typeof debug === "object") {
+                        debug.laterEraFloor = laterEraFloor;
+                        debug.establishedCareerText = establishedCareerText;
+                        debug.establishedMovies = establishedMovies.map(movie => ({
+                          id: movie.id,
+                          title: movie.title,
+                          year: movieYear(movie),
+                          character: movie.character || ""
+                        }));
+                        debug.consolidatedRanking = consolidatedPool.slice(0, 15).map((movie, index) => ({
+                          rank: index + 1,
+                          id: movie.id,
+                          title: movie.title,
+                          year: movieYear(movie),
+                          character: movie.character || "",
+                          billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
+                          voteCount: Number(movie?.vote_count || 0),
+                          independentMilestone: hasIndependentLaterMilestone(movie),
+                          milestoneEvidence: laterMilestoneEvidence(movie),
+                          milestoneScore: Number(laterMilestoneScore(movie).toFixed(2)),
+                          signatureScore: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
+                          repeatsEstablishedFranchise: establishedMovies.some(existing =>
+                            sameCareerFranchise(movie, existing)
+                          ),
+                          repeatsSelectedFranchise: consolidatedPicks.some(existing =>
+                            existing?.id !== movie?.id && sameCareerFranchise(movie, existing)
+                          ),
+                          selected: consolidatedPicks.some(existing => existing?.id === movie?.id)
+                        }));
+                        debug.finalPicks = consolidatedPicks.map(movie => ({
+                          id: movie.id,
+                          title: movie.title,
+                          year: movieYear(movie),
+                          character: movie.character || ""
+                        }));
                       }
 
                       const consolidatedLaterLine = consolidatedPicks.length
@@ -1844,7 +1840,7 @@
                     }
 
 
-                    async function getPersonProfile(personId) {
+                    async function getPersonProfile(personId, debugCareer = false) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
                         {
@@ -1875,10 +1871,11 @@
                       }
 
                       let biography = "";
+                      const careerDebug = debugCareer ? {} : null;
 
                       if (wikipediaCareerText) {
                         try {
-                          biography = chooseCareerSentences(wikipediaCareerText, person);
+                          biography = chooseCareerSentences(wikipediaCareerText, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
                           biography = "";
@@ -1887,7 +1884,7 @@
 
                       if (!biography && wikipediaSummary) {
                         try {
-                          biography = chooseCareerSentences(wikipediaSummary, person);
+                          biography = chooseCareerSentences(wikipediaSummary, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise summary biography error:", error);
                           biography = "";
@@ -1896,7 +1893,7 @@
 
                       if (!biography && tmdbBio) {
                         try {
-                          biography = chooseCareerSentences(tmdbBio, person);
+                          biography = chooseCareerSentences(tmdbBio, person, careerDebug);
                         } catch (error) {
                           console.error("Reelwise TMDB biography error:", error);
                           biography = "";
@@ -1943,6 +1940,7 @@
                       return {
                         ...person,
                         biography,
+                        ...(debugCareer ? { career_debug: careerDebug || {} } : {}),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2212,6 +2210,20 @@
                               }
                             );
                           }
+                        }
+
+                        /*
+                          FINAL SLOT DIAGNOSTIC MODE
+                          Uses the exact production selector and returns its ranking.
+                        */
+                        if (mode === "final-slot-debug") {
+                          const profile = await getPersonProfile(id, true);
+                          return sendJSON(res, 200, {
+                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V1",
+                            person: { id: profile?.id || Number(id), name: profile?.name || "" },
+                            biography: profile?.biography || "",
+                            career_debug: profile?.career_debug || {}
+                          });
                         }
 
                         /*
