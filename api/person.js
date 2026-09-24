@@ -788,24 +788,42 @@
                         stage of the career arc.
                       */
                       if (!breakthrough) {
-                        const chronological = [...movies]
-                          .filter(movie => movieYear(movie) > 0)
-                          .sort((a, b) => movieYear(a) - movieYear(b));
-
                         /*
-                          Do not manufacture weak early-career filler. A fallback film must
-                          already have meaningful audience recognition.
+                          Before manufacturing an early-film fallback, look for a clean
+                          recognition/acclaim/award milestone tied to a real movie. This is
+                          much more useful for a career story than merely selecting the
+                          earliest reasonably popular credit.
                         */
-                        const firstMeaningful = chronological.find(movie => {
-                          const votes = Number(movie.vote_count || 0);
-                          const popularity = Number(movie.popularity || 0);
-                          return votes >= 750 || popularity >= 18;
-                        });
+                        const earlyMilestone = careerCandidates
+                          .filter(item =>
+                            (breakthroughTerms.test(item.sentence) ||
+                             awardTerms.test(item.sentence) ||
+                             /\b(acclaim|acclaimed|recognition|prominence)\b/i.test(item.sentence))
+                          )
+                          .sort((a, b) =>
+                            (a.earliestYear || 9999) - (b.earliestYear || 9999) ||
+                            b.importance - a.importance
+                          )[0];
 
-                        if (firstMeaningful) {
-                          breakthrough =
-                            `${name}'s early notable film work included ${formatFilm(firstMeaningful)}.`;
-                          usedMovieIds.add(firstMeaningful.id);
+                        if (earlyMilestone) {
+                          breakthrough = earlyMilestone.sentence;
+                          earlyMilestone.matches.forEach(movie => usedMovieIds.add(movie.id));
+                        } else {
+                          const chronological = [...movies]
+                            .filter(movie => movieYear(movie) > 0)
+                            .sort((a, b) => movieYear(a) - movieYear(b));
+
+                          const firstMeaningful = chronological.find(movie => {
+                            const votes = Number(movie.vote_count || 0);
+                            const popularity = Number(movie.popularity || 0);
+                            return votes >= 750 || popularity >= 18;
+                          });
+
+                          if (firstMeaningful) {
+                            breakthrough =
+                              `${name}'s early notable film work included ${formatFilm(firstMeaningful)}.`;
+                            usedMovieIds.add(firstMeaningful.id);
+                          }
                         }
                       }
 
@@ -826,20 +844,12 @@
                         }
                       }
 
-                      if (!later) {
-                        const laterMovies = movies
-                          .filter(movie =>
-                            !usedMovieIds.has(movie.id) &&
-                            movieYear(movie) >= laterThreshold &&
-                            Number(movie.vote_count || 0) >= 250
-                          )
-                          .sort((a, b) => movieImportance(b) - movieImportance(a))
-                          .slice(0, 2);
-
-                        if (laterMovies.length) {
-                          later = `${name}'s later film work includes ${formatFilmList(laterMovies)}.`;
-                        }
-                      }
+                      /*
+                        Do not manufacture a generic "later film work" list here.
+                        The career-story engine below first looks for a distinct
+                        award/acclaim milestone. A movie-only fallback is used only
+                        after that search fails.
+                      */
 
                       /*
                         REELWISE CAREER-ARC ENGINE
@@ -994,12 +1004,22 @@
                       const awardMilestones = careerCandidates
                         .filter(item =>
                           awardTerms.test(item.sentence) &&
+                          item.matches.length &&
+                          !personalTerms.test(item.sentence) &&
+                          !plotSummaryTerms.test(item.sentence) &&
                           !isDuplicateMeaning(item.sentence, breakthrough) &&
                           !isDuplicateMeaning(item.sentence, defining)
                         )
                         .sort((a, b) => {
-                          const aYear = sentenceYear(a.sentence) || 0;
-                          const bYear = sentenceYear(b.sentence) || 0;
+                          const aYear = Math.max(
+                            sentenceYear(a.sentence) || 0,
+                            a.latestYear || 0
+                          );
+                          const bYear = Math.max(
+                            sentenceYear(b.sentence) || 0,
+                            b.latestYear || 0
+                          );
+
                           return bYear - aYear ||
                             sentenceImportance(b) - sentenceImportance(a);
                         });
@@ -1009,6 +1029,18 @@
 
                       if (strongestAwardMilestone) {
                         later = strongestAwardMilestone;
+                      } else if (!later) {
+                        const laterMovies = majorCentralCredits
+                          .filter(movie =>
+                            movie !== signatureFilm &&
+                            !alreadyNamed(movie) &&
+                            (!laterThreshold || movieYear(movie) >= laterThreshold)
+                          )
+                          .slice(0, 1);
+
+                        if (laterMovies.length) {
+                          later = `Later work includes ${formatFilmList(laterMovies)}.`;
+                        }
                       }
 
                       /*
@@ -1031,12 +1063,39 @@
                           return false;
                         }
 
+                        /*
+                          If a signature recurring role has been found, avoid another
+                          movie whose title is part of the same obvious series run.
+                          Character matching is the primary signal; this title check is
+                          only a secondary guard for inconsistent TMDB character strings.
+                        */
+                        if (signatureFilm) {
+                          const signatureTitleWords = String(signatureFilm.title || "")
+                            .toLowerCase()
+                            .split(/[^a-z0-9]+/)
+                            .filter(word => word.length >= 4);
+
+                          const candidateTitle = String(movie.title || "").toLowerCase();
+
+                          if (
+                            signatureTitleWords.length &&
+                            signatureTitleWords.some(word => candidateTitle.includes(word))
+                          ) {
+                            return false;
+                          }
+                        }
+
                         return true;
                       });
 
                       let otherMajorLine = "";
 
-                      if (otherMajor) {
+                      /*
+                        When Wikipedia supplies a genuine later award/acclaim milestone,
+                        keep the biography focused and do not insert another popularity-
+                        based movie between the signature role and that achievement.
+                      */
+                      if (otherMajor && !strongestAwardMilestone) {
                         otherMajorLine =
                           `Other major work includes ${formatFilmList([otherMajor])}.`;
                       }
