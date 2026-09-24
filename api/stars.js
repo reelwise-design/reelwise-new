@@ -245,102 +245,66 @@ function qualifiesForGenre(person, genreId) {
 
 function qualifiesForTrendingMovieStar(person) {
   /*
-    Trending should stay close to TMDB's weekly trend order.
+    TMDB already determines who is trending.
 
-    The purpose of this gate is only to make sure a trending person
-    has a real movie career. It should NOT demand the same lifetime
-    resume strength as Reelwise's established-career categories.
+    Reelwise's job here is only to make sure the person belongs on a
+    MOVIE-stars page. Do not use vote-count or popularity thresholds
+    here because those fields can be incomplete/inconsistent across
+    person-credit responses and can accidentally empty the whole row.
   */
   const credits = movieCredits(person).filter(movie =>
     isReleasedMovie(movie) &&
     !movie.adult
   );
 
-  const meaningfulMovies = credits.filter(movie => {
+  if (!credits.length) return false;
+
+  const creditedMovieRoles = credits.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
 
-    const votes = Number(movie.vote_count || 0);
-    const popularity = Number(movie.popularity || 0);
-
-    return (
-      order <= 8 &&
-      (
-        votes >= 250 ||
-        popularity >= 8
-      )
-    );
+    return order <= 12;
   });
 
-  const prominentMovies = meaningfulMovies.filter(movie => {
+  const prominentMovieRoles = credits.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
 
-    const votes = Number(movie.vote_count || 0);
-
-    return (
-      order <= 5 &&
-      votes >= 500
-    );
+    return order <= 6;
   });
 
   /*
-    Two ways through:
-      • at least two meaningful movie credits, one prominent; or
-      • one very substantial movie role with strong audience reach.
+    A person qualifies when their filmography shows either:
+      • repeated credited movie work, including a reasonably prominent role; or
+      • several prominent movie roles.
 
-    This keeps the weekly row responsive to current actors while
-    rejecting people whose TMDB trend is not backed by movie work.
+    No individual actor is hard-coded and TMDB's weekly trend order
+    remains untouched.
   */
-  const hasMovieCareer =
-    meaningfulMovies.length >= 2 &&
-    prominentMovies.length >= 1;
-
-  const hasMajorCurrentMovie =
-    meaningfulMovies.some(movie => {
-      const order = Number.isFinite(Number(movie.order))
-        ? Number(movie.order)
-        : 99;
-
-      return (
-        order <= 3 &&
-        Number(movie.vote_count || 0) >= 1500
-      );
-    });
-
-  return hasMovieCareer || hasMajorCurrentMovie;
+  return (
+    (creditedMovieRoles.length >= 2 && prominentMovieRoles.length >= 1) ||
+    prominentMovieRoles.length >= 2
+  );
 }
 
 async function getTrendingPeople() {
   /*
     True TMDB weekly trending people feed.
 
-    TMDB trending reflects short-term attention rather than the
-    longer-lived popularity score. Reelwise still applies its movie
-    career quality gate after enrichment so this remains a movie-star
-    row instead of a general celebrity/TV-personality feed.
+    Do not pre-filter by known_for. The trending response is used in
+    TMDB's own order, then each actor is enriched with full movie
+    credits and Reelwise verifies that movie career directly.
   */
   const data = await tmdb(
     "/trending/person/week?language=en-US"
   );
 
   return cleanStars(
-    (Array.isArray(data.results)
+    Array.isArray(data.results)
       ? data.results
       : []
-    ).filter(person => {
-      const knownFor = Array.isArray(person?.known_for)
-        ? person.known_for
-        : [];
-
-      return knownFor.some(item =>
-        item &&
-        item.media_type === "movie" &&
-        !item.adult
-      );
-    })
   );
 }
 
@@ -348,9 +312,27 @@ async function getTrendingMovieStars() {
   const trending = await getTrendingPeople();
   const enriched = await enrichPeople(trending);
 
-  return enriched
-    .filter(qualifiesForTrendingMovieStar)
-    .slice(0, 20);
+  const qualified = enriched.filter(
+    qualifiesForTrendingMovieStar
+  );
+
+  if (qualified.length >= 3) {
+    return qualified.slice(0, 20);
+  }
+
+  /*
+    Safety fallback:
+    never leave Trending Stars empty just because TMDB's current
+    weekly cohort has unusually sparse credit metadata.
+  */
+  const fallback = enriched.filter(person =>
+    movieCredits(person).some(movie =>
+      isReleasedMovie(movie) &&
+      !movie.adult
+    )
+  );
+
+  return fallback.slice(0, 20);
 }
 
 async function getPopularPeople() {
