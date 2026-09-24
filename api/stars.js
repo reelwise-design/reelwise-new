@@ -243,6 +243,43 @@ function qualifiesForGenre(person, genreId) {
   return sustainedGenreCareer || concentratedGenreCareer;
 }
 
+function qualifiesForTrendingMovieStar(person) {
+  const credits = movieCredits(person).filter(isReleasedMovie);
+
+  const substantial = credits.filter(movie => {
+    const order = Number.isFinite(Number(movie.order))
+      ? Number(movie.order)
+      : 99;
+
+    return (
+      !movie.adult &&
+      order <= 4 &&
+      Number(movie.vote_count || 0) >= 1000
+    );
+  });
+
+  const major = substantial.filter(movie => {
+    const order = Number.isFinite(Number(movie.order))
+      ? Number(movie.order)
+      : 99;
+
+    return (
+      order <= 3 &&
+      Number(movie.vote_count || 0) >= 2500
+    );
+  });
+
+  const lead = substantial.filter(movie =>
+    Number(movie.order ?? 99) <= 2
+  );
+
+  return (
+    substantial.length >= 2 &&
+    major.length >= 1 &&
+    lead.length >= 1
+  );
+}
+
 async function getTrendingPeople() {
   /*
     True TMDB weekly trending people feed.
@@ -257,9 +294,20 @@ async function getTrendingPeople() {
   );
 
   return cleanStars(
-    Array.isArray(data.results)
+    (Array.isArray(data.results)
       ? data.results
       : []
+    ).filter(person => {
+      const knownFor = Array.isArray(person?.known_for)
+        ? person.known_for
+        : [];
+
+      return knownFor.some(item =>
+        item &&
+        item.media_type === "movie" &&
+        !item.adult
+      );
+    })
   );
 }
 
@@ -268,7 +316,7 @@ async function getTrendingMovieStars() {
   const enriched = await enrichPeople(trending);
 
   return enriched
-    .filter(qualifiesAsEstablishedMovieStar)
+    .filter(qualifiesForTrendingMovieStar)
     .slice(0, 20);
 }
 
@@ -442,10 +490,18 @@ export default async function handler(req, res) {
       Requires repeated, meaningful action-film work.
     */
     if (category === "action") {
-      const people = await getDiscoveryPool();
+      const [people, trending] = await Promise.all([
+        getDiscoveryPool(),
+        getTrendingPeople()
+      ]);
+
+      const trendingIds = new Set(trending.map(person => person.id));
 
       const stars = people
-        .filter(person => qualifiesForGenre(person, 28))
+        .filter(person =>
+          !trendingIds.has(person.id) &&
+          qualifiesForGenre(person, 28)
+        )
         .sort((a, b) =>
           genreStarScore(b, 28) - genreStarScore(a, 28)
         )
@@ -462,10 +518,32 @@ export default async function handler(req, res) {
       Requires repeated, meaningful comedy-film work.
     */
     if (category === "comedy") {
-      const people = await getDiscoveryPool();
+      const [people, trending] = await Promise.all([
+        getDiscoveryPool(),
+        getTrendingPeople()
+      ]);
+
+      const trendingIds = new Set(trending.map(person => person.id));
+
+      const actionIds = new Set(
+        people
+          .filter(person =>
+            !trendingIds.has(person.id) &&
+            qualifiesForGenre(person, 28)
+          )
+          .sort((a, b) =>
+            genreStarScore(b, 28) - genreStarScore(a, 28)
+          )
+          .slice(0, 20)
+          .map(person => person.id)
+      );
 
       const stars = people
-        .filter(person => qualifiesForGenre(person, 35))
+        .filter(person =>
+          !trendingIds.has(person.id) &&
+          !actionIds.has(person.id) &&
+          qualifiesForGenre(person, 35)
+        )
         .sort((a, b) =>
           genreStarScore(b, 35) - genreStarScore(a, 35)
         )
