@@ -1721,7 +1721,88 @@
                     }
 
 
-                    async function getPersonProfile(personId) {
+                    /* ============================================================
+                       TEMPORARY CAREER-CANDIDATE DIAGNOSTICS
+                       Enable only with ?debug=career on the person API URL.
+                       This does not change the normal biography response.
+                       ============================================================ */
+                    function buildCareerCandidateDebug(sourceText, person) {
+                      const source = String(sourceText || "");
+                      const sourceLower = source.toLowerCase();
+                      const credits = Array.isArray(person?.combined_credits?.cast)
+                        ? person.combined_credits.cast
+                        : [];
+
+                      const movies = credits
+                        .filter(item => item?.media_type === "movie" || (!item?.media_type && item?.title))
+                        .filter(item => item?.title)
+                        .map(item => ({
+                          id: item.id,
+                          title: item.title,
+                          release_date: item.release_date || "",
+                          year: parseInt(String(item.release_date || "").slice(0, 4), 10) || 0,
+                          order: Number.isFinite(Number(item.order)) ? Number(item.order) : 99,
+                          vote_count: Number(item.vote_count || 0),
+                          vote_average: Number(item.vote_average || 0),
+                          popularity: Number(item.popularity || 0)
+                        }));
+
+                      const years = movies.map(m => m.year).filter(Boolean);
+                      const careerStartYear = years.length ? Math.min(...years) : 0;
+                      const careerEndYear = years.length ? Math.max(...years) : 0;
+                      const careerSpanYears = careerStartYear && careerEndYear
+                        ? careerEndYear - careerStartYear
+                        : 0;
+
+                      const awardRx = /\b(?:academy award|oscar|golden globe|bafta|sag award|screen actors guild|emmy|cannes|venice|volpi|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|comeback|revival|returned|returning|reprise|reprised|reprising)\b/i;
+
+                      const evidenceFor = movie => {
+                        const title = String(movie.title || "");
+                        if (!title) return { titleFoundInSource: false, evidenceWindow: "", awardEvidence: false };
+                        const at = sourceLower.indexOf(title.toLowerCase());
+                        if (at < 0) return { titleFoundInSource: false, evidenceWindow: "", awardEvidence: false };
+                        const window = source.slice(Math.max(0, at - 350), Math.min(source.length, at + title.length + 650));
+                        return {
+                          titleFoundInSource: true,
+                          evidenceWindow: cleanText(window).slice(0, 900),
+                          awardEvidence: awardRx.test(window)
+                        };
+                      };
+
+                      const candidates = movies
+                        .filter(m => m.year >= Math.max(careerStartYear + 10, 1990))
+                        .map(m => {
+                          const evidence = evidenceFor(m);
+                          const passesCentrality = m.order <= 5;
+                          const passesAudience = m.vote_count >= 750;
+                          return {
+                            ...m,
+                            ...evidence,
+                            passesCentrality,
+                            passesAudience,
+                            passesBasicLaterPool: passesCentrality && passesAudience,
+                            exclusionReasons: [
+                              !passesCentrality ? `billing order ${m.order} > 5` : "",
+                              !passesAudience ? `vote_count ${m.vote_count} < 750` : "",
+                              !evidence.titleFoundInSource ? "exact title not found in biography source" : "",
+                              evidence.titleFoundInSource && !evidence.awardEvidence ? "no award/acclaim term near exact title" : ""
+                            ].filter(Boolean)
+                          };
+                        })
+                        .sort((a, b) => b.year - a.year || b.vote_count - a.vote_count);
+
+                      return {
+                        person: { id: person?.id, name: person?.name },
+                        sourceLength: source.length,
+                        careerStartYear,
+                        careerEndYear,
+                        careerSpanYears,
+                        candidates
+                      };
+                    }
+
+
+                    async function getPersonProfile(personId, debugCareer = false) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
                         {
@@ -1817,9 +1898,17 @@
                         }
                       }
 
+                      const career_debug = debugCareer
+                        ? buildCareerCandidateDebug(
+                            wikipediaCareerText || wikipediaSummary || tmdbBio || "",
+                            person
+                          )
+                        : undefined;
+
                       return {
                         ...person,
                         biography,
+                        ...(debugCareer ? { career_debug } : {}),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2094,7 +2183,12 @@
                         /*
                           NORMAL STAR PROFILE MODE
                         */
-                        const profile = await getPersonProfile(id);
+                        const rawDebug = Array.isArray(req.query?.debug)
+                          ? req.query.debug[0]
+                          : req.query?.debug;
+                        const debugCareer = String(rawDebug || "").trim().toLowerCase() === "career";
+
+                        const profile = await getPersonProfile(id, debugCareer);
 
                         return sendJSON(
                           res,
