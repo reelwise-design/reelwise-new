@@ -464,7 +464,7 @@
                       return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
                     }
 
-                    function chooseCareerSentences(articleText, person, definingDebug = null) {
+                    function chooseCareerSentences(articleText, person) {
                       const cleanedArticleText = cleanBiographySource(
                         articleText,
                         person?.name || ""
@@ -1035,8 +1035,54 @@
                           centralRoleImportance(b) - centralRoleImportance(a)
                         );
 
-                      const alreadyNamed = movie =>
-                        selectedText.includes(String(movie.title || "").toLowerCase());
+                      /*
+                        A film counts as already represented only when its own title is
+                        present in the selected biography text. Do not treat a shorter
+                        title as represented merely because it is the prefix of a
+                        different, longer credit (for example, "X" inside "X: Y").
+                      */
+                      const alreadyNamed = movie => {
+                        const target = normalizeFilmTitle(movie?.title);
+                        if (!target) return false;
+
+                        const text = normalizeFilmTitle(selectedText);
+                        if (!text) return false;
+
+                        const longerKnownTitles = movies
+                          .map(item => normalizeFilmTitle(item?.title))
+                          .filter(title =>
+                            title &&
+                            title !== target &&
+                            title.startsWith(`${target} `)
+                          );
+
+                        let start = 0;
+
+                        while (true) {
+                          const index = text.indexOf(target, start);
+                          if (index < 0) return false;
+
+                          const before = index === 0 ? " " : text[index - 1];
+                          const afterIndex = index + target.length;
+                          const after = afterIndex >= text.length ? " " : text[afterIndex];
+
+                          const hasWordBoundaries =
+                            !/[a-z0-9]/.test(before) &&
+                            !/[a-z0-9]/.test(after);
+
+                          if (hasWordBoundaries) {
+                            const tail = text.slice(index);
+
+                            const swallowedByLongerCredit = longerKnownTitles.some(
+                              longerTitle => tail.startsWith(longerTitle)
+                            );
+
+                            if (!swallowedByLongerCredit) return true;
+                          }
+
+                          start = index + target.length;
+                        }
+                      };
 
                       /*
                         GENERIC FRANCHISE / SEQUEL AWARENESS
@@ -1192,67 +1238,43 @@
                         majorCentralCredits.find(movie => !alreadyNamed(movie)) ||
                         null;
 
+                      /*
+                        A recurring character is useful only when it represents a new
+                        career chapter. Reject generic one-word character collisions,
+                        and reject another appearance of a character already represented
+                        by an earlier selected film. This prevents incidental credits or
+                        same-role repeats from taking the defining-film slot.
+                      */
+                      const representedCharacterKeys = new Set(
+                        movies
+                          .filter(movie => alreadyNamed(movie))
+                          .map(movie => characterKey(movie))
+                          .filter(Boolean)
+                      );
+
+                      const strongRecurringRoleCredits = recurringRoleCredits.filter(movie => {
+                        const key = characterKey(movie);
+                        if (!key) return false;
+
+                        const meaningfulTokens = key
+                          .split(" ")
+                          .filter(token => token.length >= 3);
+
+                        if (meaningfulTokens.length < 2) return false;
+                        if (representedCharacterKeys.has(key)) return false;
+
+                        return !alreadyNamed(movie) &&
+                          !repeatsRepresentedFranchise(movie);
+                      });
+
                       const signatureFilm =
-                        recurringRoleCredits.find(movie =>
-                          !alreadyNamed(movie) &&
-                          !repeatsRepresentedFranchise(movie)
-                        ) ||
+                        strongRecurringRoleCredits[0] ||
                         definingFilmPool.find(movie =>
                           !alreadyNamed(movie) &&
                           !repeatsRepresentedFranchise(movie)
                         ) ||
                         nonFranchiseSignature ||
                         null;
-
-                      if (definingDebug && typeof definingDebug === "object") {
-                        definingDebug.sourceDefiningSentence = defining || "";
-                        definingDebug.selectedTextBeforeSignature = selectedText;
-                        definingDebug.recurringRoleCandidates = recurringRoleCredits
-                          .slice(0, 12)
-                          .map(movie => ({
-                            id: movie.id,
-                            title: movie.title,
-                            year: movieYear(movie),
-                            character: movie.character || "",
-                            billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
-                            voteCount: Number(movie?.vote_count || 0),
-                            score: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
-                            alreadyNamed: alreadyNamed(movie),
-                            repeatsRepresentedFranchise: repeatsRepresentedFranchise(movie)
-                          }));
-                        definingDebug.definingFilmRanking = definingFilmPool
-                          .slice(0, 20)
-                          .map((movie, index) => ({
-                            rank: index + 1,
-                            id: movie.id,
-                            title: movie.title,
-                            year: movieYear(movie),
-                            character: movie.character || "",
-                            billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
-                            voteCount: Number(movie?.vote_count || 0),
-                            voteAverage: Number(movie?.vote_average || 0),
-                            popularity: Number(movie?.popularity || 0),
-                            score: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
-                            alreadyNamed: alreadyNamed(movie),
-                            repeatsRepresentedFranchise: repeatsRepresentedFranchise(movie),
-                            recurringCharacter: Boolean(
-                              characterKey(movie) &&
-                              (recurringCharacterCounts.get(characterKey(movie)) || 0) >= 2
-                            )
-                          }));
-                        definingDebug.signatureFilm = signatureFilm
-                          ? {
-                              id: signatureFilm.id,
-                              title: signatureFilm.title,
-                              year: movieYear(signatureFilm),
-                              character: signatureFilm.character || "",
-                              billingOrder: Number.isFinite(Number(signatureFilm?.order)) ? Number(signatureFilm.order) : 99,
-                              voteCount: Number(signatureFilm?.vote_count || 0),
-                              score: Number(nonFranchiseSignatureScore(signatureFilm).toFixed(2)),
-                              chosenFromRecurringRolePool: recurringRoleCredits.some(movie => movie.id === signatureFilm.id)
-                            }
-                          : null;
-                      }
 
                       const definingMatchesSignature =
                         defining &&
@@ -1864,7 +1886,7 @@
                     }
 
 
-                    async function getPersonProfile(personId, debugDefining = false) {
+                    async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
                         {
@@ -1895,11 +1917,10 @@
                       }
 
                       let biography = "";
-                      const definingDebug = debugDefining ? {} : null;
 
                       if (wikipediaCareerText) {
                         try {
-                          biography = chooseCareerSentences(wikipediaCareerText, person, definingDebug);
+                          biography = chooseCareerSentences(wikipediaCareerText, person);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
                           biography = "";
@@ -1908,7 +1929,7 @@
 
                       if (!biography && wikipediaSummary) {
                         try {
-                          biography = chooseCareerSentences(wikipediaSummary, person, definingDebug);
+                          biography = chooseCareerSentences(wikipediaSummary, person);
                         } catch (error) {
                           console.error("Reelwise summary biography error:", error);
                           biography = "";
@@ -1917,7 +1938,7 @@
 
                       if (!biography && tmdbBio) {
                         try {
-                          biography = chooseCareerSentences(tmdbBio, person, definingDebug);
+                          biography = chooseCareerSentences(tmdbBio, person);
                         } catch (error) {
                           console.error("Reelwise TMDB biography error:", error);
                           biography = "";
@@ -1964,7 +1985,6 @@
                       return {
                         ...person,
                         biography,
-                        ...(debugDefining ? { defining_debug: definingDebug || {} } : {}),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2234,29 +2254,6 @@
                               }
                             );
                           }
-                        }
-
-                        /*
-                          DEFINING-FILM DIAGNOSTIC MODE
-                          Runs the exact production selector and exposes only its
-                          defining-film decision data. Normal profile mode is unchanged.
-                        */
-                        if (mode === "defining-debug") {
-                          const profile = await getPersonProfile(id, true);
-
-                          return sendJSON(
-                            res,
-                            200,
-                            {
-                              diagnostic: "REELWISE_DEFINING_FILM_DEBUG_V1",
-                              person: {
-                                id: profile?.id || Number(id),
-                                name: profile?.name || ""
-                              },
-                              biography: profile?.biography || "",
-                              defining_debug: profile?.defining_debug || {}
-                            }
-                          );
                         }
 
                         /*
