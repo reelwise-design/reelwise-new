@@ -1267,7 +1267,7 @@
                           !repeatsRepresentedFranchise(movie);
                       });
 
-                      const signatureFilm =
+                      let signatureFilm =
                         strongRecurringRoleCredits[0] ||
                         definingFilmPool.find(movie =>
                           !alreadyNamed(movie) &&
@@ -1275,6 +1275,63 @@
                         ) ||
                         nonFranchiseSignature ||
                         null;
+
+                      /*
+                        EARLY-STARDOM STAGE GUARD
+
+                        Some source biographies begin with a literal debut/supporting-role
+                        sentence but never explicitly label the film that actually moved the
+                        performer into major stardom. In that narrow situation, reserve the
+                        defining-film slot for the strongest centrally billed, widely seen
+                        film from the performer's first major career window.
+
+                        This does NOT run when the existing breakthrough already contains
+                        strong success/stardom/recognition/award language. That preserves
+                        established career arcs while preventing a later franchise installment
+                        from jumping over an otherwise missing early star-making milestone.
+                        No performer, movie or franchise is hard-coded.
+                      */
+                      const breakthroughLooksLikeSetupOnly = Boolean(
+                        breakthrough &&
+                        /\b(?:film debut|screen debut|debut|bit part|supporting role|early role|early roles)\b/i.test(breakthrough) &&
+                        !/\b(?:breakthrough|breakout|critical and commercial success|major success|box[- ]office success|became a star|stardom|global stardom|superstar|rose to prominence|gained recognition|gained critical acclaim|academy award|oscar|golden globe|bafta|award|nomination|nominated|won)\b/i.test(breakthrough)
+                      );
+
+                      if (breakthroughLooksLikeSetupOnly) {
+                        const firstCareerYear = [...movies]
+                          .filter(releasedDuringLifetime)
+                          .map(movieYear)
+                          .filter(Boolean)
+                          .sort((a, b) => a - b)[0] || 0;
+
+                        const earlyWindowEnd = firstCareerYear ? firstCareerYear + 9 : 0;
+
+                        const earlyStardomPool = definingFilmPool
+                          .filter(movie => {
+                            const year = movieYear(movie);
+                            const order = Number.isFinite(Number(movie?.order))
+                              ? Number(movie.order)
+                              : 99;
+                            const votes = Number(movie?.vote_count || 0);
+
+                            return year &&
+                              (!earlyWindowEnd || year <= earlyWindowEnd) &&
+                              order <= 2 &&
+                              votes >= 1500 &&
+                              !alreadyNamed(movie) &&
+                              !repeatsRepresentedFranchise(movie);
+                          })
+                          .sort((a, b) =>
+                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                            movieYear(a) - movieYear(b)
+                          );
+
+                        const earlyStardomCandidate = earlyStardomPool[0] || null;
+
+                        if (earlyStardomCandidate) {
+                          signatureFilm = earlyStardomCandidate;
+                        }
+                      }
 
                       const definingMatchesSignature =
                         defining &&
