@@ -243,6 +243,35 @@ function qualifiesForGenre(person, genreId) {
   return sustainedGenreCareer || concentratedGenreCareer;
 }
 
+async function getTrendingPeople() {
+  /*
+    True TMDB weekly trending people feed.
+
+    TMDB trending reflects short-term attention rather than the
+    longer-lived popularity score. Reelwise still applies its movie
+    career quality gate after enrichment so this remains a movie-star
+    row instead of a general celebrity/TV-personality feed.
+  */
+  const data = await tmdb(
+    "/trending/person/week?language=en-US"
+  );
+
+  return cleanStars(
+    Array.isArray(data.results)
+      ? data.results
+      : []
+  );
+}
+
+async function getTrendingMovieStars() {
+  const trending = await getTrendingPeople();
+  const enriched = await enrichPeople(trending);
+
+  return enriched
+    .filter(qualifiesAsEstablishedMovieStar)
+    .slice(0, 20);
+}
+
 async function getPopularPeople() {
   /*
     TMDB's /person/popular feed measures current attention, not
@@ -326,20 +355,18 @@ export default async function handler(req, res) {
     const category = String(req.query?.category || "popular").toLowerCase();
 
     /*
-      POPULAR MOVIE STARS
+      TRENDING STARS
 
-      "Popular" here means recognizable, established movie actors,
-      not simply whoever is trending on TMDB today.
+      The existing frontend still requests category=popular, so this
+      keeps that route compatible while changing its source to TMDB's
+      true weekly trending-person feed.
+
+      TMDB supplies the trend order. Reelwise only filters the list
+      to established movie actors; it does not re-rank the surviving
+      people by lifetime career score.
     */
-    if (category === "popular") {
-      const people = await getDiscoveryPool();
-
-      const stars = people
-        .filter(qualifiesAsEstablishedMovieStar)
-        .sort((a, b) =>
-          establishedActorScore(b) - establishedActorScore(a)
-        )
-        .slice(0, 20)
+    if (category === "popular" || category === "trending") {
+      const stars = (await getTrendingMovieStars())
         .map(publicStar);
 
       return res.status(200).json(stars);
