@@ -1706,6 +1706,83 @@
                         return substantialAppearances.length >= 2;
                       };
 
+                      /*
+                        SOURCE-SUPPORTED FRANCHISE RELATIONSHIPS
+
+                        Character metadata can vary between installments, and franchise
+                        titles can change completely. Use the biography source itself as
+                        another generic signal: when source prose explicitly connects an
+                        established film/role to a multi-film series or franchise, collect
+                        the meaningful title/character tokens from that local context.
+
+                        A later film sharing one of those distinctive source-supported
+                        tokens is treated as part of the already-established franchise.
+                        Independent milestones still receive the existing exception.
+                      */
+                      const sourceFranchiseTerms = /(?:franchise|film series|series of films|across\s+(?:\w+\s+){0,2}films|sequels?|installments?)\b/i;
+
+                      const sourceFranchiseTokens = new Set();
+
+                      for (const established of establishedMovies) {
+                        const title = String(established?.title || "").trim();
+                        if (!title) continue;
+
+                        for (let i = 0; i < sourceSentences.length; i += 1) {
+                          const sentence = String(sourceSentences[i] || "");
+                          if (!sentence.toLowerCase().includes(title.toLowerCase())) continue;
+
+                          const context = [
+                            i > 0 ? sourceSentences[i - 1] : "",
+                            sentence,
+                            i + 1 < sourceSentences.length ? sourceSentences[i + 1] : ""
+                          ]
+                            .filter(Boolean)
+                            .join(" ");
+
+                          if (!sourceFranchiseTerms.test(context)) continue;
+
+                          for (const token of franchiseTitleTokens(title)) {
+                            if (token.length >= 4) sourceFranchiseTokens.add(token);
+                          }
+
+                          const roleTokens = normalizedCharacter(established?.character)
+                            .split(" ")
+                            .filter(token => token.length >= 4);
+
+                          for (const token of roleTokens) {
+                            sourceFranchiseTokens.add(token);
+                          }
+
+                          /*
+                            Capture capitalized franchise/character words appearing in the
+                            local source context. Require length >= 5 and ignore generic
+                            biography vocabulary to avoid broad false matches.
+                          */
+                          const generic = new Set([
+                            "stallone","actor","actress","film","films","movie","movies",
+                            "series","franchise","role","roles","character","characters",
+                            "career","later","first","second","third","fourth","fifth"
+                          ]);
+
+                          const words = context.match(/\b[A-Z][A-Za-z'-]{4,}\b/g) || [];
+                          for (const word of words) {
+                            const token = word.toLowerCase().replace(/[^a-z0-9]/g, "");
+                            if (token && !generic.has(token)) sourceFranchiseTokens.add(token);
+                          }
+                        }
+                      }
+
+                      const repeatsSourceSupportedFranchise = movie => {
+                        const titleTokens = franchiseTitleTokens(movie?.title);
+                        const roleTokens = normalizedCharacter(movie?.character)
+                          .split(" ")
+                          .filter(token => token.length >= 4);
+
+                        return [...titleTokens, ...roleTokens].some(token =>
+                          sourceFranchiseTokens.has(token)
+                        );
+                      };
+
                       const consolidatedPool = movies
                         .filter(movie => {
                           const title = String(movie?.title || "").trim();
@@ -1744,6 +1821,7 @@
                         );
 
                         const repeatsEstablishedRole = repeatsEstablishedCareerRole(movie);
+                        const repeatsSourceFranchise = repeatsSourceSupportedFranchise(movie);
 
                         const repeatsSelectedFranchise = consolidatedPicks.some(existing =>
                           sameCareerFranchise(movie, existing)
@@ -1751,7 +1829,11 @@
 
                         if (
                           !independentMilestone &&
-                          (repeatsEstablishedFranchise || repeatsEstablishedRole)
+                          (
+                            repeatsEstablishedFranchise ||
+                            repeatsEstablishedRole ||
+                            repeatsSourceFranchise
+                          )
                         ) continue;
 
                         if (!independentMilestone && repeatsSelectedFranchise) continue;
