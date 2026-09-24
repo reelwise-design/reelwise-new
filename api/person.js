@@ -1319,6 +1319,51 @@
                         if (unique.length >= 5) break;
                       }
 
+                      /*
+                        FINAL CAREER-COVERAGE GATE
+
+                        The earlier selectors can legitimately use an awards sentence and
+                        a defining-film sentence while still leaving another major central
+                        credit unrepresented. Do one final coverage pass against the text
+                        that will actually be returned, rather than against intermediate
+                        selector state.
+
+                        This is intentionally generic: no actor or movie titles are
+                        hard-coded. A candidate must be a substantial, lifetime-released,
+                        centrally billed credit with strong audience recognition, and it
+                        must not already appear anywhere in the assembled biography.
+                      */
+                      const representedCareerText = unique.join(" ").toLowerCase();
+
+                      const finalCoverageCandidate = majorCentralCredits.find(movie => {
+                        const title = String(movie?.title || "").trim();
+                        if (!title) return false;
+                        if (representedCareerText.includes(title.toLowerCase())) return false;
+                        if (!releasedDuringLifetime(movie)) return false;
+
+                        const votes = Number(movie?.vote_count || 0);
+                        const order = Number.isFinite(Number(movie?.order))
+                          ? Number(movie.order)
+                          : 99;
+
+                        // Keep this final gate selective so it broadens strong careers
+                        // without manufacturing filler for thin filmographies.
+                        return order <= 4 && votes >= 1000;
+                      });
+
+                      if (finalCoverageCandidate && unique.length < 5) {
+                        const coverageLine =
+                          `Other major work includes ${formatFilmList([finalCoverageCandidate])}.`;
+
+                        // Put the extra career beat before a generic later-work closer.
+                        const laterIndex = unique.findIndex(sentence =>
+                          /^(?:Later work|Later film work|In later work)\b/i.test(sentence)
+                        );
+
+                        if (laterIndex >= 0) unique.splice(laterIndex, 0, coverageLine);
+                        else unique.push(coverageLine);
+                      }
+
                       let bio = unique.join(" ");
 
                       /*
