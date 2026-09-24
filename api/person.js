@@ -1421,7 +1421,7 @@
                           item.matches.some(match => match.id === movie.id)
                         );
 
-                      const laterMilestoneScore = movie => {
+                      const laterMilestoneEvidence = movie => {
                         const sourceItems = sourceSentencesForMovie(movie);
                         let milestoneEvidence = sourceItems.reduce((score, item) => {
                           let boost = 0;
@@ -1432,27 +1432,42 @@
                         }, 0);
 
                         /*
-                          Some source paragraphs mention a film in one sentence and its
-                          awards/comeback significance in the next. Look at a small source
-                          window around the exact title so those milestones are not lost.
+                          A film's recognition can be described in the sentence immediately
+                          before or after its title. Search every exact-title occurrence and
+                          keep the strongest nearby evidence instead of trusting the first
+                          substring match in the article.
                         */
                         const title = String(movie?.title || "").trim();
                         const sourceText = String(cleanedArticleText || "");
                         if (title && sourceText) {
-                          const at = sourceText.toLowerCase().indexOf(title.toLowerCase());
-                          if (at >= 0) {
+                          const haystack = sourceText.toLowerCase();
+                          const needle = title.toLowerCase();
+                          let from = 0;
+
+                          while (from < haystack.length) {
+                            const at = haystack.indexOf(needle, from);
+                            if (at < 0) break;
+
                             const window = sourceText.slice(
-                              Math.max(0, at - 260),
-                              Math.min(sourceText.length, at + title.length + 420)
+                              Math.max(0, at - 320),
+                              Math.min(sourceText.length, at + title.length + 520)
                             );
-                            if (awardTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 120);
-                            if (laterMilestoneTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 85);
-                            if (signatureCareerTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 55);
+
+                            if (awardTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 140);
+                            if (laterMilestoneTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 95);
+                            if (signatureCareerTerms.test(window)) milestoneEvidence = Math.max(milestoneEvidence, 60);
+                            from = at + Math.max(needle.length, 1);
                           }
                         }
 
-                        return nonFranchiseSignatureScore(movie) + milestoneEvidence;
+                        return milestoneEvidence;
                       };
+
+                      const hasIndependentLaterMilestone = movie =>
+                        laterMilestoneEvidence(movie) >= 90;
+
+                      const laterMilestoneScore = movie =>
+                        nonFranchiseSignatureScore(movie) + laterMilestoneEvidence(movie);
 
                       const laterEraPool = majorCentralCredits
                         .filter(movie => {
@@ -1467,9 +1482,17 @@
                           if (order > 5 || votes < 750) return false;
                           if (alreadyNamed(movie)) return false;
 
-                          return !representedBeforeEra.some(existing =>
+                          const repeatsRepresentedFranchise = representedBeforeEra.some(existing =>
                             sameCareerFranchise(movie, existing)
                           );
+
+                          /*
+                            A later installment normally should not consume a second career
+                            beat from the same franchise. Exception: source-supported awards,
+                            nominations, acclaim, comeback or revival evidence makes that
+                            installment an independent career milestone in its own right.
+                          */
+                          return !repeatsRepresentedFranchise || hasIndependentLaterMilestone(movie);
                         })
                         .sort((a, b) =>
                           laterMilestoneScore(b) - laterMilestoneScore(a) ||
@@ -1553,7 +1576,10 @@
                           if (!title) return false;
                           if (!releasedDuringLifetime(movie)) return false;
                           if (preAssemblyText.includes(title.toLowerCase())) return false;
-                          if (representedPreAssemblyMovies.some(item => sameCareerFranchise(movie, item))) return false;
+                          if (
+                            representedPreAssemblyMovies.some(item => sameCareerFranchise(movie, item)) &&
+                            !hasIndependentLaterMilestone(movie)
+                          ) return false;
 
                           const votes = Number(movie?.vote_count || 0);
                           const order = Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99;
