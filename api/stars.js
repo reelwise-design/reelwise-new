@@ -244,40 +244,73 @@ function qualifiesForGenre(person, genreId) {
 }
 
 function qualifiesForTrendingMovieStar(person) {
-  const credits = movieCredits(person).filter(isReleasedMovie);
+  /*
+    Trending should stay close to TMDB's weekly trend order.
 
-  const substantial = credits.filter(movie => {
+    The purpose of this gate is only to make sure a trending person
+    has a real movie career. It should NOT demand the same lifetime
+    resume strength as Reelwise's established-career categories.
+  */
+  const credits = movieCredits(person).filter(movie =>
+    isReleasedMovie(movie) &&
+    !movie.adult
+  );
+
+  const meaningfulMovies = credits.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
 
+    const votes = Number(movie.vote_count || 0);
+    const popularity = Number(movie.popularity || 0);
+
     return (
-      !movie.adult &&
-      order <= 4 &&
-      Number(movie.vote_count || 0) >= 1000
+      order <= 8 &&
+      (
+        votes >= 250 ||
+        popularity >= 8
+      )
     );
   });
 
-  const major = substantial.filter(movie => {
+  const prominentMovies = meaningfulMovies.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
 
+    const votes = Number(movie.vote_count || 0);
+
     return (
-      order <= 3 &&
-      Number(movie.vote_count || 0) >= 2500
+      order <= 5 &&
+      votes >= 500
     );
   });
 
-  const lead = substantial.filter(movie =>
-    Number(movie.order ?? 99) <= 2
-  );
+  /*
+    Two ways through:
+      • at least two meaningful movie credits, one prominent; or
+      • one very substantial movie role with strong audience reach.
 
-  return (
-    substantial.length >= 2 &&
-    major.length >= 1 &&
-    lead.length >= 1
-  );
+    This keeps the weekly row responsive to current actors while
+    rejecting people whose TMDB trend is not backed by movie work.
+  */
+  const hasMovieCareer =
+    meaningfulMovies.length >= 2 &&
+    prominentMovies.length >= 1;
+
+  const hasMajorCurrentMovie =
+    meaningfulMovies.some(movie => {
+      const order = Number.isFinite(Number(movie.order))
+        ? Number(movie.order)
+        : 99;
+
+      return (
+        order <= 3 &&
+        Number(movie.vote_count || 0) >= 1500
+      );
+    });
+
+  return hasMovieCareer || hasMajorCurrentMovie;
 }
 
 async function getTrendingPeople() {
