@@ -590,12 +590,14 @@
 
                       const identityVerb = person?.deathday ? "was" : "is";
 
+                      const introSaysMusician = /\bmusician\b/i.test(introText);
+
                       const identity = isFilmmaker && isActingProfile
                         ? `${name} ${identityVerb} an actor and filmmaker.`
                         : introSaysActress
-                          ? `${name} ${identityVerb} an actress.`
+                          ? `${name} ${identityVerb} an actress${introSaysMusician ? " and musician" : ""}.`
                           : isActingProfile
-                            ? `${name} ${identityVerb} an actor.`
+                            ? `${name} ${identityVerb} an actor${introSaysMusician ? " and musician" : ""}.`
                             : `${name} ${identityVerb} a film professional.`;
 
                       /*
@@ -1172,12 +1174,17 @@
                       if (strongestAwardMilestone) {
                         later = strongestAwardMilestone;
                       } else if (!later) {
+                        /*
+                          If there is no distinct later award milestone, prefer the
+                          strongest remaining career-defining credit rather than simply
+                          the latest acceptable movie. This prevents a minor late title
+                          from displacing a much more important mid-career film.
+                        */
                         const laterMovies = majorCentralCredits
                           .filter(movie =>
                             movie !== signatureFilm &&
                             !alreadyNamed(movie) &&
-                            releasedDuringLifetime(movie) &&
-                            (!laterThreshold || movieYear(movie) >= laterThreshold)
+                            releasedDuringLifetime(movie)
                           )
                           .sort((a, b) =>
                             nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
@@ -1186,7 +1193,7 @@
                           .slice(0, 2);
 
                         if (laterMovies.length) {
-                          later = `Later work includes ${formatFilmList(laterMovies)}.`;
+                          later = `Other major work includes ${formatFilmList(laterMovies)}.`;
                         }
                       }
 
@@ -1253,6 +1260,17 @@
 
                       const polishCareerSentence = value => {
                         let sentence = cleanText(value);
+
+                        /*
+                          Wikipedia sometimes frames a major performance as an ordinal
+                          filmography fact ("His sixth feature film was ..."). Preserve
+                          the useful award/acclaim information while removing the trivia-
+                          like setup so the result reads as a Reelwise career biography.
+                        */
+                        sentence = sentence.replace(
+                          /^(?:His|Her|Their)\s+(?:first|second|third|fourth|fifth|sixth|seventh|eighth|ninth|tenth|\d+(?:st|nd|rd|th))\s+feature film was\s+(?:[^,]{1,80}['’]s\s+)?(.+?),\s+for which\s+(?:the\s+\d+-year-old\s+)?[^,]+\s+(received|earned|won)\s+/i,
+                          (_, film, verb) => `In ${film}, ${name} ${verb.toLowerCase()} `
+                        );
 
                         sentence = sentence
                           .replace(/^His other lead role was in\s+/i, "He later starred in ")
