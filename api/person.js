@@ -1195,7 +1195,35 @@
                       const signatureCharacterKey =
                         signatureFilm ? characterKey(signatureFilm) : "";
 
-                      const otherMajor = majorCentralCredits.find(movie => {
+                      /*
+                        Pick an additional career-defining credit independently of the
+                        awards beat. This matters for performers whose award milestone
+                        comes from one film while another earlier movie became a lasting
+                        part of their screen identity. The choice remains fully automatic:
+                        central billing, audience recognition and source support decide it.
+                      */
+                      const otherMajorCandidates = majorCentralCredits
+                        .filter(movie => movie && movie !== signatureFilm && !alreadyNamed(movie))
+                        .sort((a, b) => {
+                          const sourceBonus = movie =>
+                            sourceLower.includes(String(movie.title || "").toLowerCase()) ? 36 : 0;
+
+                          const formativeBonus = movie => {
+                            const year = movieYear(movie);
+                            if (!year || !breakthroughYear) return 0;
+                            const distance = Math.abs(year - breakthroughYear);
+                            return distance <= 2 ? 24 : distance <= 5 ? 12 : 0;
+                          };
+
+                          const score = movie =>
+                            centralRoleImportance(movie) +
+                            sourceBonus(movie) +
+                            formativeBonus(movie);
+
+                          return score(b) - score(a) || movieYear(a) - movieYear(b);
+                        });
+
+                      const otherMajor = otherMajorCandidates.find(movie => {
                         if (!movie || movie === signatureFilm || alreadyNamed(movie)) return false;
 
                         const key = characterKey(movie);
@@ -1236,17 +1264,28 @@
                       let otherMajorLine = "";
 
                       /*
-                        When Wikipedia supplies a genuine later award/acclaim milestone,
-                        keep the biography focused and do not insert another popularity-
-                        based movie between the signature role and that achievement.
+                        An award milestone no longer automatically suppresses a different
+                        major film. Keep one extra title when it is a genuinely substantial
+                        central credit and is independently supported by Wikipedia or very
+                        strong audience recognition. This prevents important formative films
+                        from disappearing simply because another movie earned an award.
                       */
-                      if (
-                        otherMajor &&
-                        releasedDuringLifetime(otherMajor) &&
-                        !strongestAwardMilestone
-                      ) {
-                        otherMajorLine =
-                          `Other major work includes ${formatFilmList([otherMajor])}.`;
+                      if (otherMajor && releasedDuringLifetime(otherMajor)) {
+                        const otherTitle = String(otherMajor.title || "").toLowerCase();
+                        const otherVotes = Number(otherMajor.vote_count || 0);
+                        const otherOrder = Number.isFinite(Number(otherMajor.order))
+                          ? Number(otherMajor.order)
+                          : 99;
+
+                        const independentlySignificant =
+                          sourceLower.includes(otherTitle) ||
+                          (otherOrder <= 2 && otherVotes >= 2500) ||
+                          (otherOrder <= 4 && otherVotes >= 5000);
+
+                        if (!strongestAwardMilestone || independentlySignificant) {
+                          otherMajorLine =
+                            `Other major work includes ${formatFilmList([otherMajor])}.`;
+                        }
                       }
 
                       const polishCareerSentence = value => {
