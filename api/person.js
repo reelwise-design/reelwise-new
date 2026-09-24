@@ -1766,6 +1766,157 @@
                     }
 
 
+
+                    /* ============================================================
+                       TEMPORARY STAGE-BY-STAGE CAREER TRACE
+                       Diagnostic only. Normal Reelwise biography logic is unchanged.
+                       ============================================================ */
+                    async function buildCareerStageTrace(personId) {
+                      const person = await fetchTMDB(
+                        `/person/${encodeURIComponent(personId)}`,
+                        { language: "en-US", append_to_response: "combined_credits" }
+                      );
+
+                      let sourceText = "";
+                      try { sourceText = await getWikipediaCareerText(person?.name || ""); } catch (error) {}
+                      if (!sourceText) {
+                        try { sourceText = await getWikipediaBiography(person?.name || ""); } catch (error) {}
+                      }
+                      if (!sourceText) sourceText = cleanText(person?.biography || "");
+
+                      const cleaned = cleanBiographySource(sourceText, person?.name || "");
+                      const sentences = splitBioSentences(cleaned);
+                      const movies = getMovieCredits(person);
+                      const biography = chooseCareerSentences(sourceText, person);
+                      const bioLower = String(biography || "").toLowerCase();
+
+                      const wantedTitles = ["creed", "rambo: last blood", "the expendables"];
+                      const targets = wantedTitles.map(title =>
+                        movies.find(movie => String(movie?.title || "").trim().toLowerCase() === title) || null
+                      );
+
+                      const representedMovies = movies.filter(movie => {
+                        const title = String(movie?.title || "").trim().toLowerCase();
+                        return title && bioLower.includes(title);
+                      });
+
+                      const normalizeCharacter = value => String(value || "")
+                        .toLowerCase().replace(/\([^)]*\)/g, " ")
+                        .replace(/\b(?:voice|uncredited|archive footage|cameo)\b/g, " ")
+                        .replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+
+                      const characterKey = movie => normalizeCharacter(movie?.character)
+                        .split(" ").filter(word => word.length > 2).slice(0, 3).join(" ");
+
+                      const franchiseRoot = value => String(value || "")
+                        .toLowerCase().replace(/[’']/g, "'").replace(/\([^)]*\)/g, " ")
+                        .replace(/[^a-z0-9' ]+/g, " ")
+                        .replace(/\s+(?:part|chapter|episode)\s+(?:[ivxlcdm]+|\d+)$/i, "")
+                        .replace(/\s+(?:[ivxlcdm]{1,6}|\d+)$/i, "")
+                        .replace(/\s+/g, " ").trim();
+
+                      const franchiseTokens = value => {
+                        const stop = new Set(["the","a","an","and","of","in","on","to","for","part","chapter","episode","movie","film"]);
+                        return franchiseRoot(value).split(/[^a-z0-9]+/).filter(word =>
+                          word.length >= 3 && !stop.has(word) && !/^(?:[ivxlcdm]+|\d+)$/.test(word)
+                        );
+                      };
+
+                      const sameCareerFranchise = (a, b) => {
+                        if (!a || !b) return false;
+                        const ar = franchiseRoot(a.title), br = franchiseRoot(b.title);
+                        if (ar && br && ar === br) return true;
+                        const ac = characterKey(a), bc = characterKey(b);
+                        if (ac && bc && ac === bc) return true;
+                        const at = franchiseTokens(a.title), bt = franchiseTokens(b.title);
+                        return at.filter(token => bt.includes(token)).length >= 2;
+                      };
+
+                      const awardTerms = /\b(academy award|oscar|golden globe|bafta|emmy|award|awards|accolade|accolades|nomination|nominations|won|nominated)\b/i;
+                      const laterMilestoneTerms = /\b(?:academy award|oscar|golden globe|bafta|sag award|screen actors guild|emmy|cannes|venice|volpi|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|comeback|revival|returned|returning|reprise|reprised|reprising)\b/i;
+                      const signatureCareerTerms = /\b(gained (?:global |international |widespread )?recognition|rose to (?:global |international )?prominence|became (?:widely |internationally )?known|best known|iconic|signature role|defining role|career-defining|franchise|series of films|reprising|reprise|title character|leading role|lead role)\b/i;
+                      const adjacentBridgeTerms = /^(?:for (?:his|her|their|the) (?:performance|role|portrayal)|for this (?:performance|role|portrayal)|the (?:performance|role|portrayal)|his (?:performance|role|portrayal)|her (?:performance|role|portrayal)|their (?:performance|role|portrayal)|this (?:performance|role|portrayal)|for which (?:he|she|they)|it earned (?:him|her|them)|the film earned (?:him|her|them))\b/i;
+
+                      const strictEvidence = movie => {
+                        if (!movie) return { boost: 0, direct: [], bridged: [] };
+                        const title = String(movie.title || "").toLowerCase();
+                        let boost = 0;
+                        const direct = [], bridged = [];
+                        for (let i = 0; i < sentences.length; i += 1) {
+                          const sentence = cleanText(sentences[i] || "");
+                          if (!sentence.toLowerCase().includes(title)) continue;
+                          let local = 0;
+                          if (awardTerms.test(sentence)) local = Math.max(local, 180);
+                          if (laterMilestoneTerms.test(sentence)) local = Math.max(local, 90);
+                          if (signatureCareerTerms.test(sentence)) local = Math.max(local, 45);
+                          if (local) direct.push({ score: local, text: sentence.slice(0, 700) });
+                          boost = Math.max(boost, local);
+                          if (i + 1 < sentences.length) {
+                            const next = cleanText(sentences[i + 1] || "");
+                            if (adjacentBridgeTerms.test(next)) {
+                              let adjacent = 0;
+                              if (awardTerms.test(next)) adjacent = Math.max(adjacent, 165);
+                              if (laterMilestoneTerms.test(next)) adjacent = Math.max(adjacent, 100);
+                              if (signatureCareerTerms.test(next)) adjacent = Math.max(adjacent, 60);
+                              if (adjacent) bridged.push({ score: adjacent, text: next.slice(0, 700) });
+                              boost = Math.max(boost, adjacent);
+                            }
+                          }
+                        }
+                        return { boost, direct, bridged };
+                      };
+
+                      const score = movie => {
+                        if (!movie) return 0;
+                        const votes = Number(movie.vote_count || 0), rating = Number(movie.vote_average || 0);
+                        const popularity = Number(movie.popularity || 0);
+                        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+                        const billing = order === 0 ? 78 : order === 1 ? 62 : order === 2 ? 46 : order === 3 ? 28 : order <= 5 ? 12 : 0;
+                        return billing + Math.log10(Math.max(votes, 1)) * 30 + Math.max(rating - 5, 0) * 5 + Math.min(popularity, 60) * 0.08;
+                      };
+
+                      const trace = targets.map(movie => {
+                        if (!movie) return { found: false };
+                        const evidence = strictEvidence(movie);
+                        const order = Number.isFinite(Number(movie.order)) ? Number(movie.order) : 99;
+                        const votes = Number(movie.vote_count || 0);
+                        const franchiseMatches = representedMovies
+                          .filter(existing => existing.id !== movie.id && sameCareerFranchise(movie, existing))
+                          .map(existing => ({ id: existing.id, title: existing.title, year: movieYear(existing), character: existing.character || "" }));
+                        return {
+                          found: true,
+                          id: movie.id,
+                          title: movie.title,
+                          year: movieYear(movie),
+                          character: movie.character || "",
+                          billingOrder: order,
+                          voteCount: votes,
+                          stage1CentralBilling: order <= 5,
+                          stage2AudienceThreshold: votes >= 750,
+                          strictAwardAcclaimBoost: evidence.boost,
+                          stage3IndependentMilestone: evidence.boost >= 90,
+                          baseScore: Number(score(movie).toFixed(2)),
+                          totalScore: Number((score(movie) + evidence.boost).toFixed(2)),
+                          franchiseMatchesAlreadyInFinalBiography: franchiseMatches,
+                          stage4BlockedByRepresentedFranchise: franchiseMatches.length > 0 && evidence.boost < 90,
+                          stage5AppearsInFinalBiography: bioLower.includes(String(movie.title || "").toLowerCase()),
+                          directEvidence: evidence.direct,
+                          bridgedEvidence: evidence.bridged
+                        };
+                      });
+
+                      return {
+                        diagnostic: "REELWISE_CAREER_STAGE_TRACE_V1",
+                        person: { id: person?.id || Number(personId), name: person?.name || "" },
+                        finalBiography: biography,
+                        representedMoviesInFinalBiography: representedMovies.map(movie => ({
+                          id: movie.id, title: movie.title, year: movieYear(movie), character: movie.character || ""
+                        })),
+                        trace
+                      };
+                    }
+
+
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -2134,6 +2285,14 @@
                               }
                             );
                           }
+                        }
+
+                        /*
+                          TEMPORARY CAREER STAGE TRACE MODE
+                        */
+                        if (mode === "career-trace") {
+                          const trace = await buildCareerStageTrace(id);
+                          return sendJSON(res, 200, trace);
                         }
 
                         /*
