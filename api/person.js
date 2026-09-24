@@ -842,15 +842,16 @@
                       }
 
                       /*
-                        DEFINING-ROLE SAFETY NET
+                        REELWISE CAREER-ARC ENGINE
 
-                        The biggest movie in a filmography is not always the movie that
-                        defines the star. Favor credits where the performer is top-billed,
-                        then combine that with durable audience recognition. This keeps giant
-                        ensemble films from automatically crowding out a central starring role.
+                        Build distinct career beats instead of simply listing the
+                        three biggest movies:
+                          1. breakthrough / early recognition
+                          2. signature or defining role
+                          3. other major work
+                          4. later-career achievement / award
 
-                        Wikipedia still gets first chance to provide a clean signature-career
-                        sentence. TMDB is the safety net when that prose misses obvious work.
+                        No actor or movie is hard-coded.
                       */
                       const centralRoleImportance = movie => {
                         const votes = Number(movie?.vote_count || 0);
@@ -862,28 +863,18 @@
                         const year = movieYear(movie);
 
                         const billingBonus =
-                          order === 0 ? 34 :
-                          order === 1 ? 27 :
-                          order === 2 ? 20 :
-                          order <= 4 ? 10 :
-                          0;
+                          order === 0 ? 42 :
+                          order === 1 ? 32 :
+                          order === 2 ? 22 :
+                          order <= 4 ? 10 : 0;
 
-                        /*
-                          Vote count is useful, but logarithmic scoring prevents a massive
-                          ensemble blockbuster from winning only because it has more votes.
-                        */
-                        const audienceScore = Math.log10(Math.max(votes, 1)) * 20;
-                        const popularityScore = Math.min(popularity, 80) * 0.18;
-                        const ratingScore = Math.max(rating - 5, 0) * 2.5;
+                        const audienceScore = Math.log10(Math.max(votes, 1)) * 18;
+                        const popularityScore = Math.min(popularity, 70) * 0.12;
+                        const ratingScore = Math.max(rating - 5, 0) * 2;
 
-                        /*
-                          For otherwise comparable major credits, give a small advantage to
-                          an earlier central role. This helps surface the film that established
-                          a screen persona before later sequels/ensemble appearances.
-                        */
                         const foundationBonus =
                           year && breakthroughYear && year >= breakthroughYear
-                            ? Math.max(0, 10 - Math.min((year - breakthroughYear) * 0.35, 10))
+                            ? Math.max(0, 14 - Math.min((year - breakthroughYear) * 0.45, 14))
                             : 0;
 
                         return audienceScore + popularityScore + ratingScore +
@@ -896,7 +887,7 @@
 
                       const sourceLower = String(cleanedArticleText || "").toLowerCase();
 
-                      const signatureCandidates = [...movies]
+                      const majorCentralCredits = [...movies]
                         .filter(movie => {
                           const title = String(movie.title || "").trim();
                           if (!title) return false;
@@ -906,56 +897,129 @@
                             ? Number(movie.order)
                             : 99;
 
-                          /*
-                            Require real audience recognition and meaningful billing.
-                            Article mention is an extra confidence signal for older films.
-                          */
-                          return (
-                            order <= 4 &&
-                            (votes >= 900 || sourceLower.includes(title.toLowerCase()))
-                          );
+                          return order <= 4 &&
+                            (votes >= 700 || sourceLower.includes(title.toLowerCase()));
                         })
                         .sort((a, b) =>
                           centralRoleImportance(b) - centralRoleImportance(a) ||
                           movieYear(a) - movieYear(b)
                         );
 
+                      const normalizedCharacter = value =>
+                        String(value || "")
+                          .toLowerCase()
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/\b(?:voice|uncredited|archive footage|cameo)\b/g, " ")
+                          .replace(/[^a-z0-9]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      /*
+                        Repeated major characters are a strong generic signal of a
+                        signature screen role. Prefer the earliest substantial appearance
+                        instead of automatically selecting a later ensemble sequel.
+                      */
+                      const recurringCharacterCounts = new Map();
+
+                      const characterKey = movie => {
+                        const character = normalizedCharacter(movie?.character);
+                        if (!character || character.length < 3) return "";
+
+                        return character
+                          .split(" ")
+                          .filter(word => word.length > 2)
+                          .slice(0, 3)
+                          .join(" ");
+                      };
+
+                      for (const movie of majorCentralCredits) {
+                        const key = characterKey(movie);
+                        if (!key) continue;
+                        recurringCharacterCounts.set(
+                          key,
+                          (recurringCharacterCounts.get(key) || 0) + 1
+                        );
+                      }
+
+                      const recurringRoleCredits = majorCentralCredits
+                        .filter(movie => {
+                          const key = characterKey(movie);
+                          return key && (recurringCharacterCounts.get(key) || 0) >= 2;
+                        })
+                        .sort((a, b) =>
+                          movieYear(a) - movieYear(b) ||
+                          centralRoleImportance(b) - centralRoleImportance(a)
+                        );
+
                       const alreadyNamed = movie =>
                         selectedText.includes(String(movie.title || "").toLowerCase());
 
-                      const missingSignature = signatureCandidates
-                        .filter(movie => !alreadyNamed(movie))
-                        .slice(0, 3);
+                      const signatureFilm =
+                        recurringRoleCredits.find(movie => !alreadyNamed(movie)) ||
+                        majorCentralCredits.find(movie => !alreadyNamed(movie)) ||
+                        null;
 
-                      /*
-                        Only synthesize a defining-films line when Wikipedia has not already
-                        supplied a strong signature-career sentence. This avoids replacing
-                        good prose such as a clean franchise/defining-role explanation.
-                      */
                       const definingIsSignature =
                         defining && signatureCareerTerms.test(defining);
 
-                      if (!definingIsSignature && missingSignature.length) {
-                        const definingLine =
-                          `${name}'s defining films include ${formatFilmList(missingSignature)}.`;
-
-                        defining = definingLine;
+                      if (!definingIsSignature && signatureFilm) {
+                        defining =
+                          `${name} became especially identified with ${formatFilmList([signatureFilm])}.`;
                       }
 
                       /*
-                        Later work should represent a genuinely later achievement, not merely
-                        another enormous ensemble title from the same franchise. Keep a strong
-                        award/acclaim sentence when Wikipedia supplies one.
+                        Preserve a separate award/acclaim milestone. Selecting a defining
+                        role should never erase a later Oscar, nomination, or equivalent
+                        career achievement already present in the source material.
                       */
-                      if (later && !awardTerms.test(later) && !signatureCareerTerms.test(later)) {
-                        const laterMatches = sentenceMovieMatches(later, movies);
-                        const laterBest = laterMatches.length
-                          ? Math.max(...laterMatches.map(centralRoleImportance))
-                          : 0;
+                      const awardMilestones = careerCandidates
+                        .filter(item =>
+                          awardTerms.test(item.sentence) &&
+                          !isDuplicateMeaning(item.sentence, breakthrough) &&
+                          !isDuplicateMeaning(item.sentence, defining)
+                        )
+                        .sort((a, b) => {
+                          const aYear = sentenceYear(a.sentence) || 0;
+                          const bYear = sentenceYear(b.sentence) || 0;
+                          return bYear - aYear ||
+                            sentenceImportance(b) - sentenceImportance(a);
+                        });
 
-                        if (laterBest < 85) {
-                          later = "";
+                      const strongestAwardMilestone =
+                        awardMilestones.length ? awardMilestones[0].sentence : "";
+
+                      if (strongestAwardMilestone) {
+                        later = strongestAwardMilestone;
+                      }
+
+                      /*
+                        Add one different major central credit when it supplies another
+                        career beat. Avoid immediately repeating the same recurring role.
+                      */
+                      const signatureCharacterKey =
+                        signatureFilm ? characterKey(signatureFilm) : "";
+
+                      const otherMajor = majorCentralCredits.find(movie => {
+                        if (!movie || movie === signatureFilm || alreadyNamed(movie)) return false;
+
+                        const key = characterKey(movie);
+
+                        if (
+                          signatureCharacterKey &&
+                          key &&
+                          key === signatureCharacterKey
+                        ) {
+                          return false;
                         }
+
+                        return true;
+                      });
+
+                      let otherMajorLine = "";
+
+                      if (otherMajor) {
+                        otherMajorLine =
+                          `Other major work includes ${formatFilmList([otherMajor])}.`;
                       }
 
                       const polishCareerSentence = value => {
@@ -969,10 +1033,13 @@
                           .replace(/\s+/g, " ")
                           .trim();
 
-                        return sentence;
+                        return sentence
+                          .replace(`${name}'s defining films include `, "Defining work includes ")
+                          .replace(`${name}'s later film work includes `, "Later work includes ")
+                          .replace(`${name}'s early notable film work included `, "Early notable work included ");
                       };
 
-                      const parts = [identity, breakthrough, defining, later]
+                      const parts = [identity, breakthrough, defining, otherMajorLine, later]
                         .map(polishCareerSentence)
                         .filter(Boolean)
                         .filter(sentence =>
@@ -994,7 +1061,7 @@
                         if (seen.has(key)) continue;
                         seen.add(key);
                         unique.push(sentence);
-                        if (unique.length >= 4) break;
+                        if (unique.length >= 5) break;
                       }
 
                       let bio = unique.join(" ");
