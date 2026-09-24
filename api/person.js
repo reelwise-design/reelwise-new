@@ -972,6 +972,25 @@
                         role should never erase a later Oscar, nomination, or equivalent
                         career achievement already present in the source material.
                       */
+                      const normalizeForComparison = value =>
+                        cleanText(value)
+                          .toLowerCase()
+                          .replace(/[^a-z0-9 ]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      const isDuplicateMeaning = (a, b) => {
+                        const left = normalizeForComparison(a);
+                        const right = normalizeForComparison(b);
+
+                        if (!left || !right) return false;
+                        if (left === right) return true;
+                        if (left.length >= 45 && right.includes(left)) return true;
+                        if (right.length >= 45 && left.includes(right)) return true;
+
+                        return false;
+                      };
+
                       const awardMilestones = careerCandidates
                         .filter(item =>
                           awardTerms.test(item.sentence) &&
@@ -1122,22 +1141,53 @@
                       let biography = "";
 
                       if (wikipediaCareerText) {
-                        biography = chooseCareerSentences(wikipediaCareerText, person);
+                        try {
+                          biography = chooseCareerSentences(wikipediaCareerText, person);
+                        } catch (error) {
+                          console.error("Reelwise career biography error:", error);
+                          biography = "";
+                        }
                       }
 
                       if (!biography && wikipediaSummary) {
-                        biography = chooseCareerSentences(wikipediaSummary, person);
+                        try {
+                          biography = chooseCareerSentences(wikipediaSummary, person);
+                        } catch (error) {
+                          console.error("Reelwise summary biography error:", error);
+                          biography = "";
+                        }
                       }
 
                       if (!biography && tmdbBio) {
-                        biography = chooseCareerSentences(tmdbBio, person);
+                        try {
+                          biography = chooseCareerSentences(tmdbBio, person);
+                        } catch (error) {
+                          console.error("Reelwise TMDB biography error:", error);
+                          biography = "";
+                        }
                       }
 
                       biography =
                         biography ||
-                        tmdbBio ||
                         wikipediaSummary ||
+                        tmdbBio ||
                         "";
+
+                      if (biography.length > 1150) {
+                        const fallbackSentences = splitBioSentences(biography);
+                        const compactFallback = [];
+                        let fallbackLength = 0;
+
+                        for (const sentence of fallbackSentences) {
+                          const addition = sentence.length + (compactFallback.length ? 1 : 0);
+                          if (fallbackLength + addition > 900) break;
+                          compactFallback.push(sentence);
+                          fallbackLength += addition;
+                          if (compactFallback.length >= 4) break;
+                        }
+
+                        biography = compactFallback.join(" ");
+                      }
 
                       return {
                         ...person,
