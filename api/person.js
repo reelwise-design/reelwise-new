@@ -886,6 +886,19 @@
                       if (!defining) {
                         const sourceLower = String(cleanedArticleText || "").toLowerCase();
 
+                      /*
+                        For deceased performers, posthumously released/completed credits
+                        remain in filmography, but they should not be described as normal
+                        "later career" work.
+                      */
+                      const deathYear =
+                        parseInt(String(person?.deathday || "").slice(0, 4), 10) || 0;
+
+                      const releasedDuringLifetime = movie => {
+                        const year = movieYear(movie);
+                        return !deathYear || !year || year <= deathYear;
+                      };
+
                         const mentioned = movies
                           .filter(movie =>
                             !usedMovieIds.has(movie.id) &&
@@ -963,7 +976,8 @@
                             ? Number(movie.order)
                             : 99;
 
-                          return order <= 4 &&
+                          return releasedDuringLifetime(movie) &&
+                            order <= 4 &&
                             (votes >= 700 || sourceLower.includes(title.toLowerCase()));
                         })
                         .sort((a, b) =>
@@ -1062,7 +1076,10 @@
                             ? Number(movie.order)
                             : 99;
 
-                          return title && order <= 5 && votes >= 500;
+                          return releasedDuringLifetime(movie) &&
+                            title &&
+                            order <= 5 &&
+                            votes >= 500;
                         })
                         .sort((a, b) =>
                           nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
@@ -1157,6 +1174,7 @@
                           .filter(movie =>
                             movie !== signatureFilm &&
                             !alreadyNamed(movie) &&
+                            releasedDuringLifetime(movie) &&
                             (!laterThreshold || movieYear(movie) >= laterThreshold)
                           )
                           .sort((a, b) =>
@@ -1222,7 +1240,11 @@
                         keep the biography focused and do not insert another popularity-
                         based movie between the signature role and that achievement.
                       */
-                      if (otherMajor && !strongestAwardMilestone) {
+                      if (
+                        otherMajor &&
+                        releasedDuringLifetime(otherMajor) &&
+                        !strongestAwardMilestone
+                      ) {
                         otherMajorLine =
                           `Other major work includes ${formatFilmList([otherMajor])}.`;
                       }
