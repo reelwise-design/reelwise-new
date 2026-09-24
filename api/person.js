@@ -464,7 +464,7 @@
                       return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
                     }
 
-                    function chooseCareerSentences(articleText, person) {
+                    function chooseCareerSentences(articleText, person, definingDebug = null) {
                       const cleanedArticleText = cleanBiographySource(
                         articleText,
                         person?.name || ""
@@ -1204,6 +1204,56 @@
                         nonFranchiseSignature ||
                         null;
 
+                      if (definingDebug && typeof definingDebug === "object") {
+                        definingDebug.sourceDefiningSentence = defining || "";
+                        definingDebug.selectedTextBeforeSignature = selectedText;
+                        definingDebug.recurringRoleCandidates = recurringRoleCredits
+                          .slice(0, 12)
+                          .map(movie => ({
+                            id: movie.id,
+                            title: movie.title,
+                            year: movieYear(movie),
+                            character: movie.character || "",
+                            billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
+                            voteCount: Number(movie?.vote_count || 0),
+                            score: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
+                            alreadyNamed: alreadyNamed(movie),
+                            repeatsRepresentedFranchise: repeatsRepresentedFranchise(movie)
+                          }));
+                        definingDebug.definingFilmRanking = definingFilmPool
+                          .slice(0, 20)
+                          .map((movie, index) => ({
+                            rank: index + 1,
+                            id: movie.id,
+                            title: movie.title,
+                            year: movieYear(movie),
+                            character: movie.character || "",
+                            billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
+                            voteCount: Number(movie?.vote_count || 0),
+                            voteAverage: Number(movie?.vote_average || 0),
+                            popularity: Number(movie?.popularity || 0),
+                            score: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
+                            alreadyNamed: alreadyNamed(movie),
+                            repeatsRepresentedFranchise: repeatsRepresentedFranchise(movie),
+                            recurringCharacter: Boolean(
+                              characterKey(movie) &&
+                              (recurringCharacterCounts.get(characterKey(movie)) || 0) >= 2
+                            )
+                          }));
+                        definingDebug.signatureFilm = signatureFilm
+                          ? {
+                              id: signatureFilm.id,
+                              title: signatureFilm.title,
+                              year: movieYear(signatureFilm),
+                              character: signatureFilm.character || "",
+                              billingOrder: Number.isFinite(Number(signatureFilm?.order)) ? Number(signatureFilm.order) : 99,
+                              voteCount: Number(signatureFilm?.vote_count || 0),
+                              score: Number(nonFranchiseSignatureScore(signatureFilm).toFixed(2)),
+                              chosenFromRecurringRolePool: recurringRoleCredits.some(movie => movie.id === signatureFilm.id)
+                            }
+                          : null;
+                      }
+
                       const definingMatchesSignature =
                         defining &&
                         signatureFilm &&
@@ -1814,7 +1864,7 @@
                     }
 
 
-                    async function getPersonProfile(personId) {
+                    async function getPersonProfile(personId, debugDefining = false) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
                         {
@@ -1845,10 +1895,11 @@
                       }
 
                       let biography = "";
+                      const definingDebug = debugDefining ? {} : null;
 
                       if (wikipediaCareerText) {
                         try {
-                          biography = chooseCareerSentences(wikipediaCareerText, person);
+                          biography = chooseCareerSentences(wikipediaCareerText, person, definingDebug);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
                           biography = "";
@@ -1857,7 +1908,7 @@
 
                       if (!biography && wikipediaSummary) {
                         try {
-                          biography = chooseCareerSentences(wikipediaSummary, person);
+                          biography = chooseCareerSentences(wikipediaSummary, person, definingDebug);
                         } catch (error) {
                           console.error("Reelwise summary biography error:", error);
                           biography = "";
@@ -1866,7 +1917,7 @@
 
                       if (!biography && tmdbBio) {
                         try {
-                          biography = chooseCareerSentences(tmdbBio, person);
+                          biography = chooseCareerSentences(tmdbBio, person, definingDebug);
                         } catch (error) {
                           console.error("Reelwise TMDB biography error:", error);
                           biography = "";
@@ -1913,6 +1964,7 @@
                       return {
                         ...person,
                         biography,
+                        ...(debugDefining ? { defining_debug: definingDebug || {} } : {}),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2182,6 +2234,29 @@
                               }
                             );
                           }
+                        }
+
+                        /*
+                          DEFINING-FILM DIAGNOSTIC MODE
+                          Runs the exact production selector and exposes only its
+                          defining-film decision data. Normal profile mode is unchanged.
+                        */
+                        if (mode === "defining-debug") {
+                          const profile = await getPersonProfile(id, true);
+
+                          return sendJSON(
+                            res,
+                            200,
+                            {
+                              diagnostic: "REELWISE_DEFINING_FILM_DEBUG_V1",
+                              person: {
+                                id: profile?.id || Number(id),
+                                name: profile?.name || ""
+                              },
+                              biography: profile?.biography || "",
+                              defining_debug: profile?.defining_debug || {}
+                            }
+                          );
                         }
 
                         /*
