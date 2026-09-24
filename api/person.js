@@ -509,6 +509,13 @@
                       const publicityTerms =
                         /\b(promoting|promoted|promotion|promotional|publicity|press tour|press junket|interview|interviewed|magazine|cover of|photo shoot|photoshoot|talk show|late[- ]night|appeared on the cover|spoke to the press)\b/i;
 
+                      /*
+                        Contract/business mechanics are rarely useful star-biography prose.
+                        Reject them so a cleaner signature-role sentence can win instead.
+                      */
+                      const contractDetailTerms =
+                        /\b(signed on|signed a deal|signed a contract|contracted to|optioned for|multi[- ]picture deal|multi[- ]film deal|negotiated|salary|paycheck|insurance bond|reprise (?:his|her|their) role in (?:two|three|multiple) sequels)\b/i;
+
                       const incompleteFragmentTerms =
                         /^(?:[\d.,$£€¥%]+(?:\s|$)|[,;:)\]])/;
 
@@ -635,6 +642,7 @@
                         if (!breakthroughTerms.test(sentence)) continue;
                         if (personalTerms.test(sentence)) continue;
                         if (publicityTerms.test(sentence)) continue;
+                        if (contractDetailTerms.test(sentence)) continue;
                         if (weakCareerTerms.test(sentence)) continue;
                         if (incompleteFragmentTerms.test(sentence)) continue;
                         if (dependentTransitionTerms.test(sentence)) continue;
@@ -660,6 +668,7 @@
                           if (
                             personalTerms.test(combined) ||
                             publicityTerms.test(combined) ||
+                            contractDetailTerms.test(combined) ||
                             weakCareerTerms.test(combined) ||
                             dependentTransitionTerms.test(sentences[i]) ||
                             dependentTransitionTerms.test(sentences[i + 1]) ||
@@ -705,6 +714,7 @@
                           careerTerms.test(item.sentence) &&
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
+                          !contractDetailTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
                           !incompleteFragmentTerms.test(item.sentence) &&
                           !dependentTransitionTerms.test(item.sentence) &&
@@ -1034,6 +1044,7 @@
                           item.matches.length &&
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
+                          !contractDetailTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
                           !plotSummaryTerms.test(item.sentence) &&
                           !isDuplicateMeaning(item.sentence, breakthrough) &&
@@ -1152,6 +1163,7 @@
                         .filter(sentence =>
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
+                          !contractDetailTerms.test(sentence) &&
                           !weakCareerTerms.test(sentence) &&
                           !contextlessTerms.test(sentence) &&
                           !plotSummaryTerms.test(sentence) &&
