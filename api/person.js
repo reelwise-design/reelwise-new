@@ -473,6 +473,9 @@
                       const strongCareerTerms =
                         /\b(acclaim|acclaimed|recognition|success|successful|blockbuster|franchise|leading role|lead role|title role|portrayed|starred|starring|won|nominated|award|awards)\b/i;
 
+                      const signatureCareerTerms =
+                        /\b(gained (?:global |international |widespread )?recognition|rose to (?:global |international )?prominence|became (?:widely |internationally )?known|best known|iconic|signature role|defining role|career-defining|franchise|series of films|reprising|reprise|title character|leading role|lead role)\b/i;
+
                       const weakCareerTerms =
                         /\b(box[- ]office failure|critical failure|commercial failure|flop|panned|poorly received|mixed reviews|only role|only film|only movie)\b/i;
 
@@ -489,7 +492,7 @@
                         /^(?:the film|the movie|the role|the performance|the project|the sequel|the series|the production|the picture)\b/i;
 
                       const plotSummaryTerms =
-                        /\b(?:plot|story follows|centers on|revolves around|who cannot stand each other|unknowingly|falls in love|tries to|attempts to|sets out to|must save|must stop|in search of his estranged|in search of her estranged)\b/i;
+                        /\b(?:plot|story follows|centers on|revolves around|who cannot stand each other|unknowingly|falls in love|tries to|attempts to|sets out to|must save|must stop|in search of his estranged|in search of her estranged|featured .{0,70} as lovers|features .{0,70} as lovers|caught in turmoil)\b/i;
 
                       /*
                         Reject sentences that begin with a different named person and never
@@ -542,13 +545,15 @@
                         introSaysFilmmaker ||
                         (!isActingProfile && /directing|production|writing/.test(department));
 
+                      const identityVerb = person?.deathday ? "was" : "is";
+
                       const identity = isFilmmaker && isActingProfile
-                        ? `${name} is an actor and filmmaker.`
+                        ? `${name} ${identityVerb} an actor and filmmaker.`
                         : introSaysActress
-                          ? `${name} is an actress.`
+                          ? `${name} ${identityVerb} an actress.`
                           : isActingProfile
-                            ? `${name} is an actor.`
-                            : `${name} is a film professional.`;
+                            ? `${name} ${identityVerb} an actor.`
+                            : `${name} ${identityVerb} a film professional.`;
 
                       /*
                         Score a movie by how useful it is for a short Reelwise career arc.
@@ -578,10 +583,16 @@
 
                         let score = bestMovie;
 
-                        if (awardTerms.test(item.sentence)) score += 24;
-                        if (strongCareerTerms.test(item.sentence)) score += 14;
-                        if (item.matches.length >= 2) score += 8;
-                        if (breakthroughTerms.test(item.sentence)) score += 8;
+                        /*
+                          A short Reelwise bio should prioritize the work that defined the
+                          performer's screen identity. Awards still matter, but an award-only
+                          sentence should not automatically outrank a signature role/franchise.
+                        */
+                        if (signatureCareerTerms.test(item.sentence)) score += 34;
+                        if (strongCareerTerms.test(item.sentence)) score += 16;
+                        if (awardTerms.test(item.sentence)) score += 10;
+                        if (item.matches.length >= 2) score += 6;
+                        if (breakthroughTerms.test(item.sentence)) score += 10;
 
                         return score;
                       };
@@ -831,43 +842,119 @@
                       }
 
                       /*
-                        DEFINING-CREDIT SAFETY NET
-                        Wikipedia prose can skip the movie audiences most strongly associate
-                        with a star. Compare the selected bio against TMDB's strongest credits.
-                        If a very prominent credit is missing, use it instead of a weak/generic
-                        later sentence. This is generic — no actor or movie is hard-coded.
+                        DEFINING-ROLE SAFETY NET
+
+                        The biggest movie in a filmography is not always the movie that
+                        defines the star. Favor credits where the performer is top-billed,
+                        then combine that with durable audience recognition. This keeps giant
+                        ensemble films from automatically crowding out a central starring role.
+
+                        Wikipedia still gets first chance to provide a clean signature-career
+                        sentence. TMDB is the safety net when that prose misses obvious work.
                       */
-                      const selectedText = [breakthrough, defining, later].join(" ").toLowerCase();
+                      const centralRoleImportance = movie => {
+                        const votes = Number(movie?.vote_count || 0);
+                        const popularity = Number(movie?.popularity || 0);
+                        const rating = Number(movie?.vote_average || 0);
+                        const order = Number.isFinite(Number(movie?.order))
+                          ? Number(movie.order)
+                          : 99;
+                        const year = movieYear(movie);
 
-                      const definingCredits = [...movies]
+                        const billingBonus =
+                          order === 0 ? 34 :
+                          order === 1 ? 27 :
+                          order === 2 ? 20 :
+                          order <= 4 ? 10 :
+                          0;
+
+                        /*
+                          Vote count is useful, but logarithmic scoring prevents a massive
+                          ensemble blockbuster from winning only because it has more votes.
+                        */
+                        const audienceScore = Math.log10(Math.max(votes, 1)) * 20;
+                        const popularityScore = Math.min(popularity, 80) * 0.18;
+                        const ratingScore = Math.max(rating - 5, 0) * 2.5;
+
+                        /*
+                          For otherwise comparable major credits, give a small advantage to
+                          an earlier central role. This helps surface the film that established
+                          a screen persona before later sequels/ensemble appearances.
+                        */
+                        const foundationBonus =
+                          year && breakthroughYear && year >= breakthroughYear
+                            ? Math.max(0, 10 - Math.min((year - breakthroughYear) * 0.35, 10))
+                            : 0;
+
+                        return audienceScore + popularityScore + ratingScore +
+                          billingBonus + foundationBonus;
+                      };
+
+                      const selectedText = [breakthrough, defining, later]
+                        .join(" ")
+                        .toLowerCase();
+
+                      const sourceLower = String(cleanedArticleText || "").toLowerCase();
+
+                      const signatureCandidates = [...movies]
                         .filter(movie => {
+                          const title = String(movie.title || "").trim();
+                          if (!title) return false;
+
                           const votes = Number(movie.vote_count || 0);
-                          const popularity = Number(movie.popularity || 0);
-                          return votes >= 1500 || popularity >= 25;
+                          const order = Number.isFinite(Number(movie.order))
+                            ? Number(movie.order)
+                            : 99;
+
+                          /*
+                            Require real audience recognition and meaningful billing.
+                            Article mention is an extra confidence signal for older films.
+                          */
+                          return (
+                            order <= 4 &&
+                            (votes >= 900 || sourceLower.includes(title.toLowerCase()))
+                          );
                         })
-                        .sort((a, b) => movieImportance(b) - movieImportance(a));
+                        .sort((a, b) =>
+                          centralRoleImportance(b) - centralRoleImportance(a) ||
+                          movieYear(a) - movieYear(b)
+                        );
 
-                      const missingDefining = definingCredits
-                        .filter(movie =>
-                          !selectedText.includes(String(movie.title || "").toLowerCase())
-                        )
-                        .slice(0, 2);
+                      const alreadyNamed = movie =>
+                        selectedText.includes(String(movie.title || "").toLowerCase());
 
-                      if (missingDefining.length) {
+                      const missingSignature = signatureCandidates
+                        .filter(movie => !alreadyNamed(movie))
+                        .slice(0, 3);
+
+                      /*
+                        Only synthesize a defining-films line when Wikipedia has not already
+                        supplied a strong signature-career sentence. This avoids replacing
+                        good prose such as a clean franchise/defining-role explanation.
+                      */
+                      const definingIsSignature =
+                        defining && signatureCareerTerms.test(defining);
+
+                      if (!definingIsSignature && missingSignature.length) {
                         const definingLine =
-                          `${name}'s defining films include ${formatFilmList(missingDefining)}.`;
+                          `${name}'s defining films include ${formatFilmList(missingSignature)}.`;
 
-                        const laterLooksGeneric =
-                          !later ||
-                          /later film work includes|early notable film work included/i.test(later);
+                        defining = definingLine;
+                      }
 
-                        if (laterLooksGeneric) {
-                          later = definingLine;
-                        } else if (!defining || sentenceImportance({
-                          sentence: defining,
-                          matches: sentenceMovieMatches(defining, movies)
-                        }) < 45) {
-                          defining = definingLine;
+                      /*
+                        Later work should represent a genuinely later achievement, not merely
+                        another enormous ensemble title from the same franchise. Keep a strong
+                        award/acclaim sentence when Wikipedia supplies one.
+                      */
+                      if (later && !awardTerms.test(later) && !signatureCareerTerms.test(later)) {
+                        const laterMatches = sentenceMovieMatches(later, movies);
+                        const laterBest = laterMatches.length
+                          ? Math.max(...laterMatches.map(centralRoleImportance))
+                          : 0;
+
+                        if (laterBest < 85) {
+                          later = "";
                         }
                       }
 
