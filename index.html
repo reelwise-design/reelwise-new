@@ -1192,6 +1192,10 @@ header,nav,.hero,main,#homeContent,#searchArea,#results,.discovery-page,.section
   letter-spacing:.02em!important;
 }
 
+.star-born > div + div{
+  margin-top:3px;
+}
+
 
 /* ===== SIX DEGREES — PREMIUM GAME REDESIGN ===== */
 .six-page{
@@ -3106,7 +3110,7 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${person.birthday?`<div class="star-born">Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}</div>`:""}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
 function reelwiseAccoladesShell(safeId,safeName,body,eyebrow="REELWISE ACCOLADES"){
   return `
