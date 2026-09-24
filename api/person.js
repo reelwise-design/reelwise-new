@@ -1650,36 +1650,47 @@
                         from appearing before an earlier awards milestone.
                       */
                       /*
-                        UNIFIED FINAL CAREER CANDIDATE
+                        CONSOLIDATED FINAL CAREER ASSEMBLY
 
-                        Collect the last broad-coverage candidate BEFORE chronology and
-                        deduplication. This prevents a 1990s film from being appended after
-                        2010s material and lets later award/acclaim milestones compete in
-                        the same final assembly.
+                        Earlier biography beats (breakthrough / defining / award prose)
+                        remain intact. All synthetic "other major" and "later career" movie
+                        lines now compete in ONE final selector instead of three overlapping
+                        paths.
+
+                        Ranking priority:
+                          1. independently verified film-specific milestone evidence
+                          2. strength of that evidence
+                          3. central-role / audience significance
+                          4. recency only as a final tiebreaker
+
+                        Routine repeats of an already represented franchise are skipped.
+                        Independently verified milestones may represent a franchise again
+                        because they describe a genuinely distinct career achievement.
                       */
-                      const preAssemblyText = [breakthrough, defining, otherMajorLine, laterEraLine, later]
+                      const establishedCareerText = [breakthrough, defining, later]
                         .filter(Boolean)
-                        .join(" " )
+                        .join(" ")
                         .toLowerCase();
 
-                      const representedPreAssemblyMovies = movies.filter(item =>
-                        preAssemblyText.includes(String(item?.title || "").toLowerCase())
-                      );
+                      const establishedMovies = movies.filter(movie => {
+                        const title = String(movie?.title || "").trim().toLowerCase();
+                        return Boolean(title && establishedCareerText.includes(title));
+                      });
 
-                      const unifiedCoveragePool = majorCentralCredits
+                      const consolidatedPool = movies
                         .filter(movie => {
                           const title = String(movie?.title || "").trim();
-                          if (!title) return false;
-                          if (!releasedDuringLifetime(movie)) return false;
-                          if (preAssemblyText.includes(title.toLowerCase())) return false;
-                          if (
-                            representedPreAssemblyMovies.some(item => sameCareerFranchise(movie, item)) &&
-                            !hasIndependentLaterMilestone(movie)
-                          ) return false;
-
+                          const year = movieYear(movie);
                           const votes = Number(movie?.vote_count || 0);
-                          const order = Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99;
-                          return order <= 4 && votes >= 1000;
+                          const order = Number.isFinite(Number(movie?.order))
+                            ? Number(movie.order)
+                            : 99;
+
+                          if (!title || !releasedDuringLifetime(movie)) return false;
+                          if (!year || !laterEraFloor || year < laterEraFloor) return false;
+                          if (order > 5 || votes < 750) return false;
+                          if (establishedCareerText.includes(title.toLowerCase())) return false;
+                          return true;
                         })
                         .sort((a, b) => {
                           const milestoneDelta =
@@ -1689,20 +1700,39 @@
                           return milestoneDelta ||
                             laterMilestoneEvidence(b) - laterMilestoneEvidence(a) ||
                             laterMilestoneScore(b) - laterMilestoneScore(a) ||
-                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a);
+                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                            movieYear(b) - movieYear(a);
                         });
 
-                      const unifiedCoverageCandidate = unifiedCoveragePool[0] || null;
-                      const unifiedCoverageLine = unifiedCoverageCandidate
-                        ? `Other major work includes ${formatFilmList([unifiedCoverageCandidate])}.`
+                      const consolidatedPicks = [];
+                      const consolidatedLimit = careerSpanYears >= 30 ? 2 : 1;
+
+                      for (const movie of consolidatedPool) {
+                        const independentMilestone = hasIndependentLaterMilestone(movie);
+
+                        const repeatsEstablishedFranchise = establishedMovies.some(existing =>
+                          sameCareerFranchise(movie, existing)
+                        );
+
+                        const repeatsSelectedFranchise = consolidatedPicks.some(existing =>
+                          sameCareerFranchise(movie, existing)
+                        );
+
+                        if (!independentMilestone && repeatsEstablishedFranchise) continue;
+                        if (!independentMilestone && repeatsSelectedFranchise) continue;
+
+                        consolidatedPicks.push(movie);
+                        if (consolidatedPicks.length >= consolidatedLimit) break;
+                      }
+
+                      const consolidatedLaterLine = consolidatedPicks.length
+                        ? `Later career work includes ${formatFilmList(consolidatedPicks)}.`
                         : "";
 
                       const rawCareerParts = [
                         breakthrough,
                         defining,
-                        otherMajorLine,
-                        unifiedCoverageLine,
-                        laterEraLine,
+                        consolidatedLaterLine,
                         later
                       ]
                         .map(polishCareerSentence)
