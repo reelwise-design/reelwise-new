@@ -1079,6 +1079,62 @@
                         return Boolean(root && representedFranchiseRoots.has(root));
                       };
 
+                      /*
+                        RELATED-FRANCHISE DETECTION
+
+                        Some franchises change title shape between installments
+                        (for example, an original title can later gain a character name
+                        or subtitle). Exact franchise roots alone cannot catch those.
+                        Use recurring character data plus meaningful title-token overlap
+                        as generic signals. No franchise names are hard-coded.
+                      */
+                      const franchiseTitleTokens = value => {
+                        const stop = new Set([
+                          "the", "a", "an", "and", "of", "in", "on", "to", "for",
+                          "part", "chapter", "episode", "movie", "film"
+                        ]);
+
+                        return franchiseRoot(value)
+                          .split(/[^a-z0-9]+/)
+                          .filter(word =>
+                            word.length >= 3 &&
+                            !stop.has(word) &&
+                            !/^(?:[ivxlcdm]+|\d+)$/.test(word)
+                          );
+                      };
+
+                      const sameCareerFranchise = (a, b) => {
+                        if (!a || !b) return false;
+
+                        const aRoot = franchiseRoot(a.title);
+                        const bRoot = franchiseRoot(b.title);
+                        if (aRoot && bRoot && aRoot === bRoot) return true;
+
+                        const aCharacter = characterKey(a);
+                        const bCharacter = characterKey(b);
+                        if (aCharacter && bCharacter && aCharacter === bCharacter) {
+                          return true;
+                        }
+
+                        const aTokens = franchiseTitleTokens(a.title);
+                        const bTokens = franchiseTitleTokens(b.title);
+                        const shared = aTokens.filter(token => bTokens.includes(token));
+
+                        if (shared.length >= 2) return true;
+
+                        // A distinctive long token plus a sequel marker is also useful.
+                        const sequelish = /\b(?:part|chapter|episode|[ivxlcdm]{1,6}|\d+)\b/i;
+                        if (
+                          shared.some(token => token.length >= 6) &&
+                          (sequelish.test(String(a.title || "")) ||
+                           sequelish.test(String(b.title || "")))
+                        ) {
+                          return true;
+                        }
+
+                        return false;
+                      };
+
                       const nonFranchiseSignatureScore = movie => {
                         const votes = Number(movie?.vote_count || 0);
                         const rating = Number(movie?.vote_average || 0);
@@ -1297,10 +1353,6 @@
                         the filmography supports it. An award/acclaim milestone must not
                         suppress this slot: the milestone describes recognition, while
                         this line broadens the actual screen-career story.
-
-                        The candidate is still filtered above to avoid the signature film,
-                        repeated franchise/character entries, posthumous releases, and
-                        movies already represented in the selected career beats.
                       */
                       if (
                         otherMajor &&
@@ -1308,6 +1360,91 @@
                       ) {
                         otherMajorLine =
                           `Other major work includes ${formatFilmList([otherMajor])}.`;
+                      }
+
+                      /*
+                        CAREER-ERA COVERAGE
+
+                        Long careers should not read as though they ended after the first
+                        successful decade. When the filmography spans multiple eras, reserve
+                        a later-career beat from substantially newer, centrally billed,
+                        well-recognized work. Prefer distinct franchises/roles rather than
+                        another installment of a franchise already represented.
+
+                        This is generic and data-driven: no actor, franchise, or movie is
+                        hard-coded.
+                      */
+                      const lifetimeYears = movies
+                        .filter(releasedDuringLifetime)
+                        .map(movieYear)
+                        .filter(Boolean);
+
+                      const careerStartYear = lifetimeYears.length
+                        ? Math.min(...lifetimeYears)
+                        : 0;
+                      const careerEndYear = lifetimeYears.length
+                        ? Math.max(...lifetimeYears)
+                        : 0;
+                      const careerSpanYears =
+                        careerStartYear && careerEndYear
+                          ? careerEndYear - careerStartYear
+                          : 0;
+
+                      const earlyAnchorYear = Math.max(
+                        breakthroughYear || 0,
+                        signatureFilm ? movieYear(signatureFilm) : 0,
+                        careerStartYear || 0
+                      );
+
+                      const laterEraFloor = earlyAnchorYear
+                        ? earlyAnchorYear + (careerSpanYears >= 30 ? 15 : 10)
+                        : 0;
+
+                      const representedBeforeEra = [
+                        signatureFilm,
+                        otherMajor
+                      ].filter(Boolean);
+
+                      const laterEraPool = majorCentralCredits
+                        .filter(movie => {
+                          const year = movieYear(movie);
+                          const votes = Number(movie?.vote_count || 0);
+                          const order = Number.isFinite(Number(movie?.order))
+                            ? Number(movie.order)
+                            : 99;
+
+                          if (!releasedDuringLifetime(movie)) return false;
+                          if (!year || !laterEraFloor || year < laterEraFloor) return false;
+                          if (order > 5 || votes < 750) return false;
+                          if (alreadyNamed(movie)) return false;
+
+                          return !representedBeforeEra.some(existing =>
+                            sameCareerFranchise(movie, existing)
+                          );
+                        })
+                        .sort((a, b) =>
+                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                          movieYear(b) - movieYear(a)
+                        );
+
+                      const laterEraPicks = [];
+                      for (const movie of laterEraPool) {
+                        if (
+                          laterEraPicks.some(existing =>
+                            sameCareerFranchise(movie, existing)
+                          )
+                        ) {
+                          continue;
+                        }
+
+                        laterEraPicks.push(movie);
+                        if (laterEraPicks.length >= (careerSpanYears >= 30 ? 2 : 1)) break;
+                      }
+
+                      let laterEraLine = "";
+                      if (laterEraPicks.length) {
+                        laterEraLine =
+                          `Later career work includes ${formatFilmList(laterEraPicks)}.`;
                       }
 
                       const polishCareerSentence = value => {
@@ -1338,7 +1475,7 @@
                           .replace(`${name}'s early notable film work included `, "Early notable work included ");
                       };
 
-                      const parts = [identity, breakthrough, defining, otherMajorLine, later]
+                      const parts = [identity, breakthrough, defining, otherMajorLine, laterEraLine, later]
                         .map(polishCareerSentence)
                         .filter(Boolean)
                         .filter(sentence =>
@@ -1364,7 +1501,7 @@
                         if (seen.has(key)) continue;
                         seen.add(key);
                         unique.push(sentence);
-                        if (unique.length >= 5) break;
+                        if (unique.length >= 6) break;
                       }
 
                       /*
@@ -1405,6 +1542,20 @@
                           return false;
                         }
 
+                        const representedMovies = movies.filter(item =>
+                          representedCareerText.includes(
+                            String(item?.title || "").toLowerCase()
+                          )
+                        );
+
+                        if (
+                          representedMovies.some(item =>
+                            sameCareerFranchise(movie, item)
+                          )
+                        ) {
+                          return false;
+                        }
+
                         const votes = Number(movie?.vote_count || 0);
                         const order = Number.isFinite(Number(movie?.order))
                           ? Number(movie.order)
@@ -1415,7 +1566,7 @@
                         return order <= 4 && votes >= 1000;
                       });
 
-                      if (finalCoverageCandidate && unique.length < 5) {
+                      if (finalCoverageCandidate && unique.length < 6) {
                         const coverageLine =
                           `Other major work includes ${formatFilmList([finalCoverageCandidate])}.`;
 
