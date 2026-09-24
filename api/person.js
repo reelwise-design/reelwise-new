@@ -1038,6 +1038,47 @@
                       const alreadyNamed = movie =>
                         selectedText.includes(String(movie.title || "").toLowerCase());
 
+                      /*
+                        GENERIC FRANCHISE / SEQUEL AWARENESS
+
+                        Treat obvious numbered/part sequels as the same career franchise
+                        as their base film. This prevents a biography from using, for
+                        example, an original film for one career beat and then immediately
+                        selecting its sequel as a separate defining achievement.
+
+                        No actor or franchise titles are hard-coded.
+                      */
+                      const franchiseRoot = value => {
+                        let title = String(value || "")
+                          .toLowerCase()
+                          .replace(/[’']/g, "'")
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/[^a-z0-9' ]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        // Remove common sequel markers from the end of a title.
+                        title = title
+                          .replace(/\s+(?:part|chapter|episode)\s+(?:[ivxlcdm]+|\d+)$/i, "")
+                          .replace(/\s+(?:[ivxlcdm]{1,6}|\d+)$/i, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        return title;
+                      };
+
+                      const representedFranchiseRoots = new Set(
+                        movies
+                          .filter(movie => alreadyNamed(movie))
+                          .map(movie => franchiseRoot(movie.title))
+                          .filter(Boolean)
+                      );
+
+                      const repeatsRepresentedFranchise = movie => {
+                        const root = franchiseRoot(movie?.title);
+                        return Boolean(root && representedFranchiseRoots.has(root));
+                      };
+
                       const nonFranchiseSignatureScore = movie => {
                         const votes = Number(movie?.vote_count || 0);
                         const rating = Number(movie?.vote_average || 0);
@@ -1096,7 +1137,14 @@
                         null;
 
                       const signatureFilm =
-                        recurringRoleCredits.find(movie => !alreadyNamed(movie)) ||
+                        recurringRoleCredits.find(movie =>
+                          !alreadyNamed(movie) &&
+                          !repeatsRepresentedFranchise(movie)
+                        ) ||
+                        definingFilmPool.find(movie =>
+                          !alreadyNamed(movie) &&
+                          !repeatsRepresentedFranchise(movie)
+                        ) ||
                         nonFranchiseSignature ||
                         null;
 
@@ -1340,6 +1388,22 @@
                         if (!title) return false;
                         if (representedCareerText.includes(title.toLowerCase())) return false;
                         if (!releasedDuringLifetime(movie)) return false;
+
+                        const candidateRoot = franchiseRoot(title);
+                        const representedMovieRoots = new Set(
+                          movies
+                            .filter(item =>
+                              representedCareerText.includes(
+                                String(item?.title || "").toLowerCase()
+                              )
+                            )
+                            .map(item => franchiseRoot(item.title))
+                            .filter(Boolean)
+                        );
+
+                        if (candidateRoot && representedMovieRoots.has(candidateRoot)) {
+                          return false;
+                        }
 
                         const votes = Number(movie?.vote_count || 0);
                         const order = Number.isFinite(Number(movie?.order))
