@@ -464,7 +464,7 @@
                       return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
                     }
 
-                    function chooseCareerSentences(articleText, person) {
+                    function chooseCareerSentences(articleText, person, debug = null) {
                       const cleanedArticleText = cleanBiographySource(
                         articleText,
                         person?.name || ""
@@ -2243,7 +2243,7 @@
                         if (mode === "final-slot-debug") {
                           const profile = await getPersonProfile(id, true);
                           return sendJSON(res, 200, {
-                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V2",
+                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V3",
                             person: { id: profile?.id || Number(id), name: profile?.name || "" },
                             biography: profile?.biography || "",
                             career_debug: profile?.career_debug || {}
