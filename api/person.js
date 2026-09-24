@@ -1405,6 +1405,35 @@
                         otherMajor
                       ].filter(Boolean);
 
+                      /*
+                        Later-career milestone weighting.
+
+                        A later film gets an additional significance boost when the source
+                        biography connects it to awards, nominations, acclaim, a comeback,
+                        revival, or a return to a well-known role. This keeps a merely
+                        popular later title from outranking a documented late-career
+                        milestone. The rule is generic and uses source text + TMDB credits.
+                      */
+                      const laterMilestoneTerms = /\b(?:academy award|oscar|golden globe|bafta|sag award|screen actors guild|emmy|cannes|venice|volpi|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|comeback|revival|returned|returning|reprise|reprised|reprising)\b/i;
+
+                      const sourceSentencesForMovie = movie =>
+                        careerCandidates.filter(item =>
+                          item.matches.some(match => match.id === movie.id)
+                        );
+
+                      const laterMilestoneScore = movie => {
+                        const sourceItems = sourceSentencesForMovie(movie);
+                        const milestoneEvidence = sourceItems.reduce((score, item) => {
+                          let boost = 0;
+                          if (awardTerms.test(item.sentence)) boost += 90;
+                          if (laterMilestoneTerms.test(item.sentence)) boost += 55;
+                          if (signatureCareerTerms.test(item.sentence)) boost += 30;
+                          return Math.max(score, boost);
+                        }, 0);
+
+                        return nonFranchiseSignatureScore(movie) + milestoneEvidence;
+                      };
+
                       const laterEraPool = majorCentralCredits
                         .filter(movie => {
                           const year = movieYear(movie);
@@ -1423,7 +1452,7 @@
                           );
                         })
                         .sort((a, b) =>
-                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                          laterMilestoneScore(b) - laterMilestoneScore(a) ||
                           movieYear(b) - movieYear(a)
                         );
 
@@ -1475,8 +1504,29 @@
                           .replace(`${name}'s early notable film work included `, "Early notable work included ");
                       };
 
-                      const parts = [identity, breakthrough, defining, otherMajorLine, laterEraLine, later]
+                      /*
+                        Assemble career beats chronologically. Identity stays first; every
+                        other beat is dated from the films it mentions (falling back to an
+                        explicit year in the sentence). This prevents a later-career film
+                        from appearing before an earlier awards milestone.
+                      */
+                      const rawCareerParts = [breakthrough, defining, otherMajorLine, laterEraLine, later]
                         .map(polishCareerSentence)
+                        .filter(Boolean);
+
+                      const careerBeatYear = sentence => {
+                        const matches = sentenceMovieMatches(sentence, movies);
+                        const years = matches.map(movieYear).filter(Boolean);
+                        if (years.length) return Math.min(...years);
+                        return sentenceYear(sentence) || 9999;
+                      };
+
+                      const parts = [
+                        ...([polishCareerSentence(identity)].filter(Boolean)),
+                        ...rawCareerParts.sort((a, b) =>
+                          careerBeatYear(a) - careerBeatYear(b)
+                        )
+                      ]
                         .filter(Boolean)
                         .filter(sentence =>
                           !incompleteFragmentTerms.test(sentence) &&
