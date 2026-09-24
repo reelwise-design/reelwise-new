@@ -1677,112 +1677,6 @@
                         return Boolean(title && establishedCareerText.includes(title));
                       });
 
-                      /*
-                        A recurring character can establish a franchise even when later
-                        installments use different titles. Count substantial appearances
-                        of the same character across the filmography, then treat that
-                        character as already represented when an earlier biography beat
-                        names one of those films.
-
-                        This prevents a routine later return to an already-established
-                        signature role from consuming the second later-career slot. A film
-                        with independently verified milestone evidence can still qualify.
-                      */
-                      const establishedCharacterKeys = new Set(
-                        establishedMovies
-                          .map(movie => characterKey(movie))
-                          .filter(Boolean)
-                      );
-
-                      const repeatsEstablishedCareerRole = movie => {
-                        const key = characterKey(movie);
-                        if (!key || !establishedCharacterKeys.has(key)) return false;
-
-                        const substantialAppearances = movies.filter(item =>
-                          characterKey(item) === key &&
-                          Number(item?.vote_count || 0) >= 500
-                        );
-
-                        return substantialAppearances.length >= 2;
-                      };
-
-                      /*
-                        SOURCE-SUPPORTED FRANCHISE RELATIONSHIPS
-
-                        Character metadata can vary between installments, and franchise
-                        titles can change completely. Use the biography source itself as
-                        another generic signal: when source prose explicitly connects an
-                        established film/role to a multi-film series or franchise, collect
-                        the meaningful title/character tokens from that local context.
-
-                        A later film sharing one of those distinctive source-supported
-                        tokens is treated as part of the already-established franchise.
-                        Independent milestones still receive the existing exception.
-                      */
-                      const sourceFranchiseTerms = /(?:franchise|film series|series of films|across\s+(?:\w+\s+){0,2}films|sequels?|installments?)\b/i;
-
-                      const sourceFranchiseTokens = new Set();
-
-                      for (const established of establishedMovies) {
-                        const title = String(established?.title || "").trim();
-                        if (!title) continue;
-
-                        for (let i = 0; i < sourceSentences.length; i += 1) {
-                          const sentence = String(sourceSentences[i] || "");
-                          if (!sentence.toLowerCase().includes(title.toLowerCase())) continue;
-
-                          const context = [
-                            i > 0 ? sourceSentences[i - 1] : "",
-                            sentence,
-                            i + 1 < sourceSentences.length ? sourceSentences[i + 1] : ""
-                          ]
-                            .filter(Boolean)
-                            .join(" ");
-
-                          if (!sourceFranchiseTerms.test(context)) continue;
-
-                          for (const token of franchiseTitleTokens(title)) {
-                            if (token.length >= 4) sourceFranchiseTokens.add(token);
-                          }
-
-                          const roleTokens = normalizedCharacter(established?.character)
-                            .split(" ")
-                            .filter(token => token.length >= 4);
-
-                          for (const token of roleTokens) {
-                            sourceFranchiseTokens.add(token);
-                          }
-
-                          /*
-                            Capture capitalized franchise/character words appearing in the
-                            local source context. Require length >= 5 and ignore generic
-                            biography vocabulary to avoid broad false matches.
-                          */
-                          const generic = new Set([
-                            "stallone","actor","actress","film","films","movie","movies",
-                            "series","franchise","role","roles","character","characters",
-                            "career","later","first","second","third","fourth","fifth"
-                          ]);
-
-                          const words = context.match(/\b[A-Z][A-Za-z'-]{4,}\b/g) || [];
-                          for (const word of words) {
-                            const token = word.toLowerCase().replace(/[^a-z0-9]/g, "");
-                            if (token && !generic.has(token)) sourceFranchiseTokens.add(token);
-                          }
-                        }
-                      }
-
-                      const repeatsSourceSupportedFranchise = movie => {
-                        const titleTokens = franchiseTitleTokens(movie?.title);
-                        const roleTokens = normalizedCharacter(movie?.character)
-                          .split(" ")
-                          .filter(token => token.length >= 4);
-
-                        return [...titleTokens, ...roleTokens].some(token =>
-                          sourceFranchiseTokens.has(token)
-                        );
-                      };
-
                       const consolidatedPool = movies
                         .filter(movie => {
                           const title = String(movie?.title || "").trim();
@@ -1813,6 +1707,41 @@
                       const consolidatedPicks = [];
                       const consolidatedLimit = careerSpanYears >= 30 ? 2 : 1;
 
+                      /*
+                        Small final-slot deduplication only.
+
+                        The established biography prose can name a signature character even
+                        when TMDB's exact character string differs between installments.
+                        Build a compact set of meaningful character-name tokens from movies
+                        already represented in the earlier career beats. A routine later
+                        film sharing one of those distinctive role tokens is treated as a
+                        repeated career chapter.
+
+                        Independent milestones keep their exception. This changes only the
+                        final movie selection and does not alter source retrieval, biography
+                        construction, or fallback behavior.
+                      */
+                      const genericRoleTokens = new Set([
+                        "jr", "sr", "young", "older", "younger", "himself", "herself",
+                        "voice", "uncredited", "cameo"
+                      ]);
+
+                      const roleTokens = movie =>
+                        normalizedCharacter(movie?.character)
+                          .split(" ")
+                          .map(token => token.trim())
+                          .filter(token =>
+                            token.length >= 4 &&
+                            !genericRoleTokens.has(token)
+                          );
+
+                      const establishedRoleTokens = new Set(
+                        establishedMovies.flatMap(roleTokens)
+                      );
+
+                      const repeatsEstablishedRoleToken = movie =>
+                        roleTokens(movie).some(token => establishedRoleTokens.has(token));
+
                       for (const movie of consolidatedPool) {
                         const independentMilestone = hasIndependentLaterMilestone(movie);
 
@@ -1820,8 +1749,7 @@
                           sameCareerFranchise(movie, existing)
                         );
 
-                        const repeatsEstablishedRole = repeatsEstablishedCareerRole(movie);
-                        const repeatsSourceFranchise = repeatsSourceSupportedFranchise(movie);
+                        const repeatsEstablishedRole = repeatsEstablishedRoleToken(movie);
 
                         const repeatsSelectedFranchise = consolidatedPicks.some(existing =>
                           sameCareerFranchise(movie, existing)
@@ -1829,11 +1757,7 @@
 
                         if (
                           !independentMilestone &&
-                          (
-                            repeatsEstablishedFranchise ||
-                            repeatsEstablishedRole ||
-                            repeatsSourceFranchise
-                          )
+                          (repeatsEstablishedFranchise || repeatsEstablishedRole)
                         ) continue;
 
                         if (!independentMilestone && repeatsSelectedFranchise) continue;
