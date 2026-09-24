@@ -371,7 +371,7 @@
                           defining work and later career without sending enormous pages
                           through the biography selector.
                         */
-                        return text.slice(0, 18000);
+                        return text.slice(0, 65000);
 
                       } catch (error) {
                         console.error("Wikipedia career text error:", error);
@@ -409,17 +409,44 @@
                         });
                     }
 
+                    function normalizeFilmTitle(value) {
+                      return String(value || "")
+                        .toLowerCase()
+                        .replace(/[’‘`]/g, "'")
+                        .replace(/[^a-z0-9]+/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+                    }
+
                     function sentenceMovieMatches(sentence, movies) {
                       const lower = String(sentence || "").toLowerCase();
+                      const normalizedSentence = normalizeFilmTitle(sentence);
 
                       return movies.filter(movie => {
                         const title = String(movie.title || "").toLowerCase().trim();
-                        return title && lower.includes(title);
+                        const normalizedTitle = normalizeFilmTitle(movie.title);
+
+                        return Boolean(
+                          title &&
+                          (
+                            lower.includes(title) ||
+                            (normalizedTitle && normalizedSentence.includes(normalizedTitle))
+                          )
+                        );
                       });
                     }
 
                     function movieYear(movie) {
                       return parseInt(String(movie?.release_date || "").slice(0, 4), 10) || 0;
+                    }
+
+                    function sentenceYear(sentence) {
+                      const years = String(sentence || "")
+                        .match(/\b(?:18|19|20)\d{2}\b/g)
+                        ?.map(Number)
+                        .filter(year => Number.isFinite(year)) || [];
+
+                      return years.length ? Math.max(...years) : 0;
                     }
 
                     function formatFilm(movie) {
@@ -1006,6 +1033,8 @@
                           awardTerms.test(item.sentence) &&
                           item.matches.length &&
                           !personalTerms.test(item.sentence) &&
+                          !publicityTerms.test(item.sentence) &&
+                          !weakCareerTerms.test(item.sentence) &&
                           !plotSummaryTerms.test(item.sentence) &&
                           !isDuplicateMeaning(item.sentence, breakthrough) &&
                           !isDuplicateMeaning(item.sentence, defining)
