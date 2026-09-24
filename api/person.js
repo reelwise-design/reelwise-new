@@ -464,7 +464,7 @@
                       return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
                     }
 
-                    function chooseCareerSentences(articleText, person, debug = null) {
+                    function chooseCareerSentences(articleText, person) {
                       const cleanedArticleText = cleanBiographySource(
                         articleText,
                         person?.name || ""
@@ -1718,48 +1718,22 @@
                           sameCareerFranchise(movie, existing)
                         );
 
-                        if (!independentMilestone && repeatsEstablishedFranchise) continue;
-                        if (!independentMilestone && repeatsSelectedFranchise) continue;
+                        /*
+                          A repeated franchise needs stronger evidence than an ordinary
+                          independent milestone before it can consume another biography
+                          slot. This preserves genuinely major later achievements while
+                          filtering weaker same-franchise returns.
+                        */
+                        const repeatFranchiseMilestoneThreshold = 150;
+                        const strongRepeatMilestone =
+                          independentMilestone &&
+                          laterMilestoneEvidence(movie) >= repeatFranchiseMilestoneThreshold;
+
+                        if (repeatsEstablishedFranchise && !strongRepeatMilestone) continue;
+                        if (repeatsSelectedFranchise && !strongRepeatMilestone) continue;
 
                         consolidatedPicks.push(movie);
                         if (consolidatedPicks.length >= consolidatedLimit) break;
-                      }
-
-                      if (debug && typeof debug === "object") {
-                        debug.laterEraFloor = laterEraFloor;
-                        debug.establishedCareerText = establishedCareerText;
-                        debug.establishedMovies = establishedMovies.map(movie => ({
-                          id: movie.id,
-                          title: movie.title,
-                          year: movieYear(movie),
-                          character: movie.character || ""
-                        }));
-                        debug.consolidatedRanking = consolidatedPool.slice(0, 15).map((movie, index) => ({
-                          rank: index + 1,
-                          id: movie.id,
-                          title: movie.title,
-                          year: movieYear(movie),
-                          character: movie.character || "",
-                          billingOrder: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99,
-                          voteCount: Number(movie?.vote_count || 0),
-                          independentMilestone: hasIndependentLaterMilestone(movie),
-                          milestoneEvidence: laterMilestoneEvidence(movie),
-                          milestoneScore: Number(laterMilestoneScore(movie).toFixed(2)),
-                          signatureScore: Number(nonFranchiseSignatureScore(movie).toFixed(2)),
-                          repeatsEstablishedFranchise: establishedMovies.some(existing =>
-                            sameCareerFranchise(movie, existing)
-                          ),
-                          repeatsSelectedFranchise: consolidatedPicks.some(existing =>
-                            existing?.id !== movie?.id && sameCareerFranchise(movie, existing)
-                          ),
-                          selected: consolidatedPicks.some(existing => existing?.id === movie?.id)
-                        }));
-                        debug.finalPicks = consolidatedPicks.map(movie => ({
-                          id: movie.id,
-                          title: movie.title,
-                          year: movieYear(movie),
-                          character: movie.character || ""
-                        }));
                       }
 
                       const consolidatedLaterLine = consolidatedPicks.length
@@ -1840,7 +1814,7 @@
                     }
 
 
-                    async function getPersonProfile(personId, debugCareer = false) {
+                    async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
                         {
@@ -1871,55 +1845,30 @@
                       }
 
                       let biography = "";
-                      const careerDebug = debugCareer ? {} : null;
 
                       if (wikipediaCareerText) {
                         try {
-                          biography = chooseCareerSentences(wikipediaCareerText, person, careerDebug);
+                          biography = chooseCareerSentences(wikipediaCareerText, person);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
-                          if (debugCareer && careerDebug) {
-                            careerDebug.error = {
-                              stage: "wikipediaCareerText",
-                              name: String(error?.name || "Error"),
-                              message: String(error?.message || error || "Unknown error"),
-                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
-                            };
-                          }
                           biography = "";
                         }
                       }
 
                       if (!biography && wikipediaSummary) {
                         try {
-                          biography = chooseCareerSentences(wikipediaSummary, person, careerDebug);
+                          biography = chooseCareerSentences(wikipediaSummary, person);
                         } catch (error) {
                           console.error("Reelwise summary biography error:", error);
-                          if (debugCareer && careerDebug && !careerDebug.error) {
-                            careerDebug.error = {
-                              stage: "wikipediaSummary",
-                              name: String(error?.name || "Error"),
-                              message: String(error?.message || error || "Unknown error"),
-                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
-                            };
-                          }
                           biography = "";
                         }
                       }
 
                       if (!biography && tmdbBio) {
                         try {
-                          biography = chooseCareerSentences(tmdbBio, person, careerDebug);
+                          biography = chooseCareerSentences(tmdbBio, person);
                         } catch (error) {
                           console.error("Reelwise TMDB biography error:", error);
-                          if (debugCareer && careerDebug && !careerDebug.error) {
-                            careerDebug.error = {
-                              stage: "tmdbBio",
-                              name: String(error?.name || "Error"),
-                              message: String(error?.message || error || "Unknown error"),
-                              stack: String(error?.stack || "").split("\n").slice(0, 8).join("\n")
-                            };
-                          }
                           biography = "";
                         }
                       }
@@ -1964,7 +1913,6 @@
                       return {
                         ...person,
                         biography,
-                        ...(debugCareer ? { career_debug: careerDebug || {} } : {}),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2234,20 +2182,6 @@
                               }
                             );
                           }
-                        }
-
-                        /*
-                          FINAL SLOT DIAGNOSTIC MODE
-                          Uses the exact production selector and returns its ranking.
-                        */
-                        if (mode === "final-slot-debug") {
-                          const profile = await getPersonProfile(id, true);
-                          return sendJSON(res, 200, {
-                            diagnostic: "REELWISE_FINAL_SLOT_DEBUG_V3",
-                            person: { id: profile?.id || Number(id), name: profile?.name || "" },
-                            biography: profile?.biography || "",
-                            career_debug: profile?.career_debug || {}
-                          });
                         }
 
                         /*
