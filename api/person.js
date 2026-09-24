@@ -1400,10 +1400,31 @@
                         ? earlyAnchorYear + (careerSpanYears >= 30 ? 15 : 10)
                         : 0;
 
-                      const representedBeforeEra = [
-                        signatureFilm,
-                        otherMajor
-                      ].filter(Boolean);
+                      /*
+                        Represent every franchise already established before the later-era
+                        slot, not just the synthetic signature/other-major picks. This is
+                        important because breakthrough and defining prose can already name
+                        a franchise. Ordinary late sequels from those represented franchises
+                        should not consume another career beat.
+
+                        A later installment with independently verified award/acclaim,
+                        comeback or revival significance is still allowed below. This keeps
+                        franchise deduplication from suppressing a genuine later-career
+                        milestone while filtering routine sequel recency.
+                      */
+                      const preLaterEraText = [
+                        breakthrough,
+                        defining,
+                        otherMajorLine
+                      ]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+
+                      const representedBeforeEra = movies.filter(movie => {
+                        const title = String(movie?.title || "").trim().toLowerCase();
+                        return Boolean(title && preLaterEraText.includes(title));
+                      });
 
                       /*
                         Later-career milestone weighting.
@@ -1549,11 +1570,23 @@
                           */
                           return !repeatsRepresentedFranchise || hasIndependentLaterMilestone(movie);
                         })
-                        .sort((a, b) =>
-                          laterMilestoneScore(b) - laterMilestoneScore(a) ||
-                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
-                          movieYear(b) - movieYear(a)
-                        );
+                        .sort((a, b) => {
+                          /*
+                            Independently verified later-career milestones outrank ordinary
+                            later credits before general popularity/significance scoring.
+                            This prevents a routine sequel or newer commercial title from
+                            displacing a documented award/acclaim/comeback milestone.
+                          */
+                          const milestoneDelta =
+                            Number(hasIndependentLaterMilestone(b)) -
+                            Number(hasIndependentLaterMilestone(a));
+
+                          return milestoneDelta ||
+                            laterMilestoneEvidence(b) - laterMilestoneEvidence(a) ||
+                            laterMilestoneScore(b) - laterMilestoneScore(a) ||
+                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                            movieYear(b) - movieYear(a);
+                        });
 
                       const laterEraPicks = [];
                       for (const movie of laterEraPool) {
@@ -1641,10 +1674,16 @@
                           const order = Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99;
                           return order <= 4 && votes >= 1000;
                         })
-                        .sort((a, b) =>
-                          laterMilestoneScore(b) - laterMilestoneScore(a) ||
-                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a)
-                        );
+                        .sort((a, b) => {
+                          const milestoneDelta =
+                            Number(hasIndependentLaterMilestone(b)) -
+                            Number(hasIndependentLaterMilestone(a));
+
+                          return milestoneDelta ||
+                            laterMilestoneEvidence(b) - laterMilestoneEvidence(a) ||
+                            laterMilestoneScore(b) - laterMilestoneScore(a) ||
+                            nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a);
+                        });
 
                       const unifiedCoverageCandidate = unifiedCoveragePool[0] || null;
                       const unifiedCoverageLine = unifiedCoverageCandidate
