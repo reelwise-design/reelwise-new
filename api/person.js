@@ -1677,6 +1677,35 @@
                         return Boolean(title && establishedCareerText.includes(title));
                       });
 
+                      /*
+                        A recurring character can establish a franchise even when later
+                        installments use different titles. Count substantial appearances
+                        of the same character across the filmography, then treat that
+                        character as already represented when an earlier biography beat
+                        names one of those films.
+
+                        This prevents a routine later return to an already-established
+                        signature role from consuming the second later-career slot. A film
+                        with independently verified milestone evidence can still qualify.
+                      */
+                      const establishedCharacterKeys = new Set(
+                        establishedMovies
+                          .map(movie => characterKey(movie))
+                          .filter(Boolean)
+                      );
+
+                      const repeatsEstablishedCareerRole = movie => {
+                        const key = characterKey(movie);
+                        if (!key || !establishedCharacterKeys.has(key)) return false;
+
+                        const substantialAppearances = movies.filter(item =>
+                          characterKey(item) === key &&
+                          Number(item?.vote_count || 0) >= 500
+                        );
+
+                        return substantialAppearances.length >= 2;
+                      };
+
                       const consolidatedPool = movies
                         .filter(movie => {
                           const title = String(movie?.title || "").trim();
@@ -1714,11 +1743,17 @@
                           sameCareerFranchise(movie, existing)
                         );
 
+                        const repeatsEstablishedRole = repeatsEstablishedCareerRole(movie);
+
                         const repeatsSelectedFranchise = consolidatedPicks.some(existing =>
                           sameCareerFranchise(movie, existing)
                         );
 
-                        if (!independentMilestone && repeatsEstablishedFranchise) continue;
+                        if (
+                          !independentMilestone &&
+                          (repeatsEstablishedFranchise || repeatsEstablishedRole)
+                        ) continue;
+
                         if (!independentMilestone && repeatsSelectedFranchise) continue;
 
                         consolidatedPicks.push(movie);
