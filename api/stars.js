@@ -245,13 +245,29 @@ function qualifiesForGenre(person, genreId) {
 
 function qualifiesForTrendingMovieStar(person) {
   /*
-    TMDB already determines who is trending.
+    TMDB decides who is trending. Reelwise decides whether that person
+    belongs on a MOVIE-stars page.
 
-    Reelwise's job here is only to make sure the person belongs on a
-    MOVIE-stars page. Do not use vote-count or popularity thresholds
-    here because those fields can be incomplete/inconsistent across
-    person-credit responses and can accidentally empty the whole row.
+    This gate intentionally avoids a single hard vote threshold.
+    Instead it combines:
+      - acting as the person's known department
+      - non-adult person/movie records
+      - repeated released movie work
+      - meaningful billing position
+      - broad audience recognition across the filmography
+
+    No individual performer is hard-coded.
   */
+  if (!person || person.adult === true) return false;
+
+  const department = String(
+    person.known_for_department || ""
+  ).toLowerCase();
+
+  if (department && department !== "acting") {
+    return false;
+  }
+
   const credits = movieCredits(person).filter(movie =>
     isReleasedMovie(movie) &&
     !movie.adult
@@ -259,7 +275,7 @@ function qualifiesForTrendingMovieStar(person) {
 
   if (!credits.length) return false;
 
-  const creditedMovieRoles = credits.filter(movie => {
+  const credited = credits.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
@@ -267,7 +283,7 @@ function qualifiesForTrendingMovieStar(person) {
     return order <= 12;
   });
 
-  const prominentMovieRoles = credits.filter(movie => {
+  const prominent = credits.filter(movie => {
     const order = Number.isFinite(Number(movie.order))
       ? Number(movie.order)
       : 99;
@@ -275,18 +291,53 @@ function qualifiesForTrendingMovieStar(person) {
     return order <= 6;
   });
 
-  /*
-    A person qualifies when their filmography shows either:
-      • repeated credited movie work, including a reasonably prominent role; or
-      • several prominent movie roles.
+  const leading = credits.filter(movie => {
+    const order = Number.isFinite(Number(movie.order))
+      ? Number(movie.order)
+      : 99;
 
-    No individual actor is hard-coded and TMDB's weekly trend order
-    remains untouched.
-  */
-  return (
-    (creditedMovieRoles.length >= 2 && prominentMovieRoles.length >= 1) ||
-    prominentMovieRoles.length >= 2
+    return order <= 3;
+  });
+
+  const recognized = prominent.filter(movie => {
+    const votes = Number(movie.vote_count || 0);
+    const popularity = Number(movie.popularity || 0);
+
+    return votes >= 400 || popularity >= 12;
+  });
+
+  const widelyRecognized = prominent.filter(movie =>
+    Number(movie.vote_count || 0) >= 1200
   );
+
+  const totalAudienceVotes = prominent.reduce(
+    (sum, movie) => sum + Number(movie.vote_count || 0),
+    0
+  );
+
+  /*
+    Established movie performer:
+    repeated prominent movie roles plus audience recognition.
+  */
+  const establishedMovieCareer =
+    credited.length >= 4 &&
+    prominent.length >= 2 &&
+    recognized.length >= 2 &&
+    leading.length >= 1 &&
+    totalAudienceVotes >= 1500;
+
+  /*
+    Current/rising movie performer:
+    allows a newer actor through when the movie resume is shorter,
+    provided at least one movie has substantial general-audience reach.
+  */
+  const risingMovieCareer =
+    credited.length >= 2 &&
+    prominent.length >= 1 &&
+    leading.length >= 1 &&
+    widelyRecognized.length >= 1;
+
+  return establishedMovieCareer || risingMovieCareer;
 }
 
 async function getTrendingPeople() {
@@ -321,16 +372,44 @@ async function getTrendingMovieStars() {
   }
 
   /*
-    Safety fallback:
-    never leave Trending Stars empty just because TMDB's current
-    weekly cohort has unusually sparse credit metadata.
+    Conservative fallback:
+    keep the row alive if TMDB's weekly cohort is unusually sparse,
+    but still require Acting + non-adult status + recognizable movie
+    work. This prevents the old "any movie credit" fallback from
+    admitting unrelated or weakly movie-associated trending people.
   */
-  const fallback = enriched.filter(person =>
-    movieCredits(person).some(movie =>
+  const fallback = enriched.filter(person => {
+    if (!person || person.adult === true) return false;
+
+    const department = String(
+      person.known_for_department || ""
+    ).toLowerCase();
+
+    if (department && department !== "acting") {
+      return false;
+    }
+
+    const movies = movieCredits(person).filter(movie =>
       isReleasedMovie(movie) &&
       !movie.adult
-    )
-  );
+    );
+
+    const recognized = movies.filter(movie => {
+      const order = Number.isFinite(Number(movie.order))
+        ? Number(movie.order)
+        : 99;
+
+      return (
+        order <= 6 &&
+        (
+          Number(movie.vote_count || 0) >= 500 ||
+          Number(movie.popularity || 0) >= 15
+        )
+      );
+    });
+
+    return recognized.length >= 2;
+  });
 
   return fallback.slice(0, 20);
 }
