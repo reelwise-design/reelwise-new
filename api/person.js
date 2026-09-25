@@ -708,6 +708,58 @@
                         }
                       }
 
+                      /*
+                        SETUP-ONLY BREAKTHROUGH REPAIR
+
+                        A literal screen/feature debut is useful context, but for performers
+                        who worked for years before becoming widely recognized it should not
+                        consume the breakthrough slot. When the first selected sentence is only
+                        a debut/setup fact, search the source for the earliest film-specific
+                        recognition, acclaim, prominence, award, or true breakout milestone.
+
+                        This is intentionally generic: no performer or movie is hard-coded.
+                      */
+                      const breakthroughIsOnlyDebut = Boolean(
+                        breakthrough &&
+                        /\b(?:film debut|feature film debut|screen debut|made (?:his|her|their) (?:film|feature|screen) debut|debuted)\b/i.test(breakthrough) &&
+                        !/\b(?:breakthrough|breakout|rose to prominence|gained recognition|gained critical acclaim|critical acclaim|widely recognized|became a star|stardom|career-defining|academy award|oscar|golden globe|bafta|award|nomination|nominated|won)\b/i.test(breakthrough)
+                      );
+
+                      if (breakthroughIsOnlyDebut) {
+                        const recognitionTerms =
+                          /\b(?:breakthrough|breakout|rose to prominence|gained recognition|gained critical acclaim|critical acclaim|widely recognized|became a star|stardom|career-defining|academy award|oscar|golden globe|bafta|award|nomination|nominated|won|cannes|best supporting actor|best actor|best actress)\b/i;
+
+                        const recognitionCandidates = sentences
+                          .map((sentence, index) => ({
+                            sentence,
+                            index,
+                            matches: sentenceMovieMatches(sentence, movies)
+                          }))
+                          .filter(item =>
+                            item.matches.length &&
+                            recognitionTerms.test(item.sentence) &&
+                            !personalTerms.test(item.sentence) &&
+                            !publicityTerms.test(item.sentence) &&
+                            !contractDetailTerms.test(item.sentence) &&
+                            !headlineArtifactTerms.test(item.sentence) &&
+                            !releaseHistoryTerms.test(item.sentence) &&
+                            !minorEarlyWorkTerms.test(item.sentence) &&
+                            !weakCareerTerms.test(item.sentence) &&
+                            !plotSummaryTerms.test(item.sentence) &&
+                            !isOtherPersonSentence(item.sentence)
+                          )
+                          .map(item => ({
+                            ...item,
+                            year: Math.min(...item.matches.map(movieYear).filter(Boolean)) || 9999
+                          }))
+                          .sort((a, b) => a.year - b.year || a.index - b.index);
+
+                        if (recognitionCandidates.length) {
+                          breakthrough = recognitionCandidates[0].sentence;
+                          breakthroughMovies = recognitionCandidates[0].matches;
+                        }
+                      }
+
                       const usedMovieIds = new Set(
                         breakthroughMovies.map(movie => movie.id)
                       );
@@ -1268,77 +1320,79 @@
                       });
 
                       /*
-                        DEFINING / SIGNATURE FILM SELECTION — v18
+                        STAGE-BASED DEFINING ROLE SELECTION
 
-                        A recurring character is evidence of a franchise, but it should not
-                        automatically outrank a singular career-defining performance. Rank all
-                        viable defining films together and add source-biography evidence for
-                        acclaim, awards, breakthrough language and signature-role language.
+                        The defining slot must come from the performer's breakthrough/prime
+                        career window. A much later popular film or recurring franchise role
+                        cannot leap backward and replace the work that defined the star.
 
-                        This is deliberately generic: no performer, movie or franchise is
-                        hard-coded.
+                        Source evidence matters: films tied by the article to awards, acclaim,
+                        recognition, prominence, iconic/signature language or major success
+                        receive a large boost. Recurring-role evidence is only a bonus inside
+                        the proper career stage; it is never first priority by itself.
                       */
+                      const definingEvidenceTerms =
+                        /\b(?:academy award|oscar|golden globe|bafta|cannes|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|recognition|prominence|breakthrough|breakout|iconic|signature|defining|career-defining|major success|critical and commercial success|became a star|stardom)\b/i;
+
                       const definingSourceEvidence = movie => {
-                        const title = String(movie?.title || "").trim();
-                        if (!title) return { score: 0, sentence: "" };
+                        const title = String(movie?.title || "").trim().toLowerCase();
+                        if (!title) return 0;
 
-                        let bestScore = 0;
-                        let bestSentence = "";
-
+                        let score = 0;
                         for (let i = 0; i < sentences.length; i += 1) {
-                          const sentence = String(sentences[i] || "");
-                          if (!sentenceMovieMatches(sentence, [movie]).length) continue;
-
-                          const context = [
-                            sentences[i - 1] || "",
-                            sentence,
-                            sentences[i + 1] || ""
-                          ].join(" ");
-
-                          let score = 12; // exact source-title mention
-
-                          if (awardTerms.test(context)) score += 48;
-                          if (/\b(?:academy award|oscar|cannes|golden globe|bafta|screen actors guild|sag award)\b/i.test(context)) score += 22;
-                          if (/\b(?:acclaim|acclaimed|critical acclaim|recognition|praised|celebrated)\b/i.test(context)) score += 30;
-                          if (breakthroughTerms.test(context)) score += 26;
-                          if (signatureCareerTerms.test(context)) score += 24;
-                          if (/\b(?:iconic|career-defining|defining performance|defining role|most famous|best known)\b/i.test(context)) score += 28;
-
-                          if (score > bestScore) {
-                            bestScore = score;
-                            bestSentence = sentence;
-                          }
+                          if (!String(sentences[i] || "").toLowerCase().includes(title)) continue;
+                          const context = [sentences[i - 1], sentences[i], sentences[i + 1]]
+                            .filter(Boolean)
+                            .join(" ");
+                          if (definingEvidenceTerms.test(context)) score += 120;
+                          if (awardTerms.test(context)) score += 55;
+                          if (signatureCareerTerms.test(context)) score += 45;
+                          if (breakthroughTerms.test(context)) score += 35;
                         }
-
-                        return { score: bestScore, sentence: bestSentence };
+                        return score;
                       };
 
-                      const definingCandidateScore = movie => {
-                        const evidence = definingSourceEvidence(movie);
-                        const key = characterKey(movie);
-                        const recurring = key && (recurringCharacterCounts.get(key) || 0) >= 2;
+                      const firstSubstantialYear = [...movies]
+                        .filter(releasedDuringLifetime)
+                        .filter(movie => Number(movie?.vote_count || 0) >= 500)
+                        .map(movieYear)
+                        .filter(Boolean)
+                        .sort((a, b) => a - b)[0] || 0;
 
-                        // Recurring roles remain useful, but are now a modest bonus rather
-                        // than an automatic first choice.
-                        const recurringBonus = recurring ? 12 : 0;
+                      const definingAnchorYear = breakthroughYear || firstSubstantialYear || 0;
+                      const definingWindowEnd = definingAnchorYear
+                        ? definingAnchorYear + 10
+                        : 0;
 
+                      const recurringKeys = new Set(
+                        strongRecurringRoleCredits.map(movie => characterKey(movie)).filter(Boolean)
+                      );
+
+                      const definingStageScore = movie => {
+                        const recurringBonus = recurringKeys.has(characterKey(movie)) ? 12 : 0;
                         return nonFranchiseSignatureScore(movie) +
-                          evidence.score +
-                          recurringBonus;
+                          definingSourceEvidence(movie) + recurringBonus;
                       };
 
-                      const rankedSignaturePool = definingFilmPool
-                        .filter(movie =>
-                          !alreadyNamed(movie) &&
-                          !repeatsRepresentedFranchise(movie)
-                        )
+                      const definingStagePool = definingFilmPool
+                        .filter(movie => {
+                          const year = movieYear(movie);
+                          if (!year || alreadyNamed(movie) || repeatsRepresentedFranchise(movie)) return false;
+                          if (definingAnchorYear && year < definingAnchorYear - 2) return false;
+                          if (definingWindowEnd && year > definingWindowEnd) return false;
+                          return true;
+                        })
                         .sort((a, b) =>
-                          definingCandidateScore(b) - definingCandidateScore(a) ||
+                          definingStageScore(b) - definingStageScore(a) ||
                           movieYear(a) - movieYear(b)
                         );
 
                       let signatureFilm =
-                        rankedSignaturePool[0] ||
+                        definingStagePool[0] ||
+                        definingFilmPool.find(movie =>
+                          !alreadyNamed(movie) &&
+                          !repeatsRepresentedFranchise(movie)
+                        ) ||
                         nonFranchiseSignature ||
                         null;
 
@@ -1364,6 +1418,29 @@
                       );
 
                       if (breakthroughLooksLikeSetupOnly) {
+                        /*
+                          A literal debut is setup, not a Reelwise breakthrough. Before using
+                          a synthetic film fallback, replace it with the earliest source-backed
+                          recognition/acclaim/award milestone tied to a real movie.
+                        */
+                        const sourceBackedEarlyMilestone = careerCandidates
+                          .filter(item =>
+                            item.matches.length &&
+                            !minorEarlyWorkTerms.test(item.sentence) &&
+                            (awardTerms.test(item.sentence) ||
+                             breakthroughTerms.test(item.sentence) ||
+                             /\b(?:acclaim|acclaimed|recognition|prominence|breakout|breakthrough)\b/i.test(item.sentence))
+                          )
+                          .sort((a, b) =>
+                            (a.earliestYear || 9999) - (b.earliestYear || 9999) ||
+                            b.importance - a.importance
+                          )[0];
+
+                        if (sourceBackedEarlyMilestone) {
+                          breakthrough = sourceBackedEarlyMilestone.sentence;
+                          breakthroughMovies = sourceBackedEarlyMilestone.matches;
+                        }
+
                         const firstCareerYear = [...movies]
                           .filter(releasedDuringLifetime)
                           .map(movieYear)
@@ -1394,7 +1471,8 @@
 
                         const earlyStardomCandidate = earlyStardomPool[0] || null;
 
-                        if (earlyStardomCandidate) {
+                        if (earlyStardomCandidate &&
+                            /\b(?:film debut|screen debut|debut|bit part|supporting role|early role|early roles)\b/i.test(breakthrough)) {
                           signatureFilm = earlyStardomCandidate;
                         }
                       }
@@ -1411,16 +1489,89 @@
                         describes the same defining film; otherwise TMDB supplies the film.
                       */
                       if (signatureFilm && !definingMatchesSignature) {
-                        const signatureEvidence = definingSourceEvidence(signatureFilm);
-
-                        defining = signatureEvidence.sentence &&
-                          (awardTerms.test(signatureEvidence.sentence) ||
-                           breakthroughTerms.test(signatureEvidence.sentence) ||
-                           signatureCareerTerms.test(signatureEvidence.sentence) ||
-                           /\b(?:acclaim|acclaimed|recognition|iconic|career-defining|defining performance|defining role)\b/i.test(signatureEvidence.sentence))
-                            ? signatureEvidence.sentence
-                            : `${name} became especially identified with ${formatFilmList([signatureFilm])}.`;
+                        defining =
+                          `${name} became especially identified with ${formatFilmList([signatureFilm])}.`;
                       }
+
+                      /*
+                        MID-CAREER / SIGNATURE-WORK STAGE
+
+                        A single defining film is not enough for long, film-rich careers.
+                        Reserve up to two additional high-significance credits from the same
+                        broad prime-career era, before the later-career selector takes over.
+                        This keeps major post-breakthrough work visible instead of jumping
+                        directly from one signature title to work decades later.
+
+                        Selection remains generic and data-driven. Distinct roles/franchises
+                        are preferred, and films already named in breakthrough/defining prose
+                        are excluded.
+                      */
+                      const signatureYear = signatureFilm ? movieYear(signatureFilm) : 0;
+                      const midCareerStart = breakthroughYear || signatureYear || 0;
+                      const midCareerLifetimeYears = movies
+                        .filter(releasedDuringLifetime)
+                        .map(movieYear)
+                        .filter(Boolean);
+                      const midCareerSpan = midCareerLifetimeYears.length
+                        ? Math.max(...midCareerLifetimeYears) - Math.min(...midCareerLifetimeYears)
+                        : 0;
+
+                      const midCareerEnd = signatureYear
+                        ? signatureYear + (midCareerSpan >= 30 ? 12 : 9)
+                        : midCareerStart
+                          ? midCareerStart + 15
+                          : 0;
+
+                      const preMidText = [breakthrough, defining]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+
+                      const preMidMovies = movies.filter(movie => {
+                        const title = String(movie?.title || "").trim().toLowerCase();
+                        return Boolean(title && preMidText.includes(title));
+                      });
+
+                      const midCareerPool = majorCentralCredits
+                        .filter(movie => {
+                          const year = movieYear(movie);
+                          const votes = Number(movie?.vote_count || 0);
+                          const order = Number.isFinite(Number(movie?.order))
+                            ? Number(movie.order)
+                            : 99;
+
+                          if (!year || !releasedDuringLifetime(movie)) return false;
+                          if (midCareerStart && year < midCareerStart) return false;
+                          if (midCareerEnd && year > midCareerEnd) return false;
+                          if (alreadyNamed(movie)) return false;
+                          if (order > 5 || votes < 900) return false;
+                          if (preMidMovies.some(existing => sameCareerFranchise(movie, existing))) {
+                            return false;
+                          }
+                          return true;
+                        })
+                        .sort((a, b) =>
+                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                          movieYear(a) - movieYear(b)
+                        );
+
+                      const midCareerPicks = [];
+                      const midCareerLimit = midCareerSpan >= 25 ? 2 : 1;
+
+                      for (const movie of midCareerPool) {
+                        if (midCareerPicks.some(existing => sameCareerFranchise(movie, existing))) {
+                          continue;
+                        }
+
+                        midCareerPicks.push(movie);
+                        if (midCareerPicks.length >= midCareerLimit) break;
+                      }
+
+                      const midCareerLine = midCareerPicks.length
+                        ? `Other major work includes ${formatFilmList(
+                            [...midCareerPicks].sort((a, b) => movieYear(a) - movieYear(b))
+                          )}.`
+                        : "";
 
                       /*
                         Preserve a separate award/acclaim milestone. Selecting a defining
@@ -1617,6 +1768,7 @@
                       const preLaterEraText = [
                         breakthrough,
                         defining,
+                        midCareerLine,
                         otherMajorLine
                       ]
                         .filter(Boolean)
@@ -1869,7 +2021,7 @@
                         Independently verified milestones may represent a franchise again
                         because they describe a genuinely distinct career achievement.
                       */
-                      const establishedCareerText = [breakthrough, defining, later]
+                      const establishedCareerText = [breakthrough, defining, midCareerLine, later]
                         .filter(Boolean)
                         .join(" ")
                         .toLowerCase();
@@ -1945,6 +2097,7 @@
                       const rawCareerParts = [
                         breakthrough,
                         defining,
+                        midCareerLine,
                         consolidatedLaterLine,
                         later
                       ]
