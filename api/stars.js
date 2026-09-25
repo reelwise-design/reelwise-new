@@ -653,8 +653,14 @@ export default async function handler(req, res) {
         getTrendingMovieStars()
       ]);
 
-      const trendingIds = new Set(trending.map(person => person.id));
+      const trendingIds = new Set(
+        trending.map(person => person.id)
+      );
 
+      /*
+        Keep the working Action row unchanged. Its IDs are used only
+        to reduce repetition between Action and Comedy.
+      */
       const actionIds = new Set(
         people
           .filter(person =>
@@ -668,17 +674,86 @@ export default async function handler(req, res) {
           .map(person => person.id)
       );
 
+      function comedyCareer(person) {
+        const comedyMovies = movieCredits(person)
+          .filter(isReleasedMovie)
+          .filter(movie =>
+            Array.isArray(movie.genre_ids) &&
+            movie.genre_ids.includes(35)
+          );
+
+        const substantial = comedyMovies.filter(movie => {
+          const order = Number.isFinite(Number(movie.order))
+            ? Number(movie.order)
+            : 99;
+
+          return (
+            order <= 8 &&
+            (
+              Number(movie.vote_count || 0) >= 200 ||
+              Number(movie.popularity || 0) >= 6
+            )
+          );
+        });
+
+        const prominent = substantial.filter(movie =>
+          Number(movie.order ?? 99) <= 5
+        );
+
+        const leading = substantial.filter(movie =>
+          Number(movie.order ?? 99) <= 3
+        );
+
+        const recognized = substantial.filter(movie =>
+          Number(movie.vote_count || 0) >= 700
+        );
+
+        return {
+          substantial: substantial.length,
+          prominent: prominent.length,
+          leading: leading.length,
+          recognized: recognized.length,
+          score: substantial.reduce(
+            (sum, movie) => sum + creditWeight(movie),
+            0
+          )
+        };
+      }
+
       const stars = people
         .filter(person =>
           !trendingIds.has(person.id) &&
-          !actionIds.has(person.id) &&
-          qualifiesForGenre(person, 35)
+          !actionIds.has(person.id)
         )
-        .sort((a, b) =>
-          genreStarScore(b, 35) - genreStarScore(a, 35)
+        .map(person => ({
+          person,
+          comedy: comedyCareer(person)
+        }))
+        .filter(({ comedy }) =>
+          (
+            comedy.substantial >= 3 &&
+            comedy.prominent >= 2 &&
+            comedy.leading >= 1
+          ) ||
+          (
+            comedy.substantial >= 2 &&
+            comedy.prominent >= 2 &&
+            comedy.recognized >= 2
+          )
         )
+        .sort((a, b) => {
+          if (b.comedy.substantial !== a.comedy.substantial) {
+            return b.comedy.substantial - a.comedy.substantial;
+          }
+
+          if (b.comedy.recognized !== a.comedy.recognized) {
+            return b.comedy.recognized - a.comedy.recognized;
+          }
+
+          return b.comedy.score - a.comedy.score;
+        })
         .slice(0, 20)
-        .map(publicStar);
+        .map(({ person }) => publicStar(person));
 
       return res.status(200).json(stars);
     }
