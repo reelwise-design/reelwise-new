@@ -452,25 +452,44 @@ async function getTrendingMovieStars() {
 }
 async function getPopularPeople() {
   /*
-    General discovery pool for Reelwise's career-based categories.
-    This is intentionally separate from Trending Stars, which is now
-    driven by TMDB's weekly trending MOVIES.
+    TMDB's /person/popular feed measures current attention, not
+    "most famous movie stars." Use it only as a discovery pool,
+    then evaluate actual movie careers below.
   */
   const pages = await Promise.all(
     [1, 2, 3, 4, 5].map(page =>
-      tmdb(
-        `/person/popular?language=en-US&page=${page}`
-      )
+      tmdb(`/person/popular?language=en-US&page=${page}`)
     )
   );
 
   return cleanStars(
-    pages.flatMap(data =>
-      Array.isArray(data.results)
-        ? data.results
-        : []
+    pages.flatMap(page =>
+      Array.isArray(page.results) ? page.results : []
     )
   );
+}
+
+async function enrichPeople(people) {
+  const enriched = await Promise.all(
+    (people || []).map(async person => {
+      try {
+        const detail = await tmdb(
+          `/person/${person.id}?language=en-US&append_to_response=movie_credits`
+        );
+
+        return {
+          ...person,
+          ...detail,
+          popularity: Number(detail.popularity || person.popularity || 0),
+          known_for: person.known_for || []
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+
+  return enriched.filter(Boolean);
 }
 
 async function getDiscoveryPool() {
