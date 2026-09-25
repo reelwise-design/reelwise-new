@@ -340,122 +340,116 @@ function qualifiesForTrendingMovieStar(person) {
   return establishedMovieCareer || risingMovieCareer;
 }
 
-async function getTrendingPeople() {
+async function getTrendingMovies() {
   /*
-    True TMDB weekly trending people feed.
-
-    Do not pre-filter by known_for. The trending response is used in
-    TMDB's own order, then each actor is enriched with full movie
-    credits and Reelwise verifies that movie career directly.
+    Reelwise Trending Stars is driven by MOVIES that are trending,
+    not by TMDB's general trending-people feed.
   */
   const data = await tmdb(
-    "/trending/person/week?language=en-US"
+    "/trending/movie/week?language=en-US"
   );
 
-  return cleanStars(
-    Array.isArray(data.results)
-      ? data.results
-      : []
-  );
+  return (Array.isArray(data.results) ? data.results : [])
+    .filter(movie => movie && !movie.adult)
+    .slice(0, 20);
 }
 
 async function getTrendingMovieStars() {
-  const trending = await getTrendingPeople();
-  const enriched = await enrichPeople(trending);
-
-  const qualified = enriched.filter(
-    qualifiesForTrendingMovieStar
-  );
-
-  if (qualified.length >= 3) {
-    return qualified.slice(0, 20);
-  }
+  const movies = await getTrendingMovies();
 
   /*
-    Conservative fallback:
-    keep the row alive if TMDB's weekly cohort is unusually sparse,
-    but still require Acting + non-adult status + recognizable movie
-    work. This prevents the old "any movie credit" fallback from
-    admitting unrelated or weakly movie-associated trending people.
+    Pull credits for each trending movie. TMDB movie credits include
+    cast billing order, which is the cleanest signal for principal cast.
   */
-  const fallback = enriched.filter(person => {
-    if (!person || person.adult === true) return false;
-
-    const department = String(
-      person.known_for_department || ""
-    ).toLowerCase();
-
-    if (department && department !== "acting") {
-      return false;
-    }
-
-    const movies = movieCredits(person).filter(movie =>
-      isReleasedMovie(movie) &&
-      !movie.adult
-    );
-
-    const recognized = movies.filter(movie => {
-      const order = Number.isFinite(Number(movie.order))
-        ? Number(movie.order)
-        : 99;
-
-      return (
-        order <= 6 &&
-        (
-          Number(movie.vote_count || 0) >= 500 ||
-          Number(movie.popularity || 0) >= 15
-        )
-      );
-    });
-
-    return recognized.length >= 2;
-  });
-
-  return fallback.slice(0, 20);
-}
-
-async function getPopularPeople() {
-  /*
-    TMDB's /person/popular feed measures current attention, not
-    "most famous movie stars." Use it only as a discovery pool,
-    then evaluate actual movie careers below.
-  */
-  const pages = await Promise.all(
-    [1, 2, 3, 4, 5].map(page =>
-      tmdb(`/person/popular?language=en-US&page=${page}`)
-    )
-  );
-
-  return cleanStars(
-    pages.flatMap(page =>
-      Array.isArray(page.results) ? page.results : []
-    )
-  );
-}
-
-async function enrichPeople(people) {
-  const enriched = await Promise.all(
-    (people || []).map(async person => {
+  const creditSets = await Promise.all(
+    movies.map(async (movie, movieRank) => {
       try {
-        const detail = await tmdb(
-          `/person/${person.id}?language=en-US&append_to_response=movie_credits`
+        const credits = await tmdb(
+          `/movie/${movie.id}/credits?language=en-US`
         );
 
         return {
-          ...person,
-          ...detail,
-          popularity: Number(detail.popularity || person.popularity || 0),
-          known_for: person.known_for || []
+          movie,
+          movieRank,
+          cast: Array.isArray(credits.cast)
+            ? credits.cast
+            : []
         };
       } catch {
-        return null;
+        return {
+          movie,
+          movieRank,
+          cast: []
+        };
       }
     })
   );
 
-  return enriched.filter(Boolean);
-}
+  const people = new Map();
 
+  for (const { movie, movieRank, cast } of creditSets) {
+    /*
+      Principal cast only. This prevents giant ensemble/background
+      casts from flooding the Trending Stars row.
+    */
+    const principal = cast
+      .filter(person =>
+        person &&
+        person.adult !== true &&
+        String(person.known_for_department || "Acting").toLowerCase() === "acting" &&
+        Number(person.order ?? 99) <= 5
+      )
+      .slice(0, 6);
+
+    for (const person of principal) {
+      const order = Number(person.order ?? 99);
+
+      /*
+        Score combines:
+          - how highly the MOVIE is trending
+          - how prominently the actor is billed
+          - repeat appearances across multiple trending movies
+
+        No actor names are hard-coded.
+      */
+      const movieTrendPoints = Math.max(1, 20 - movieRank);
+      const billingPoints = Math.max(1, 7 - order);
+      const score = movieTrendPoints * 10 + billingPoints * 4;
+
+      const existing = people.get(person.id);
+
+      if (!existing) {
+        people.set(person.id, {
+          ...person,
+          trendingScore: score,
+          trendingMovieCount: 1,
+          bestMovieRank: movieRank
+        });
+      } else {
+        existing.trendingScore += score + 35;
+        existing.trendingMovieCount += 1;
+        existing.bestMovieRank = Math.min(
+          existing.bestMovieRank,
+          movieRank
+        );
+      }
+    }
+  }
+
+  return [...people.values()]
+    .sort((a, b) => {
+      if (b.trendingMovieCount !== a.trendingMovieCount) {
+        return b.trendingMovieCount - a.trendingMovieCount;
+      }
+
+      if (b.trendingScore !== a.trendingScore) {
+        return b.trendingScore - a.trendingScore;
+      }
+
+      return a.bestMovieRank - b.bestMovieRank;
+    })
+    .slice(0, 20);
+}
 async function getDiscoveryPool() {
   const popular = await getPopularPeople();
 
@@ -586,7 +580,7 @@ export default async function handler(req, res) {
     if (category === "action") {
       const [people, trending] = await Promise.all([
         getDiscoveryPool(),
-        getTrendingPeople()
+        getTrendingMovieStars()
       ]);
 
       const trendingIds = new Set(trending.map(person => person.id));
@@ -614,7 +608,7 @@ export default async function handler(req, res) {
     if (category === "comedy") {
       const [people, trending] = await Promise.all([
         getDiscoveryPool(),
-        getTrendingPeople()
+        getTrendingMovieStars()
       ]);
 
       const trendingIds = new Set(trending.map(person => person.id));
