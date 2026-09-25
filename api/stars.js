@@ -648,41 +648,157 @@ export default async function handler(req, res) {
       Requires repeated, meaningful comedy-film work.
     */
     if (category === "comedy") {
-      const [people, trending] = await Promise.all([
-        getDiscoveryPool(),
-        getTrendingMovieStars()
-      ]);
+      /*
+        COMEDY STARS — MOVIE-DRIVEN DISCOVERY
 
-      const trendingIds = new Set(
-        trending.map(person => person.id)
+        Do not begin with TMDB's currently-popular people list.
+        Instead:
+          1. Discover recognized comedy movies across multiple eras.
+          2. Pull principal cast from those movies.
+          3. Build a candidate pool from those casts.
+          4. Enrich candidates with their complete movie credits.
+          5. Rank performers by sustained comedy identity.
+
+        This allows established comedy stars to surface even when
+        they are not currently high on TMDB's person-popularity list.
+        No performer names are hard-coded.
+      */
+
+      const eraWindows = [
+        ["1970-01-01", "1979-12-31"],
+        ["1980-01-01", "1989-12-31"],
+        ["1990-01-01", "1999-12-31"],
+        ["2000-01-01", "2009-12-31"],
+        ["2010-01-01", "2019-12-31"],
+        ["2020-01-01", "2099-12-31"]
+      ];
+
+      const comedyMovieResponses = await Promise.all(
+        eraWindows.flatMap(([from, to]) =>
+          [1, 2].map(page =>
+            tmdb(
+              "/discover/movie" +
+              "?language=en-US" +
+              "&include_adult=false" +
+              "&include_video=false" +
+              "&with_genres=35" +
+              "&sort_by=vote_count.desc" +
+              `&primary_release_date.gte=${from}` +
+              `&primary_release_date.lte=${to}` +
+              `&page=${page}`
+            )
+          )
+        )
       );
 
       /*
-        Keep the working Action row unchanged. Its IDs are used only
-        to reduce repetition between Action and Comedy.
+        Keep a broad cross-era set rather than allowing one decade
+        to dominate the candidate pool.
       */
-      const actionIds = new Set(
-        people
-          .filter(person =>
-            !trendingIds.has(person.id) &&
-            qualifiesForGenre(person, 28)
-          )
-          .sort((a, b) =>
-            genreStarScore(b, 28) - genreStarScore(a, 28)
-          )
-          .slice(0, 20)
-          .map(person => person.id)
+      const comedyMovies = comedyMovieResponses
+        .flatMap(data =>
+          Array.isArray(data.results)
+            ? data.results
+            : []
+        )
+        .filter(movie =>
+          movie &&
+          !movie.adult &&
+          Number(movie.vote_count || 0) >= 500
+        );
+
+      const uniqueComedyMovies = [
+        ...new Map(
+          comedyMovies.map(movie => [movie.id, movie])
+        ).values()
+      ];
+
+      const creditSets = await Promise.all(
+        uniqueComedyMovies.map(async movie => {
+          try {
+            const credits = await tmdb(
+              `/movie/${movie.id}/credits?language=en-US`
+            );
+
+            return {
+              movie,
+              cast: Array.isArray(credits.cast)
+                ? credits.cast
+                : []
+            };
+          } catch {
+            return {
+              movie,
+              cast: []
+            };
+          }
+        })
       );
 
-      function comedyCareer(person) {
-        const comedyMovies = movieCredits(person)
-          .filter(isReleasedMovie)
-          .filter(movie =>
-            Array.isArray(movie.genre_ids) &&
-            movie.genre_ids.includes(35)
-          );
+      const candidateMap = new Map();
 
-        const substantial = comedyMovies.filter(movie => {
+      for (const { movie, cast } of creditSets) {
+        const principal = cast
+          .filter(person =>
+            person &&
+            person.adult !== true &&
+            String(
+              person.known_for_department || "Acting"
+            ).toLowerCase() === "acting" &&
+            Number(person.order ?? 99) <= 5
+          )
+          .slice(0, 6);
+
+        for (const person of principal) {
+          const order = Number(person.order ?? 99);
+          const recognition =
+            Math.log10(
+              Math.max(10, Number(movie.vote_count || 0))
+            ) * 20;
+
+          const billing =
+            Math.max(1, 7 - order) * 12;
+
+          const existing = candidateMap.get(person.id);
+
+          if (!existing) {
+            candidateMap.set(person.id, {
+              ...person,
+              discoveryComedyFilms: 1,
+              discoveryComedyScore:
+                recognition + billing
+            });
+          } else {
+            existing.discoveryComedyFilms += 1;
+            existing.discoveryComedyScore +=
+              recognition + billing;
+          }
+        }
+      }
+
+      /*
+        Candidates must have repeated principal appearances in the
+        cross-era comedy discovery set. This prevents one-off actors
+        from overwhelming established comedy performers.
+      */
+      const candidates = [...candidateMap.values()]
+        .filter(person =>
+          person.discoveryComedyFilms >= 2
+        )
+        .sort((a, b) =>
+          b.discoveryComedyScore -
+          a.discoveryComedyScore
+        )
+        .slice(0, 80);
+
+      const enriched = await enrichPeople(candidates);
+
+      function comedyCareerScore(person) {
+        const movies = movieCredits(person)
+          .filter(isReleasedMovie)
+          .filter(movie => !movie.adult);
+
+        const meaningful = movies.filter(movie => {
           const order = Number.isFinite(Number(movie.order))
             ? Number(movie.order)
             : 99;
@@ -696,61 +812,103 @@ export default async function handler(req, res) {
           );
         });
 
-        const prominent = substantial.filter(movie =>
+        const comedy = meaningful.filter(movie =>
+          Array.isArray(movie.genre_ids) &&
+          movie.genre_ids.includes(35)
+        );
+
+        const prominentComedy = comedy.filter(movie =>
           Number(movie.order ?? 99) <= 5
         );
 
-        const leading = substantial.filter(movie =>
+        const leadingComedy = comedy.filter(movie =>
           Number(movie.order ?? 99) <= 3
         );
 
-        const recognized = substantial.filter(movie =>
+        const recognizedComedy = comedy.filter(movie =>
           Number(movie.vote_count || 0) >= 700
         );
 
+        const comedyShare = meaningful.length
+          ? comedy.length / meaningful.length
+          : 0;
+
+        const discoveryFilms =
+          Number(person.discoveryComedyFilms || 0);
+
+        const discoveryScore =
+          Number(person.discoveryComedyScore || 0);
+
+        /*
+          Require a real sustained comedy resume, but do not require
+          comedy to be the performer's only genre. This is important
+          for major comedy stars who also have dramatic careers.
+        */
+        const qualifies =
+          (
+            comedy.length >= 4 &&
+            prominentComedy.length >= 3 &&
+            leadingComedy.length >= 1 &&
+            recognizedComedy.length >= 2
+          ) ||
+          (
+            comedy.length >= 3 &&
+            prominentComedy.length >= 2 &&
+            leadingComedy.length >= 1 &&
+            comedyShare >= 0.30
+          );
+
+        /*
+          Repeated principal casting in major comedy movies leads the
+          score, followed by the person's broader comedy filmography.
+        */
+        const score =
+          discoveryFilms * 500 +
+          discoveryScore * 2 +
+          comedy.length * 90 +
+          prominentComedy.length * 120 +
+          leadingComedy.length * 130 +
+          recognizedComedy.length * 100 +
+          comedyShare * 300;
+
         return {
-          substantial: substantial.length,
-          prominent: prominent.length,
-          leading: leading.length,
-          recognized: recognized.length,
-          score: substantial.reduce(
-            (sum, movie) => sum + creditWeight(movie),
-            0
-          )
+          qualifies,
+          score,
+          comedyCount: comedy.length,
+          prominentCount: prominentComedy.length,
+          leadingCount: leadingComedy.length,
+          recognizedCount: recognizedComedy.length,
+          comedyShare
         };
       }
 
-      const stars = people
-        .filter(person =>
-          !trendingIds.has(person.id) &&
-          !actionIds.has(person.id)
-        )
+      const stars = enriched
         .map(person => ({
           person,
-          comedy: comedyCareer(person)
+          comedy: comedyCareerScore(person)
         }))
         .filter(({ comedy }) =>
-          (
-            comedy.substantial >= 3 &&
-            comedy.prominent >= 2 &&
-            comedy.leading >= 1
-          ) ||
-          (
-            comedy.substantial >= 2 &&
-            comedy.prominent >= 2 &&
-            comedy.recognized >= 2
-          )
+          comedy.qualifies
         )
         .sort((a, b) => {
-          if (b.comedy.substantial !== a.comedy.substantial) {
-            return b.comedy.substantial - a.comedy.substantial;
+          if (b.comedy.score !== a.comedy.score) {
+            return b.comedy.score - a.comedy.score;
           }
 
-          if (b.comedy.recognized !== a.comedy.recognized) {
-            return b.comedy.recognized - a.comedy.recognized;
+          if (
+            b.comedy.comedyCount !==
+            a.comedy.comedyCount
+          ) {
+            return (
+              b.comedy.comedyCount -
+              a.comedy.comedyCount
+            );
           }
 
-          return b.comedy.score - a.comedy.score;
+          return (
+            b.comedy.comedyShare -
+            a.comedy.comedyShare
+          );
         })
         .slice(0, 20)
         .map(({ person }) => publicStar(person));
