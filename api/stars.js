@@ -450,6 +450,29 @@ async function getTrendingMovieStars() {
     })
     .slice(0, 20);
 }
+async function getPopularPeople() {
+  /*
+    General discovery pool for Reelwise's career-based categories.
+    This is intentionally separate from Trending Stars, which is now
+    driven by TMDB's weekly trending MOVIES.
+  */
+  const pages = await Promise.all(
+    [1, 2, 3, 4, 5].map(page =>
+      tmdb(
+        `/person/popular?language=en-US&page=${page}`
+      )
+    )
+  );
+
+  return cleanStars(
+    pages.flatMap(data =>
+      Array.isArray(data.results)
+        ? data.results
+        : []
+    )
+  );
+}
+
 async function getDiscoveryPool() {
   const popular = await getPopularPeople();
 
