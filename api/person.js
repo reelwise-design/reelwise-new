@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 27
+                      REELWISE PERSON API — PERSON 28
                       ============================================================
 
                       NORMAL MODE:
@@ -426,13 +426,21 @@
                         const title = String(movie.title || "").toLowerCase().trim();
                         const normalizedTitle = normalizeFilmTitle(movie.title);
 
-                        return Boolean(
-                          title &&
-                          (
-                            lower.includes(title) ||
-                            (normalizedTitle && normalizedSentence.includes(normalizedTitle))
-                          )
-                        );
+                        if (!title || !normalizedTitle) return false;
+
+                        /*
+                          PERSON 28 — EXACT TITLE MATCHING
+
+                          Do not use raw substring matching for movie titles. A short title
+                          such as "Cars" can otherwise match an unrelated word such as
+                          "Oscars", falsely attaching award evidence to a film the person
+                          did not actually make. Match normalized title tokens as a complete
+                          phrase instead.
+                        */
+                        const escapedTitle = normalizedTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                        const titlePattern = new RegExp(`(?:^|\\s)${escapedTitle}(?=\\s|$)`, "i");
+
+                        return titlePattern.test(normalizedSentence);
                       });
                     }
 
@@ -2657,88 +2665,123 @@
                           return true;
                         };
 
-                        const rankedCandidates = significantFilms.slice(0, 18);
+                        /*
+                          PERSON 28 — CAREER-COVERAGE OPTIMIZER
+
+                          Person 27 fixed the biography return path. Person 28 changes only
+                          representative-film selection. Quality remains the admission gate,
+                          but long careers must now cover meaningful eras instead of allowing
+                          one decade to consume nearly every slot.
+
+                          The selector never manufactures credits: every candidate comes from
+                          this person's TMDB movie cast credits in profileMovies/rawFilms.
+                        */
+                        const rankedCandidates = significantFilms.slice(0, 28);
 
                         if (rankedCandidates.length) {
-                          const years = rankedCandidates.map(movieYear).filter(Boolean);
-                          const minYear = Math.min(...years);
-                          const maxYear = Math.max(...years);
-                          const span = Math.max(1, maxYear - minYear);
+                          const allYears = rawFilms.map(movieYear).filter(Boolean);
+                          const careerStart = allYears.length ? Math.min(...allYears) : movieYear(rankedCandidates[0]);
+                          const careerEnd = allYears.length ? Math.max(...allYears) : movieYear(rankedCandidates[0]);
+                          const careerSpan = Math.max(1, careerEnd - careerStart);
+                          const topSig = significanceScore(rankedCandidates[0]);
 
-                          // First lock the strongest career-defining anchor. This is the movie that
-                          // most deserves to be present even before chronology is considered.
-                          addFilm(rankedCandidates[0]);
+                          const careerPosition = movie =>
+                            Math.max(0, Math.min(1, (movieYear(movie) - careerStart) / careerSpan));
 
-                          // Then seek a genuine early/breakthrough film from the already-qualified
-                          // pool. Explicit breakthrough evidence wins; otherwise the early title
-                          // still has to be close to the best films on significance.
-                          const earlyLimit = minYear + Math.max(8, Math.min(14, Math.round(span * 0.28)));
-                          const earlyCandidates = rankedCandidates
-                            .filter(movie => movieYear(movie) <= earlyLimit && canUseFilm(movie))
-                            .map(movie => {
-                              const ev = sourceEvidenceForFilm(movie);
-                              const score = significanceScore(movie) + ev.breakthrough * 1.8 + ev.general * 0.25;
-                              return { movie, score };
-                            })
-                            .sort((a, b) => b.score - a.score);
-
-                          if (earlyCandidates[0]) {
-                            const best = earlyCandidates[0];
-                            const topScore = significanceScore(rankedCandidates[0]);
-                            const ev = sourceEvidenceForFilm(best.movie);
-                            if (ev.breakthrough >= 80 || ev.awards >= 55 || best.score >= topScore * 0.72) {
-                              addFilm(best.movie);
-                            }
-                          }
-
-                          // Fill remaining slots by significance while rewarding a new portion of
-                          // the career. Diversity is a bonus, never permission to select a weak film.
-                          const careerBand = movie => {
-                            const y = movieYear(movie);
-                            if (span <= 12) return Math.floor((y - minYear) / Math.max(1, span / 3));
-                            const pos = (y - minYear) / span;
-                            if (pos < 0.25) return 0;
+                          const era = movie => {
+                            const pos = careerPosition(movie);
+                            if (pos < 0.24) return 0;
                             if (pos < 0.50) return 1;
-                            if (pos < 0.75) return 2;
+                            if (pos < 0.76) return 2;
                             return 3;
                           };
 
-                          while (chosen.length < 5) {
-                            const usedBands = new Set(chosen.map(careerBand));
-                            const pool = rankedCandidates
+                          const milestoneStrength = movie => {
+                            const ev = sourceEvidenceForFilm(movie);
+                            return ev.breakthrough * 1.8 + ev.defining * 1.35 + ev.awards * 1.15 + ev.general * 0.45;
+                          };
+
+                          const isStrongEnough = (movie, floor = 0.50) => {
+                            const ev = sourceEvidenceForFilm(movie);
+                            const milestone = ev.breakthrough >= 80 || ev.defining >= 70 || ev.awards >= 55 || ev.general >= 75;
+                            return milestone || significanceScore(movie) >= topSig * floor;
+                          };
+
+                          const pickBest = (pool, bonus = () => 0, floor = 0.50) => {
+                            const ranked = pool
                               .filter(movie => canUseFilm(movie))
-                              .map(movie => {
-                                const sig = significanceScore(movie);
-                                const bandBonus = usedBands.has(careerBand(movie)) ? 0 : 42;
-                                const distanceBonus = chosen.length
-                                  ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie)))) * 1.4
+                              .filter(movie => isStrongEnough(movie, floor))
+                              .map(movie => ({
+                                movie,
+                                score: significanceScore(movie) + bonus(movie)
+                              }))
+                              .sort((a, b) => b.score - a.score || significanceScore(b.movie) - significanceScore(a.movie));
+                            return ranked[0]?.movie || null;
+                          };
+
+                          // 1. Genuine breakthrough / early-recognition film when the source supports it.
+                          const breakthroughPick = pickBest(
+                            rankedCandidates.filter(movie => era(movie) === 0),
+                            movie => {
+                              const ev = sourceEvidenceForFilm(movie);
+                              return ev.breakthrough * 2.2 + ev.awards * 0.35 + ev.general * 0.25;
+                            },
+                            0.42
+                          );
+                          if (breakthroughPick) addFilm(breakthroughPick);
+
+                          // 2. Lock the strongest overall defining film.
+                          const definingPick = pickBest(
+                            rankedCandidates,
+                            movie => sourceEvidenceForFilm(movie).defining * 0.8,
+                            0.0
+                          );
+                          if (definingPick) addFilm(definingPick);
+
+                          // 3. For long careers, deliberately seek high-quality representation
+                          // from uncovered middle and later eras. Weak films still cannot enter.
+                          if (careerSpan >= 24) {
+                            for (const targetEra of [1, 2, 3]) {
+                              if (chosen.length >= 5) break;
+                              if (chosen.some(movie => era(movie) === targetEra)) continue;
+
+                              const eraPick = pickBest(
+                                rankedCandidates.filter(movie => era(movie) === targetEra),
+                                movie => milestoneStrength(movie) * 0.35,
+                                targetEra === 3 ? 0.54 : 0.50
+                              );
+                              if (eraPick) addFilm(eraPick);
+                            }
+                          }
+
+                          // 4. Fill remaining slots with the strongest unused films. Reward a
+                          // new era and chronological distance, but never let those bonuses
+                          // turn a weak credit into a representative career title.
+                          while (chosen.length < 5) {
+                            const usedEras = new Set(chosen.map(era));
+                            const next = pickBest(
+                              rankedCandidates,
+                              movie => {
+                                const newEraBonus = usedEras.has(era(movie)) ? 0 : 48;
+                                const distance = chosen.length
+                                  ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie))))
                                   : 0;
-                                return { movie, sig, score: sig + bandBonus + Math.min(distanceBonus, 28) };
-                              })
-                              .sort((a, b) => b.score - a.score || b.sig - a.sig);
-
-                            const next = pool[0];
+                                return newEraBonus + Math.min(distance * 1.4, 26) + milestoneStrength(movie) * 0.18;
+                              },
+                              chosen.length >= 4 ? 0.60 : 0.52
+                            );
                             if (!next) break;
-
-                            // Do not fill the fifth (or any later) slot with a noticeably weak title.
-                            // Every selection must remain within a meaningful range of the strongest
-                            // career film, unless the source itself marks it as a milestone.
-                            const topSig = significanceScore(rankedCandidates[0]);
-                            const ev = sourceEvidenceForFilm(next.movie);
-                            const milestone = ev.general >= 75 || ev.awards >= 55 || ev.breakthrough >= 80 || ev.defining >= 70;
-                            const floor = chosen.length >= 4 ? 0.60 : 0.52;
-                            if (!milestone && next.sig < topSig * floor) break;
-
-                            addFilm(next.movie);
+                            addFilm(next);
                           }
                         }
 
-                        // If the strict pool is unusually small, add only genuinely strong
-                        // non-peripheral credits. Never force the biography to reach five titles.
+                        // If the strict pool is unusually small, add only genuinely strong,
+                        // central, non-peripheral cast credits. Never force five titles.
                         if (chosen.length < 3) {
                           const reserve = rawFilms
                             .filter(movie => canUseFilm(movie))
                             .filter(movie => !isPeripheralCredit(movie))
+                            .filter(movie => billingOrder(movie) <= 4)
                             .map(movie => ({ movie, score: significanceScore(movie) }))
                             .sort((a, b) => b.score - a.score);
 
