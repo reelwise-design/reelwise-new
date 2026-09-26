@@ -592,13 +592,43 @@
 
                       const introSaysMusician = /\bmusician\b/i.test(introText);
 
-                      const identity = isFilmmaker && isActingProfile
-                        ? `${name} ${identityVerb} an actor and filmmaker.`
-                        : introSaysActress
-                          ? `${name} ${identityVerb} an actress${introSaysMusician ? " and musician" : ""}.`
-                          : isActingProfile
-                            ? `${name} ${identityVerb} an actor${introSaysMusician ? " and musician" : ""}.`
-                            : `${name} ${identityVerb} a film professional.`;
+                      /*
+                        IDENTITY QUALITY GUARD
+
+                        A bare "X is an actor/actress" sentence adds no useful Reelwise
+                        information, so omit it. Keep the identity beat only when the
+                        source opening supplies a meaningful descriptor (for example a
+                        nationality) or a second genuine profession such as filmmaker or
+                        musician. This is source-driven; no nationality is inferred.
+                      */
+                      const introIdentityMatch = introText.match(
+                        new RegExp(
+                          `(?:^|\\b)${escapeRegExp(name)}\\s+(?:is|was)\\s+(?:an?\\s+)?([^.!?]{0,80}?\\b(?:actor|actress)\\b(?:[^.!?]{0,45})?)`,
+                          "i"
+                        )
+                      );
+
+                      const introIdentityPhrase = cleanText(introIdentityMatch?.[1] || "")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      const bareOccupationOnly = /^(?:actor|actress)$/i.test(introIdentityPhrase);
+                      const hasMeaningfulIdentityDescriptor = Boolean(
+                        introIdentityPhrase &&
+                        !bareOccupationOnly &&
+                        introIdentityPhrase.length <= 95
+                      );
+
+                      let identity = "";
+
+                      if (hasMeaningfulIdentityDescriptor) {
+                        identity = `${name} ${identityVerb} ${/^[aeiou]/i.test(introIdentityPhrase) ? "an" : "a"} ${introIdentityPhrase}.`;
+                      } else if (isFilmmaker && isActingProfile) {
+                        identity = `${name} ${identityVerb} an actor and filmmaker.`;
+                      } else if (introSaysMusician && isActingProfile) {
+                        identity = `${name} ${identityVerb} ${introSaysActress ? "an actress" : "an actor"} and musician.`;
+                      }
+
 
                       /*
                         Score a movie by how useful it is for a short Reelwise career arc.
@@ -1614,6 +1644,40 @@
                         : "";
 
                       /*
+                        MAJOR RECURRING / FRANCHISE STAGE
+
+                        A long-running role is its own career beat; it must not compete with
+                        breakthrough or defining-performance selection. Choose at most one
+                        recurring role after the prime-career stage, and require substantial
+                        audience recognition plus a genuinely repeated character identity.
+                      */
+                      const preFranchiseText = [breakthrough, defining, midCareerLine]
+                        .filter(Boolean)
+                        .join(" ")
+                        .toLowerCase();
+
+                      const franchiseStagePool = strongRecurringRoleCredits
+                        .filter(movie => {
+                          const title = String(movie?.title || "").trim();
+                          const votes = Number(movie?.vote_count || 0);
+                          const year = movieYear(movie);
+                          if (!title || !year || !releasedDuringLifetime(movie)) return false;
+                          if (preFranchiseText.includes(title.toLowerCase())) return false;
+                          if (votes < 1500) return false;
+                          if (signatureYear && year <= signatureYear) return false;
+                          return true;
+                        })
+                        .sort((a, b) =>
+                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
+                          movieYear(a) - movieYear(b)
+                        );
+
+                      const franchiseStageFilm = franchiseStagePool[0] || null;
+                      const franchiseStageLine = franchiseStageFilm
+                        ? `Major franchise work includes ${formatFilm(franchiseStageFilm)}.`
+                        : "";
+
+                      /*
                         Preserve a separate award/acclaim milestone. Selecting a defining
                         role should never erase a later Oscar, nomination, or equivalent
                         career achievement already present in the source material.
@@ -1971,11 +2035,24 @@
                           );
                           const sourceBackedMajorCredit =
                             sourceMentioned &&
-                            votes >= 2000 &&
-                            order <= 4;
+                            votes >= 4000 &&
+                            order <= 3 &&
+                            laterMilestoneEvidence(movie) >= 45;
 
+                          const distinctRecurringCareerRole =
+                            recurringCareerRole &&
+                            movie?.id !== franchiseStageFilm?.id &&
+                            votes >= 3000 &&
+                            laterMilestoneEvidence(movie) >= 30;
+
+                          /*
+                            Later-career slots are scarce. Popularity/billing alone is not
+                            enough: require independent milestone evidence, or unusually
+                            strong source-backed significance. This blocks incidental popular
+                            credits from becoming career-summary highlights.
+                          */
                           return hasIndependentLaterMilestone(movie) ||
-                            recurringCareerRole ||
+                            distinctRecurringCareerRole ||
                             sourceBackedMajorCredit;
                         })
                         .sort((a, b) => {
@@ -2079,7 +2156,7 @@
                         Independently verified milestones may represent a franchise again
                         because they describe a genuinely distinct career achievement.
                       */
-                      const establishedCareerText = [breakthrough, defining, midCareerLine, later]
+                      const establishedCareerText = [breakthrough, defining, midCareerLine, franchiseStageLine, later]
                         .filter(Boolean)
                         .join(" ")
                         .toLowerCase();
@@ -2171,6 +2248,7 @@
                         breakthrough,
                         defining,
                         midCareerLine,
+                        franchiseStageLine,
                         consolidatedLaterLine,
                         later
                       ]
