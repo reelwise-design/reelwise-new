@@ -2350,40 +2350,136 @@
                         wikipediaSummary = "";
                       }
 
-                      let biography = "";
+                      /*
+                        PERSON 22 — OVERVIEW + CAREER STORY
+
+                        Person 21 proved that Wikipedia's opening summary often gives Reelwise
+                        a much stronger introduction than a generated "X is an actor" line.
+                        The problem was that the overview could consume the entire card and
+                        leave no room for the movies that actually explain the career.
+
+                        Person 22 deliberately treats those as two different jobs:
+                          1. OVERVIEW: who the person is and why they matter.
+                          2. CAREER: the film milestones selected by the existing career engine.
+
+                        The overview is capped aggressively. The career section is then given
+                        protected space, and movie-bearing career sentences are preferred.
+                        No performer, nationality, movie, award, or franchise is hard-coded.
+                      */
+                      const sourceOverview = wikipediaSummary || tmdbBio || "";
+                      const overviewSentences = splitBioSentences(sourceOverview)
+                        .map(cleanText)
+                        .filter(Boolean)
+                        .filter(sentence =>
+                          !/\b(?:alumna|alumnus|college|university|school of drama|bachelor|master of fine arts|education|advocate|activist|gender parity|labor protections|male gaze|personal life|married|spouse|children)\b/i.test(sentence)
+                        );
+
+                      const overviewParts = [];
+                      let overviewLength = 0;
+                      const OVERVIEW_MAX = 500;
+
+                      for (const sentence of overviewSentences) {
+                        const addition = sentence.length + (overviewParts.length ? 1 : 0);
+                        if (overviewLength + addition > OVERVIEW_MAX) continue;
+                        overviewParts.push(sentence);
+                        overviewLength += addition;
+                        if (overviewParts.length >= 2) break;
+                      }
+
+                      let careerBiography = "";
 
                       if (wikipediaCareerText) {
                         try {
-                          biography = chooseCareerSentences(wikipediaCareerText, person);
+                          careerBiography = chooseCareerSentences(wikipediaCareerText, person);
                         } catch (error) {
                           console.error("Reelwise career biography error:", error);
-                          biography = "";
+                          careerBiography = "";
                         }
                       }
 
-                      if (!biography && wikipediaSummary) {
+                      if (!careerBiography && tmdbBio) {
                         try {
-                          biography = chooseCareerSentences(wikipediaSummary, person);
+                          careerBiography = chooseCareerSentences(tmdbBio, person);
                         } catch (error) {
-                          console.error("Reelwise summary biography error:", error);
-                          biography = "";
+                          console.error("Reelwise TMDB career biography error:", error);
+                          careerBiography = "";
                         }
                       }
 
-                      if (!biography && tmdbBio) {
-                        try {
-                          biography = chooseCareerSentences(tmdbBio, person);
-                        } catch (error) {
-                          console.error("Reelwise TMDB biography error:", error);
-                          biography = "";
+                      const profileMovies = getMovieCredits(person);
+                      const overviewText = overviewParts.join(" ");
+                      const overviewKeys = new Set(
+                        overviewParts.map(sentence => sentence.toLowerCase())
+                      );
+
+                      let careerParts = splitBioSentences(careerBiography)
+                        .map(cleanText)
+                        .filter(Boolean)
+                        .filter(sentence => !overviewKeys.has(sentence.toLowerCase()));
+
+                      // Protect Reelwise's movie-story purpose: movie-bearing career beats first.
+                      const movieCareerParts = careerParts.filter(sentence =>
+                        sentenceMovieMatches(sentence, profileMovies).length > 0
+                      );
+
+                      if (movieCareerParts.length) {
+                        const nonMovieMilestone = careerParts.find(sentence =>
+                          !sentenceMovieMatches(sentence, profileMovies).length &&
+                          /\b(?:academy award|oscar|golden globe|bafta|emmy|tony|honorary|lifetime achievement|award|awards|nomination|nominated|won)\b/i.test(sentence)
+                        );
+
+                        careerParts = [
+                          ...movieCareerParts,
+                          ...([nonMovieMilestone].filter(Boolean))
+                        ];
+                      }
+
+                      /*
+                        If a source page still fails to yield a usable movie sentence, do not
+                        surrender the whole card to general Wikipedia prose. Use the strongest
+                        screen credits already returned by TMDB as a compact last-resort career
+                        bridge. This is deliberately a fallback, not the primary selector.
+                      */
+                      if (!careerParts.some(sentence =>
+                        sentenceMovieMatches(sentence, profileMovies).length > 0
+                      )) {
+                        const fallbackFilms = [...profileMovies]
+                          .filter(movie => movie?.title && movieYear(movie))
+                          .filter(movie => Number(movie?.vote_count || 0) >= 1000)
+                          .sort((a, b) => {
+                            const aOrder = Number.isFinite(Number(a?.order)) ? Number(a.order) : 99;
+                            const bOrder = Number.isFinite(Number(b?.order)) ? Number(b.order) : 99;
+                            const aScore = Math.log10(Math.max(Number(a?.vote_count || 0), 1)) * 25 + Math.max(0, 8 - aOrder) * 5 + Number(a?.vote_average || 0) * 2;
+                            const bScore = Math.log10(Math.max(Number(b?.vote_count || 0), 1)) * 25 + Math.max(0, 8 - bOrder) * 5 + Number(b?.vote_average || 0) * 2;
+                            return bScore - aScore;
+                          })
+                          .slice(0, 4);
+
+                        if (fallbackFilms.length) {
+                          careerParts = [
+                            `Notable film work includes ${formatFilmList(fallbackFilms)}.`
+                          ];
                         }
                       }
 
-                      biography =
-                        biography ||
-                        wikipediaSummary ||
-                        tmdbBio ||
-                        "";
+                      const CAREER_MAX = 590;
+                      const selectedCareerParts = [];
+                      let careerLength = 0;
+
+                      for (const sentence of careerParts) {
+                        const addition = sentence.length + (selectedCareerParts.length ? 1 : 0);
+                        if (careerLength + addition > CAREER_MAX) continue;
+                        selectedCareerParts.push(sentence);
+                        careerLength += addition;
+                        if (selectedCareerParts.length >= 4) break;
+                      }
+
+                      let biography = [overviewText, selectedCareerParts.join(" ")]
+                        .filter(Boolean)
+                        .join(" ")
+                        .trim();
+
+                      biography = biography || wikipediaSummary || tmdbBio || careerBiography || "";
 
                       if (biography.length > 1150) {
                         const fallbackSentences = splitBioSentences(biography);
