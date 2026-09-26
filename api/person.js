@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 31
+                      REELWISE PERSON API — PERSON 32
                       ============================================================
 
                       NORMAL MODE:
@@ -37,30 +37,13 @@
                        RESPONSE HELPERS
                        ============================================================ */
 
-                    function setHeaders(res, status = 200) {
+                    function setHeaders(res) {
                       res.setHeader("Content-Type", "application/json; charset=utf-8");
-
-                      /*
-                        PERSON 31 — PERFORMANCE CACHE
-
-                        Successful public person responses can be reused by Vercel's edge cache.
-                        Browsers still revalidate normally, while the shared cache can serve a
-                        warm profile immediately and refresh it in the background.
-
-                        Never cache errors or temporary upstream failures.
-                      */
-                      if (status >= 200 && status < 300) {
-                        res.setHeader(
-                          "Cache-Control",
-                          "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
-                        );
-                      } else {
-                        res.setHeader("Cache-Control", "no-store, max-age=0");
-                      }
+                      res.setHeader("Cache-Control", "no-store, max-age=0");
                     }
 
                     function sendJSON(res, status, payload) {
-                      setHeaders(res, status);
+                      setHeaders(res);
                       return res.status(status).json(payload);
                     }
 
@@ -2360,29 +2343,23 @@
                         Primary biography source: richer Wikipedia article text.
                         Fallback: Wikipedia summary, then TMDB biography.
                       */
-                      /*
-                        PERSON 31 — PARALLEL BIOGRAPHY FETCH
+                      let wikipediaCareerText = "";
+                      let wikipediaSummary = "";
 
-                        Person 30 waited for the full Wikipedia career lookup and only then
-                        started the Wikipedia summary lookup. They are independent requests,
-                        so run them at the same time. This preserves the exact biography
-                        selection logic below while removing an unnecessary network wait from
-                        every uncached actor-page load.
+                      /*
+                        PERSON 32 PERFORMANCE: these two independent Wikipedia calls
+                        run concurrently. The browser now requests this biography in the
+                        background, so neither call blocks the visible Star page.
                       */
-                      const [wikipediaCareerResult, wikipediaSummaryResult] = await Promise.allSettled([
+                      const [careerResult, summaryResult] = await Promise.allSettled([
                         getWikipediaCareerText(person?.name || ""),
                         getWikipediaBiography(person?.name || "")
                       ]);
 
-                      const wikipediaCareerText =
-                        wikipediaCareerResult.status === "fulfilled"
-                          ? wikipediaCareerResult.value
-                          : "";
-
-                      const wikipediaSummary =
-                        wikipediaSummaryResult.status === "fulfilled"
-                          ? wikipediaSummaryResult.value
-                          : "";
+                      wikipediaCareerText =
+                        careerResult.status === "fulfilled" ? careerResult.value : "";
+                      wikipediaSummary =
+                        summaryResult.status === "fulfilled" ? summaryResult.value : "";
 
                       /*
                         PERSON 22 — OVERVIEW + CAREER STORY
@@ -3377,15 +3354,39 @@
                         }
 
                         /*
-                          NORMAL STAR PROFILE MODE
+                          PERSON 32 — BACKGROUND BIOGRAPHY MODE
+
+                          The Star page itself is rendered immediately from /api/search.
+                          Only the biography waits for the richer Wikipedia/TMDB career
+                          engine. Keeping this as a separate mode prevents biography work
+                          from blocking the photo, name, Known For and Filmography.
+                        */
+                        if (mode === "biography") {
+                          const profile = await getPersonProfile(id);
+
+                          res.setHeader(
+                            "Cache-Control",
+                            "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
+                          );
+
+                          return res.status(200).json({
+                            person_id: profile?.id || Number(id),
+                            name: profile?.name || "",
+                            biography: cleanText(profile?.biography || "")
+                          });
+                        }
+
+                        /*
+                          NORMAL STAR PROFILE MODE — retained for backward compatibility.
                         */
                         const profile = await getPersonProfile(id);
 
-                        return sendJSON(
-                          res,
-                          200,
-                          profile
+                        res.setHeader(
+                          "Cache-Control",
+                          "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
                         );
+
+                        return res.status(200).json(profile);
 
                       } catch (error) {
                         console.error(
