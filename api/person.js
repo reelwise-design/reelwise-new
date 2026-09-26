@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 33
+                      REELWISE PERSON API — PERSON 34
                       ============================================================
 
                       NORMAL MODE:
@@ -3002,7 +3002,85 @@
                           }
                         }
 
-                        const fallbackFilms = chosen
+                        /*
+                          PERSON 34 — CAREER-ROLE FINALIZER
+
+                          Person 33 could still cluster several strong films into one short
+                          period. Person 34 treats the five positions as career jobs rather
+                          than five independent score winners. The source-backed pool remains
+                          mandatory; this pass only decides which major films tell the clearest
+                          whole-career story. No performer or title is hard-coded.
+                        */
+                        const finalCareerFilms = [];
+                        const finalIds = new Set();
+
+                        const addFinal = movie => {
+                          if (!movie || finalIds.has(movie.id)) return false;
+                          finalCareerFilms.push(movie);
+                          finalIds.add(movie.id);
+                          return true;
+                        };
+
+                        const careerPool = verifiedSourceFilms
+                          .filter(movie => !isPeripheralCredit(movie))
+                          .filter(movie => billingOrder(movie) <= 5)
+                          .sort((a, b) => anchorStrength(b) - anchorStrength(a));
+
+                        const careerYearsFinal = careerPool.map(movieYear).filter(Boolean);
+                        const careerFirstFinal = careerYearsFinal.length ? Math.min(...careerYearsFinal) : 0;
+                        const careerLastFinal = careerYearsFinal.length ? Math.max(...careerYearsFinal) : 0;
+                        const careerSpanFinal = Math.max(1, careerLastFinal - careerFirstFinal);
+                        const careerPosFinal = movie =>
+                          careerFirstFinal && careerLastFinal
+                            ? (movieYear(movie) - careerFirstFinal) / careerSpanFinal
+                            : 0.5;
+
+                        const bestForRole = (role, minPos, maxPos) => careerPool
+                          .filter(movie => !finalIds.has(movie.id))
+                          .filter(movie => careerPosFinal(movie) >= minPos && careerPosFinal(movie) <= maxPos)
+                          .map(movie => {
+                            const ev = milestoneEvidence(movie);
+                            let roleBoost = 0;
+                            if (role === "foundation") roleBoost = ev.breakthrough * 2.2 + ev.defining * .7 + ev.awards * .55;
+                            if (role === "signature") roleBoost = ev.majorAwardWin * 2.6 + ev.awards * 1.7 + ev.defining * 1.8 + ev.breakthrough * .55;
+                            if (role === "prime") roleBoost = ev.defining * 1.55 + ev.awards * 1.25 + ev.prime * 1.1 + ev.franchise * .55;
+                            if (role === "laterSignature") roleBoost = ev.defining * 1.35 + ev.franchise * 1.25 + ev.awards * 1.0 + ev.prime * .75;
+                            if (role === "lateLandmark") roleBoost = ev.majorAwardWin * 2.3 + ev.awards * 1.55 + ev.later * 1.5 + ev.defining * 1.1 + ev.franchise * .8;
+                            return { movie, score: anchorStrength(movie) * .72 + roleBoost };
+                          })
+                          .sort((a,b) => b.score - a.score || significanceScore(b.movie) - significanceScore(a.movie))[0]?.movie || null;
+
+                        if (careerPool.length) {
+                          // Foundation / breakthrough: earliest quarter, but only among already
+                          // source-verified significant work.
+                          addFinal(bestForRole("foundation", 0, .28));
+
+                          // Signature achievement: early-to-mid career. This protects a defining
+                          // performance from being crowded out by several later popular titles.
+                          addFinal(bestForRole("signature", .08, .48));
+
+                          // Prime-career landmark: the center of the career.
+                          addFinal(bestForRole("prime", .28, .68));
+
+                          // Later signature/popular chapter.
+                          addFinal(bestForRole("laterSignature", .52, .86));
+
+                          // Late-career landmark: optional and never selected merely for recency.
+                          addFinal(bestForRole("lateLandmark", .72, 1));
+                        }
+
+                        // If a role window was empty, retain the strongest protected Person 33
+                        // selections, then the strongest source-backed films. Never force five.
+                        for (const movie of chosen) {
+                          if (finalCareerFilms.length >= 5) break;
+                          addFinal(movie);
+                        }
+                        for (const movie of careerPool) {
+                          if (finalCareerFilms.length >= 5) break;
+                          addFinal(movie);
+                        }
+
+                        const fallbackFilms = finalCareerFilms
                           .slice(0, 5)
                           .sort((a, b) => movieYear(a) - movieYear(b));
 
@@ -3365,7 +3443,7 @@
                         }
 
                         /*
-                          PERSON 33 — BACKGROUND BIOGRAPHY MODE
+                          PERSON 34 — BACKGROUND BIOGRAPHY MODE
 
                           The Star page itself is rendered immediately from /api/search.
                           Only the biography waits for the richer Wikipedia/TMDB career
