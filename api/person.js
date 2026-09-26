@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 26
+                      REELWISE PERSON API — PERSON 27
                       ============================================================
 
                       NORMAL MODE:
@@ -2785,8 +2785,26 @@
                           .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
                           .replace(/\s+/g, " ")
                           .trim();
+                      }
 
+                      /*
+                        PERSON 27 — FINAL RETURN-PATH GATE
+
+                        Person 26's protected assembly block was missing its closing brace.
+                        That made the file invalid JavaScript, so the new biography pipeline
+                        could not become the deployed serverless function. Keep the completed
+                        significance-first selector intact, close that block explicitly, and
+                        sanitize the exact value returned to the client.
+                      */
                       biography = biography || overviewText || cleanText(tmdbBio) || "";
+
+                      biography = cleanText(biography)
+                        .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
+                        .replace(/\bDescription above from[^.]*\.?/gi, "")
+                        .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
+                        .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
+                        .replace(/\s+/g, " ")
+                        .trim();
 
                       if (biography.length > 1150) {
                         const fallbackSentences = splitBioSentences(biography);
