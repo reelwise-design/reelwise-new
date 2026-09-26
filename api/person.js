@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 34
+                      REELWISE PERSON API — PERSON 37
                       ============================================================
 
                       NORMAL MODE:
@@ -39,7 +39,7 @@
 
                     function setHeaders(res) {
                       res.setHeader("Content-Type", "application/json; charset=utf-8");
-                      res.setHeader("Cache-Control", "no-store, max-age=0");
+                      res.setHeader("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800");
                     }
 
                     function sendJSON(res, status, payload) {
@@ -2328,6 +2328,38 @@
                     }
 
 
+                    /* ============================================================
+                       PERSON 37 — FAST PROFILE / STABLE BIOGRAPHY
+                       ============================================================
+
+                       The normal Star-page request must never wait on Wikipedia.
+                       TMDB already supplies the photo, name, birthday, credits and a
+                       usable first biography. Return that fast payload immediately.
+                       The separate ?mode=biography request may enhance the text later.
+                    */
+                    async function getFastPersonProfile(personId) {
+                      const person = await fetchTMDB(
+                        `/person/${encodeURIComponent(personId)}`,
+                        {
+                          language: "en-US",
+                          append_to_response: "combined_credits"
+                        }
+                      );
+
+                      return {
+                        ...person,
+                        biography: cleanText(person?.biography || ""),
+                        biography_original: cleanText(person?.biography || ""),
+                        deathday: person?.deathday || null,
+                        deceased: Boolean(person?.deathday),
+                        combined_credits:
+                          person?.combined_credits && typeof person.combined_credits === "object"
+                            ? person.combined_credits
+                            : { cast: [], crew: [] }
+                      };
+                    }
+
+
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -3201,6 +3233,7 @@
                       return {
                         ...person,
                         biography,
+                        biography_original: tmdbBio,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -3500,25 +3533,7 @@
                             one simply because it arrived later.
                           */
                           const enhancedBiography = cleanText(profile?.biography || "");
-                          const tmdbBiography = cleanText(profile?.biography_original || "");
-
-                          // getPersonProfile spreads the TMDB person object, whose original
-                          // biography is replaced by the enhanced `biography` field. Fetch the
-                          // lightweight TMDB person record once here so we can make a true
-                          // before/after quality comparison.
-                          let originalBiography = tmdbBiography;
-
-                          if (!originalBiography) {
-                            try {
-                              const originalPerson = await fetchTMDB(
-                                `/person/${encodeURIComponent(id)}`,
-                                { language: "en-US" }
-                              );
-                              originalBiography = cleanText(originalPerson?.biography || "");
-                            } catch (error) {
-                              originalBiography = "";
-                            }
-                          }
+                          const originalBiography = cleanText(profile?.biography_original || "");
 
                           /*
                             Prefer the enhanced Reelwise biography when it is meaningfully
@@ -3562,9 +3577,13 @@
                         }
 
                         /*
-                          NORMAL STAR PROFILE MODE — retained for backward compatibility.
+                          PERSON 37 — NORMAL STAR PROFILE MODE
+
+                          Do not run the Wikipedia enhancement path here. The page gets
+                          TMDB profile/photo/credits immediately; the browser's existing
+                          background biography request can upgrade the text independently.
                         */
-                        const profile = await getPersonProfile(id);
+                        const profile = await getFastPersonProfile(id);
 
                         res.setHeader(
                           "Cache-Control",
