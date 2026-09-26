@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 29
+                      REELWISE PERSON API — PERSON 30
                       ============================================================
 
                       NORMAL MODE:
@@ -2818,41 +2818,122 @@
                           return pool[0]?.movie || null;
                         };
 
-                        // 1. Explicit breakthrough / early recognition. Do not substitute the
-                        // earliest credit when the source does not actually identify a milestone.
+                        /*
+                          PERSON 30 — PROTECTED CAREER ANCHORS
+
+                          Person 29 correctly moved selection toward source-led career chapters,
+                          but a later/coverage slot could still displace a foundational performance.
+                          Person 30 protects the strongest source-backed career anchors FIRST.
+
+                          An anchor must have unusually strong evidence tied to the exact film:
+                          award recognition, defining/signature language, or explicit breakthrough
+                          language. Chronology can never remove an anchor. After the anchors are
+                          secured, remaining slots may represent franchise and later-career chapters.
+                          A recent title is never selected merely because it is recent.
+                        */
+                        const anchorStrength = movie => {
+                          const ev = milestoneEvidence(movie);
+                          return (
+                            ev.awards * 2.05 +
+                            ev.defining * 1.75 +
+                            ev.breakthrough * 1.35 +
+                            ev.sourceWeight * 0.80 +
+                            significanceScore(movie) * 0.42
+                          );
+                        };
+
+                        const protectedAnchorPool = verifiedSourceFilms
+                          .filter(movie => !isPeripheralCredit(movie))
+                          .filter(movie => billingOrder(movie) <= 5)
+                          .filter(movie => {
+                            const ev = milestoneEvidence(movie);
+                            return ev.awards >= 90 || ev.defining >= 70 || ev.breakthrough >= 100;
+                          })
+                          .sort((a, b) =>
+                            anchorStrength(b) - anchorStrength(a) ||
+                            significanceScore(b) - significanceScore(a)
+                          );
+
+                        const strongestAnchorScore = protectedAnchorPool.length
+                          ? anchorStrength(protectedAnchorPool[0])
+                          : 0;
+
+                        // 1. Preserve a genuine breakthrough when the source explicitly identifies it.
                         const breakthroughPick = pickMilestone("breakthrough");
                         if (breakthroughPick) addFilm(breakthroughPick);
 
-                        // 2. Defining / award-recognized work — the strongest source-backed anchor.
-                        const definingPick = pickMilestone("defining");
-                        if (definingPick) addFilm(definingPick);
+                        // 2. Protect up to two additional foundational/signature anchors. The second
+                        // anchor must remain reasonably close to the strongest one so ordinary award
+                        // mentions do not consume scarce biography slots.
+                        let protectedAnchorCount = 0;
+                        for (const movie of protectedAnchorPool) {
+                          if (protectedAnchorCount >= 2) break;
+                          if (!canUseFilm(movie)) continue;
 
-                        // 3. Prime-career landmark. Prefer the middle of a long source-supported
-                        // career, but the film must independently have milestone language.
-                        const primePick = pickMilestone(
-                          "prime",
-                          movie => sourceSpan < 18 || (sourcePosition(movie) >= 0.22 && sourcePosition(movie) <= 0.72)
-                        );
-                        if (primePick) addFilm(primePick);
+                          const strength = anchorStrength(movie);
+                          const ev = milestoneEvidence(movie);
+                          const explicitMajorAnchor = ev.awards >= 180 || ev.defining >= 140;
 
-                        // 4. Major recurring/franchise chapter when the source explicitly frames
-                        // it as such. This gives long careers a distinct signature chapter without
-                        // letting a routine sequel win on popularity alone.
-                        const franchisePick = pickMilestone("franchise");
-                        if (franchisePick) addFilm(franchisePick);
+                          if (
+                            strongestAnchorScore &&
+                            strength < strongestAnchorScore * 0.64 &&
+                            !explicitMajorAnchor
+                          ) {
+                            continue;
+                          }
 
-                        // 5. Later-career achievement. For long careers require the candidate to
-                        // come from the latter portion of source-supported work; for shorter careers
-                        // simply require a later year than the median selected milestone.
-                        const laterPick = pickMilestone(
-                          "later",
-                          movie => sourceSpan < 18 || sourcePosition(movie) >= 0.58
-                        );
-                        if (laterPick) addFilm(laterPick);
+                          if (addFilm(movie)) protectedAnchorCount += 1;
+                        }
 
-                        // If fewer than five distinct chapters were explicitly labeled, fill only
-                        // from source-mentioned, central, genuinely strong films. Coverage is a
-                        // tiebreaker here — never an admission ticket.
+                        // 3. A prime-career landmark can fill a remaining slot, but only if it is
+                        // independently source-supported. It does not replace protected anchors.
+                        if (chosen.length < 5) {
+                          const primePick = pickMilestone(
+                            "prime",
+                            movie => sourceSpan < 18 || (sourcePosition(movie) >= 0.20 && sourcePosition(movie) <= 0.78)
+                          );
+                          if (primePick) addFilm(primePick);
+                        }
+
+                        // 4. Preserve one major recurring/franchise chapter when explicitly supported.
+                        if (chosen.length < 5) {
+                          const franchisePick = pickMilestone("franchise");
+                          if (franchisePick) addFilm(franchisePick);
+                        }
+
+                        // 5. Later-career work is OPTIONAL. It must be both source-supported and
+                        // strong enough relative to the person's protected anchors. This prevents a
+                        // merely recent credit from displacing a more defining film.
+                        if (chosen.length < 5) {
+                          const laterCandidates = verifiedSourceFilms
+                            .filter(movie => canUseFilm(movie))
+                            .filter(movie => sourceSpan < 18 || sourcePosition(movie) >= 0.58)
+                            .map(movie => ({
+                              movie,
+                              ev: milestoneEvidence(movie),
+                              score: milestoneScore(movie, "later")
+                            }))
+                            .filter(({ ev }) =>
+                              ev.later >= 80 || ev.awards >= 90 || ev.defining >= 70 || ev.franchise >= 100
+                            )
+                            .filter(({ movie, ev }) => {
+                              const sig = significanceScore(movie);
+                              const topSig = protectedAnchorPool.length
+                                ? significanceScore(protectedAnchorPool[0])
+                                : sig;
+                              const exceptionalLaterMilestone = ev.awards >= 180 || ev.defining >= 140 || ev.franchise >= 200;
+                              return exceptionalLaterMilestone || !topSig || sig >= topSig * 0.66;
+                            })
+                            .sort((a, b) =>
+                              b.score - a.score ||
+                              significanceScore(b.movie) - significanceScore(a.movie)
+                            );
+
+                          if (laterCandidates[0]) addFilm(laterCandidates[0].movie);
+                        }
+
+                        // Fill any remaining slots only with source-backed major films. Career
+                        // distance is a modest bonus, never a reason to admit a weaker title.
                         while (chosen.length < 5) {
                           const candidates = verifiedSourceFilms
                             .filter(movie => canUseFilm(movie))
@@ -2860,12 +2941,18 @@
                             .filter(movie => billingOrder(movie) <= 4)
                             .map(movie => {
                               const ev = milestoneEvidence(movie);
-                              const sourceMilestone = ev.breakthrough || ev.defining || ev.prime || ev.franchise || ev.later || ev.awards;
+                              const strongSourceMilestone =
+                                ev.breakthrough >= 100 || ev.defining >= 70 || ev.franchise >= 100 ||
+                                ev.awards >= 90 || ev.prime >= 40 || ev.later >= 80;
                               const sig = significanceScore(movie);
 
-                              // A plain title mention is not enough. This is the guard that keeps
-                              // routine credits such as weak recent films from filling empty slots.
-                              if (!sourceMilestone && sig < 210) return null;
+                              if (!strongSourceMilestone) return null;
+
+                              const topSig = protectedAnchorPool.length
+                                ? significanceScore(protectedAnchorPool[0])
+                                : sig;
+                              const exceptional = ev.awards >= 180 || ev.defining >= 140 || ev.breakthrough >= 200;
+                              if (!exceptional && topSig && sig < topSig * 0.58) return null;
 
                               const distance = chosen.length
                                 ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie))))
@@ -2873,7 +2960,7 @@
 
                               return {
                                 movie,
-                                score: sig + ev.sourceWeight + Math.min(distance * 1.25, 34)
+                                score: anchorStrength(movie) + Math.min(distance * 0.55, 14)
                               };
                             })
                             .filter(Boolean)
@@ -2881,11 +2968,6 @@
 
                           const next = candidates[0]?.movie;
                           if (!next) break;
-
-                          const ev = milestoneEvidence(next);
-                          const strongSourceMilestone = ev.breakthrough >= 100 || ev.defining >= 70 || ev.franchise >= 100 || ev.awards >= 90 || ev.prime >= 40 || ev.later >= 80;
-                          if (!strongSourceMilestone && significanceScore(next) < 230) break;
-
                           addFilm(next);
                         }
 
