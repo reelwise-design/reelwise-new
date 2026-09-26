@@ -3087,7 +3087,7 @@
                         const selectedCareerParts = [];
 
                         /*
-                          PERSON 35 — NARRATIVE DEPTH
+                          PERSON 36 — NARRATIVE DEPTH
 
                           Keep up to two genuine career-story sentences from the source before the
                           compact five-film recap. This restores the missing middle ground between
@@ -3483,6 +3483,72 @@
                         if (mode === "biography") {
                           const profile = await getPersonProfile(id);
 
+                          /*
+                            PERSON 36 — NEVER DOWNGRADE AN ALREADY-RICH BIOGRAPHY
+
+                            The fast Star-page payload can already contain a strong TMDB
+                            biography. Person 35 then fetched the enhanced biography in the
+                            background and always returned it, even when that generated text
+                            was substantially shorter. On Russell Crowe this caused the page
+                            to visibly load the fuller biography first and then replace it
+                            with the shorter Reelwise version.
+
+                            Person 36 makes the biography endpoint authoritative about quality:
+                            compare the enhanced biography with TMDB's original biography and
+                            return the richer usable version. The background request can still
+                            improve a short biography, but it can no longer downgrade a fuller
+                            one simply because it arrived later.
+                          */
+                          const enhancedBiography = cleanText(profile?.biography || "");
+                          const tmdbBiography = cleanText(profile?.biography_original || "");
+
+                          // getPersonProfile spreads the TMDB person object, whose original
+                          // biography is replaced by the enhanced `biography` field. Fetch the
+                          // lightweight TMDB person record once here so we can make a true
+                          // before/after quality comparison.
+                          let originalBiography = tmdbBiography;
+
+                          if (!originalBiography) {
+                            try {
+                              const originalPerson = await fetchTMDB(
+                                `/person/${encodeURIComponent(id)}`,
+                                { language: "en-US" }
+                              );
+                              originalBiography = cleanText(originalPerson?.biography || "");
+                            } catch (error) {
+                              originalBiography = "";
+                            }
+                          }
+
+                          /*
+                            Prefer the enhanced Reelwise biography when it is meaningfully
+                            developed. If the original biography is substantially fuller, keep
+                            it instead of allowing the later async response to shrink the card.
+                            This is generic — no actor or movie is hard-coded.
+                          */
+                          let finalBiography = enhancedBiography || originalBiography || "";
+
+                          if (originalBiography) {
+                            const enhancedSentences = splitBioSentences(enhancedBiography)
+                              .map(cleanText)
+                              .filter(Boolean);
+                            const originalSentences = splitBioSentences(originalBiography)
+                              .map(cleanText)
+                              .filter(Boolean);
+
+                            const enhancedIsThin =
+                              enhancedBiography.length < 520 ||
+                              enhancedSentences.length < 4;
+
+                            const originalIsClearlyRicher =
+                              originalBiography.length >= enhancedBiography.length + 140 ||
+                              originalSentences.length >= enhancedSentences.length + 2;
+
+                            if (enhancedIsThin && originalIsClearlyRicher) {
+                              finalBiography = originalBiography;
+                            }
+                          }
+
                           res.setHeader(
                             "Cache-Control",
                             "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
@@ -3491,7 +3557,7 @@
                           return res.status(200).json({
                             person_id: profile?.id || Number(id),
                             name: profile?.name || "",
-                            biography: cleanText(profile?.biography || "")
+                            biography: finalBiography
                           });
                         }
 
