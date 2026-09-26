@@ -2353,7 +2353,7 @@
                       );
 
                       /*
-                        PERSON 40 — FAST BIO MUST ALSO BE REELWISE-SIZED
+                        PERSON 41 — FAST BIO + DISTINCT CAREER LANDMARKS
 
                         Person 39 stopped the background biography endpoint from returning
                         raw Wikipedia text, but the first paint could still display TMDB's
@@ -2400,13 +2400,65 @@
                           year: Number(String(item.release_date).slice(0, 4)) || 0,
                           popularity: Number(item.popularity || 0),
                           votes: Number(item.vote_count || 0),
-                          score: Number(item.vote_average || 0)
+                          score: Number(item.vote_average || 0),
+                          character: cleanText(item.character || "")
                         }))
                         .filter(item => item.title && item.year)
                         .sort((a, b) =>
                           (b.votes * Math.max(b.score, 1)) - (a.votes * Math.max(a.score, 1)) ||
                           b.popularity - a.popularity
                         );
+
+                      /*
+                        PERSON 41 — FIVE DISTINCT CAREER LANDMARKS
+
+                        Keep Person 40's instant first paint, but make the five-film recap
+                        represent different career chapters. Do not let sequels or recurring
+                        franchise installments consume multiple slots, and do not trim the
+                        candidate pool to the most-voted recent films before era selection.
+                      */
+                      const fastFranchiseRoot = value =>
+                        String(value || "")
+                          .toLowerCase()
+                          .replace(/[’']/g, "'")
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/[^a-z0-9' ]+/g, " ")
+                          .replace(/\s+(?:part|chapter|episode)\s+(?:[ivxlcdm]+|\d+)$/i, "")
+                          .replace(/\s+(?:[ivxlcdm]{1,6}|\d+)$/i, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      const fastCharacterKey = item =>
+                        String(item?.character || "")
+                          .toLowerCase()
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/[^a-z0-9 ]+/g, " ")
+                          .replace(/\b(?:voice|uncredited|archive footage|self)\b/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                      const fastTitleTokens = value => {
+                        const stop = new Set(["the","a","an","and","of","in","on","to","for","part","chapter","episode","movie","film"]);
+                        return fastFranchiseRoot(value)
+                          .split(/[^a-z0-9]+/)
+                          .filter(word => word.length >= 3 && !stop.has(word) && !/^(?:[ivxlcdm]+|\d+)$/.test(word));
+                      };
+
+                      const sameFastFranchise = (a, b) => {
+                        if (!a || !b) return false;
+                        const ar = fastFranchiseRoot(a.title);
+                        const br = fastFranchiseRoot(b.title);
+                        if (ar && br && ar === br) return true;
+
+                        const ac = fastCharacterKey(a);
+                        const bc = fastCharacterKey(b);
+                        if (ac && bc && ac === bc && ac.split(" ").filter(Boolean).length >= 2) return true;
+
+                        const at = fastTitleTokens(a.title);
+                        const bt = fastTitleTokens(b.title);
+                        const shared = at.filter(token => bt.includes(token));
+                        return shared.length >= 2;
+                      };
 
                       const uniqueFilms = [];
                       const seenFastTitles = new Set();
@@ -2415,34 +2467,50 @@
                         if (seenFastTitles.has(key)) continue;
                         seenFastTitles.add(key);
                         uniqueFilms.push(film);
-                        if (uniqueFilms.length >= 18) break;
                       }
 
-                      // Spread the selections across the career rather than simply taking
-                      // five recent/high-vote titles. Pick strong films from chronological
-                      // career bands, then fill any open slots by overall strength.
+                      const strength = film =>
+                        Math.log10(Math.max(film.votes, 1)) * 34 +
+                        Math.max(film.score - 5, 0) * 8 +
+                        Math.min(film.popularity, 80) * 0.08;
+
+                      // Build five chronological career bands from the actor's actual film
+                      // span. Within each band, choose the strongest film that represents a
+                      // franchise/role not already used by another band.
                       const byYear = [...uniqueFilms].sort((a, b) => a.year - b.year);
                       const selectedFastFilms = [];
+
                       if (byYear.length) {
                         const minYear = byYear[0].year;
                         const maxYear = byYear[byYear.length - 1].year;
                         const span = Math.max(1, maxYear - minYear + 1);
-                        const bands = 5;
+                        const bands = Math.min(5, Math.max(1, span));
+
                         for (let band = 0; band < bands; band++) {
-                          const start = minYear + Math.floor((span * band) / bands);
-                          const end = band === bands - 1
+                          const startYear = minYear + Math.floor((span * band) / bands);
+                          const endYear = band === bands - 1
                             ? maxYear
                             : minYear + Math.floor((span * (band + 1)) / bands) - 1;
-                          const options = uniqueFilms.filter(f => f.year >= start && f.year <= end);
+
+                          const options = uniqueFilms
+                            .filter(f => f.year >= startYear && f.year <= endYear)
+                            .filter(f => !selectedFastFilms.some(existing => sameFastFranchise(f, existing)))
+                            .sort((a, b) => strength(b) - strength(a) || a.year - b.year);
+
                           if (options.length) selectedFastFilms.push(options[0]);
                         }
                       }
-                      for (const film of uniqueFilms) {
+
+                      // Empty career bands are possible. Fill them with the strongest
+                      // remaining DISTINCT career landmarks, never another installment of
+                      // a franchise/recurring role that is already represented.
+                      const fillPool = [...uniqueFilms].sort((a, b) => strength(b) - strength(a) || a.year - b.year);
+                      for (const film of fillPool) {
                         if (selectedFastFilms.length >= 5) break;
-                        if (!selectedFastFilms.some(f => f.title.toLowerCase() === film.title.toLowerCase())) {
-                          selectedFastFilms.push(film);
-                        }
+                        if (selectedFastFilms.some(existing => sameFastFranchise(film, existing))) continue;
+                        selectedFastFilms.push(film);
                       }
+
                       selectedFastFilms.sort((a, b) => a.year - b.year);
 
                       const landmarkText = selectedFastFilms.length
