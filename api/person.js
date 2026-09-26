@@ -3086,10 +3086,40 @@
 
                         const selectedCareerParts = [];
 
+                        /*
+                          PERSON 35 — NARRATIVE DEPTH
+
+                          Keep up to two genuine career-story sentences from the source before the
+                          compact five-film recap. This restores the missing middle ground between
+                          an oversized Wikipedia dump and a two-sentence title list. The rule is
+                          generic: sentences must describe screen-career milestones and must connect
+                          to actual credits in this person's filmography. No names or titles are
+                          hard-coded.
+                        */
+                        const narrativeCareerParts = sourceCareerParts
+                          .map(cleanText)
+                          .filter(Boolean)
+                          .filter(sentence => sentence.length >= 55 && sentence.length <= 300)
+                          .filter(sentence => sentenceMovieMatches(sentence, profileMovies).length > 0)
+                          .filter(sentence => !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children)\b/i.test(sentence))
+                          .slice(0, 2);
+
+                        selectedCareerParts.push(...narrativeCareerParts);
+
                         if (fallbackFilms.length) {
-                          selectedCareerParts.push(
-                            `Notable film work includes ${formatFilmList(fallbackFilms)}.`
-                          );
+                          const recap = `Notable film work includes ${formatFilmList(fallbackFilms)}.`;
+                          const alreadyCovered = fallbackFilms.filter(movie =>
+                            narrativeCareerParts.some(sentence =>
+                              sentence.toLowerCase().includes(String(movie?.title || "").toLowerCase())
+                            )
+                          ).length;
+
+                          // Add the five-film career arc when the narrative has not already covered
+                          // most of those milestones. This keeps the paragraph informative without
+                          // mechanically repeating the same titles twice.
+                          if (narrativeCareerParts.length < 2 || alreadyCovered < 3) {
+                            selectedCareerParts.push(recap);
+                          }
                         }
 
                         // One concise accolade/legacy sentence may follow the films, but only when
@@ -3149,7 +3179,7 @@
                           const addition =
                             cleanSentence.length + (compactFallback.length ? 1 : 0);
 
-                          if (fallbackLength + addition > 760) break;
+                          if (fallbackLength + addition > 980) break;
 
                           compactFallback.push(cleanSentence);
                           fallbackLength += addition;
@@ -3163,8 +3193,8 @@
                           Absolute last-resort guard: never let a malformed source paragraph
                           fill the entire Reelwise star card.
                         */
-                        if (biography.length > 820) {
-                          biography = biography.slice(0, 817).replace(/\s+\S*$/, "") + "...";
+                        if (biography.length > 1050) {
+                          biography = biography.slice(0, 1047).replace(/\s+\S*$/, "") + "...";
                         }
                       }
 
