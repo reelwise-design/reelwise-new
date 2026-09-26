@@ -2352,10 +2352,120 @@
                         }
                       );
 
+                      /*
+                        PERSON 40 — FAST BIO MUST ALSO BE REELWISE-SIZED
+
+                        Person 39 stopped the background biography endpoint from returning
+                        raw Wikipedia text, but the first paint could still display TMDB's
+                        full biography. Morgan Freeman exposed that path. Build the first
+                        visible biography here from the same TMDB response we already have,
+                        so this adds no network request and preserves the instant load.
+                      */
+                      const rawFastBio = removeWikipediaEnding(person?.biography || "");
+                      const fastBioSentences = splitBioSentences(rawFastBio)
+                        .map(cleanText)
+                        .filter(Boolean)
+                        .filter(sentence =>
+                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children)\b/i.test(sentence)
+                        );
+
+                      // Keep only a concise identity/overview opening. Do not let a long
+                      // source biography become the visible card while enhancement runs.
+                      const introParts = [];
+                      let introChars = 0;
+                      for (const sentence of fastBioSentences) {
+                        const cleaned = sentence
+                          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
+                          .trim();
+                        if (!cleaned) continue;
+                        if (introChars + cleaned.length > 430) break;
+                        introParts.push(cleaned);
+                        introChars += cleaned.length + 1;
+                        if (introParts.length >= 2) break;
+                      }
+
+                      // Add representative film landmarks from the credits already returned
+                      // by append_to_response. This is deliberately generic: no actor or
+                      // title is hard-coded, and no second API request is required.
+                      const fastCredits = Array.isArray(person?.combined_credits?.cast)
+                        ? person.combined_credits.cast
+                        : [];
+
+                      const filmCandidates = fastCredits
+                        .filter(item => item && item.media_type === "movie" && item.title && item.release_date)
+                        .filter(item => !item.adult)
+                        .filter(item => Number(item.vote_count || 0) >= 100)
+                        .map(item => ({
+                          title: cleanText(item.title),
+                          year: Number(String(item.release_date).slice(0, 4)) || 0,
+                          popularity: Number(item.popularity || 0),
+                          votes: Number(item.vote_count || 0),
+                          score: Number(item.vote_average || 0)
+                        }))
+                        .filter(item => item.title && item.year)
+                        .sort((a, b) =>
+                          (b.votes * Math.max(b.score, 1)) - (a.votes * Math.max(a.score, 1)) ||
+                          b.popularity - a.popularity
+                        );
+
+                      const uniqueFilms = [];
+                      const seenFastTitles = new Set();
+                      for (const film of filmCandidates) {
+                        const key = film.title.toLowerCase();
+                        if (seenFastTitles.has(key)) continue;
+                        seenFastTitles.add(key);
+                        uniqueFilms.push(film);
+                        if (uniqueFilms.length >= 18) break;
+                      }
+
+                      // Spread the selections across the career rather than simply taking
+                      // five recent/high-vote titles. Pick strong films from chronological
+                      // career bands, then fill any open slots by overall strength.
+                      const byYear = [...uniqueFilms].sort((a, b) => a.year - b.year);
+                      const selectedFastFilms = [];
+                      if (byYear.length) {
+                        const minYear = byYear[0].year;
+                        const maxYear = byYear[byYear.length - 1].year;
+                        const span = Math.max(1, maxYear - minYear + 1);
+                        const bands = 5;
+                        for (let band = 0; band < bands; band++) {
+                          const start = minYear + Math.floor((span * band) / bands);
+                          const end = band === bands - 1
+                            ? maxYear
+                            : minYear + Math.floor((span * (band + 1)) / bands) - 1;
+                          const options = uniqueFilms.filter(f => f.year >= start && f.year <= end);
+                          if (options.length) selectedFastFilms.push(options[0]);
+                        }
+                      }
+                      for (const film of uniqueFilms) {
+                        if (selectedFastFilms.length >= 5) break;
+                        if (!selectedFastFilms.some(f => f.title.toLowerCase() === film.title.toLowerCase())) {
+                          selectedFastFilms.push(film);
+                        }
+                      }
+                      selectedFastFilms.sort((a, b) => a.year - b.year);
+
+                      const landmarkText = selectedFastFilms.length
+                        ? `Notable film work includes ${selectedFastFilms
+                            .slice(0, 5)
+                            .map(f => `${f.title} (${f.year})`)
+                            .join(", ")}.`
+                        : "";
+
+                      let fastBiography = [introParts.join(" "), landmarkText]
+                        .filter(Boolean)
+                        .join(" ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      if (fastBiography.length > 850) {
+                        fastBiography = fastBiography.slice(0, 847).replace(/\s+\S*$/, "") + "...";
+                      }
+
                       return {
                         ...person,
-                        biography: removeWikipediaEnding(person?.biography || ""),
-                        biography_original: removeWikipediaEnding(person?.biography || ""),
+                        biography: fastBiography,
+                        biography_original: rawFastBio,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
