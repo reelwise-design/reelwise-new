@@ -2444,25 +2444,33 @@
                         sentenceMovieMatches(sentence, profileMovies).length > 0
                       )) {
                         /*
-                          PERSON 24 — REPRESENTATIVE FOUR-STAGE FILM ARC
+                          PERSON 25 — SIGNIFICANCE-FIRST CAREER FILM ARC
 
-                          Person 23 successfully spread the fallback films across a career,
-                          but a few weak credits could still win a stage. Person 24 keeps the
-                          Person 22 biography format and Person 23 chronology while tightening
-                          ONLY the film-selection quality controls.
+                          Person 24 proved that rigid date buckets can force weak credits into
+                          the biography simply because they occupy the "right" era. Person 25
+                          reverses that priority:
 
-                          Quality rules:
-                            1. Early slot favors genuine breakthrough / early-recognition evidence.
-                            2. Central acting roles receive substantially more weight than minor parts.
-                            3. Voice, narration, cameo and uncredited work are strongly penalized.
-                            4. Later-career credits need real significance, not merely recency.
-                            5. Repeated character/franchise families do not consume multiple slots
-                               unless no stronger representative alternative exists.
+                            1. Build a pool of genuinely career-significant films first.
+                            2. Reject future / unreleased work from a retrospective career summary.
+                            3. Prefer substantial acting roles over cameos, narration and minor parts.
+                            4. Rank with source evidence, awards/acclaim, central-role importance,
+                               audience prominence and film quality.
+                            5. Only AFTER quality is established, diversify the picks across the
+                               performer's career so one decade cannot consume the whole summary.
+                            6. Use UP TO FIVE films. Never fill a slot merely because it exists.
 
                           No performer, movie, role, award or franchise is hard-coded.
                         */
+                        const currentYear = new Date().getUTCFullYear();
                         const rawFilms = [...profileMovies]
-                          .filter(movie => movie?.title && movieYear(movie));
+                          .filter(movie => movie?.title && movieYear(movie))
+                          .filter(movie => movieYear(movie) <= currentYear)
+                          .filter(movie => {
+                            const release = String(movie?.release_date || "");
+                            if (!release) return true;
+                            const releaseTime = Date.parse(`${release}T00:00:00Z`);
+                            return !Number.isFinite(releaseTime) || releaseTime <= Date.now();
+                          });
 
                         const sourceSentences = splitBioSentences(wikipediaCareerText || tmdbBio || "")
                           .map(cleanText)
@@ -2475,7 +2483,7 @@
 
                         const isPeripheralCredit = movie => {
                           const role = roleText(movie);
-                          return /\b(?:narrator|narration|voice|cameo|uncredited|archive footage|additional voices?|announcer|documentary voice)\b/i.test(role) ||
+                          return /\b(?:narrator|narration|cameo|uncredited|archive footage|additional voices?|announcer|documentary voice|self)\b/i.test(role) ||
                             billingOrder(movie) >= 8;
                         };
 
@@ -2484,17 +2492,19 @@
                           const role = roleText(movie);
 
                           let score =
-                            order === 0 ? 74 :
-                            order === 1 ? 62 :
-                            order === 2 ? 48 :
-                            order === 3 ? 34 :
-                            order <= 5 ? 19 :
-                            order <= 7 ? 6 : -18;
+                            order === 0 ? 82 :
+                            order === 1 ? 70 :
+                            order === 2 ? 56 :
+                            order === 3 ? 42 :
+                            order <= 5 ? 24 :
+                            order <= 7 ? 7 : -24;
 
-                          if (/\b(?:narrator|narration|cameo|uncredited|archive footage|additional voices?|announcer)\b/i.test(role)) {
-                            score -= 70;
+                          if (/\b(?:narrator|narration|cameo|uncredited|archive footage|additional voices?|announcer|self)\b/i.test(role)) {
+                            score -= 82;
                           } else if (/\bvoice\b/i.test(role)) {
-                            score -= 28;
+                            // Voice performances can be signature work, but should not beat an
+                            // equally significant central live-action performance by default.
+                            score -= 16;
                           }
 
                           return score;
@@ -2505,83 +2515,85 @@
                           let mentions = 0;
                           let breakthrough = 0;
                           let defining = 0;
+                          let awardEvidence = 0;
 
                           for (const sentence of sourceSentences) {
                             if (!sentenceMovieMatches(sentence, [movie]).length) continue;
                             mentions += 1;
 
-                            if (/\b(?:academy award|oscar|cannes|golden globe|bafta|screen actors guild|critics? choice)\b/i.test(sentence)) evidence += 58;
-                            if (/\b(?:won|winner|winning|nominated|nomination|award|awards)\b/i.test(sentence)) evidence += 38;
-                            if (/\b(?:acclaim|acclaimed|praised|recognition|prominence)\b/i.test(sentence)) evidence += 34;
-                            if (/\b(?:best actor|best actress|best supporting actor|best supporting actress)\b/i.test(sentence)) evidence += 22;
-
-                            if (/\b(?:breakthrough|breakout|breakthrough role|breakout role|first major|rose to prominence|gained recognition|wider recognition)\b/i.test(sentence)) {
-                              breakthrough += 82;
+                            if (/\b(?:academy award|oscar|cannes|golden globe|bafta|screen actors guild|critics? choice)\b/i.test(sentence)) {
+                              evidence += 62;
+                              awardEvidence += 62;
+                            }
+                            if (/\b(?:won|winner|winning|nominated|nomination|award|awards)\b/i.test(sentence)) {
+                              evidence += 40;
+                              awardEvidence += 34;
+                            }
+                            if (/\b(?:acclaim|acclaimed|praised|recognition|prominence|critical success|commercial success)\b/i.test(sentence)) evidence += 36;
+                            if (/\b(?:best actor|best actress|best supporting actor|best supporting actress)\b/i.test(sentence)) {
+                              evidence += 28;
+                              awardEvidence += 24;
                             }
 
-                            if (/\b(?:defining|career-defining|signature|iconic|widely regarded|most acclaimed)\b/i.test(sentence)) {
-                              defining += 62;
+                            if (/\b(?:breakthrough|breakout|breakthrough role|breakout role|first major|rose to prominence|gained recognition|wider recognition|established (?:him|her|them))\b/i.test(sentence)) {
+                              breakthrough += 90;
+                            }
+
+                            if (/\b(?:defining|career-defining|signature|iconic|widely regarded|most acclaimed|landmark|star-making)\b/i.test(sentence)) {
+                              defining += 72;
                             }
                           }
 
                           return {
-                            general: Math.min(evidence, 150) + Math.min(mentions, 3) * 9,
-                            breakthrough: Math.min(breakthrough, 120),
-                            defining: Math.min(defining, 100),
+                            general: Math.min(evidence, 180) + Math.min(mentions, 3) * 10,
+                            breakthrough: Math.min(breakthrough, 130),
+                            defining: Math.min(defining, 115),
+                            awards: Math.min(awardEvidence, 130),
                             mentions
                           };
                         };
 
-                        const eligibleFilms = rawFilms
-                          .filter(movie => {
-                            const votes = Number(movie?.vote_count || 0);
-                            const ev = sourceEvidenceForFilm(movie);
-                            // Peripheral credits survive only when the biography itself gives
-                            // them unusually strong career significance.
-                            if (isPeripheralCredit(movie)) {
-                              return ev.general >= 95 || ev.breakthrough >= 80 || ev.defining >= 70;
-                            }
-                            return votes >= 300 || ev.general >= 35 || ev.breakthrough >= 80;
-                          })
-                          .sort((a, b) => movieYear(a) - movieYear(b));
-
-                        const baseFilmScore = movie => {
+                        const significanceScore = movie => {
                           const votes = Number(movie?.vote_count || 0);
                           const rating = Number(movie?.vote_average || 0);
                           const popularity = Number(movie?.popularity || 0);
                           const ev = sourceEvidenceForFilm(movie);
+                          const central = centralRoleScore(movie);
 
-                          return ev.general * 1.55 +
-                            ev.defining * 0.75 +
-                            centralRoleScore(movie) +
-                            Math.log10(Math.max(votes, 1)) * 19 +
-                            Math.max(0, rating - 5) * 4.5 +
-                            Math.min(popularity, 80) * 0.05;
+                          return ev.general * 1.75 +
+                            ev.awards * 0.80 +
+                            ev.breakthrough * 1.05 +
+                            ev.defining * 1.00 +
+                            central * 1.10 +
+                            Math.log10(Math.max(votes, 1)) * 22 +
+                            Math.max(0, rating - 5) * 6 +
+                            Math.min(popularity, 100) * 0.05;
                         };
 
-                        const careerAnchors = eligibleFilms
+                        // QUALITY FIRST. A film must clear a real significance bar before career
+                        // coverage is considered. This prevents an obscure early credit or merely
+                        // recent title from winning a slot just because of its date.
+                        const significantFilms = rawFilms
                           .filter(movie => {
                             const ev = sourceEvidenceForFilm(movie);
-                            return !isPeripheralCredit(movie) &&
-                              (billingOrder(movie) <= 5 || ev.general >= 55 || ev.breakthrough >= 80) &&
-                              (Number(movie?.vote_count || 0) >= 500 || ev.general >= 45 || ev.breakthrough >= 80);
-                          });
+                            const votes = Number(movie?.vote_count || 0);
+                            const rating = Number(movie?.vote_average || 0);
+                            const order = billingOrder(movie);
 
-                        const firstYear = careerAnchors.length
-                          ? Math.min(...careerAnchors.map(movieYear))
-                          : (eligibleFilms[0] ? movieYear(eligibleFilms[0]) : 0);
-                        const lastYear = careerAnchors.length
-                          ? Math.max(...careerAnchors.map(movieYear))
-                          : (eligibleFilms.length ? movieYear(eligibleFilms[eligibleFilms.length - 1]) : firstYear);
-                        const span = Math.max(1, lastYear - firstYear);
+                            if (isPeripheralCredit(movie)) {
+                              return ev.general >= 115 || ev.defining >= 90 || ev.breakthrough >= 100;
+                            }
 
-                        // Give the breakthrough era enough room to capture a genuine early rise,
-                        // then divide the remaining career into defining, prime and later eras.
-                        const earlyWidth = Math.max(8, Math.min(13, Math.round(span * 0.24)));
-                        const earlyEnd = firstYear + earlyWidth;
-                        const remainingSpan = Math.max(1, lastYear - earlyEnd);
-                        const definingEnd = earlyEnd + Math.max(7, Math.round(remainingSpan * 0.34));
-                        const primeEnd = definingEnd + Math.max(7, Math.round(remainingSpan * 0.36));
+                            return (
+                              ev.general >= 48 ||
+                              ev.awards >= 55 ||
+                              ev.breakthrough >= 80 ||
+                              ev.defining >= 70 ||
+                              (order <= 2 && votes >= 1800 && rating >= 6.3) ||
+                              (order <= 4 && votes >= 5000 && rating >= 6.6)
+                            );
+                          })
+                          .sort((a, b) => significanceScore(b) - significanceScore(a));
 
                         const chosen = [];
                         const chosenIds = new Set();
@@ -2598,109 +2610,118 @@
                           .slice(0, 3)
                           .join(" ");
 
-                        const chooseFromStage = (predicate, stageScore, options = {}) => {
-                          let pool = eligibleFilms
-                            .filter(movie => !chosenIds.has(movie.id))
-                            .filter(predicate)
-                            .filter(movie => {
-                              if (options.allowRecurring) return true;
-                              const key = characterFamily(movie);
-                              return !key || !chosenCharacters.has(key);
-                            });
-
-                          if (options.requireSubstantial) {
-                            const substantial = pool.filter(movie => {
-                              const ev = sourceEvidenceForFilm(movie);
-                              return !isPeripheralCredit(movie) &&
-                                (billingOrder(movie) <= 5 || ev.general >= 80 || ev.defining >= 65);
-                            });
-                            if (substantial.length) pool = substantial;
+                        const canUseFilm = (movie, allowRecurring = false) => {
+                          if (!movie || chosenIds.has(movie.id)) return false;
+                          if (!allowRecurring) {
+                            const key = characterFamily(movie);
+                            if (key && chosenCharacters.has(key)) return false;
                           }
-
-                          pool.sort((a, b) =>
-                            stageScore(b) - stageScore(a) ||
-                            baseFilmScore(b) - baseFilmScore(a) ||
-                            movieYear(a) - movieYear(b)
-                          );
-
-                          const pick = pool[0];
-                          if (!pick) return null;
-                          chosen.push(pick);
-                          chosenIds.add(pick.id);
-                          const key = characterFamily(pick);
-                          if (key) chosenCharacters.add(key);
-                          return pick;
+                          return true;
                         };
 
-                        // 1. EARLY / BREAKTHROUGH — explicit breakthrough and recognition evidence
-                        // outranks popularity. Earlier meaningful work receives a modest bonus.
-                        chooseFromStage(
-                          movie => movieYear(movie) <= earlyEnd,
-                          movie => {
-                            const ev = sourceEvidenceForFilm(movie);
-                            const yearBonus = Math.max(0, earlyEnd - movieYear(movie)) * 1.2;
-                            return baseFilmScore(movie) + ev.breakthrough * 2.0 + ev.general * 0.35 + yearBonus;
-                          },
-                          { requireSubstantial: true }
-                        );
+                        const addFilm = movie => {
+                          if (!movie || chosenIds.has(movie.id)) return false;
+                          chosen.push(movie);
+                          chosenIds.add(movie.id);
+                          const key = characterFamily(movie);
+                          if (key) chosenCharacters.add(key);
+                          return true;
+                        };
 
-                        // 2. DEFINING / SIGNATURE — award/acclaim/source evidence and a central role
-                        // dominate. This slot is not simply the next most popular title.
-                        chooseFromStage(
-                          movie => movieYear(movie) > earlyEnd && movieYear(movie) <= definingEnd,
-                          movie => {
-                            const ev = sourceEvidenceForFilm(movie);
-                            return baseFilmScore(movie) + ev.defining * 1.5 + ev.general * 0.55 + centralRoleScore(movie) * 0.45;
-                          },
-                          { requireSubstantial: true }
-                        );
+                        const rankedCandidates = significantFilms.slice(0, 18);
 
-                        // 3. PRIME / MID-CAREER — representative substantial performance.
-                        chooseFromStage(
-                          movie => movieYear(movie) > definingEnd && movieYear(movie) <= primeEnd,
-                          movie => baseFilmScore(movie) + centralRoleScore(movie) * 0.55,
-                          { requireSubstantial: true }
-                        );
+                        if (rankedCandidates.length) {
+                          const years = rankedCandidates.map(movieYear).filter(Boolean);
+                          const minYear = Math.min(...years);
+                          const maxYear = Math.max(...years);
+                          const span = Math.max(1, maxYear - minYear);
 
-                        // 4. LATER CAREER — impose the toughest quality floor. A late credit must
-                        // be a substantial role or have strong independent source significance.
-                        chooseFromStage(
-                          movie => movieYear(movie) > primeEnd && (() => {
-                            const ev = sourceEvidenceForFilm(movie);
-                            const votes = Number(movie?.vote_count || 0);
-                            const rating = Number(movie?.vote_average || 0);
-                            return !isPeripheralCredit(movie) && (
-                              ev.general >= 55 ||
-                              ev.defining >= 55 ||
-                              (billingOrder(movie) <= 3 && votes >= 1200 && rating >= 6.0) ||
-                              (billingOrder(movie) <= 5 && votes >= 3500 && rating >= 6.5)
-                            );
-                          })(),
-                          movie => {
-                            const ev = sourceEvidenceForFilm(movie);
-                            return baseFilmScore(movie) + ev.general * 0.45 + centralRoleScore(movie) * 0.65;
-                          },
-                          { requireSubstantial: true }
-                        );
+                          // First lock the strongest career-defining anchor. This is the movie that
+                          // most deserves to be present even before chronology is considered.
+                          addFilm(rankedCandidates[0]);
 
-                        // Unusual or short careers can leave a stage empty. Fill only with strong,
-                        // substantial remaining credits. Peripheral work is never used merely to
-                        // reach four titles.
-                        while (chosen.length < 4) {
-                          const extra = chooseFromStage(
-                            movie => {
+                          // Then seek a genuine early/breakthrough film from the already-qualified
+                          // pool. Explicit breakthrough evidence wins; otherwise the early title
+                          // still has to be close to the best films on significance.
+                          const earlyLimit = minYear + Math.max(8, Math.min(14, Math.round(span * 0.28)));
+                          const earlyCandidates = rankedCandidates
+                            .filter(movie => movieYear(movie) <= earlyLimit && canUseFilm(movie))
+                            .map(movie => {
                               const ev = sourceEvidenceForFilm(movie);
-                              return !isPeripheralCredit(movie) &&
-                                (billingOrder(movie) <= 5 || ev.general >= 70 || ev.defining >= 60);
-                            },
-                            movie => baseFilmScore(movie),
-                            { requireSubstantial: true }
-                          );
-                          if (!extra) break;
+                              const score = significanceScore(movie) + ev.breakthrough * 1.8 + ev.general * 0.25;
+                              return { movie, score };
+                            })
+                            .sort((a, b) => b.score - a.score);
+
+                          if (earlyCandidates[0]) {
+                            const best = earlyCandidates[0];
+                            const topScore = significanceScore(rankedCandidates[0]);
+                            const ev = sourceEvidenceForFilm(best.movie);
+                            if (ev.breakthrough >= 80 || ev.awards >= 55 || best.score >= topScore * 0.72) {
+                              addFilm(best.movie);
+                            }
+                          }
+
+                          // Fill remaining slots by significance while rewarding a new portion of
+                          // the career. Diversity is a bonus, never permission to select a weak film.
+                          const careerBand = movie => {
+                            const y = movieYear(movie);
+                            if (span <= 12) return Math.floor((y - minYear) / Math.max(1, span / 3));
+                            const pos = (y - minYear) / span;
+                            if (pos < 0.25) return 0;
+                            if (pos < 0.50) return 1;
+                            if (pos < 0.75) return 2;
+                            return 3;
+                          };
+
+                          while (chosen.length < 5) {
+                            const usedBands = new Set(chosen.map(careerBand));
+                            const pool = rankedCandidates
+                              .filter(movie => canUseFilm(movie))
+                              .map(movie => {
+                                const sig = significanceScore(movie);
+                                const bandBonus = usedBands.has(careerBand(movie)) ? 0 : 42;
+                                const distanceBonus = chosen.length
+                                  ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie)))) * 1.4
+                                  : 0;
+                                return { movie, sig, score: sig + bandBonus + Math.min(distanceBonus, 28) };
+                              })
+                              .sort((a, b) => b.score - a.score || b.sig - a.sig);
+
+                            const next = pool[0];
+                            if (!next) break;
+
+                            // Do not fill the fifth (or any later) slot with a noticeably weak title.
+                            // Every selection must remain within a meaningful range of the strongest
+                            // career film, unless the source itself marks it as a milestone.
+                            const topSig = significanceScore(rankedCandidates[0]);
+                            const ev = sourceEvidenceForFilm(next.movie);
+                            const milestone = ev.general >= 75 || ev.awards >= 55 || ev.breakthrough >= 80 || ev.defining >= 70;
+                            const floor = chosen.length >= 4 ? 0.60 : 0.52;
+                            if (!milestone && next.sig < topSig * floor) break;
+
+                            addFilm(next.movie);
+                          }
+                        }
+
+                        // If the strict pool is unusually small, add only genuinely strong
+                        // non-peripheral credits. Never force the biography to reach five titles.
+                        if (chosen.length < 3) {
+                          const reserve = rawFilms
+                            .filter(movie => canUseFilm(movie))
+                            .filter(movie => !isPeripheralCredit(movie))
+                            .map(movie => ({ movie, score: significanceScore(movie) }))
+                            .sort((a, b) => b.score - a.score);
+
+                          for (const item of reserve) {
+                            if (chosen.length >= 3) break;
+                            if (item.score < 120) break;
+                            addFilm(item.movie);
+                          }
                         }
 
                         const fallbackFilms = chosen
-                          .slice(0, 4)
+                          .slice(0, 5)
                           .sort((a, b) => movieYear(a) - movieYear(b));
 
                         if (fallbackFilms.length) {
@@ -2710,8 +2731,6 @@
                         }
                       }
 
-                      const CAREER_MAX = 590;
-                      const selectedCareerParts = [];
                       let careerLength = 0;
 
                       for (const sentence of careerParts) {
