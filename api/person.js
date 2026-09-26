@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 37
+                      REELWISE PERSON API — PERSON 38
                       ============================================================
 
                       NORMAL MODE:
@@ -84,6 +84,12 @@
                       text = text
                         .replace(/\s+For other people with (?:the same|a similar) name.*$/i, "")
                         .replace(/\s+For other uses, see .*$/i, "")
+                        // TMDB biographies can contain Wikipedia attribution appended to otherwise
+                        // useful prose. It is metadata, not Reelwise biography content.
+                        .replace(/\s+Description above from the Wikipedia article[\s\S]*$/i, "")
+                        .replace(/\s+Description from the Wikipedia article[\s\S]*$/i, "")
+                        .replace(/\s+Licensed under CC[-–]BY[-–]SA[\s\S]*$/i, "")
+                        .replace(/\s+Full list of contributors on Wikipedia[\s\S]*$/i, "")
                         .trim();
 
                       return text;
@@ -2329,7 +2335,7 @@
 
 
                     /* ============================================================
-                       PERSON 37 — FAST PROFILE / STABLE BIOGRAPHY
+                       PERSON 38 — FAST PROFILE / CURATED BIOGRAPHY
                        ============================================================
 
                        The normal Star-page request must never wait on Wikipedia.
@@ -2348,8 +2354,8 @@
 
                       return {
                         ...person,
-                        biography: cleanText(person?.biography || ""),
-                        biography_original: cleanText(person?.biography || ""),
+                        biography: removeWikipediaEnding(person?.biography || ""),
+                        biography_original: removeWikipediaEnding(person?.biography || ""),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
@@ -2369,7 +2375,7 @@
                         }
                       );
 
-                      const tmdbBio = cleanText(person?.biography || "");
+                      const tmdbBio = removeWikipediaEnding(person?.biography || "");
 
                       /*
                         Primary biography source: richer Wikipedia article text.
@@ -3517,51 +3523,54 @@
                           const profile = await getPersonProfile(id);
 
                           /*
-                            PERSON 36 — NEVER DOWNGRADE AN ALREADY-RICH BIOGRAPHY
+                            PERSON 38 — QUALITY-FIRST BIOGRAPHY HANDOFF
 
-                            The fast Star-page payload can already contain a strong TMDB
-                            biography. Person 35 then fetched the enhanced biography in the
-                            background and always returned it, even when that generated text
-                            was substantially shorter. On Russell Crowe this caused the page
-                            to visibly load the fuller biography first and then replace it
-                            with the shorter Reelwise version.
+                            Person 37 solved the loading delay by keeping Wikipedia work out
+                            of the normal profile request. Person 38 leaves that fast path
+                            untouched and changes only the background biography decision.
 
-                            Person 36 makes the biography endpoint authoritative about quality:
-                            compare the enhanced biography with TMDB's original biography and
-                            return the richer usable version. The background request can still
-                            improve a short biography, but it can no longer downgrade a fuller
-                            one simply because it arrived later.
+                            A long source biography is not automatically a better Reelwise bio.
+                            Prefer the curated career biography whenever it has enough substance.
+                            Fall back to the cleaned source biography only when the curated result
+                            is genuinely too thin to tell a useful career story.
                           */
-                          const enhancedBiography = cleanText(profile?.biography || "");
-                          const originalBiography = cleanText(profile?.biography_original || "");
+                          const enhancedBiography = removeWikipediaEnding(profile?.biography || "");
+                          const originalBiography = removeWikipediaEnding(profile?.biography_original || "");
+
+                          const usableSentences = value =>
+                            splitBioSentences(value)
+                              .map(cleanText)
+                              .filter(Boolean)
+                              .filter(sentence =>
+                                !/\b(?:description above from|description from the wikipedia article|licensed under|contributors on wikipedia)\b/i.test(sentence)
+                              );
+
+                          const enhancedSentences = usableSentences(enhancedBiography);
+                          const originalSentences = usableSentences(originalBiography);
+
+                          // A Reelwise bio should be concise but still feel like a career story.
+                          // Three solid sentences / roughly 260 characters is enough to keep the
+                          // curated version. We do NOT replace it merely because the source is longer.
+                          const enhancedIsUsable =
+                            enhancedBiography.length >= 260 &&
+                            enhancedSentences.length >= 3;
+
+                          let finalBiography =
+                            enhancedIsUsable
+                              ? enhancedBiography
+                              : (originalBiography || enhancedBiography || "");
 
                           /*
-                            Prefer the enhanced Reelwise biography when it is meaningfully
-                            developed. If the original biography is substantially fuller, keep
-                            it instead of allowing the later async response to shrink the card.
-                            This is generic — no actor or movie is hard-coded.
+                            If both versions are thin, prefer whichever actually contains more
+                            usable prose. This is a last-resort fallback only; it never overrides
+                            a developed Reelwise biography.
                           */
-                          let finalBiography = enhancedBiography || originalBiography || "";
-
-                          if (originalBiography) {
-                            const enhancedSentences = splitBioSentences(enhancedBiography)
-                              .map(cleanText)
-                              .filter(Boolean);
-                            const originalSentences = splitBioSentences(originalBiography)
-                              .map(cleanText)
-                              .filter(Boolean);
-
-                            const enhancedIsThin =
-                              enhancedBiography.length < 520 ||
-                              enhancedSentences.length < 4;
-
-                            const originalIsClearlyRicher =
-                              originalBiography.length >= enhancedBiography.length + 140 ||
-                              originalSentences.length >= enhancedSentences.length + 2;
-
-                            if (enhancedIsThin && originalIsClearlyRicher) {
-                              finalBiography = originalBiography;
-                            }
+                          if (!enhancedIsUsable && originalBiography && enhancedBiography) {
+                            const enhancedScore = enhancedBiography.length + enhancedSentences.length * 90;
+                            const originalScore = originalBiography.length + originalSentences.length * 90;
+                            finalBiography = originalScore > enhancedScore
+                              ? originalBiography
+                              : enhancedBiography;
                           }
 
                           res.setHeader(
@@ -3577,7 +3586,7 @@
                         }
 
                         /*
-                          PERSON 37 — NORMAL STAR PROFILE MODE
+                          PERSON 38 — NORMAL STAR PROFILE MODE
 
                           Do not run the Wikipedia enhancement path here. The page gets
                           TMDB profile/photo/credits immediately; the browser's existing
