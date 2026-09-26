@@ -1334,22 +1334,58 @@
                       const definingEvidenceTerms =
                         /\b(?:academy award|oscar|golden globe|bafta|cannes|award|awards|nominee|nominated|nomination|won|winning|acclaim|acclaimed|recognition|prominence|breakthrough|breakout|iconic|signature|defining|career-defining|major success|critical and commercial success|became a star|stardom)\b/i;
 
+                      /*
+                        PERSON 20 — SOURCE-FIRST DEFINING EVIDENCE
+
+                        A defining film should win because the biography actually connects
+                        that performance to career-level recognition, not because a later
+                        title happens to have stronger TMDB popularity or billing. Evidence
+                        must be attached directly to the film sentence (or a tightly bridged
+                        following sentence), preventing neighboring awards from leaking onto
+                        the wrong title. Major film-award recognition receives the strongest
+                        generic weight. No performer or movie is hard-coded.
+                      */
                       const definingSourceEvidence = movie => {
                         const title = String(movie?.title || "").trim().toLowerCase();
                         if (!title) return 0;
 
-                        let score = 0;
+                        const prestigeAwardTerms =
+                          /\b(?:academy award|oscar|palme d'or|cannes film festival award|golden globe|bafta)\b/i;
+                        const directCareerTerms =
+                          /\b(?:breakthrough|breakout|career-defining|defining|iconic|signature|rose to prominence|gained recognition|gained critical acclaim|critical acclaim|major success|became a star|stardom)\b/i;
+                        const bridgeTerms =
+                          /^(?:for (?:his|her|their|the) (?:performance|role|portrayal)|for this (?:performance|role|portrayal)|the (?:performance|role|portrayal)|his (?:performance|role|portrayal)|her (?:performance|role|portrayal)|their (?:performance|role|portrayal)|this (?:performance|role|portrayal)|for which (?:he|she|they)|it earned (?:him|her|them)|the film earned (?:him|her|them))\b/i;
+
+                        let best = 0;
+                        let mentions = 0;
+
                         for (let i = 0; i < sentences.length; i += 1) {
-                          if (!String(sentences[i] || "").toLowerCase().includes(title)) continue;
-                          const context = [sentences[i - 1], sentences[i], sentences[i + 1]]
-                            .filter(Boolean)
-                            .join(" ");
-                          if (definingEvidenceTerms.test(context)) score += 120;
-                          if (awardTerms.test(context)) score += 55;
-                          if (signatureCareerTerms.test(context)) score += 45;
-                          if (breakthroughTerms.test(context)) score += 35;
+                          const current = cleanText(sentences[i] || "");
+                          if (!current.toLowerCase().includes(title)) continue;
+                          mentions += 1;
+
+                          let score = 0;
+                          if (prestigeAwardTerms.test(current)) score = Math.max(score, 260);
+                          if (awardTerms.test(current)) score = Math.max(score, 180);
+                          if (directCareerTerms.test(current)) score = Math.max(score, 170);
+                          if (signatureCareerTerms.test(current)) score = Math.max(score, 120);
+                          if (breakthroughTerms.test(current)) score = Math.max(score, 110);
+
+                          if (i + 1 < sentences.length) {
+                            const next = cleanText(sentences[i + 1] || "");
+                            if (bridgeTerms.test(next)) {
+                              if (prestigeAwardTerms.test(next)) score = Math.max(score, 245);
+                              if (awardTerms.test(next)) score = Math.max(score, 170);
+                              if (directCareerTerms.test(next)) score = Math.max(score, 150);
+                            }
+                          }
+
+                          best = Math.max(best, score);
                         }
-                        return score;
+
+                        // Repeated source prominence is useful, but can never overpower
+                        // explicit award/acclaim evidence by itself.
+                        return best + Math.min(mentions * 10, 40);
                       };
 
                       const firstSubstantialYear = [...movies]
@@ -1369,9 +1405,13 @@
                       );
 
                       const definingStageScore = movie => {
-                        const recurringBonus = recurringKeys.has(characterKey(movie)) ? 12 : 0;
-                        return nonFranchiseSignatureScore(movie) +
-                          definingSourceEvidence(movie) + recurringBonus;
+                        const recurringBonus = recurringKeys.has(characterKey(movie)) ? 10 : 0;
+                        const sourceScore = definingSourceEvidence(movie);
+
+                        // Source-backed career significance is the primary signal. TMDB
+                        // recognition breaks ties rather than choosing the career story.
+                        return (sourceScore * 3) +
+                          nonFranchiseSignatureScore(movie) + recurringBonus;
                       };
 
                       const definingStagePool = definingFilmPool
@@ -1914,11 +1954,29 @@
                           if (alreadyNamed(movie)) return false;
 
                           /*
-                            Keep every otherwise-qualified later-career film in the ranked
-                            pool. Franchise deduplication happens only after ranking so a
-                            verified independent milestone cannot be discarded prematurely.
+                            PERSON 20 — LATER-CAREER SIGNIFICANCE GATE
+
+                            A later credit now needs evidence that it represents a genuine
+                            career chapter. Admission comes from at least one of three generic
+                            signals: a source-backed milestone, a recurring/franchise role, or
+                            meaningful source-biography coverage plus substantial audience
+                            recognition. Popularity and billing alone are no longer enough.
                           */
-                          return true;
+                          const titleLower = title.toLowerCase();
+                          const sourceMentioned = sentences.some(sentence =>
+                            String(sentence || "").toLowerCase().includes(titleLower)
+                          );
+                          const recurringCareerRole = recurringRoleCredits.some(existing =>
+                            existing?.id === movie?.id
+                          );
+                          const sourceBackedMajorCredit =
+                            sourceMentioned &&
+                            votes >= 2000 &&
+                            order <= 4;
+
+                          return hasIndependentLaterMilestone(movie) ||
+                            recurringCareerRole ||
+                            sourceBackedMajorCredit;
                         })
                         .sort((a, b) => {
                           /*
@@ -2044,7 +2102,22 @@
                           if (!year || !laterEraFloor || year < laterEraFloor) return false;
                           if (order > 5 || votes < 750) return false;
                           if (establishedCareerText.includes(title.toLowerCase())) return false;
-                          return true;
+
+                          const titleLower = title.toLowerCase();
+                          const sourceMentioned = sentences.some(sentence =>
+                            String(sentence || "").toLowerCase().includes(titleLower)
+                          );
+                          const recurringCareerRole = recurringRoleCredits.some(existing =>
+                            existing?.id === movie?.id
+                          );
+                          const sourceBackedMajorCredit =
+                            sourceMentioned &&
+                            votes >= 2000 &&
+                            order <= 4;
+
+                          return hasIndependentLaterMilestone(movie) ||
+                            recurringCareerRole ||
+                            sourceBackedMajorCredit;
                         })
                         .sort((a, b) => {
                           const milestoneDelta =
