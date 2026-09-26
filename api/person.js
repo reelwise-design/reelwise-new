@@ -3837,6 +3837,87 @@
                             .trim();
 
                           /*
+                            PERSON 44 — BACKGROUND BIOGRAPHY RESCUE
+
+                            Person 43 improved the career selector, but a major performer can
+                            still arrive here with only the fast-profile fallback (identity +
+                            "Notable film work"). When that happens, use Wikipedia's concise
+                            biography summary as a SECOND background source and extract a compact
+                            career story. This never blocks the initial star card/photo load.
+
+                            Generic rules only:
+                            - activate only when the assembled Reelwise bio is unusually thin;
+                            - keep an identity/legacy opening plus career milestone sentences;
+                            - reject personal-life/navigation/licensing material;
+                            - target roughly 90–140 words without exposing a Wikipedia dump.
+                          */
+                          const biographyWordCount = value =>
+                            cleanText(value).split(/\s+/).filter(Boolean).length;
+
+                          if (
+                            finalBiography.length < 560 ||
+                            biographyWordCount(finalBiography) < 80
+                          ) {
+                            const wikiSummary = cleanBiographySource(
+                              removeWikipediaEnding(
+                                await getWikipediaBiography(profile?.name || "")
+                              ),
+                              profile?.name || ""
+                            );
+
+                            const wikiSentences = splitBioSentences(wikiSummary)
+                              .map(cleanText)
+                              .filter(Boolean)
+                              .filter(sentence => sentence.length >= 35 && sentence.length <= 330)
+                              .filter(sentence =>
+                                !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
+                              );
+
+                            if (wikiSentences.length) {
+                              const identityOrLegacy = wikiSentences.find(sentence =>
+                                /\b(?:actor|actress|filmmaker|director|performer|comedian|known|regarded|influential|acclaimed|award)\b/i.test(sentence)
+                              ) || wikiSentences[0];
+
+                              const careerMilestones = wikiSentences
+                                .filter(sentence => sentence !== identityOrLegacy)
+                                .filter(sentence =>
+                                  /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|godfather|screen)\b/i.test(sentence)
+                                );
+
+                              const rescued = [];
+                              const seen = new Set();
+                              let words = 0;
+
+                              const addSentence = sentence => {
+                                const cleanSentence = cleanText(sentence);
+                                const key = cleanSentence.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+                                if (!cleanSentence || seen.has(key)) return false;
+                                const count = biographyWordCount(cleanSentence);
+                                if (rescued.length && words + count > 140) return false;
+                                rescued.push(cleanSentence);
+                                seen.add(key);
+                                words += count;
+                                return true;
+                              };
+
+                              addSentence(identityOrLegacy);
+                              for (const sentence of careerMilestones) {
+                                if (words >= 105 || rescued.length >= 5) break;
+                                addSentence(sentence);
+                              }
+
+                              const rescuedBiography = rescued.join(" ").replace(/\s+/g, " ").trim();
+
+                              if (
+                                biographyWordCount(rescuedBiography) >= 75 &&
+                                rescuedBiography.length > finalBiography.length
+                              ) {
+                                finalBiography = rescuedBiography;
+                              }
+                            }
+                          }
+
+                          /*
                             Safety guard only. Do not substitute biography_original here.
                             If the career builder ever returns an unexpectedly long paragraph,
                             keep the strongest opening career sentences rather than exposing
