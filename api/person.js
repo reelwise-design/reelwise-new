@@ -2443,17 +2443,144 @@
                       if (!careerParts.some(sentence =>
                         sentenceMovieMatches(sentence, profileMovies).length > 0
                       )) {
-                        const fallbackFilms = [...profileMovies]
+                        /*
+                          PERSON 23 — FOUR-STAGE FILM ARC
+
+                          Person 22's fallback picked four globally high-scoring TMDB
+                          credits. That produced good individual titles but often clustered
+                          them inside one short period of a long career. Person 23 keeps the
+                          Person 22 biography format and changes ONLY this fallback selector.
+
+                          The four slots now represent:
+                            1. early / breakthrough work
+                            2. defining / signature work
+                            3. prime / mid-career work
+                            4. later-career or major recurring/franchise work
+
+                          Wikipedia career evidence (awards, nominations, acclaim, breakthrough
+                          language) can outweigh raw TMDB popularity. No performer, film, award
+                          result, or franchise is hard-coded.
+                        */
+                        const eligibleFilms = [...profileMovies]
                           .filter(movie => movie?.title && movieYear(movie))
-                          .filter(movie => Number(movie?.vote_count || 0) >= 1000)
-                          .sort((a, b) => {
-                            const aOrder = Number.isFinite(Number(a?.order)) ? Number(a.order) : 99;
-                            const bOrder = Number.isFinite(Number(b?.order)) ? Number(b.order) : 99;
-                            const aScore = Math.log10(Math.max(Number(a?.vote_count || 0), 1)) * 25 + Math.max(0, 8 - aOrder) * 5 + Number(a?.vote_average || 0) * 2;
-                            const bScore = Math.log10(Math.max(Number(b?.vote_count || 0), 1)) * 25 + Math.max(0, 8 - bOrder) * 5 + Number(b?.vote_average || 0) * 2;
-                            return bScore - aScore;
-                          })
-                          .slice(0, 4);
+                          .filter(movie => Number(movie?.vote_count || 0) >= 250)
+                          .sort((a, b) => movieYear(a) - movieYear(b));
+
+                        const sourceSentences = splitBioSentences(wikipediaCareerText || tmdbBio || "")
+                          .map(cleanText)
+                          .filter(Boolean);
+
+                        const evidenceForFilm = movie => {
+                          let evidence = 0;
+                          let mentions = 0;
+
+                          for (const sentence of sourceSentences) {
+                            if (!sentenceMovieMatches(sentence, [movie]).length) continue;
+                            mentions += 1;
+
+                            if (/\b(?:academy award|oscar|cannes|golden globe|bafta|screen actors guild|critics? choice)\b/i.test(sentence)) evidence += 52;
+                            if (/\b(?:won|winner|winning|nominated|nomination|award|awards)\b/i.test(sentence)) evidence += 34;
+                            if (/\b(?:breakthrough|breakout|acclaim|acclaimed|praised|recognition|prominence|defining|signature|iconic)\b/i.test(sentence)) evidence += 38;
+                            if (/\b(?:best actor|best actress|best supporting actor|best supporting actress)\b/i.test(sentence)) evidence += 18;
+                          }
+
+                          return Math.min(evidence, 125) + Math.min(mentions, 3) * 8;
+                        };
+
+                        const filmScore = movie => {
+                          const votes = Number(movie?.vote_count || 0);
+                          const rating = Number(movie?.vote_average || 0);
+                          const popularity = Number(movie?.popularity || 0);
+                          const order = Number.isFinite(Number(movie?.order)) ? Number(movie.order) : 99;
+                          const billing =
+                            order === 0 ? 42 :
+                            order === 1 ? 34 :
+                            order === 2 ? 25 :
+                            order <= 4 ? 14 :
+                            order <= 7 ? 5 : 0;
+
+                          return evidenceForFilm(movie) * 1.35 +
+                            Math.log10(Math.max(votes, 1)) * 22 +
+                            Math.max(0, rating - 5) * 4 +
+                            Math.min(popularity, 80) * 0.08 +
+                            billing;
+                        };
+
+                        const meaningfulYears = eligibleFilms
+                          .filter(movie => Number(movie?.vote_count || 0) >= 600 || evidenceForFilm(movie) >= 35)
+                          .map(movieYear)
+                          .filter(Boolean);
+
+                        const firstYear = meaningfulYears.length
+                          ? Math.min(...meaningfulYears)
+                          : (eligibleFilms[0] ? movieYear(eligibleFilms[0]) : 0);
+                        const lastYear = meaningfulYears.length
+                          ? Math.max(...meaningfulYears)
+                          : (eligibleFilms.length ? movieYear(eligibleFilms[eligibleFilms.length - 1]) : firstYear);
+                        const span = Math.max(1, lastYear - firstYear);
+
+                        const earlyEnd = firstYear + Math.max(7, Math.round(span * 0.24));
+                        const definingEnd = firstYear + Math.max(14, Math.round(span * 0.45));
+                        const primeEnd = firstYear + Math.max(22, Math.round(span * 0.70));
+
+                        const chosen = [];
+                        const chosenIds = new Set();
+                        const chosenCharacters = new Set();
+
+                        const characterFamily = movie => String(movie?.character || "")
+                          .toLowerCase()
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/\b(?:voice|uncredited|archive footage|cameo)\b/g, " ")
+                          .replace(/[^a-z0-9]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim()
+                          .split(" ")
+                          .filter(word => word.length > 2)
+                          .slice(0, 3)
+                          .join(" ");
+
+                        const chooseFromStage = (predicate, options = {}) => {
+                          const pool = eligibleFilms
+                            .filter(movie => !chosenIds.has(movie.id))
+                            .filter(predicate)
+                            .filter(movie => {
+                              if (options.allowRecurring) return true;
+                              const key = characterFamily(movie);
+                              return !key || !chosenCharacters.has(key);
+                            })
+                            .sort((a, b) => filmScore(b) - filmScore(a) || movieYear(a) - movieYear(b));
+
+                          const pick = pool[0];
+                          if (!pick) return null;
+                          chosen.push(pick);
+                          chosenIds.add(pick.id);
+                          const key = characterFamily(pick);
+                          if (key) chosenCharacters.add(key);
+                          return pick;
+                        };
+
+                        // Early work: source-backed recognition is especially valuable here.
+                        chooseFromStage(movie => movieYear(movie) <= earlyEnd);
+
+                        // Defining period: keep it after the early slot and before mid-career.
+                        chooseFromStage(movie => movieYear(movie) > earlyEnd && movieYear(movie) <= definingEnd);
+
+                        // Prime/mid-career: deliberately occupies a different era.
+                        chooseFromStage(movie => movieYear(movie) > definingEnd && movieYear(movie) <= primeEnd);
+
+                        // Later career: recurring/franchise work may legitimately represent this stage.
+                        chooseFromStage(movie => movieYear(movie) > primeEnd, { allowRecurring: true });
+
+                        // Short or unusual careers may leave a stage empty. Fill only from the
+                        // strongest remaining credits, while still avoiding duplicate roles.
+                        while (chosen.length < 4) {
+                          const extra = chooseFromStage(() => true);
+                          if (!extra) break;
+                        }
+
+                        const fallbackFilms = chosen
+                          .slice(0, 4)
+                          .sort((a, b) => movieYear(a) - movieYear(b));
 
                         if (fallbackFilms.length) {
                           careerParts = [
