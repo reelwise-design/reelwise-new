@@ -2406,6 +2406,14 @@
                       const filmCandidates = fastCredits
                         .filter(item => item && item.media_type === "movie" && item.title && item.release_date)
                         .filter(item => !item.adult)
+                        // PERSON 43 — do not let posthumous/archive-derived releases become
+                        // representative career landmarks on the instant first paint.
+                        .filter(item => {
+                          if (!person?.deathday) return true;
+                          const releaseTime = Date.parse(`${item.release_date}T00:00:00Z`);
+                          const deathTime = Date.parse(`${person.deathday}T23:59:59Z`);
+                          return !Number.isFinite(releaseTime) || !Number.isFinite(deathTime) || releaseTime <= deathTime;
+                        })
                         .filter(item => Number(item.vote_count || 0) >= 100)
                         .map(item => ({
                           title: cleanText(item.title),
@@ -2422,7 +2430,7 @@
                         );
 
                       /*
-                        PERSON 42 — SIGNIFICANT CAREER LANDMARKS
+                        PERSON 43 — SIGNIFICANT CAREER LANDMARKS
 
                         Keep Person 40's instant first paint, but make the five-film recap
                         represent different career chapters. Do not let sequels or recurring
@@ -2765,7 +2773,19 @@
                             const release = String(movie?.release_date || "");
                             if (!release) return true;
                             const releaseTime = Date.parse(`${release}T00:00:00Z`);
-                            return !Number.isFinite(releaseTime) || releaseTime <= Date.now();
+                            if (Number.isFinite(releaseTime) && releaseTime > Date.now()) return false;
+
+                            // PERSON 43 — a film released after the performer's death is not
+                            // eligible to represent the active career. This generically blocks
+                            // posthumous/archive-footage appearances from the five-film arc.
+                            if (person?.deathday) {
+                              const deathTime = Date.parse(`${person.deathday}T23:59:59Z`);
+                              if (Number.isFinite(releaseTime) && Number.isFinite(deathTime) && releaseTime > deathTime) {
+                                return false;
+                              }
+                            }
+
+                            return true;
                           });
 
                         const sourceSentences = splitBioSentences([wikipediaSummary, wikipediaCareerText, tmdbBio].filter(Boolean).join(" "))
@@ -3352,13 +3372,51 @@
                           to actual credits in this person's filmography. No names or titles are
                           hard-coded.
                         */
-                        const narrativeCareerParts = sourceCareerParts
+                        /*
+                          PERSON 43 — BIOGRAPHY DEPTH FLOOR
+
+                          Person 42 could still collapse a major career to an overview plus a
+                          five-title list when the earlier career extractor returned too few
+                          sentences. Build the narrative pool from BOTH the curated career parts
+                          and the verified source sentences, then keep up to three distinct career
+                          milestones. This preserves Reelwise's compact style while giving major,
+                          long careers an actual story instead of a bare film list.
+                        */
+                        const narrativePool = [...sourceCareerParts, ...sourceSentences]
                           .map(cleanText)
                           .filter(Boolean)
                           .filter(sentence => sentence.length >= 55 && sentence.length <= 300)
-                          .filter(sentence => sentenceMovieMatches(sentence, profileMovies).length > 0)
-                          .filter(sentence => !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children)\b/i.test(sentence))
-                          .slice(0, 2);
+                          .filter(sentence => sentenceMovieMatches(sentence, rawFilms).length > 0)
+                          .filter(sentence => /\b(?:film|movie|role|starred|performance|acting|breakthrough|breakout|prominence|acclaim|award|oscar|academy award|career|directed|portrayed)\b/i.test(sentence))
+                          .filter(sentence => !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|political|activist)\b/i.test(sentence));
+
+                        const narrativeCareerParts = [];
+                        const narrativeKeys = new Set();
+
+                        for (const sentence of narrativePool) {
+                          const key = sentence
+                            .toLowerCase()
+                            .replace(/[^a-z0-9 ]+/g, " ")
+                            .replace(/\s+/g, " ")
+                            .trim();
+
+                          if (!key || narrativeKeys.has(key)) continue;
+
+                          // Avoid near-duplicate source sentences that discuss exactly the same
+                          // set of films. We want career progression, not repetition.
+                          const filmKey = sentenceMovieMatches(sentence, rawFilms)
+                            .map(movie => movie.id)
+                            .sort((a, b) => a - b)
+                            .join("|");
+
+                          if (filmKey && narrativeKeys.has(`films:${filmKey}`)) continue;
+
+                          narrativeCareerParts.push(sentence);
+                          narrativeKeys.add(key);
+                          if (filmKey) narrativeKeys.add(`films:${filmKey}`);
+
+                          if (narrativeCareerParts.length >= 3) break;
+                        }
 
                         selectedCareerParts.push(...narrativeCareerParts);
 
@@ -3376,6 +3434,23 @@
                           if (narrativeCareerParts.length < 2 || alreadyCovered < 3) {
                             selectedCareerParts.push(recap);
                           }
+                        }
+
+                        /*
+                          If the assembled career story is still unusually thin, add one more
+                          verified career sentence. This is a floor, not padding: the sentence must
+                          connect to a real, pre-death film credit and must add new text.
+                        */
+                        const provisionalBiography = [overviewText, ...selectedCareerParts]
+                          .filter(Boolean)
+                          .join(" ");
+
+                        if (provisionalBiography.length < 520) {
+                          const extraCareerSentence = narrativePool.find(sentence =>
+                            !selectedCareerParts.includes(sentence) &&
+                            !overviewText.includes(sentence)
+                          );
+                          if (extraCareerSentence) selectedCareerParts.push(extraCareerSentence);
                         }
 
                         // One concise accolade/legacy sentence may follow the films, but only when
