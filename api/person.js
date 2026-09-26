@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API
+                      REELWISE PERSON API — PERSON 26
                       ============================================================
 
                       NORMAL MODE:
@@ -2371,14 +2371,34 @@
                         .map(cleanText)
                         .filter(Boolean)
                         .filter(sentence =>
-                          !/\b(?:alumna|alumnus|college|university|school of drama|bachelor|master of fine arts|education|advocate|activist|gender parity|labor protections|male gaze|personal life|married|spouse|children)\b/i.test(sentence)
-                        );
+                          !/\b(?:alumna|alumnus|college|university|school of drama|bachelor|master of fine arts|education|advocate|activist|gender parity|labor protections|male gaze|personal life|married|spouse|children|description above from|licensed under|contributors on wikipedia)\b/i.test(sentence)
+                        )
+                        .filter(sentence => {
+                          // The birth date already has its own dedicated field on the Reelwise card.
+                          // Avoid spending biography space repeating it in the opening sentence.
+                          if (/\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/.test(sentence)) {
+                            return true;
+                          }
+                          return true;
+                        });
 
                       const overviewParts = [];
                       let overviewLength = 0;
-                      const OVERVIEW_MAX = 500;
+                      const OVERVIEW_MAX = 390;
 
-                      for (const sentence of overviewSentences) {
+                      for (const rawSentence of overviewSentences) {
+                        let sentence = rawSentence
+                          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/g, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        if (!sentence) continue;
+
+                        // Awards belong at the end of a Reelwise bio, not in the protected opening.
+                        // This prevents a long nomination list from squeezing out the movie story.
+                        const awardHits = (sentence.match(/\b(?:academy award|oscar|golden globe|bafta|emmy|tony|sag|award|awards|nomination|nominations|won|winning)\b/gi) || []).length;
+                        if (awardHits >= 2) continue;
+
                         const addition = sentence.length + (overviewParts.length ? 1 : 0);
                         if (overviewLength + addition > OVERVIEW_MAX) continue;
                         overviewParts.push(sentence);
@@ -2440,9 +2460,18 @@
                         screen credits already returned by TMDB as a compact last-resort career
                         bridge. This is deliberately a fallback, not the primary selector.
                       */
-                      if (!careerParts.some(sentence =>
-                        sentenceMovieMatches(sentence, profileMovies).length > 0
-                      )) {
+                      let biography = "";
+                      const sourceCareerParts = [...careerParts];
+
+                      /*
+                        PERSON 26 — PROTECTED REELWISE CAREER ASSEMBLY
+
+                        Always run the significance-first film selector. Wikipedia career prose is
+                        evidence for selection, not copy to dump onto the profile card. The finished
+                        biography is assembled in a fixed order: concise overview -> protected movie
+                        arc -> at most one short accolade/legacy beat.
+                      */
+                      {
                         /*
                           PERSON 25 — SIGNIFICANCE-FIRST CAREER FILM ARC
 
@@ -2724,29 +2753,40 @@
                           .slice(0, 5)
                           .sort((a, b) => movieYear(a) - movieYear(b));
 
+                        const selectedCareerParts = [];
+
                         if (fallbackFilms.length) {
-                          careerParts = [
+                          selectedCareerParts.push(
                             `Notable film work includes ${formatFilmList(fallbackFilms)}.`
-                          ];
+                          );
                         }
-                      }
 
-                      let careerLength = 0;
+                        // One concise accolade/legacy sentence may follow the films, but only when
+                        // it is short enough to improve the bio rather than become an awards dump.
+                        const accoladeSentence = sourceCareerParts
+                          .map(cleanText)
+                          .filter(Boolean)
+                          .filter(sentence =>
+                            !/\b(?:description above from|licensed under|contributors on wikipedia)\b/i.test(sentence)
+                          )
+                          .filter(sentence =>
+                            /\b(?:academy award|oscar|golden globe|bafta|emmy|tony|honorary|lifetime achievement|award|awards|won)\b/i.test(sentence)
+                          )
+                          .filter(sentence => sentence.length <= 235)
+                          .sort((a, b) => a.length - b.length)[0] || "";
 
-                      for (const sentence of careerParts) {
-                        const addition = sentence.length + (selectedCareerParts.length ? 1 : 0);
-                        if (careerLength + addition > CAREER_MAX) continue;
-                        selectedCareerParts.push(sentence);
-                        careerLength += addition;
-                        if (selectedCareerParts.length >= 4) break;
-                      }
+                        if (accoladeSentence) selectedCareerParts.push(accoladeSentence);
 
-                      let biography = [overviewText, selectedCareerParts.join(" ")]
-                        .filter(Boolean)
-                        .join(" ")
-                        .trim();
+                        biography = [overviewText, ...selectedCareerParts]
+                          .filter(Boolean)
+                          .join(" ")
+                          .replace(/\bDescription above from[^.]*\.?/gi, "")
+                          .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
+                          .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
+                          .replace(/\s+/g, " ")
+                          .trim();
 
-                      biography = biography || wikipediaSummary || tmdbBio || careerBiography || "";
+                      biography = biography || overviewText || cleanText(tmdbBio) || "";
 
                       if (biography.length > 1150) {
                         const fallbackSentences = splitBioSentences(biography);
