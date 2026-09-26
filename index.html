@@ -3110,7 +3110,32 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`
+
+/* PERSON 45 — BIOGRAPHY HANDOFF
+   The fast profile renders first. Then request the richer biography endpoint
+   without blocking the photo, dates, Known For, or filmography. Only the
+   currently displayed person may receive the result, and a late response
+   can never replace the biography of a different star. */
+results.dataset.personId=String(person.id||id);
+const biographyOwner=String(person.id||id);
+fetch("/api/person?id="+encodeURIComponent(biographyOwner)+"&mode=biography&v=45",{cache:"no-store"})
+  .then(response=>{if(!response.ok)throw new Error("Biography upgrade failed");return response.json()})
+  .then(data=>{
+    if(results.dataset.personId!==biographyOwner)return;
+    const bioEl=results.querySelector("#starBio");
+    if(!bioEl)return;
+    const richer=String(data&&data.biography||"").replace(/\s+/g," ").trim();
+    const current=String(bioEl.textContent||"").replace(/\s+/g," ").trim();
+    if(!richer)return;
+    const richerWords=richer.split(/\s+/).filter(Boolean).length;
+    const currentWords=current.split(/\s+/).filter(Boolean).length;
+    if(richerWords>=75&&(richerWords>currentWords||richer.length>current.length+80)){
+      bioEl.textContent=richer;
+    }
+  })
+  .catch(()=>{});
+}catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
 function reelwiseAccoladesShell(safeId,safeName,body,eyebrow="REELWISE ACCOLADES"){
   return `
