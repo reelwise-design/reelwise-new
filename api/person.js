@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 32
+                      REELWISE PERSON API — PERSON 33
                       ============================================================
 
                       NORMAL MODE:
@@ -2347,7 +2347,7 @@
                       let wikipediaSummary = "";
 
                       /*
-                        PERSON 32 PERFORMANCE: these two independent Wikipedia calls
+                        PERSON 33 PERFORMANCE: these two independent Wikipedia calls
                         run concurrently. The browser now requests this biography in the
                         background, so neither call blocks the visible Star page.
                       */
@@ -2714,6 +2714,7 @@
                           let franchise = 0;
                           let later = 0;
                           let awards = 0;
+                          let majorAwardWin = 0;
                           let sourceWeight = 0;
 
                           for (const sentence of filmSentences) {
@@ -2730,6 +2731,14 @@
                             if (/\b(?:academy award|oscar|golden globe|bafta|cannes|screen actors guild|best actor|best actress|best supporting actor|best supporting actress|won|winning|nominated|nomination)\b/i.test(sentence)) {
                               awards += 95;
                               defining += 28;
+
+                              // PERSON 33: distinguish a source sentence that explicitly describes
+                              // a WIN from a generic nomination/awards mention. This gives genuinely
+                              // career-defining award-winning performances extra protection.
+                              if (/\b(?:won|winning|winner)\b/i.test(sentence) &&
+                                  /\b(?:academy award|oscar|golden globe|bafta|cannes|screen actors guild|best actor|best actress|best supporting actor|best supporting actress)\b/i.test(sentence)) {
+                                majorAwardWin += 165;
+                              }
                             }
 
                             if (/\b(?:leading role|lead role|starred|starring|portrayed|played|performance|collaborated|other notable films?|notable films?|successful films?|major films?)\b/i.test(sentence)) {
@@ -2754,7 +2763,8 @@
                             prime,
                             franchise,
                             later,
-                            awards
+                            awards,
+                            majorAwardWin
                           };
                         };
 
@@ -2837,6 +2847,7 @@
                         const anchorStrength = movie => {
                           const ev = milestoneEvidence(movie);
                           return (
+                            ev.majorAwardWin * 2.40 +
                             ev.awards * 2.05 +
                             ev.defining * 1.75 +
                             ev.breakthrough * 1.35 +
@@ -2850,7 +2861,7 @@
                           .filter(movie => billingOrder(movie) <= 5)
                           .filter(movie => {
                             const ev = milestoneEvidence(movie);
-                            return ev.awards >= 90 || ev.defining >= 70 || ev.breakthrough >= 100;
+                            return ev.majorAwardWin >= 160 || ev.awards >= 90 || ev.defining >= 70 || ev.breakthrough >= 100;
                           })
                           .sort((a, b) =>
                             anchorStrength(b) - anchorStrength(a) ||
@@ -2865,17 +2876,17 @@
                         const breakthroughPick = pickMilestone("breakthrough");
                         if (breakthroughPick) addFilm(breakthroughPick);
 
-                        // 2. Protect up to two additional foundational/signature anchors. The second
-                        // anchor must remain reasonably close to the strongest one so ordinary award
-                        // mentions do not consume scarce biography slots.
+                        // 2. Protect up to THREE additional foundational/signature anchors. Person 33
+                        // gives explicit major award wins special protection so a foundational film
+                        // cannot disappear merely to improve chronological spread.
                         let protectedAnchorCount = 0;
                         for (const movie of protectedAnchorPool) {
-                          if (protectedAnchorCount >= 2) break;
+                          if (protectedAnchorCount >= 3) break;
                           if (!canUseFilm(movie)) continue;
 
                           const strength = anchorStrength(movie);
                           const ev = milestoneEvidence(movie);
-                          const explicitMajorAnchor = ev.awards >= 180 || ev.defining >= 140;
+                          const explicitMajorAnchor = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140;
 
                           if (
                             strongestAnchorScore &&
@@ -2924,7 +2935,7 @@
                               const topSig = protectedAnchorPool.length
                                 ? significanceScore(protectedAnchorPool[0])
                                 : sig;
-                              const exceptionalLaterMilestone = ev.awards >= 180 || ev.defining >= 140 || ev.franchise >= 200;
+                              const exceptionalLaterMilestone = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140 || ev.franchise >= 200;
                               return exceptionalLaterMilestone || !topSig || sig >= topSig * 0.66;
                             })
                             .sort((a, b) =>
@@ -2954,7 +2965,7 @@
                               const topSig = protectedAnchorPool.length
                                 ? significanceScore(protectedAnchorPool[0])
                                 : sig;
-                              const exceptional = ev.awards >= 180 || ev.defining >= 140 || ev.breakthrough >= 200;
+                              const exceptional = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140 || ev.breakthrough >= 200;
                               if (!exceptional && topSig && sig < topSig * 0.58) return null;
 
                               const distance = chosen.length
@@ -3354,7 +3365,7 @@
                         }
 
                         /*
-                          PERSON 32 — BACKGROUND BIOGRAPHY MODE
+                          PERSON 33 — BACKGROUND BIOGRAPHY MODE
 
                           The Star page itself is rendered immediately from /api/search.
                           Only the biography waits for the richer Wikipedia/TMDB career
