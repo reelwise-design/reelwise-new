@@ -3523,54 +3523,47 @@
                           const profile = await getPersonProfile(id);
 
                           /*
-                            PERSON 38 — QUALITY-FIRST BIOGRAPHY HANDOFF
+                            PERSON 39 — REELWISE BIO ONLY
 
-                            Person 37 solved the loading delay by keeping Wikipedia work out
-                            of the normal profile request. Person 38 leaves that fast path
-                            untouched and changes only the background biography decision.
-
-                            A long source biography is not automatically a better Reelwise bio.
-                            Prefer the curated career biography whenever it has enough substance.
-                            Fall back to the cleaned source biography only when the curated result
-                            is genuinely too thin to tell a useful career story.
+                            Preserve Person 37/38's fast page architecture, but never hand the
+                            raw source/Wikipedia biography back to the visible Star Profile.
+                            getPersonProfile() already builds the concise Reelwise career story;
+                            the source biography remains internal evidence only.
                           */
-                          const enhancedBiography = removeWikipediaEnding(profile?.biography || "");
-                          const originalBiography = removeWikipediaEnding(profile?.biography_original || "");
+                          let finalBiography = removeWikipediaEnding(profile?.biography || "");
 
-                          const usableSentences = value =>
-                            splitBioSentences(value)
-                              .map(cleanText)
-                              .filter(Boolean)
-                              .filter(sentence =>
-                                !/\b(?:description above from|description from the wikipedia article|licensed under|contributors on wikipedia)\b/i.test(sentence)
-                              );
-
-                          const enhancedSentences = usableSentences(enhancedBiography);
-                          const originalSentences = usableSentences(originalBiography);
-
-                          // A Reelwise bio should be concise but still feel like a career story.
-                          // Three solid sentences / roughly 260 characters is enough to keep the
-                          // curated version. We do NOT replace it merely because the source is longer.
-                          const enhancedIsUsable =
-                            enhancedBiography.length >= 260 &&
-                            enhancedSentences.length >= 3;
-
-                          let finalBiography =
-                            enhancedIsUsable
-                              ? enhancedBiography
-                              : (originalBiography || enhancedBiography || "");
+                          finalBiography = cleanText(finalBiography)
+                            .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
+                            .replace(/\bDescription above from[^.]*\.?/gi, "")
+                            .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, "")
+                            .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
+                            .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
+                            .replace(/\s+/g, " ")
+                            .trim();
 
                           /*
-                            If both versions are thin, prefer whichever actually contains more
-                            usable prose. This is a last-resort fallback only; it never overrides
-                            a developed Reelwise biography.
+                            Safety guard only. Do not substitute biography_original here.
+                            If the career builder ever returns an unexpectedly long paragraph,
+                            keep the strongest opening career sentences rather than exposing
+                            the unedited source biography.
                           */
-                          if (!enhancedIsUsable && originalBiography && enhancedBiography) {
-                            const enhancedScore = enhancedBiography.length + enhancedSentences.length * 90;
-                            const originalScore = originalBiography.length + originalSentences.length * 90;
-                            finalBiography = originalScore > enhancedScore
-                              ? originalBiography
-                              : enhancedBiography;
+                          if (finalBiography.length > 1050) {
+                            const sentences = splitBioSentences(finalBiography)
+                              .map(cleanText)
+                              .filter(Boolean);
+
+                            const compact = [];
+                            let length = 0;
+
+                            for (const sentence of sentences) {
+                              const addition = sentence.length + (compact.length ? 1 : 0);
+                              if (length + addition > 900) break;
+                              compact.push(sentence);
+                              length += addition;
+                              if (compact.length >= 5) break;
+                            }
+
+                            finalBiography = compact.join(" ") || finalBiography.slice(0, 897).replace(/\s+\S*$/, "") + "...";
                           }
 
                           res.setHeader(
@@ -3586,7 +3579,7 @@
                         }
 
                         /*
-                          PERSON 38 — NORMAL STAR PROFILE MODE
+                          PERSON 39 — NORMAL STAR PROFILE MODE
 
                           Do not run the Wikipedia enhancement path here. The page gets
                           TMDB profile/photo/credits immediately; the browser's existing
