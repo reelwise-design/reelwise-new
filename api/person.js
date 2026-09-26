@@ -5,7 +5,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 30
+                      REELWISE PERSON API — PERSON 31
                       ============================================================
 
                       NORMAL MODE:
@@ -37,13 +37,30 @@
                        RESPONSE HELPERS
                        ============================================================ */
 
-                    function setHeaders(res) {
+                    function setHeaders(res, status = 200) {
                       res.setHeader("Content-Type", "application/json; charset=utf-8");
-                      res.setHeader("Cache-Control", "no-store, max-age=0");
+
+                      /*
+                        PERSON 31 — PERFORMANCE CACHE
+
+                        Successful public person responses can be reused by Vercel's edge cache.
+                        Browsers still revalidate normally, while the shared cache can serve a
+                        warm profile immediately and refresh it in the background.
+
+                        Never cache errors or temporary upstream failures.
+                      */
+                      if (status >= 200 && status < 300) {
+                        res.setHeader(
+                          "Cache-Control",
+                          "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
+                        );
+                      } else {
+                        res.setHeader("Cache-Control", "no-store, max-age=0");
+                      }
                     }
 
                     function sendJSON(res, status, payload) {
-                      setHeaders(res);
+                      setHeaders(res, status);
                       return res.status(status).json(payload);
                     }
 
@@ -2343,20 +2360,29 @@
                         Primary biography source: richer Wikipedia article text.
                         Fallback: Wikipedia summary, then TMDB biography.
                       */
-                      let wikipediaCareerText = "";
-                      let wikipediaSummary = "";
+                      /*
+                        PERSON 31 — PARALLEL BIOGRAPHY FETCH
 
-                      try {
-                        wikipediaCareerText = await getWikipediaCareerText(person?.name || "");
-                      } catch (error) {
-                        wikipediaCareerText = "";
-                      }
+                        Person 30 waited for the full Wikipedia career lookup and only then
+                        started the Wikipedia summary lookup. They are independent requests,
+                        so run them at the same time. This preserves the exact biography
+                        selection logic below while removing an unnecessary network wait from
+                        every uncached actor-page load.
+                      */
+                      const [wikipediaCareerResult, wikipediaSummaryResult] = await Promise.allSettled([
+                        getWikipediaCareerText(person?.name || ""),
+                        getWikipediaBiography(person?.name || "")
+                      ]);
 
-                      try {
-                        wikipediaSummary = await getWikipediaBiography(person?.name || "");
-                      } catch (error) {
-                        wikipediaSummary = "";
-                      }
+                      const wikipediaCareerText =
+                        wikipediaCareerResult.status === "fulfilled"
+                          ? wikipediaCareerResult.value
+                          : "";
+
+                      const wikipediaSummary =
+                        wikipediaSummaryResult.status === "fulfilled"
+                          ? wikipediaSummaryResult.value
+                          : "";
 
                       /*
                         PERSON 22 — OVERVIEW + CAREER STORY
