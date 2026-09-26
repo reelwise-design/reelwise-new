@@ -2343,6 +2343,18 @@
                        usable first biography. Return that fast payload immediately.
                        The separate ?mode=biography request may enhance the text later.
                     */
+                    function calculatePersonAge(birthday, deathday = null) {
+                      if (!birthday) return null;
+                      const birth = new Date(`${birthday}T12:00:00`);
+                      const end = deathday ? new Date(`${deathday}T12:00:00`) : new Date();
+                      if (Number.isNaN(birth.getTime()) || Number.isNaN(end.getTime())) return null;
+
+                      let age = end.getFullYear() - birth.getFullYear();
+                      const monthDelta = end.getMonth() - birth.getMonth();
+                      if (monthDelta < 0 || (monthDelta === 0 && end.getDate() < birth.getDate())) age -= 1;
+                      return age >= 0 ? age : null;
+                    }
+
                     async function getFastPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -2410,7 +2422,7 @@
                         );
 
                       /*
-                        PERSON 41 — FIVE DISTINCT CAREER LANDMARKS
+                        PERSON 42 — SIGNIFICANT CAREER LANDMARKS
 
                         Keep Person 40's instant first paint, but make the five-film recap
                         represent different career chapters. Do not let sequels or recurring
@@ -2470,14 +2482,40 @@
                       }
 
                       const strength = film =>
-                        Math.log10(Math.max(film.votes, 1)) * 34 +
-                        Math.max(film.score - 5, 0) * 8 +
+                        Math.log10(Math.max(film.votes, 1)) * 38 +
+                        Math.max(film.score - 5, 0) * 9 +
                         Math.min(film.popularity, 80) * 0.08;
 
-                      // Build five chronological career bands from the actor's actual film
-                      // span. Within each band, choose the strongest film that represents a
-                      // franchise/role not already used by another band.
-                      const byYear = [...uniqueFilms].sort((a, b) => a.year - b.year);
+                      /*
+                        PERSON 42 — SIGNIFICANCE BEFORE CHRONOLOGY
+
+                        Person 41 proved that five career bands give good chronological spread,
+                        but Morgan Freeman exposed the weakness of forcing a winner from every
+                        band: minor early credits such as The Pawnbroker and Brubaker could beat
+                        genuinely defining work simply because they occupied an early era.
+
+                        Keep the five-stage idea, but only let a film represent an era when it is
+                        strong enough compared with the person's strongest screen credits. Empty
+                        eras are allowed; their slots are filled by stronger DISTINCT landmarks.
+                      */
+                      const rankedByStrength = [...uniqueFilms].sort((a, b) => strength(b) - strength(a));
+                      const strongestFastScore = rankedByStrength.length ? strength(rankedByStrength[0]) : 0;
+
+                      const isFastLandmark = film => {
+                        const s = strength(film);
+                        const relativeFloor = strongestFastScore ? strongestFastScore * 0.72 : 0;
+                        const broadAudience = film.votes >= 900;
+                        const strongAudience = film.votes >= 350 && film.score >= 6.8;
+                        const majorPopularity = film.popularity >= 22 && film.votes >= 250;
+                        return s >= relativeFloor && (broadAudience || strongAudience || majorPopularity);
+                      };
+
+                      const landmarkPool = uniqueFilms.filter(isFastLandmark);
+                      const selectionPool = landmarkPool.length >= 3 ? landmarkPool : rankedByStrength.slice(0, Math.min(12, rankedByStrength.length));
+
+                      // Build five chronological career bands from the actor's meaningful film
+                      // span. A weak era is skipped instead of forcing a minor credit into the bio.
+                      const byYear = [...selectionPool].sort((a, b) => a.year - b.year);
                       const selectedFastFilms = [];
 
                       if (byYear.length) {
@@ -2492,7 +2530,7 @@
                             ? maxYear
                             : minYear + Math.floor((span * (band + 1)) / bands) - 1;
 
-                          const options = uniqueFilms
+                          const options = selectionPool
                             .filter(f => f.year >= startYear && f.year <= endYear)
                             .filter(f => !selectedFastFilms.some(existing => sameFastFranchise(f, existing)))
                             .sort((a, b) => strength(b) - strength(a) || a.year - b.year);
@@ -2504,7 +2542,7 @@
                       // Empty career bands are possible. Fill them with the strongest
                       // remaining DISTINCT career landmarks, never another installment of
                       // a franchise/recurring role that is already represented.
-                      const fillPool = [...uniqueFilms].sort((a, b) => strength(b) - strength(a) || a.year - b.year);
+                      const fillPool = [...selectionPool].sort((a, b) => strength(b) - strength(a) || a.year - b.year);
                       for (const film of fillPool) {
                         if (selectedFastFilms.length >= 5) break;
                         if (selectedFastFilms.some(existing => sameFastFranchise(film, existing))) continue;
@@ -2536,6 +2574,8 @@
                         biography_original: rawFastBio,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
+                        age: person?.deathday ? null : calculatePersonAge(person?.birthday),
+                        age_at_death: person?.deathday ? calculatePersonAge(person?.birthday, person?.deathday) : null,
                         combined_credits:
                           person?.combined_credits && typeof person.combined_credits === "object"
                             ? person.combined_credits
@@ -3420,6 +3460,8 @@
                         biography_original: tmdbBio,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
+                        age: person?.deathday ? null : calculatePersonAge(person?.birthday),
+                        age_at_death: person?.deathday ? calculatePersonAge(person?.birthday, person?.deathday) : null,
                         combined_credits:
                           person?.combined_credits &&
                           typeof person.combined_credits === "object"
