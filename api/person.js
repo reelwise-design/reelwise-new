@@ -294,27 +294,74 @@
                     async function getWikipediaSources(name) {
                       try {
                         /*
-                          PERSON 21 PERFORMANCE — ONE WIKIPEDIA ROUND TRIP
+                          PERSON 22 PERFORMANCE — FAST COLD LOAD
 
-                          Ask MediaWiki to search for the performer AND return the
-                          matched article's plain-text extract in the same request.
-                          This replaces the previous sequence of:
-                            1. search request
-                            2. REST summary request
-                            3. full HTML parse request
+                          Person 21 used generator=search with gsrlimit=5 while also asking
+                          MediaWiki for full extracts. On a cold request that could make
+                          Wikipedia build and return several large articles even though
+                          Reelwise only needs ONE performer article.
 
-                          The full extract still feeds the existing Reelwise career
-                          selector, while its opening sentences provide the summary.
-                          Biography quality rules below remain unchanged.
+                          Person 22 first asks for the exact page title (the TMDB person name)
+                          and its extract directly. For the overwhelming majority of movie
+                          stars this resolves in one request, with redirects handled by
+                          MediaWiki. Only if the exact title is missing/disambiguated do we
+                          fall back to search — and that fallback requests just ONE result.
                         */
-                        const sourceUrl =
+                        const buildSource = page => {
+                          if (!page || page.missing !== undefined || page?.pageprops?.disambiguation !== undefined) {
+                            return null;
+                          }
+
+                          let careerText = cleanText(page?.extract || "")
+                            .replace(/\[edit\]/gi, " ")
+                            .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
+                            .replace(/\s+/g, " ")
+                            .trim()
+                            .slice(0, 65000);
+
+                          if (!careerText || careerText.length < 80) return null;
+
+                          const openingSentences = splitBioSentences(careerText)
+                            .map(cleanText)
+                            .filter(Boolean)
+                            .slice(0, 8);
+
+                          let summary = removeWikipediaEnding(openingSentences.join(" "));
+                          if (summary.length > 1800) {
+                            summary = summary.slice(0, 1800).replace(/\s+\S*$/, "").trim();
+                          }
+                          if (summary.length < 80) summary = "";
+
+                          return { summary, careerText };
+                        };
+
+                        const exactUrl =
+                          "https://en.wikipedia.org/w/api.php?" +
+                          new URLSearchParams({
+                            action: "query",
+                            titles: String(name || "").trim(),
+                            redirects: "1",
+                            prop: "extracts|pageprops",
+                            explaintext: "1",
+                            exsectionformat: "plain",
+                            format: "json",
+                            origin: "*"
+                          });
+
+                        const exactData = await fetchJSON(exactUrl, {}, 3500);
+                        const exactPages = Object.values(exactData?.query?.pages || {});
+                        const exactSource = buildSource(exactPages[0]);
+                        if (exactSource) return exactSource;
+
+                        // Rare fallback for stage names, suffixes, ambiguous names, etc.
+                        const searchUrl =
                           "https://en.wikipedia.org/w/api.php?" +
                           new URLSearchParams({
                             action: "query",
                             generator: "search",
-                            gsrsearch: name,
-                            gsrlimit: "5",
-                            prop: "extracts",
+                            gsrsearch: String(name || "").trim(),
+                            gsrlimit: "1",
+                            prop: "extracts|pageprops",
                             explaintext: "1",
                             exsectionformat: "plain",
                             redirects: "1",
@@ -322,41 +369,9 @@
                             origin: "*"
                           });
 
-                        const data = await fetchJSON(sourceUrl, {}, 5000);
-                        const pages = Object.values(data?.query?.pages || {});
-                        if (!pages.length) return { summary: "", careerText: "" };
-
-                        const normalizedName = String(name || "").trim().toLowerCase();
-                        const page =
-                          pages.find(item => String(item?.title || "").trim().toLowerCase() === normalizedName) ||
-                          pages.sort((a, b) => Number(a?.index || 999) - Number(b?.index || 999))[0];
-
-                        let careerText = cleanText(page?.extract || "")
-                          .replace(/\[edit\]/gi, " ")
-                          .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
-                          .replace(/\s+/g, " ")
-                          .trim()
-                          .slice(0, 65000);
-
-                        if (!careerText || careerText.length < 80) {
-                          return { summary: "", careerText: "" };
-                        }
-
-                        // Build the overview from the same already-loaded article.
-                        // Keep enough opening material for the existing overview engine
-                        // without making another network request.
-                        const openingSentences = splitBioSentences(careerText)
-                          .map(cleanText)
-                          .filter(Boolean)
-                          .slice(0, 8);
-
-                        let summary = removeWikipediaEnding(openingSentences.join(" "));
-                        if (summary.length > 1800) {
-                          summary = summary.slice(0, 1800).replace(/\s+\S*$/, "").trim();
-                        }
-                        if (summary.length < 80) summary = "";
-
-                        return { summary, careerText };
+                        const searchData = await fetchJSON(searchUrl, {}, 3500);
+                        const searchPages = Object.values(searchData?.query?.pages || {});
+                        return buildSource(searchPages[0]) || { summary: "", careerText: "" };
                       } catch (error) {
                         console.error("Wikipedia source bundle error:", error);
                         return { summary: "", careerText: "" };
