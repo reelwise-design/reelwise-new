@@ -409,6 +409,26 @@
                         .filter(Boolean);
                     }
 
+                    /*
+                      PERSON 24 — ORPHANED BIOGRAPHY PUNCTUATION CLEANUP
+
+                      Wikipedia can contain pronunciation / alternate-name markup inside
+                      the opening parenthetical. After that markup is stripped, punctuation
+                      can be left behind, e.g. "Marlon Brando ( ; April 3, 1924 ... )".
+                      Remove only punctuation that has clearly become orphaned; do not alter
+                      normal punctuation inside names, dates, numbers, or prose.
+                    */
+                    function cleanOrphanedBiographyPunctuation(value) {
+                      return String(value || "")
+                        .replace(/\(\s*[;,]\s*(?=[A-Z][a-z]+\s+\d{1,2},\s+\d{4})/g, "(")
+                        .replace(/\(\s*[;,]\s*(?=\d{4}\b)/g, "(")
+                        .replace(/[;,]\s*\)/g, ")")
+                        .replace(/\(\s+/g, "(")
+                        .replace(/\s+\)/g, ")")
+                        .replace(/\s+/g, " ")
+                        .trim();
+                    }
+
                     function cleanBiographySource(value, personName = "") {
                       let text = cleanText(value);
 
@@ -3644,6 +3664,8 @@
                         .replace(/\s+/g, " ")
                         .trim();
 
+                      biography = cleanOrphanedBiographyPunctuation(biography);
+
                       if (biography.length > 1150) {
                         const fallbackSentences = splitBioSentences(biography);
                         const compactFallback = [];
@@ -3994,6 +4016,8 @@
                             .replace(/\s+/g, " ")
                             .trim();
 
+                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
+
                           /*
                             PERSON 44 — BACKGROUND BIOGRAPHY RESCUE
 
@@ -4079,6 +4103,8 @@
                             keep the strongest opening career sentences rather than exposing
                             the unedited source biography.
                           */
+                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
+
                           if (finalBiography.length > 1050) {
                             const sentences = splitBioSentences(finalBiography)
                               .map(cleanText)
