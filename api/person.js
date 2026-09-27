@@ -3,6 +3,40 @@
                     const TMDB_BASE = "https://api.themoviedb.org/3";
                     const OSCARBASE_BASE = "https://api.oscarbase.com/api";
 
+                    /* ============================================================
+                       PERSON 20 — FINISHED BIOGRAPHY CACHE
+                       ============================================================
+
+                       Keep completed Reelwise biographies in the warm Vercel
+                       function instance and deduplicate simultaneous requests.
+                       The response is also browser/CDN cacheable so revisiting an
+                       actor does not rebuild the Wikipedia career story.
+                    */
+                    const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+                    const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
+                    const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
+                    globalThis.__reelwiseBiographyCache = biographyCache;
+                    globalThis.__reelwiseBiographyInflight = biographyInflight;
+
+                    function getCachedBiography(personId) {
+                      const key = String(personId || "");
+                      const cached = biographyCache.get(key);
+                      if (!cached) return null;
+                      if (Date.now() - cached.savedAt > BIOGRAPHY_CACHE_TTL_MS) {
+                        biographyCache.delete(key);
+                        return null;
+                      }
+                      return cached.payload || null;
+                    }
+
+                    function saveCachedBiography(personId, payload) {
+                      biographyCache.set(String(personId || ""), {
+                        savedAt: Date.now(),
+                        payload
+                      });
+                      return payload;
+                    }
+
                     /*
                       ============================================================
                       REELWISE PERSON API — PERSON 38
@@ -3904,7 +3938,18 @@
                           from blocking the photo, name, Known For and Filmography.
                         */
                         if (mode === "biography") {
-                          const profile = await getPersonProfile(id);
+                          const cachedBiography = getCachedBiography(id);
+                          if (cachedBiography) {
+                            res.setHeader("X-Reelwise-Biography-Cache", "HIT");
+                            res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
+                            return res.status(200).json(cachedBiography);
+                          }
+
+                          let biographyPromise = biographyInflight.get(id);
+
+                          if (!biographyPromise) {
+                            biographyPromise = (async () => {
+                              const profile = await getPersonProfile(id);
 
                           /*
                             PERSON 39 — REELWISE BIO ONLY
@@ -4029,16 +4074,24 @@
                             finalBiography = compact.join(" ") || finalBiography.slice(0, 897).replace(/\s+\S*$/, "") + "...";
                           }
 
-                          res.setHeader(
-                            "Cache-Control",
-                            "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
-                          );
+                              const payload = {
+                                person_id: profile?.id || Number(id),
+                                name: profile?.name || "",
+                                biography: finalBiography
+                              };
 
-                          return res.status(200).json({
-                            person_id: profile?.id || Number(id),
-                            name: profile?.name || "",
-                            biography: finalBiography
-                          });
+                              return saveCachedBiography(id, payload);
+                            })().finally(() => {
+                              biographyInflight.delete(id);
+                            });
+
+                            biographyInflight.set(id, biographyPromise);
+                          }
+
+                          const payload = await biographyPromise;
+                          res.setHeader("X-Reelwise-Biography-Cache", "MISS");
+                          res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
+                          return res.status(200).json(payload);
                         }
 
                         /*
