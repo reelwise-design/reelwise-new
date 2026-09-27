@@ -433,6 +433,20 @@
                       let text = cleanText(value);
 
                       /*
+                        PERSON 25 — WIKIPEDIA BOILERPLATE + DUPLICATE-INTRO CLEANUP
+
+                        Some less-famous performer pages can leak Wikipedia chrome into the
+                        extracted lead (for example, "From Wikipedia, the free encyclopedia.")
+                        and can repeat the opening identity sentence. Strip that generically
+                        before the existing biography selector sees the text.
+                      */
+                      text = text
+                        .replace(/^\s*From Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
+                        .replace(/^\s*Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
+                        .replace(/^\s*Jump to navigation\s+Jump to search\s*/i, "")
+                        .trim();
+
+                      /*
                         Remove Wikipedia navigation / hatnote language that can leak into
                         parsed article text. Keep this separate from awards logic.
                       */
@@ -460,7 +474,28 @@
                         ""
                       );
 
-                      return text.trim();
+                      /*
+                        Remove repeated sentences while preserving their original order.
+                        This catches duplicated Wikipedia lead material without hard-coding
+                        any performer. Normalization ignores punctuation/case only; genuinely
+                        different career sentences remain untouched.
+                      */
+                      const deduped = [];
+                      const seenSentences = new Set();
+                      for (const sentence of splitBioSentences(text)) {
+                        const cleaned = cleanText(sentence);
+                        const key = cleaned
+                          .toLowerCase()
+                          .replace(/[^a-z0-9]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+                        if (!cleaned || !key || seenSentences.has(key)) continue;
+                        seenSentences.add(key);
+                        deduped.push(cleaned);
+                      }
+
+                      text = deduped.join(" ") || text;
+                      return cleanOrphanedBiographyPunctuation(text.trim());
                     }
 
                     function stripWikiMarkup(value) {
