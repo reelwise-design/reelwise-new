@@ -3054,19 +3054,11 @@ function compactStarBio(person,knownMovies,allMovies){
 
 async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const [searchResponse,profileResponse]=await Promise.all([fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),fetch("/api/person?id="+encodeURIComponent(id))]);const searchPerson=await searchResponse.json();if(!searchResponse.ok)throw new Error(searchPerson.error||"Actor could not be loaded.");let profilePerson={};if(profileResponse.ok){profilePerson=await profileResponse.json();}else{try{profilePerson=await profileResponse.json();}catch(error){profilePerson={};}}let person={...searchPerson,...profilePerson,combined_credits:searchPerson.combined_credits||profilePerson.combined_credits};
 
-/* PERSON 46 — FINAL BIOGRAPHY BEFORE FIRST RENDER
-   Keep the Loading star screen visible until the richer Reelwise biography
-   has finished. This prevents the short/default biography from flashing first
-   and then expanding on screen. If the richer biography request fails, the
-   normal profile biography remains available as a safe fallback. */
-try{
-  const biographyResponse=await fetch("/api/person?id="+encodeURIComponent(person.id||id)+"&mode=biography&v=46",{cache:"no-store"});
-  if(biographyResponse.ok){
-    const biographyData=await biographyResponse.json();
-    const richer=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim();
-    if(richer){person={...person,biography:richer};}
-  }
-}catch(error){}
+/* PERSON 47 — FAST PROFILE / FULL BIOGRAPHY HANDOFF
+   Render the actor profile as soon as the core person requests finish.
+   Do NOT show the short/default biography. The biography area gets a quiet
+   loading state, then the final Reelwise biography is inserted once. */
+const fallbackBiography=String(person.biography||"").replace(/\s+/g," ").trim();
 
 const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
 
@@ -3126,7 +3118,26 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio">${escapeHTML(person.biography||compactStarBio(person,known,movies))}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio"><span style="color:var(--muted)">Loading biography…</span></div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`
+
+/* PERSON 47 — LOAD ONLY THE FINAL BIOGRAPHY AFTER THE PROFILE IS VISIBLE */
+try{
+  const biographyResponse=await fetch("/api/person?id="+encodeURIComponent(person.id||id)+"&mode=biography&v=47",{cache:"no-store"});
+  let finalBiography="";
+  if(biographyResponse.ok){
+    const biographyData=await biographyResponse.json();
+    finalBiography=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim();
+  }
+  const bioBox=document.getElementById("starBio");
+  if(bioBox){
+    const safeBiography=finalBiography||fallbackBiography||compactStarBio(person,known,movies);
+    bioBox.textContent=safeBiography;
+  }
+}catch(error){
+  const bioBox=document.getElementById("starBio");
+  if(bioBox){bioBox.textContent=fallbackBiography||compactStarBio(person,known,movies);}
+}
+
 
 }catch(error){results.innerHTML='<div class="message">'+escapeHTML(error.message)+'</div>'}}
 
