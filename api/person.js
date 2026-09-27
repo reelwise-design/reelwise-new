@@ -283,6 +283,33 @@
 
 
                     /* ============================================================
+                       PERSON 27 — WIKIPEDIA BIRTHDAY FALLBACK
+                       ============================================================ */
+                    function extractWikipediaBirthday(text) {
+                      const value = cleanText(text || "");
+                      if (!value) return null;
+
+                      const months = {
+                        january: "01", february: "02", march: "03", april: "04",
+                        may: "05", june: "06", july: "07", august: "08",
+                        september: "09", october: "10", november: "11", december: "12"
+                      };
+
+                      // Wikipedia summaries commonly begin with "(born Month D, YYYY)".
+                      const match = value.match(/\b(?:born\s+)?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b/i);
+                      if (!match) return null;
+
+                      const month = months[match[1].toLowerCase()];
+                      const day = String(Number(match[2])).padStart(2, "0");
+                      const year = match[3];
+                      const iso = `${year}-${month}-${day}`;
+                      const parsed = new Date(`${iso}T12:00:00Z`);
+                      if (Number.isNaN(parsed.getTime())) return null;
+                      if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() + 1 !== Number(month) || parsed.getUTCDate() !== Number(day)) return null;
+                      return iso;
+                    }
+
+                    /* ============================================================
                        PERSON 45 — FASTER WIKIPEDIA SOURCE LOAD
                        ============================================================
 
@@ -496,6 +523,74 @@
 
                       text = deduped.join(" ") || text;
                       return cleanOrphanedBiographyPunctuation(text.trim());
+                    }
+
+                    /*
+                      PERSON 26 — FINAL OUTPUT BIOGRAPHY SANITIZER
+
+                      Run one last generic cleanup on the biography that is actually sent
+                      to the browser. This is intentionally downstream of every biography
+                      source/selector so Wikipedia chrome or duplicated lead material cannot
+                      be reintroduced after an earlier cleanup pass.
+                    */
+                    function cleanFinalBiographyOutput(value) {
+                      let text = cleanText(value)
+                        .replace(/(?:^|\s)From Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
+                        .replace(/(?:^|\s)Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
+                        .replace(/(?:^|\s)Jump to navigation\s+Jump to search\s*/gi, " ")
+                        .replace(/\bDescription above from[^.]*\.?/gi, " ")
+                        .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, " ")
+                        .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, " ")
+                        .replace(/\bfull list of contributors on Wikipedia\.?/gi, " ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      text = cleanOrphanedBiographyPunctuation(text);
+
+                      const sentences = splitBioSentences(text)
+                        .map(sentence => cleanText(sentence))
+                        .filter(Boolean);
+
+                      const kept = [];
+                      const normalized = [];
+
+                      const keyFor = sentence => sentence
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, " ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      for (const sentence of sentences) {
+                        const key = keyFor(sentence);
+                        if (!key) continue;
+
+                        // Exact duplicate sentence.
+                        if (normalized.includes(key)) continue;
+
+                        // Near-duplicate lead sentence. This catches cases where one copy
+                        // has a small prefix/suffix difference but repeats the same identity
+                        // and role information.
+                        const words = new Set(key.split(" ").filter(word => word.length > 2));
+                        let duplicate = false;
+
+                        for (const priorKey of normalized) {
+                          const priorWords = new Set(priorKey.split(" ").filter(word => word.length > 2));
+                          if (!words.size || !priorWords.size) continue;
+                          let shared = 0;
+                          for (const word of words) if (priorWords.has(word)) shared += 1;
+                          const overlap = shared / Math.min(words.size, priorWords.size);
+                          if (overlap >= 0.86) {
+                            duplicate = true;
+                            break;
+                          }
+                        }
+
+                        if (duplicate) continue;
+                        kept.push(sentence);
+                        normalized.push(key);
+                      }
+
+                      return cleanOrphanedBiographyPunctuation((kept.join(" ") || text).trim());
                     }
 
                     function stripWikiMarkup(value) {
@@ -2826,6 +2921,10 @@
                       wikipediaCareerText = wikipediaSources.careerText || "";
                       wikipediaSummary = wikipediaSources.summary || "";
 
+                      // PERSON 27: TMDB remains authoritative. Only fill a missing birthday
+                      // from a complete Month D, YYYY date present in the Wikipedia summary.
+                      const resolvedBirthday = person?.birthday || extractWikipediaBirthday(wikipediaSummary) || null;
+
                       /*
                         PERSON 22 — OVERVIEW + CAREER STORY
 
@@ -3737,10 +3836,11 @@
                         biography,
                         biography_original: tmdbBio,
                         wikipedia_summary_internal: wikipediaSummary,
+                        birthday: resolvedBirthday,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
-                        age: person?.deathday ? null : calculatePersonAge(person?.birthday),
-                        age_at_death: person?.deathday ? calculatePersonAge(person?.birthday, person?.deathday) : null,
+                        age: person?.deathday ? null : calculatePersonAge(resolvedBirthday),
+                        age_at_death: person?.deathday ? calculatePersonAge(resolvedBirthday, person?.deathday) : null,
                         combined_credits:
                           person?.combined_credits &&
                           typeof person.combined_credits === "object"
@@ -4140,6 +4240,9 @@
                           */
                           finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
 
+                          // PERSON 26: sanitize the exact string that will be returned.
+                          finalBiography = cleanFinalBiographyOutput(finalBiography);
+
                           if (finalBiography.length > 1050) {
                             const sentences = splitBioSentences(finalBiography)
                               .map(cleanText)
@@ -4159,10 +4262,17 @@
                             finalBiography = compact.join(" ") || finalBiography.slice(0, 897).replace(/\s+\S*$/, "") + "...";
                           }
 
+                              // Run again after compaction so the response itself is guaranteed clean.
+                              finalBiography = cleanFinalBiographyOutput(finalBiography);
+
                               const payload = {
                                 person_id: profile?.id || Number(id),
                                 name: profile?.name || "",
-                                biography: finalBiography
+                                biography: finalBiography,
+                                birthday: profile?.birthday || null,
+                                deathday: profile?.deathday || null,
+                                age: profile?.age ?? null,
+                                age_at_death: profile?.age_at_death ?? null
                               };
 
                               return saveCachedBiography(id, payload);
