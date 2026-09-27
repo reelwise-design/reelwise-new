@@ -470,6 +470,8 @@
                       text = text
                         .replace(/^\s*From Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
                         .replace(/^\s*Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
+                        .replace(/^From\s+(?=[A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3}\s*\()/, "")
+                        .replace(/\s*\(\s*born\s+at\s+[^)]+\)/gi, "")
                         .replace(/^\s*Jump to navigation\s+Jump to search\s*/i, "")
                         .trim();
 
@@ -537,6 +539,13 @@
                       let text = cleanText(value)
                         .replace(/(?:^|\s)From Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
                         .replace(/(?:^|\s)Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
+                        // PERSON 28: after Wikipedia chrome is stripped, some small pages
+                        // can leave a stranded "From" directly before the subject's name.
+                        .replace(/^From\s+(?=[A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3}\s*\()/, "")
+                        // Wikipedia occasionally exposes a malformed location-only birth
+                        // parenthetical such as "(born at Toronto)". It is not a birthday,
+                        // so remove it from prose rather than presenting it as biographical data.
+                        .replace(/\s*\(\s*born\s+at\s+[^)]+\)/gi, "")
                         .replace(/(?:^|\s)Jump to navigation\s+Jump to search\s*/gi, " ")
                         .replace(/\bDescription above from[^.]*\.?/gi, " ")
                         .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, " ")
