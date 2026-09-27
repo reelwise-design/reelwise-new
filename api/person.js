@@ -294,7 +294,13 @@
                     async function getWikipediaSources(name) {
                       try {
                         /*
-                          PERSON 22 PERFORMANCE — FAST COLD LOAD
+                          PERSON 23 PERFORMANCE — FAST + SAFE COLD LOAD
+
+                          Person 23 requests Wikipedia's lead extract instead of the entire
+                          article on the critical biography path. Reelwise already has TMDB
+                          combined credits for the career-film selection, so downloading a full
+                          Wikipedia article before rendering the biography adds latency without
+                          being necessary for the visible profile.
 
                           Person 21 used generator=search with gsrlimit=5 while also asking
                           MediaWiki for full extracts. On a cold request that could make
@@ -343,6 +349,7 @@
                             redirects: "1",
                             prop: "extracts|pageprops",
                             explaintext: "1",
+                            exintro: "1",
                             exsectionformat: "plain",
                             format: "json",
                             origin: "*"
@@ -363,6 +370,7 @@
                             gsrlimit: "1",
                             prop: "extracts|pageprops",
                             explaintext: "1",
+                            exintro: "1",
                             exsectionformat: "plain",
                             redirects: "1",
                             format: "json",
@@ -383,8 +391,22 @@
                        ============================================================ */
 
                     function splitBioSentences(value) {
-                      return cleanText(value)
-                        .match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [];
+                      /*
+                        PERSON 23 — SAFE SENTENCE SPLITTING
+
+                        Protect punctuation that belongs inside numbers before splitting.
+                        Person 22 could turn "$6.8 billion" into the broken sentence
+                        "Her films have grossed over $6." because the decimal point was
+                        mistaken for the end of a sentence.
+                      */
+                      const DECIMAL_TOKEN = "__REELWISE_DECIMAL__";
+                      const protectedText = cleanText(value)
+                        .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`);
+
+                      return (protectedText
+                        .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [])
+                        .map(s => s.replaceAll(DECIMAL_TOKEN, ".").trim())
+                        .filter(Boolean);
                     }
 
                     function cleanBiographySource(value, personName = "") {
