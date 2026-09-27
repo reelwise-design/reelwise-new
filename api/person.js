@@ -249,6 +249,100 @@
 
 
                     /* ============================================================
+                       PERSON 45 — FASTER WIKIPEDIA SOURCE LOAD
+                       ============================================================
+
+                       Resolve the Wikipedia page title once, then request the summary
+                       and full article text in parallel. The previous biography path
+                       searched Wikipedia twice (once for each source), and the rescue
+                       path could search/fetch the summary a third time.
+                    */
+                    async function getWikipediaSources(name) {
+                      try {
+                        const searchUrl =
+                          "https://en.wikipedia.org/w/api.php?" +
+                          new URLSearchParams({
+                            action: "query",
+                            list: "search",
+                            srsearch: name,
+                            format: "json",
+                            origin: "*"
+                          });
+
+                        const searchData = await fetchJSON(searchUrl, {}, 6500);
+                        const results = searchData?.query?.search || [];
+                        if (!results.length) return { summary: "", careerText: "" };
+
+                        const exactMatch = results.find(
+                          item => item.title && item.title.toLowerCase() === String(name).toLowerCase()
+                        );
+                        const pageTitle = exactMatch?.title || results[0]?.title;
+                        if (!pageTitle) return { summary: "", careerText: "" };
+
+                        const summaryUrl =
+                          "https://en.wikipedia.org/api/rest_v1/page/summary/" +
+                          encodeURIComponent(pageTitle);
+
+                        const parseUrl =
+                          "https://en.wikipedia.org/w/api.php?" +
+                          new URLSearchParams({
+                            action: "parse",
+                            page: pageTitle,
+                            prop: "text|sections",
+                            format: "json",
+                            origin: "*"
+                          });
+
+                        const [summaryResult, parseResult] = await Promise.allSettled([
+                          fetchJSON(summaryUrl, {}, 6500),
+                          fetchJSON(parseUrl, {}, 7000)
+                        ]);
+
+                        let summary = "";
+                        if (summaryResult.status === "fulfilled") {
+                          const summaryData = summaryResult.value;
+                          summary = removeWikipediaEnding(cleanText(summaryData?.extract || ""));
+                          if (summaryData?.type === "disambiguation" || summary.length < 80) summary = "";
+                        }
+
+                        let careerText = "";
+                        if (parseResult.status === "fulfilled") {
+                          const html = parseResult.value?.parse?.text?.["*"] || "";
+                          if (html) {
+                            careerText = html
+                              .replace(/<style[\s\S]*?<\/style>/gi, " ")
+                              .replace(/<script[\s\S]*?<\/script>/gi, " ")
+                              .replace(/<table[\s\S]*?<\/table>/gi, " ")
+                              .replace(/<figure[\s\S]*?<\/figure>/gi, " ")
+                              .replace(/<h[1-6]\b[\s\S]*?<\/h[1-6]>/gi, " ")
+                              .replace(/<span\b[^>]*class=["'][^"']*mw-editsection[^"']*["'][^>]*>[\s\S]*?<\/span>/gi, " ")
+                              .replace(/<sup[\s\S]*?<\/sup>/gi, " ")
+                              .replace(/<li\b[^>]*>/gi, " ")
+                              .replace(/<\/li>/gi, ". ")
+                              .replace(/<\/p>/gi, ". ")
+                              .replace(/<br\s*\/?>/gi, " ")
+                              .replace(/<[^>]+>/g, " ");
+
+                            careerText = cleanText(careerText)
+                              .replace(/\[\d+\]/g, "")
+                              .replace(/\[\s*edit\s*\]/gi, " ")
+                              .replace(/\b(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b\s*(?=\d{4}|$)/gi, " ")
+                              .replace(/\s+\./g, ".")
+                              .replace(/\.{2,}/g, ".")
+                              .trim()
+                              .slice(0, 65000);
+                          }
+                        }
+
+                        return { summary, careerText };
+                      } catch (error) {
+                        console.error("Wikipedia source bundle error:", error);
+                        return { summary: "", careerText: "" };
+                      }
+                    }
+
+
+                    /* ============================================================
                        NORMAL PERSON PROFILE
                        ============================================================ */
 
@@ -2615,15 +2709,9 @@
                         run concurrently. The browser now requests this biography in the
                         background, so neither call blocks the visible Star page.
                       */
-                      const [careerResult, summaryResult] = await Promise.allSettled([
-                        getWikipediaCareerText(person?.name || ""),
-                        getWikipediaBiography(person?.name || "")
-                      ]);
-
-                      wikipediaCareerText =
-                        careerResult.status === "fulfilled" ? careerResult.value : "";
-                      wikipediaSummary =
-                        summaryResult.status === "fulfilled" ? summaryResult.value : "";
+                      const wikipediaSources = await getWikipediaSources(person?.name || "");
+                      wikipediaCareerText = wikipediaSources.careerText || "";
+                      wikipediaSummary = wikipediaSources.summary || "";
 
                       /*
                         PERSON 22 — OVERVIEW + CAREER STORY
@@ -3533,6 +3621,7 @@
                         ...person,
                         biography,
                         biography_original: tmdbBio,
+                        wikipedia_summary_internal: wikipediaSummary,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         age: person?.deathday ? null : calculatePersonAge(person?.birthday),
@@ -3859,9 +3948,7 @@
                             biographyWordCount(finalBiography) < 80
                           ) {
                             const wikiSummary = cleanBiographySource(
-                              removeWikipediaEnding(
-                                await getWikipediaBiography(profile?.name || "")
-                              ),
+                              removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
                               profile?.name || ""
                             );
 
