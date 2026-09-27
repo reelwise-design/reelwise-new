@@ -542,6 +542,13 @@
                         // PERSON 28: after Wikipedia chrome is stripped, some small pages
                         // can leave a stranded "From" directly before the subject's name.
                         .replace(/^From\s+(?=[A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3}\s*\()/, "")
+                        // PERSON 29: final safeguard for Wikipedia boilerplate cleanup.
+                        // If earlier cleanup removed the source phrase or malformed birth
+                        // parenthetical, a bare leading "From" can remain (for example,
+                        // "From John Cassini is..."). At this final-output stage, a biography
+                        // should never begin with source-attribution "From", so remove it only
+                        // when it is the first word.
+                        .replace(/^From\s+(?=[A-Z])/, "")
                         // Wikipedia occasionally exposes a malformed location-only birth
                         // parenthetical such as "(born at Toronto)". It is not a birthday,
                         // so remove it from prose rather than presenting it as biographical data.
