@@ -293,80 +293,68 @@
                     */
                     async function getWikipediaSources(name) {
                       try {
-                        const searchUrl =
+                        /*
+                          PERSON 21 PERFORMANCE — ONE WIKIPEDIA ROUND TRIP
+
+                          Ask MediaWiki to search for the performer AND return the
+                          matched article's plain-text extract in the same request.
+                          This replaces the previous sequence of:
+                            1. search request
+                            2. REST summary request
+                            3. full HTML parse request
+
+                          The full extract still feeds the existing Reelwise career
+                          selector, while its opening sentences provide the summary.
+                          Biography quality rules below remain unchanged.
+                        */
+                        const sourceUrl =
                           "https://en.wikipedia.org/w/api.php?" +
                           new URLSearchParams({
                             action: "query",
-                            list: "search",
-                            srsearch: name,
+                            generator: "search",
+                            gsrsearch: name,
+                            gsrlimit: "5",
+                            prop: "extracts",
+                            explaintext: "1",
+                            exsectionformat: "plain",
+                            redirects: "1",
                             format: "json",
                             origin: "*"
                           });
 
-                        const searchData = await fetchJSON(searchUrl, {}, 6500);
-                        const results = searchData?.query?.search || [];
-                        if (!results.length) return { summary: "", careerText: "" };
+                        const data = await fetchJSON(sourceUrl, {}, 5000);
+                        const pages = Object.values(data?.query?.pages || {});
+                        if (!pages.length) return { summary: "", careerText: "" };
 
-                        const exactMatch = results.find(
-                          item => item.title && item.title.toLowerCase() === String(name).toLowerCase()
-                        );
-                        const pageTitle = exactMatch?.title || results[0]?.title;
-                        if (!pageTitle) return { summary: "", careerText: "" };
+                        const normalizedName = String(name || "").trim().toLowerCase();
+                        const page =
+                          pages.find(item => String(item?.title || "").trim().toLowerCase() === normalizedName) ||
+                          pages.sort((a, b) => Number(a?.index || 999) - Number(b?.index || 999))[0];
 
-                        const summaryUrl =
-                          "https://en.wikipedia.org/api/rest_v1/page/summary/" +
-                          encodeURIComponent(pageTitle);
+                        let careerText = cleanText(page?.extract || "")
+                          .replace(/\[edit\]/gi, " ")
+                          .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
+                          .replace(/\s+/g, " ")
+                          .trim()
+                          .slice(0, 65000);
 
-                        const parseUrl =
-                          "https://en.wikipedia.org/w/api.php?" +
-                          new URLSearchParams({
-                            action: "parse",
-                            page: pageTitle,
-                            prop: "text|sections",
-                            format: "json",
-                            origin: "*"
-                          });
-
-                        const [summaryResult, parseResult] = await Promise.allSettled([
-                          fetchJSON(summaryUrl, {}, 6500),
-                          fetchJSON(parseUrl, {}, 7000)
-                        ]);
-
-                        let summary = "";
-                        if (summaryResult.status === "fulfilled") {
-                          const summaryData = summaryResult.value;
-                          summary = removeWikipediaEnding(cleanText(summaryData?.extract || ""));
-                          if (summaryData?.type === "disambiguation" || summary.length < 80) summary = "";
+                        if (!careerText || careerText.length < 80) {
+                          return { summary: "", careerText: "" };
                         }
 
-                        let careerText = "";
-                        if (parseResult.status === "fulfilled") {
-                          const html = parseResult.value?.parse?.text?.["*"] || "";
-                          if (html) {
-                            careerText = html
-                              .replace(/<style[\s\S]*?<\/style>/gi, " ")
-                              .replace(/<script[\s\S]*?<\/script>/gi, " ")
-                              .replace(/<table[\s\S]*?<\/table>/gi, " ")
-                              .replace(/<figure[\s\S]*?<\/figure>/gi, " ")
-                              .replace(/<h[1-6]\b[\s\S]*?<\/h[1-6]>/gi, " ")
-                              .replace(/<span\b[^>]*class=["'][^"']*mw-editsection[^"']*["'][^>]*>[\s\S]*?<\/span>/gi, " ")
-                              .replace(/<sup[\s\S]*?<\/sup>/gi, " ")
-                              .replace(/<li\b[^>]*>/gi, " ")
-                              .replace(/<\/li>/gi, ". ")
-                              .replace(/<\/p>/gi, ". ")
-                              .replace(/<br\s*\/?>/gi, " ")
-                              .replace(/<[^>]+>/g, " ");
+                        // Build the overview from the same already-loaded article.
+                        // Keep enough opening material for the existing overview engine
+                        // without making another network request.
+                        const openingSentences = splitBioSentences(careerText)
+                          .map(cleanText)
+                          .filter(Boolean)
+                          .slice(0, 8);
 
-                            careerText = cleanText(careerText)
-                              .replace(/\[\d+\]/g, "")
-                              .replace(/\[\s*edit\s*\]/gi, " ")
-                              .replace(/\b(?:film and stage career|career|early roles to breakthrough|breakthrough|filmography)\b\s*(?=\d{4}|$)/gi, " ")
-                              .replace(/\s+\./g, ".")
-                              .replace(/\.{2,}/g, ".")
-                              .trim()
-                              .slice(0, 65000);
-                          }
+                        let summary = removeWikipediaEnding(openingSentences.join(" "));
+                        if (summary.length > 1800) {
+                          summary = summary.slice(0, 1800).replace(/\s+\S*$/, "").trim();
                         }
+                        if (summary.length < 80) summary = "";
 
                         return { summary, careerText };
                       } catch (error) {
@@ -374,7 +362,6 @@
                         return { summary: "", careerText: "" };
                       }
                     }
-
 
                     /* ============================================================
                        NORMAL PERSON PROFILE
