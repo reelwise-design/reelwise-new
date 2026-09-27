@@ -2206,6 +2206,53 @@ let reelwiseSavedStarName="";
 */
 const reelwiseAccoladesCache=new Map();
 
+/* PERSON 48 — BIOGRAPHY REQUEST + BROWSER CACHE
+   Start the full biography request at the same moment as the core profile
+   requests instead of waiting until after the page has rendered. Once a
+   finished Reelwise biography is received, keep it in memory and localStorage
+   so repeat visits can paint the finished biography immediately. */
+const reelwiseBiographyCache=new Map();
+const reelwiseBiographyRequests=new Map();
+const REELWISE_BIO_CACHE_PREFIX="reelwise:bio:v48:";
+
+function getCachedReelwiseBiography(id){
+  const key=String(id||"");
+  if(!key)return "";
+  if(reelwiseBiographyCache.has(key))return reelwiseBiographyCache.get(key)||"";
+  try{
+    const stored=localStorage.getItem(REELWISE_BIO_CACHE_PREFIX+key)||"";
+    if(stored){reelwiseBiographyCache.set(key,stored);return stored;}
+  }catch(error){}
+  return "";
+}
+
+function saveCachedReelwiseBiography(id,biography){
+  const key=String(id||""),value=String(biography||"").replace(/\s+/g," ").trim();
+  if(!key||!value)return value;
+  reelwiseBiographyCache.set(key,value);
+  try{localStorage.setItem(REELWISE_BIO_CACHE_PREFIX+key,value);}catch(error){}
+  return value;
+}
+
+function requestReelwiseBiography(id){
+  const key=String(id||"");
+  const cached=getCachedReelwiseBiography(key);
+  if(cached)return Promise.resolve(cached);
+  if(reelwiseBiographyRequests.has(key))return reelwiseBiographyRequests.get(key);
+
+  const request=fetch("/api/person?id="+encodeURIComponent(key)+"&mode=biography")
+    .then(async response=>{
+      if(!response.ok)return "";
+      const data=await response.json();
+      return saveCachedReelwiseBiography(key,data&&data.biography);
+    })
+    .catch(()=>"")
+    .finally(()=>reelwiseBiographyRequests.delete(key));
+
+  reelwiseBiographyRequests.set(key,request);
+  return request;
+}
+
 function returnFromPersonAccolades(id){
   const safeId=String(id||"");
 
@@ -3052,7 +3099,7 @@ function compactStarBio(person,knownMovies,allMovies){
   return sentences.slice(0,3).join(" ");
 }
 
-async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';try{const [searchResponse,profileResponse]=await Promise.all([fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),fetch("/api/person?id="+encodeURIComponent(id))]);const searchPerson=await searchResponse.json();if(!searchResponse.ok)throw new Error(searchPerson.error||"Actor could not be loaded.");let profilePerson={};if(profileResponse.ok){profilePerson=await profileResponse.json();}else{try{profilePerson=await profileResponse.json();}catch(error){profilePerson={};}}let person={...searchPerson,...profilePerson,combined_credits:searchPerson.combined_credits||profilePerson.combined_credits};
+async function showPerson(id){homeContent.style.display="none";revealResults();resultsTitle.textContent="Movie Star";results.innerHTML='<div class="message">Loading star...</div>';const cachedBiographyAtOpen=getCachedReelwiseBiography(id);const biographyPromise=cachedBiographyAtOpen?Promise.resolve(cachedBiographyAtOpen):requestReelwiseBiography(id);try{const [searchResponse,profileResponse]=await Promise.all([fetch("/api/search?type=person-details&id="+encodeURIComponent(id)),fetch("/api/person?id="+encodeURIComponent(id))]);const searchPerson=await searchResponse.json();if(!searchResponse.ok)throw new Error(searchPerson.error||"Actor could not be loaded.");let profilePerson={};if(profileResponse.ok){profilePerson=await profileResponse.json();}else{try{profilePerson=await profileResponse.json();}catch(error){profilePerson={};}}let person={...searchPerson,...profilePerson,combined_credits:searchPerson.combined_credits||profilePerson.combined_credits};
 
 /* PERSON 47 — FAST PROFILE / FULL BIOGRAPHY HANDOFF
    Render the actor profile as soon as the core person requests finish.
@@ -3118,16 +3165,14 @@ const filmographyHTML=[
   otherMovies.length?`<section class="filmography-group"><div class="filmography-group-heading"><div><h3>Other Movies</h3></div><span>Newest first</span></div><div class="filmography compact">${otherMovies.map(filmCard).join("")}</div></section>`:""
 ].join("");
 
-results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio"><span style="color:var(--muted)">Loading biography…</span></div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`
+results.innerHTML=`<div class="detail"><button class="back-button" onclick="goBackReelwise()">← Back</button><div class="star-hero"><div>${photo?`<img class="star-photo" src="${photo}" alt="${escapeHTML(person.name)}">`:`<div class="no-poster">⭐</div>`}</div><div><div class="eyebrow">REELWISE STAR PROFILE</div><h1 class="star-name">${escapeHTML(person.name)}</h1>${(person.birthday||person.deathday)?`<div class="star-born">${person.birthday?`<div>Born: ${escapeHTML(formatDate(person.birthday))}${!person.deathday&&Number.isFinite(Number(person.age))?` · Age ${escapeHTML(String(person.age))}`:""}</div>`:""}${person.deathday?`<div>Died: ${escapeHTML(formatDate(person.deathday))}${Number.isFinite(Number(person.age_at_death))?` · Age ${escapeHTML(String(person.age_at_death))}`:""}</div>`:""}</div>`:""}<div class="star-bio" id="starBio">${cachedBiographyAtOpen?escapeHTML(cachedBiographyAtOpen):'<span style="color:var(--muted)">Loading biography…</span>'}</div>${`<button class="star-accolades-link" onclick="showPersonAccolades(\'${person.id}\',\'${escapeHTML(person.name)}\')">Accolades →</button>`}</div></div><div class="star-section"><h2>Known For</h2><div class="known-row">${known.length?known.map(movie=>`<div class="known-card" onclick="showMovie('${movie.id}')"><img src="https://image.tmdb.org/t/p/w342${movie.poster_path}" alt="${escapeHTML(movie.title)}"><strong>${escapeHTML(movie.title)}</strong><small>${escapeHTML(movie.release_date?movie.release_date.slice(0,4):"")}</small></div>`).join(""):`<div class="message">No movie highlights available.</div>`}</div></div><div class="star-section"><h2>Filmography</h2><div class="filmography-groups">${filmographyHTML||'<div class="message">No released movie credits available.</div>'}</div></div></div>`
 
-/* PERSON 47 — LOAD ONLY THE FINAL BIOGRAPHY AFTER THE PROFILE IS VISIBLE */
+/* PERSON 48 — THE FINAL BIOGRAPHY REQUEST IS ALREADY IN FLIGHT.
+   By starting it before the profile requests, the network work overlaps the
+   photo/name/credits load. Repeat visits use the completed browser cache and
+   never wait on the biography endpoint at all. */
 try{
-  const biographyResponse=await fetch("/api/person?id="+encodeURIComponent(person.id||id)+"&mode=biography&v=47",{cache:"no-store"});
-  let finalBiography="";
-  if(biographyResponse.ok){
-    const biographyData=await biographyResponse.json();
-    finalBiography=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim();
-  }
+  const finalBiography=await biographyPromise;
   const bioBox=document.getElementById("starBio");
   if(bioBox){
     const safeBiography=finalBiography||fallbackBiography||compactStarBio(person,known,movies);
