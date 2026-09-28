@@ -4048,6 +4048,33 @@
                        ============================================================ */
 
                     export default async function handler(req, res) {
+                      /*
+                        PERSON 33 — FINAL HTTP RESPONSE BIOGRAPHY SANITIZER
+
+                        This wraps res.json itself, so EVERY response path that contains a
+                        biography is cleaned at the exact moment it leaves the API. This is
+                        deliberately below the biography builder/cache logic and therefore
+                        also catches any legacy or unexpected path that bypasses an earlier
+                        sanitizer.
+                      */
+                      const originalJson = res.json.bind(res);
+                      res.json = payload => {
+                        if (
+                          payload &&
+                          typeof payload === "object" &&
+                          typeof payload.biography === "string"
+                        ) {
+                          payload = {
+                            ...payload,
+                            biography: cleanFinalBiographyOutput(payload.biography)
+                              .replace(/^\s*From\s+(?=[A-Z])/i, "")
+                              .trim()
+                          };
+                        }
+
+                        return originalJson(payload);
+                      };
+
                       if (req.method !== "GET") {
                         res.setHeader("Allow", "GET");
 
