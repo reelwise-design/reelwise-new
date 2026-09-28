@@ -3140,7 +3140,7 @@ try{
   let finalBiography="";
   if(biographyResponse.ok){
     const biographyData=await biographyResponse.json();
-    finalBiography=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim();
+    finalBiography=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim().replace(/^From\s+(?=[A-Z])/i,"");
   }
   const bioBox=document.getElementById("starBio");
   if(bioBox){
