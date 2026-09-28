@@ -4281,6 +4281,14 @@
                               // Run again after compaction so the response itself is guaranteed clean.
                               finalBiography = cleanFinalBiographyOutput(finalBiography);
 
+                              // PERSON 30 — LAST-MILE RESPONSE GUARD
+                              // Clean the exact biography string immediately before it is
+                              // cached and returned. This protects against any upstream path
+                              // that leaves Wikipedia's stranded leading "From" behind.
+                              finalBiography = cleanFinalBiographyOutput(finalBiography)
+                                .replace(/^From\s+(?=[A-Z])/, "")
+                                .trim();
+
                               const payload = {
                                 person_id: profile?.id || Number(id),
                                 name: profile?.name || "",
