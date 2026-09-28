@@ -4137,9 +4137,23 @@
                         if (mode === "biography") {
                           const cachedBiography = getCachedBiography(id);
                           if (cachedBiography) {
+                            // PERSON 31 — SANITIZE LEGACY CACHED BIOGRAPHIES
+                            // Older warm-cache payloads may predate the final biography
+                            // sanitizer. Clean the exact cached biography before returning it.
+                            const cleanedCachedBiography = {
+                              ...cachedBiography,
+                              biography: cleanFinalBiographyOutput(cachedBiography?.biography || "")
+                                .replace(/^From\s+(?=[A-Z])/, "")
+                                .trim()
+                            };
+
+                            // Refresh the warm cache with the cleaned payload so subsequent
+                            // requests in this function instance are clean as well.
+                            saveCachedBiography(id, cleanedCachedBiography);
+
                             res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
-                            return res.status(200).json(cachedBiography);
+                            res.setHeader("Cache-Control", "public, max-age=0, s-maxage=0, must-revalidate");
+                            return res.status(200).json(cleanedCachedBiography);
                           }
 
                           let biographyPromise = biographyInflight.get(id);
