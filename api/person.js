@@ -2691,8 +2691,22 @@
                         visible biography here from the same TMDB response we already have,
                         so this adds no network request and preserves the instant load.
                       */
+                      /*
+                        PERSON 23 — CLEAN THE FAST BIOGRAPHY AT ITS SOURCE
+
+                        The normal /api/person response builds the first visible Star biography
+                        from TMDB's raw biography BEFORE the background biography mode runs.
+                        Clean source-attribution chrome here, before sentence splitting and before
+                        "Notable film work" is appended, so a stranded opening such as
+                        "From John Cassini is..." can never enter introParts/fastBiography.
+                      */
                       const rawFastBio = removeWikipediaEnding(person?.biography || "");
-                      const fastBioSentences = splitBioSentences(rawFastBio)
+
+                      const cleanedFastBioSource = cleanFinalBiographyOutput(rawFastBio)
+                        .replace(/^\s*From\s+(?=[A-Z])/i, "")
+                        .trim();
+
+                      const fastBioSentences = splitBioSentences(cleanedFastBioSource)
                         .map(cleanText)
                         .filter(Boolean)
                         .filter(sentence =>
@@ -2706,6 +2720,7 @@
                       for (const sentence of fastBioSentences) {
                         const cleaned = sentence
                           .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
+                          .replace(/^\s*From\s+(?=[A-Z])/i, "")
                           .trim();
                         if (!cleaned) continue;
                         if (introChars + cleaned.length > 430) break;
@@ -2893,18 +2908,6 @@
                       if (fastBiography.length > 850) {
                         fastBiography = fastBiography.slice(0, 847).replace(/\s+\S*$/, "") + "...";
                       }
-
-                      /*
-                        PERSON 22 — NORMAL/FAST PROFILE BIOGRAPHY FIX
-
-                        The visible Star card is initially rendered from the normal person
-                        response, not mode=biography. Sanitize the fast biography here at its
-                        true source so Wikipedia/source chrome such as
-                        "From John Cassini is..." can never reach the visible profile.
-                      */
-                      fastBiography = cleanFinalBiographyOutput(fastBiography)
-                        .replace(/^\s*From\s+(?=[A-Z])/i, "")
-                        .trim();
 
                       return {
                         ...person,
