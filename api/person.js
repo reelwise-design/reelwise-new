@@ -4152,7 +4152,9 @@
                             saveCachedBiography(id, cleanedCachedBiography);
 
                             res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("Cache-Control", "public, max-age=0, s-maxage=0, must-revalidate");
+                            res.setHeader("Cache-Control", "no-store, max-age=0");
+                            res.setHeader("CDN-Cache-Control", "no-store");
+                            res.setHeader("Vercel-CDN-Cache-Control", "no-store");
                             return res.status(200).json(cleanedCachedBiography);
                           }
 
@@ -4322,9 +4324,24 @@
                           }
 
                           const payload = await biographyPromise;
+
+                          // PERSON 32 — ABSOLUTE RESPONSE-LEVEL BIOGRAPHY GUARD
+                          // Sanitize the exact object sent over HTTP, regardless of whether
+                          // the biography came from the builder, rescue logic, or warm cache.
+                          const responsePayload = {
+                            ...payload,
+                            biography: cleanFinalBiographyOutput(payload?.biography || "")
+                              .replace(/^From\s+(?=[A-Z])/, "")
+                              .trim()
+                          };
+
+                          saveCachedBiography(id, responsePayload);
+
                           res.setHeader("X-Reelwise-Biography-Cache", "MISS");
-                          res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
-                          return res.status(200).json(payload);
+                          res.setHeader("Cache-Control", "no-store, max-age=0");
+                          res.setHeader("CDN-Cache-Control", "no-store");
+                          res.setHeader("Vercel-CDN-Cache-Control", "no-store");
+                          return res.status(200).json(responsePayload);
                         }
 
                         /*
