@@ -3068,12 +3068,16 @@ function compactStarBio(person,knownMovies,allMovies){
 
 function cleanReelwiseBiography(value){
   let bio=String(value||"")
+    // Remove invisible Unicode characters that ordinary trim() does not remove.
+    // These can sit before "From" and defeat an otherwise correct ^From regex.
+    .replace(/[\u200B-\u200D\u2060\uFEFF]/g,"")
     .replace(/\s+/g," ")
     .trim();
 
-  // Never allow source-label artifacts such as "From John Cassini is..."
-  // to reach the visible Reelwise profile.
-  bio=bio.replace(/^From\b[\s,:;\-–—]*/i,"").trim();
+  // Strip source-attribution "From" only at the beginning of the biography.
+  bio=bio
+    .replace(/^[\s\u200B-\u200D\u2060\uFEFF]*From\b[\s,:;\-–—]*/i,"")
+    .trim();
 
   return bio;
 }
