@@ -3144,13 +3144,13 @@ try{
   }
   const bioBox=document.getElementById("starBio");
   if(bioBox){
-    const safeBiography=finalBiography||fallbackBiography||compactStarBio(person,known,movies);
+    const safeBiography=String(finalBiography||fallbackBiography||compactStarBio(person,known,movies)||"").replace(/\s+/g," ").trim().replace(/^From\s+(?=[A-Z])/i,"");
     bioBox.textContent=safeBiography;
     bioBox.setAttribute("aria-busy","false");
   }
 }catch(error){
   const bioBox=document.getElementById("starBio");
-  if(bioBox){bioBox.textContent=fallbackBiography||compactStarBio(person,known,movies);bioBox.setAttribute("aria-busy","false");}
+  if(bioBox){bioBox.textContent=String(fallbackBiography||compactStarBio(person,known,movies)||"").replace(/\s+/g," ").trim().replace(/^From\s+(?=[A-Z])/i,"");bioBox.setAttribute("aria-busy","false");}
 }
 
 
