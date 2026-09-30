@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person36";
+                    const BIOGRAPHY_CACHE_VERSION = "person37";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2777,7 +2777,7 @@
 
 
                     /*
-                      PERSON 36 — CAREER-ARC MILESTONE BUILDER
+                      PERSON 37 — CAREER-ARC MILESTONE BUILDER
 
                       Keep Person 34's single final biography path, but make the final
                       copy read like a career story instead of a popularity-ranked list.
@@ -2855,9 +2855,37 @@
                           .filter(Boolean)
                           .sort((a,b)=>a-b)[0] || 9999;
 
+                        /* PERSON 37 — CAREER-SIGNIFICANCE TV RANKING
+                           Do not equate "earliest recurring credit" with "formative career milestone."
+                           Rank eligible early television work by sustained participation and role
+                           substance, while still allowing an earlier credit to win when it was truly
+                           substantial. This remains performer- and show-agnostic. */
+                        const tvCareerScore = item => {
+                          const episodes = Number(item.episodes || 0);
+                          const popularity = Number(item.popularity || 0);
+                          const role = String(item.character || "");
+
+                          let score = Math.min(episodes, 30) * 8 + Math.min(popularity, 80) * 0.35;
+
+                          if (episodes >= 5) score += 28;
+                          if (episodes >= 10) score += 35;
+                          if (episodes >= 20) score += 45;
+
+                          if (/\b(?:various|multiple characters|ensemble|series regular|regular|cast member|host)\b/i.test(role)) {
+                            score += 42;
+                          }
+
+                          /* A handful of episodes can be legitimate acting work without being the
+                             television chapter that launched or defined a career. */
+                          if (episodes <= 2) score -= 55;
+                          else if (episodes <= 4) score -= 28;
+
+                          return score;
+                        };
+
                         const tvLaunch = tvCredits
                           .filter(item => item.year <= firstFilmYear + 7)
-                          .sort((a,b) => (b.episodes*3 + b.popularity) - (a.episodes*3 + a.popularity) || a.year-b.year)[0];
+                          .sort((a,b) => tvCareerScore(b) - tvCareerScore(a) || b.episodes-a.episodes || a.year-b.year)[0];
 
                         if (tvLaunch) {
                           const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
@@ -4088,7 +4116,7 @@
                         const selectedCareerParts = [];
 
                         /*
-                          PERSON 36 — NARRATIVE DEPTH
+                          PERSON 37 — NARRATIVE DEPTH
 
                           Keep up to two genuine career-story sentences from the source before the
                           compact five-film recap. This restores the missing middle ground between
