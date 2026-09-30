@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person32";
+                    const BIOGRAPHY_CACHE_VERSION = "person33";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -4053,19 +4053,13 @@
                       biography = cleanOrphanedBiographyPunctuation(biography);
 
                       /*
-                        PERSON 28 — PROTECT A CAREER-DEFINING COMEDY ARC
+                        PERSON 33 — GENERIC CAREER ENGINE ONLY
 
-                        Adam Sandler's current Wikipedia lead can overweight his later
-                        streaming period and underrepresent the films that established his
-                        screen career. Reelwise should read as a career story, not a list of
-                        the most recent distribution titles. Keep this override deliberately
-                        narrow so the generic biography engine remains unchanged for everyone
-                        else.
+                        Person 28 contained a one-person Adam Sandler biography override.
+                        That override bypassed every later generic career-selection improvement
+                        and made Sandler a special case. Remove it completely: every performer
+                        now flows through the same Reelwise biography engine.
                       */
-                      if (normalizeName(person?.name) === "adam sandler") {
-                        biography =
-                          "Adam Richard Sandler is an American actor, comedian, writer, and producer who first gained national attention as a cast member on Saturday Night Live in the early 1990s. He became one of the defining comedy stars of the 1990s with Billy Madison (1995), Happy Gilmore (1996), The Wedding Singer (1998), The Waterboy (1998), and Big Daddy (1999), building a screen persona around broad comedy, underdog characters, and an offbeat supporting ensemble. He remained a major comedy draw in the 2000s with films including 50 First Dates (2004) and later Grown Ups (2010), while also taking acclaimed dramatic roles in Punch-Drunk Love (2002) and Uncut Gems (2019). His career has continued across comedy, drama, voice work, writing, and producing, including the Hotel Transylvania films and a return to one of his signature characters in Happy Gilmore 2 (2025).";
-                      }
 
                       if (biography.length > 1650) {
                         const fallbackSentences = splitBioSentences(biography);
