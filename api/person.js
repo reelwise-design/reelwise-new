@@ -13,13 +13,14 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+                    const BIOGRAPHY_CACHE_VERSION = "person30";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
                     globalThis.__reelwiseBiographyInflight = biographyInflight;
 
                     function getCachedBiography(personId) {
-                      const key = String(personId || "");
+                      const key = `${BIOGRAPHY_CACHE_VERSION}:${String(personId || "")}`;
                       const cached = biographyCache.get(key);
                       if (!cached) return null;
                       if (Date.now() - cached.savedAt > BIOGRAPHY_CACHE_TTL_MS) {
@@ -30,7 +31,7 @@
                     }
 
                     function saveCachedBiography(personId, payload) {
-                      biographyCache.set(String(personId || ""), {
+                      biographyCache.set(`${BIOGRAPHY_CACHE_VERSION}:${String(personId || "")}`, {
                         savedAt: Date.now(),
                         payload
                       });
@@ -39,10 +40,16 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 29 BUILD
+                      REELWISE PERSON API — PERSON 30 BUILD
                       ============================================================
 
-                      PERSON 29 CHANGES:
+                      PERSON 30 CHANGES:
+                        - Reject net-worth, salary, contract/deal and other business-detail prose from visible biographies.
+                        - Require the protected overview to describe identity/career rather than financial headlines.
+                        - Keep early/signature film landmarks eligible so later streaming-era work cannot define an entire long career.
+                        - Version the biography cache so Person 29 biographies are rebuilt immediately after deployment.
+
+                       PERSON 29 FOUNDATION:
                         - Preserve more complete, sentence-safe career biographies so defining
                           later work is not lost simply because early-career prose was lengthy.
                         - Protect Academy Awards results from same-name collisions by checking
@@ -934,6 +941,9 @@
                       const contractDetailTerms =
                         /\b(signed on|signed a deal|signed a contract|contracted to|optioned for|multi[- ]picture deal|multi[- ]film deal|negotiated|salary|paycheck|insurance bond|reprise (?:his|her|their) role in (?:two|three|multiple) sequels)\b/i;
 
+                      const financialProfileTerms =
+                        /\b(?:net worth|estimated net worth|earnings|wealth|richest|salary|paycheck|deal worth|contract worth|signed a (?:new )?(?:four[- ]movie|four[- ]film|multi[- ]movie|multi[- ]film) deal|\$\d+(?:\.\d+)?\s*(?:million|billion))\b/i;
+
                       const headlineArtifactTerms =
                         /(?:^|["'])[^.]{0,90}\b(?:final film|shelved for|festival debut|exclusive:|interview:|review:|obituary:)\b[^.]{0,140}["']?(?:\.|$)/i;
 
@@ -1102,6 +1112,7 @@
                         if (personalTerms.test(sentence)) continue;
                         if (publicityTerms.test(sentence)) continue;
                         if (contractDetailTerms.test(sentence)) continue;
+                        if (financialProfileTerms.test(sentence)) continue;
                         if (headlineArtifactTerms.test(sentence)) continue;
                         if (releaseHistoryTerms.test(sentence)) continue;
                         if (minorEarlyWorkTerms.test(sentence)) continue;
@@ -1131,6 +1142,7 @@
                             personalTerms.test(combined) ||
                             publicityTerms.test(combined) ||
                             contractDetailTerms.test(combined) ||
+                            financialProfileTerms.test(combined) ||
                             headlineArtifactTerms.test(combined) ||
                             releaseHistoryTerms.test(combined) ||
                             minorEarlyWorkTerms.test(combined) ||
@@ -1189,6 +1201,7 @@
                             !personalTerms.test(item.sentence) &&
                             !publicityTerms.test(item.sentence) &&
                             !contractDetailTerms.test(item.sentence) &&
+                            !financialProfileTerms.test(item.sentence) &&
                             !headlineArtifactTerms.test(item.sentence) &&
                             !releaseHistoryTerms.test(item.sentence) &&
                             !minorEarlyWorkTerms.test(item.sentence) &&
@@ -1232,6 +1245,7 @@
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
                           !contractDetailTerms.test(item.sentence) &&
+                            !financialProfileTerms.test(item.sentence) &&
                           !headlineArtifactTerms.test(item.sentence) &&
                           !releaseHistoryTerms.test(item.sentence) &&
                           !minorEarlyWorkTerms.test(item.sentence) &&
@@ -2126,6 +2140,7 @@
                           !personalTerms.test(item.sentence) &&
                           !publicityTerms.test(item.sentence) &&
                           !contractDetailTerms.test(item.sentence) &&
+                            !financialProfileTerms.test(item.sentence) &&
                           !headlineArtifactTerms.test(item.sentence) &&
                           !releaseHistoryTerms.test(item.sentence) &&
                           !weakCareerTerms.test(item.sentence) &&
@@ -2691,6 +2706,7 @@
                           !incompleteFragmentTerms.test(sentence) &&
                           !publicityTerms.test(sentence) &&
                           !contractDetailTerms.test(sentence) &&
+                          !financialProfileTerms.test(sentence) &&
                           !headlineArtifactTerms.test(sentence) &&
                           !releaseHistoryTerms.test(sentence) &&
                           !minorEarlyWorkTerms.test(sentence) &&
@@ -2796,7 +2812,7 @@
                         .map(cleanText)
                         .filter(Boolean)
                         .filter(sentence =>
-                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children)\b/i.test(sentence)
+                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth)\b/i.test(sentence)
                         );
 
                       // Keep only a concise identity/overview opening. Do not let a long
@@ -3078,7 +3094,7 @@
                         .map(cleanText)
                         .filter(Boolean)
                         .filter(sentence =>
-                          !/\b(?:alumna|alumnus|college|university|school of drama|bachelor|master of fine arts|education|advocate|activist|gender parity|labor protections|male gaze|personal life|married|spouse|children|description above from|licensed under|contributors on wikipedia)\b/i.test(sentence)
+                          !/\b(?:alumna|alumnus|college|university|school of drama|bachelor|master of fine arts|education|advocate|activist|gender parity|labor protections|male gaze|personal life|married|spouse|children|description above from|licensed under|contributors on wikipedia|net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth)\b/i.test(sentence)
                         )
                         .filter(sentence => {
                           // The birth date already has its own dedicated field on the Reelwise card.
