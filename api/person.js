@@ -4663,397 +4663,44 @@
                           from blocking the photo, name, Known For and Filmography.
                         */
                         if (mode === "biography") {
-                          const cachedBiography = getCachedBiography(id);
-                          if (cachedBiography) {
-                            // PERSON 31 — SANITIZE LEGACY CACHED BIOGRAPHIES
-                            // Older warm-cache payloads may predate the final biography
-                            // sanitizer. Clean the exact cached biography before returning it.
-                            const cleanedCachedBiography = {
-                              ...cachedBiography,
-                              biography: cleanFinalBiographyOutput(cachedBiography?.biography || "")
-                                .replace(/^From\s+(?=[A-Z])/, "")
-                                .trim()
-                            };
-
-                            // Refresh the warm cache with the cleaned payload so subsequent
-                            // requests in this function instance are clean as well.
-                            saveCachedBiography(id, cleanedCachedBiography);
-
-                            res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("Cache-Control", "no-store, max-age=0");
-                            res.setHeader("CDN-Cache-Control", "no-store");
-                            res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-                            return res.status(200).json(cleanedCachedBiography);
-                          }
-
-                          let biographyPromise = biographyInflight.get(id);
-
-                          if (!biographyPromise) {
-                            biographyPromise = (async () => {
-                              const profile = await getPersonProfile(id);
-
-                              // PERSON 34: mode=biography uses the exact same final builder
-                              // as the normal Star Profile response.
-                              profile.biography = buildFinalReelwiseBiography(
-                                profile,
-                                profile?.wikipedia_summary_internal || "",
-                                profile?.biography_original || "",
-                                profile?.biography || ""
-                              ) || profile?.biography || "";
-
                           /*
-                            PERSON 39 — REELWISE BIO ONLY
+                            PERSON 40 — ONE BIOGRAPHY, ONE SOURCE OF TRUTH
 
-                            Preserve Person 38/38's fast page architecture, but never hand the
-                            raw source/Wikipedia biography back to the visible Star Profile.
-                            getPersonProfile() already builds the concise Reelwise career story;
-                            the source biography remains internal evidence only.
+                            The background biography endpoint must never rebuild a second,
+                            competing biography from Wikipedia. The normal Star Profile already
+                            runs the finalized Reelwise career-arc builder in getFastPersonProfile().
+                            Return that exact finalized biography here as well so the browser can
+                            never replace a good Reelwise biography with a longer source biography.
                           */
-                          let finalBiography = removeWikipediaEnding(profile?.biography || "");
+                          const profile = await getFastPersonProfile(id);
 
-                          finalBiography = cleanText(finalBiography)
-                            .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
-                            .replace(/\bDescription above from[^.]*\.?/gi, "")
-                            .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, "")
-                            .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
-                            .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
-                            .replace(/\s+/g, " ")
+                          const finalBiography = cleanFinalBiographyOutput(
+                            profile?.biography || ""
+                          )
+                            .replace(/^From\s+(?=[A-Z])/, "")
                             .trim();
 
-                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
-
-                          /*
-                            PERSON 32 — CAREER-ARC BIOGRAPHY BUILDER
-
-                            The visible Reelwise biography must tell the performer's career,
-                            not simply reproduce the front of a long source biography.
-
-                            Generic strategy:
-                            1. Keep one concise identity/legacy sentence.
-                            2. Reserve biography space for EARLY, MIDDLE and LATER career.
-                            3. Prefer sentences about films, roles, breakthroughs and major
-                               performances over award/honor inventory sentences.
-                            4. Allow award material when it is attached to a specific role/film.
-                            5. Require later-career representation for long careers whenever
-                               the source contains usable later-career material.
-                            6. Return complete sentences only.
-                          */
-                          const biographyWordCount = value =>
-                            cleanText(value).split(/\s+/).filter(Boolean).length;
-
-                          const biographyYears = value =>
-                            [...String(value || "").matchAll(/\b(19\d{2}|20\d{2})\b/g)]
-                              .map(match => Number(match[1]))
-                              .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
-
-                          const hasGenericNotableFilmEnding =
-                            /\bNotable film work includes\b/i.test(finalBiography);
-
-                          const wikiSummary = cleanBiographySource(
-                            removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
-                            profile?.name || ""
-                          );
-
-                          const wikiYears = biographyYears(wikiSummary);
-                          const currentYears = biographyYears(finalBiography);
-                          const wikiLatestYear = wikiYears.length ? Math.max(...wikiYears) : 0;
-                          const currentLatestYear = currentYears.length ? Math.max(...currentYears) : 0;
-
-                          const careerCoverageLooksEarly =
-                            wikiLatestYear && currentLatestYear && wikiLatestYear - currentLatestYear >= 7;
-
-                          const endsIncomplete =
-                            /(?:\.\.\.|…|\b(?:and|or|with|by|to|of|the|a|an|director|film|role|silver linings)\s*)$/i
-                              .test(finalBiography.trim());
-
-                          const rawWikiSentences = splitBioSentences(wikiSummary)
-                            .map(cleanText)
-                            .filter(Boolean)
-                            .map(sentence => sentence.replace(/(?:\.\.\.|…)\s*$/, ".").trim())
-                            .filter(sentence => sentence.length >= 35 && sentence.length <= 430)
-                            .filter(sentence =>
-                              !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
-                            );
-
-                          const isCompleteCareerSentence = sentence => {
-                            const value = cleanText(sentence).trim();
-                            if (!value) return false;
-                            if (!/[.!?]["')\]]?$/.test(value)) return false;
-                            if (/\b(?:and|or|with|by|to|of|the|a|an|his|her|their|in|for|as|including)\s*[.!?]?$/i.test(value)) return false;
-                            return true;
+                          const payload = {
+                            person_id: profile?.id || Number(id),
+                            name: profile?.name || "",
+                            biography: finalBiography,
+                            birthday: profile?.birthday || null,
+                            deathday: profile?.deathday || null,
+                            age: profile?.deathday ? null : calculatePersonAge(profile?.birthday),
+                            age_at_death: profile?.deathday
+                              ? calculatePersonAge(profile?.birthday, profile?.deathday)
+                              : null
                           };
 
-                          const wikiSentences = rawWikiSentences.filter(isCompleteCareerSentence);
-
-                          if (wikiSentences.length) {
-                            const identityCandidates = wikiSentences.filter(sentence =>
-                              /\b(?:actor|actress|filmmaker|director|performer|comedian|producer|screenwriter)\b/i.test(sentence)
-                            );
-
-                            const identityOrLegacy =
-                              identityCandidates.find(sentence =>
-                                biographyWordCount(sentence) <= 38 &&
-                                !/\b(?:honors?|medal|lifetime achievement|kennedy center|cecil b\. demille|palme d'or)\b/i.test(sentence)
-                              ) ||
-                              identityCandidates[0] ||
-                              wikiSentences[0];
-
-                            const isCareerSentence = sentence =>
-                              /\b(?:film|movie|role|starred|starring|performance|career|breakthrough|breakout|debut|portrayed|played|appeared|cast|comedy|drama|thriller|musical|franchise|series|box office|commercial success|critical acclaim|academy award|oscar)\b/i.test(sentence);
-
-                            const isHonorInventory = sentence => {
-                              const roleLinked =
-                                /\b(?:for (?:his|her|their) (?:role|performance|portrayal)|playing|portraying|in the film|for .*?\(\d{4}\))\b/i.test(sentence);
-                              const honorHeavy =
-                                /\b(?:honored|honours?|honors?|lifetime achievement|presidential medal|kennedy center|cecil b\. demille|palme d'or|mark twain prize)\b/i.test(sentence);
-                              return honorHeavy && !roleLinked;
-                            };
-
-                            const careerMilestones = wikiSentences
-                              .filter(sentence => sentence !== identityOrLegacy)
-                              .filter(isCareerSentence)
-                              .filter(sentence => !isHonorInventory(sentence));
-
-                            const datedMilestones = careerMilestones
-                              .map((sentence, index) => {
-                                const years = biographyYears(sentence);
-                                return {
-                                  sentence,
-                                  index,
-                                  years,
-                                  year: years.length ? Math.min(...years) : null,
-                                  latestYear: years.length ? Math.max(...years) : null
-                                };
-                              });
-
-                            const datedYears = datedMilestones
-                              .flatMap(item => item.years);
-
-                            const minCareerYear = datedYears.length ? Math.min(...datedYears) : 0;
-                            const maxCareerYear = datedYears.length ? Math.max(...datedYears) : 0;
-                            const careerSpan = Math.max(0, maxCareerYear - minCareerYear);
-                            const firstCut = minCareerYear + careerSpan * 0.34;
-                            const secondCut = minCareerYear + careerSpan * 0.67;
-
-                            const stageFor = item => {
-                              if (!item.year || careerSpan < 8) return "middle";
-                              if (item.year <= firstCut) return "early";
-                              if (item.year <= secondCut) return "middle";
-                              return "later";
-                            };
-
-                            const milestoneScore = item => {
-                              const sentence = item.sentence;
-                              let score = 0;
-
-                              if (/\b(?:breakthrough|breakout|debut|rose to prominence|gained recognition|became known|commercial success)\b/i.test(sentence)) score += 35;
-                              if (/\b(?:starred|starring|portrayed|played|role|performance)\b/i.test(sentence)) score += 24;
-                              if (/\b(?:academy award|oscar|bafta|golden globe|emmy|nominated|won)\b/i.test(sentence)) score += 14;
-                              if (/\b(?:film|movie|comedy|drama|thriller|musical|franchise|series)\b/i.test(sentence)) score += 10;
-                              if (item.years.length) score += 8;
-                              if (biographyWordCount(sentence) >= 18 && biographyWordCount(sentence) <= 58) score += 8;
-                              if (biographyWordCount(sentence) > 78) score -= 15;
-                              if (isHonorInventory(sentence)) score -= 80;
-
-                              return score;
-                            };
-
-                            const bestForStage = stage => datedMilestones
-                              .filter(item => stageFor(item) === stage)
-                              .sort((a, b) =>
-                                milestoneScore(b) - milestoneScore(a) ||
-                                (a.year || 9999) - (b.year || 9999) ||
-                                a.index - b.index
-                              );
-
-                            const earlyPool = bestForStage("early");
-                            const middlePool = bestForStage("middle");
-                            const laterPool = bestForStage("later");
-
-                            const selected = [];
-                            const selectedKeys = new Set();
-
-                            const sentenceKey = sentence =>
-                              cleanText(sentence)
-                                .toLowerCase()
-                                .replace(/[^a-z0-9]+/g, " ")
-                                .replace(/\s+/g, " ")
-                                .trim();
-
-                            const addSelected = sentence => {
-                              const cleanSentence = cleanText(sentence).trim();
-                              const key = sentenceKey(cleanSentence);
-                              if (!cleanSentence || !key || selectedKeys.has(key)) return false;
-                              if (!isCompleteCareerSentence(cleanSentence)) return false;
-                              selected.push(cleanSentence);
-                              selectedKeys.add(key);
-                              return true;
-                            };
-
-                            addSelected(identityOrLegacy);
-
-                            // PERSON 32's key rule: every available career era gets a seat
-                            // before any era gets a second sentence.
-                            if (earlyPool[0]) addSelected(earlyPool[0].sentence);
-                            if (middlePool[0]) addSelected(middlePool[0].sentence);
-                            if (laterPool[0]) addSelected(laterPool[0].sentence);
-
-                            // Long careers can use a second strong middle/later milestone.
-                            const extras = datedMilestones
-                              .filter(item => !selectedKeys.has(sentenceKey(item.sentence)))
-                              .sort((a, b) =>
-                                milestoneScore(b) - milestoneScore(a) ||
-                                (a.year || 9999) - (b.year || 9999)
-                              );
-
-                            for (const item of extras) {
-                              if (selected.length >= 6) break;
-
-                              const stage = stageFor(item);
-                              const stageCount = selected.filter(sentence => {
-                                const years = biographyYears(sentence);
-                                if (!years.length) return false;
-                                return stageFor({
-                                  year: Math.min(...years),
-                                  years,
-                                  sentence,
-                                  index: 0
-                                }) === stage;
-                              }).length;
-
-                              if (stageCount >= 2) continue;
-                              addSelected(item.sentence);
-                            }
-
-                            // Chronological presentation after balanced selection.
-                            const opening = selected.shift();
-                            selected.sort((a, b) => {
-                              const ay = biographyYears(a);
-                              const by = biographyYears(b);
-                              const aYear = ay.length ? Math.min(...ay) : 9999;
-                              const bYear = by.length ? Math.min(...by) : 9999;
-                              return aYear - bYear;
-                            });
-                            if (opening) selected.unshift(opening);
-
-                            // Keep whole sentences and a compact Reelwise reading length.
-                            const assembled = [];
-                            let wordTotal = 0;
-
-                            for (const sentence of selected) {
-                              const count = biographyWordCount(sentence);
-                              if (assembled.length >= 5) break;
-                              if (assembled.length >= 3 && wordTotal + count > 175) break;
-                              assembled.push(sentence);
-                              wordTotal += count;
-                            }
-
-                            let careerArcBiography = assembled.join(" ").replace(/\s+/g, " ").trim();
-                            careerArcBiography = cleanFinalBiographyOutput(careerArcBiography);
-
-                            const arcYears = biographyYears(careerArcBiography);
-                            const arcLatestYear = arcYears.length ? Math.max(...arcYears) : 0;
-                            const arcHasLaterCoverage =
-                              !maxCareerYear ||
-                              !careerSpan ||
-                              arcLatestYear >= secondCut;
-
-                            const shouldUseCareerArc =
-                              biographyWordCount(careerArcBiography) >= 70 &&
-                              (
-                                finalBiography.length < 560 ||
-                                biographyWordCount(finalBiography) < 80 ||
-                                hasGenericNotableFilmEnding ||
-                                careerCoverageLooksEarly ||
-                                endsIncomplete ||
-                                arcHasLaterCoverage
-                              );
-
-                            if (shouldUseCareerArc) {
-                              finalBiography = careerArcBiography;
-                            }
-                          }
-
-                          /*
-                            Safety guard only. Do not substitute biography_original here.
-                            If the career builder ever returns an unexpectedly long paragraph,
-                            keep the strongest opening career sentences rather than exposing
-                            the unedited source biography.
-                          */
-                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
-
-                          // PERSON 26: sanitize the exact string that will be returned.
-                          finalBiography = cleanFinalBiographyOutput(finalBiography);
-
-                          // PERSON 25 — NEVER SHIP GENERIC FILM-LIST PADDING
-                          // If no stronger narrative rescue was available, remove only the
-                          // automated recap sentence instead of exposing a mechanical list.
-                          finalBiography = finalBiography
-                            .replace(/(?:^|\s)Notable film work includes[^.!?]*[.!?]/gi, " ")
-                            .replace(/\s+/g, " ")
-                            .trim();
-
-                          if (finalBiography.length > 1800) {
-                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1800, 1650, 7);
-                          }
-
-                          // PERSON 32: the visible biography must end on a complete sentence.
-                          finalBiography = finalBiography
-                            .replace(/(?:\.\.\.|…)\s*$/, ".")
-                            .trim();
-
-                              // Run again after compaction so the response itself is guaranteed clean.
-                              finalBiography = cleanFinalBiographyOutput(finalBiography);
-
-                              // PERSON 32 — LAST-MILE RESPONSE GUARD
-                              // Clean the exact biography string immediately before it is
-                              // cached and returned. This protects against any upstream path
-                              // that leaves Wikipedia's stranded leading "From" behind.
-                              finalBiography = cleanFinalBiographyOutput(finalBiography)
-                                .replace(/^From\s+(?=[A-Z])/, "")
-                                .trim();
-
-                              const payload = {
-                                person_id: profile?.id || Number(id),
-                                name: profile?.name || "",
-                                biography: finalBiography,
-                                birthday: profile?.birthday || null,
-                                deathday: profile?.deathday || null,
-                                age: profile?.age ?? null,
-                                age_at_death: profile?.age_at_death ?? null
-                              };
-
-                              return saveCachedBiography(id, payload);
-                            })().finally(() => {
-                              biographyInflight.delete(id);
-                            });
-
-                            biographyInflight.set(id, biographyPromise);
-                          }
-
-                          const payload = await biographyPromise;
-
-                          // PERSON 32 — ABSOLUTE RESPONSE-LEVEL BIOGRAPHY GUARD
-                          // Sanitize the exact object sent over HTTP, regardless of whether
-                          // the biography came from the builder, rescue logic, or warm cache.
-                          const responsePayload = {
-                            ...payload,
-                            biography: cleanFinalBiographyOutput(payload?.biography || "")
-                              .replace(/^From\s+(?=[A-Z])/, "")
-                              .trim()
-                          };
-
-                          saveCachedBiography(id, responsePayload);
-
-                          res.setHeader("X-Reelwise-Biography-Cache", "MISS");
+                          res.setHeader("X-Reelwise-Biography-Version", "person40");
                           res.setHeader("Cache-Control", "no-store, max-age=0");
                           res.setHeader("CDN-Cache-Control", "no-store");
                           res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-                          return res.status(200).json(responsePayload);
+                          return res.status(200).json(payload);
                         }
 
                         /*
-                          PERSON 39 — NORMAL STAR PROFILE MODE
+                          PERSON 40 — NORMAL STAR PROFILE MODE
 
                           Do not run the Wikipedia enhancement path here. The page gets
                           TMDB profile/photo/credits immediately; the browser's existing
