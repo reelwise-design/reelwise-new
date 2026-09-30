@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person37";
+                    const BIOGRAPHY_CACHE_VERSION = "person38";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2777,16 +2777,17 @@
 
 
                     /*
-                      PERSON 37 — CAREER-ARC MILESTONE BUILDER
+                      PERSON 38 — CAREER-ARC MILESTONE BUILDER
 
                       Keep Person 34's single final biography path, but make the final
                       copy read like a career story instead of a popularity-ranked list.
                       The selector protects formative work, samples the middle of a long
                       career, and reserves room for strong later work. It also recognizes
                       an early television launch from the performer's own credits when the
-                      source biography does not supply a usable launch sentence. Person 36
-                      excludes talk shows, interview programs, award/game shows and guest/self
-                      appearances from the recovered television-launch candidate pool.
+                      source biography does not supply a usable launch sentence. Person 38 preserves the same career-arc structure while distinguishing
+                      sustained ensemble/self-format television work from one-off self appearances.
+                      Talk shows, interviews, award/game shows and other promotional appearances
+                      remain excluded from the recovered television-launch candidate pool.
                     */
                     function buildFinalReelwiseBiography(person, ...sources) {
                       const sourceText = sources
@@ -2844,9 +2845,14 @@
                             popularity: Number(item.popularity || 0),
                             character: cleanText(item.character || "")
                           }))
-                          .filter(item => item.year >= 1900 && !/\b(?:self|archive footage|uncredited)\b/i.test(item.character))
+                          .filter(item => item.year >= 1900 && !/\b(?:archive footage|uncredited)\b/i.test(item.character))
                           .filter(item => !/\b(?:tonight show|late show|late night|jimmy kimmel|jimmy fallon|david letterman|jay leno|conan|graham norton|ellen|kelly clarkson|daily show|colbert|talk|interview|awards?|oscars?|golden globes?|emmys?|grammys?|game show|jeopardy|wheel of fortune|red carpet|aftershow|after show|special)\b/i.test(item.name))
-                          .filter(item => item.episodes >= 2 || /\b(?:cast|regular|series regular|host)\b/i.test(item.character))
+                          /* PERSON 38: TMDB often labels performers as "Self" on sketch/variety
+                             ensemble series even when they were sustained cast members. Keep a
+                             Self credit only when the episode count itself shows meaningful,
+                             recurring participation; one-off promotional appearances stay out. */
+                          .filter(item => !/\bself\b/i.test(item.character) || item.episodes >= 8)
+                          .filter(item => item.episodes >= 2 || /\b(?:cast|regular|series regular|host|various)\b/i.test(item.character))
                           .sort((a,b) => a.year-b.year || b.episodes-a.episodes || b.popularity-a.popularity);
 
                         const firstFilmYear = cast
@@ -2855,7 +2861,7 @@
                           .filter(Boolean)
                           .sort((a,b)=>a-b)[0] || 9999;
 
-                        /* PERSON 37 — CAREER-SIGNIFICANCE TV RANKING
+                        /* PERSON 38 — CAREER-SIGNIFICANCE TV RANKING
                            Do not equate "earliest recurring credit" with "formative career milestone."
                            Rank eligible early television work by sustained participation and role
                            substance, while still allowing an earlier credit to win when it was truly
@@ -2874,6 +2880,10 @@
                           if (/\b(?:various|multiple characters|ensemble|series regular|regular|cast member|host)\b/i.test(role)) {
                             score += 42;
                           }
+
+                          /* A sustained Self credit on a non-talk/non-awards series can represent
+                             genuine ensemble participation (common in sketch/variety metadata). */
+                          if (/\bself\b/i.test(role) && episodes >= 8) score += 24;
 
                           /* A handful of episodes can be legitimate acting work without being the
                              television chapter that launched or defined a career. */
@@ -4116,7 +4126,7 @@
                         const selectedCareerParts = [];
 
                         /*
-                          PERSON 37 — NARRATIVE DEPTH
+                          PERSON 38 — NARRATIVE DEPTH
 
                           Keep up to two genuine career-story sentences from the source before the
                           compact five-film recap. This restores the missing middle ground between
@@ -4678,7 +4688,7 @@
                           /*
                             PERSON 39 — REELWISE BIO ONLY
 
-                            Preserve Person 37/38's fast page architecture, but never hand the
+                            Preserve Person 38/38's fast page architecture, but never hand the
                             raw source/Wikipedia biography back to the visible Star Profile.
                             getPersonProfile() already builds the concise Reelwise career story;
                             the source biography remains internal evidence only.
