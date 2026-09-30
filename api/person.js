@@ -4357,20 +4357,20 @@
                           finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
 
                           /*
-                            PERSON 31 — FULL-CAREER, SENTENCE-SAFE BIOGRAPHY RESCUE
+                            PERSON 32 — CAREER-ARC BIOGRAPHY BUILDER
 
-                            Build the visible biography from complete source sentences across
-                            the performer's career instead of simply taking the first several
-                            sentences. This prevents long-career stars from stopping in their
-                            early/mid career and prevents a character limit from producing a
-                            dangling fragment or ellipsis.
+                            The visible Reelwise biography must tell the performer's career,
+                            not simply reproduce the front of a long source biography.
 
-                            Generic rules only:
-                            - preserve a concise identity/legacy opening;
-                            - select milestone sentences from early, middle and later career;
-                            - preserve chronological source order;
-                            - favor sentences containing films, roles, breakthroughs or awards;
-                            - never cut a sentence to satisfy the display limit.
+                            Generic strategy:
+                            1. Keep one concise identity/legacy sentence.
+                            2. Reserve biography space for EARLY, MIDDLE and LATER career.
+                            3. Prefer sentences about films, roles, breakthroughs and major
+                               performances over award/honor inventory sentences.
+                            4. Allow award material when it is attached to a specific role/film.
+                            5. Require later-career representation for long careers whenever
+                               the source contains usable later-career material.
+                            6. Return complete sentences only.
                           */
                           const biographyWordCount = value =>
                             cleanText(value).split(/\s+/).filter(Boolean).length;
@@ -4380,7 +4380,8 @@
                               .map(match => Number(match[1]))
                               .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
 
-                          const hasGenericNotableFilmEnding = /\bNotable film work includes\b/i.test(finalBiography);
+                          const hasGenericNotableFilmEnding =
+                            /\bNotable film work includes\b/i.test(finalBiography);
 
                           const wikiSummary = cleanBiographySource(
                             removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
@@ -4396,110 +4397,214 @@
                             wikiLatestYear && currentLatestYear && wikiLatestYear - currentLatestYear >= 7;
 
                           const endsIncomplete =
-                            /(?:\.\.\.|…|\b(?:and|or|with|by|to|of|the|a|an|director|film|role)\s*)$/i.test(finalBiography.trim());
+                            /(?:\.\.\.|…|\b(?:and|or|with|by|to|of|the|a|an|director|film|role|silver linings)\s*)$/i
+                              .test(finalBiography.trim());
 
-                          if (
-                            finalBiography.length < 560 ||
-                            biographyWordCount(finalBiography) < 80 ||
-                            hasGenericNotableFilmEnding ||
-                            careerCoverageLooksEarly ||
-                            endsIncomplete
-                          ) {
-                            const wikiSentences = splitBioSentences(wikiSummary)
-                              .map(cleanText)
-                              .filter(Boolean)
-                              .filter(sentence => sentence.length >= 35 && sentence.length <= 360)
-                              .filter(sentence =>
-                                !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
-                              );
+                          const rawWikiSentences = splitBioSentences(wikiSummary)
+                            .map(cleanText)
+                            .filter(Boolean)
+                            .map(sentence => sentence.replace(/(?:\.\.\.|…)\s*$/, ".").trim())
+                            .filter(sentence => sentence.length >= 35 && sentence.length <= 430)
+                            .filter(sentence =>
+                              !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
+                            );
 
-                            if (wikiSentences.length) {
-                              const identityOrLegacy = wikiSentences.find(sentence =>
-                                /\b(?:actor|actress|filmmaker|director|performer|comedian|known|regarded|influential|acclaimed|award)\b/i.test(sentence)
-                              ) || wikiSentences[0];
+                          const isCompleteCareerSentence = sentence => {
+                            const value = cleanText(sentence).trim();
+                            if (!value) return false;
+                            if (!/[.!?]["')\]]?$/.test(value)) return false;
+                            if (/\b(?:and|or|with|by|to|of|the|a|an|his|her|their|in|for|as|including)\s*[.!?]?$/i.test(value)) return false;
+                            return true;
+                          };
 
-                              const careerMilestones = wikiSentences
-                                .filter(sentence => sentence !== identityOrLegacy)
-                                .filter(sentence =>
-                                  /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|screen|portrayed|played|appeared)\b/i.test(sentence)
-                                );
+                          const wikiSentences = rawWikiSentences.filter(isCompleteCareerSentence);
 
-                              const milestoneYears = careerMilestones
-                                .flatMap(sentence => biographyYears(sentence));
+                          if (wikiSentences.length) {
+                            const identityCandidates = wikiSentences.filter(sentence =>
+                              /\b(?:actor|actress|filmmaker|director|performer|comedian|producer|screenwriter)\b/i.test(sentence)
+                            );
 
-                              const minCareerYear = milestoneYears.length ? Math.min(...milestoneYears) : 0;
-                              const maxCareerYear = milestoneYears.length ? Math.max(...milestoneYears) : 0;
-                              const careerSpan = Math.max(0, maxCareerYear - minCareerYear);
-                              const firstCut = minCareerYear + careerSpan / 3;
-                              const secondCut = minCareerYear + (careerSpan * 2) / 3;
+                            const identityOrLegacy =
+                              identityCandidates.find(sentence =>
+                                biographyWordCount(sentence) <= 38 &&
+                                !/\b(?:honors?|medal|lifetime achievement|kennedy center|cecil b\. demille|palme d'or)\b/i.test(sentence)
+                              ) ||
+                              identityCandidates[0] ||
+                              wikiSentences[0];
 
-                              const stageForSentence = sentence => {
+                            const isCareerSentence = sentence =>
+                              /\b(?:film|movie|role|starred|starring|performance|career|breakthrough|breakout|debut|portrayed|played|appeared|cast|comedy|drama|thriller|musical|franchise|series|box office|commercial success|critical acclaim|academy award|oscar)\b/i.test(sentence);
+
+                            const isHonorInventory = sentence => {
+                              const roleLinked =
+                                /\b(?:for (?:his|her|their) (?:role|performance|portrayal)|playing|portraying|in the film|for .*?\(\d{4}\))\b/i.test(sentence);
+                              const honorHeavy =
+                                /\b(?:honored|honours?|honors?|lifetime achievement|presidential medal|kennedy center|cecil b\. demille|palme d'or|mark twain prize)\b/i.test(sentence);
+                              return honorHeavy && !roleLinked;
+                            };
+
+                            const careerMilestones = wikiSentences
+                              .filter(sentence => sentence !== identityOrLegacy)
+                              .filter(isCareerSentence)
+                              .filter(sentence => !isHonorInventory(sentence));
+
+                            const datedMilestones = careerMilestones
+                              .map((sentence, index) => {
                                 const years = biographyYears(sentence);
-                                if (!years.length || !careerSpan) return "middle";
-                                const year = Math.min(...years);
-                                if (year <= firstCut) return "early";
-                                if (year <= secondCut) return "middle";
-                                return "later";
-                              };
+                                return {
+                                  sentence,
+                                  index,
+                                  years,
+                                  year: years.length ? Math.min(...years) : null,
+                                  latestYear: years.length ? Math.max(...years) : null
+                                };
+                              });
 
-                              const early = careerMilestones.filter(s => stageForSentence(s) === "early");
-                              const middle = careerMilestones.filter(s => stageForSentence(s) === "middle");
-                              const later = careerMilestones.filter(s => stageForSentence(s) === "later");
+                            const datedYears = datedMilestones
+                              .flatMap(item => item.years);
 
-                              const rescued = [];
-                              const seen = new Set();
-                              let words = 0;
+                            const minCareerYear = datedYears.length ? Math.min(...datedYears) : 0;
+                            const maxCareerYear = datedYears.length ? Math.max(...datedYears) : 0;
+                            const careerSpan = Math.max(0, maxCareerYear - minCareerYear);
+                            const firstCut = minCareerYear + careerSpan * 0.34;
+                            const secondCut = minCareerYear + careerSpan * 0.67;
 
-                              const addSentence = sentence => {
-                                const cleanSentence = cleanText(sentence)
-                                  .replace(/(?:\.\.\.|…)\s*$/, ".")
-                                  .trim();
-                                const key = cleanSentence.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-                                if (!cleanSentence || seen.has(key)) return false;
-                                const count = biographyWordCount(cleanSentence);
-                                if (rescued.length && words + count > 165) return false;
-                                rescued.push(cleanSentence);
-                                seen.add(key);
-                                words += count;
-                                return true;
-                              };
+                            const stageFor = item => {
+                              if (!item.year || careerSpan < 8) return "middle";
+                              if (item.year <= firstCut) return "early";
+                              if (item.year <= secondCut) return "middle";
+                              return "later";
+                            };
 
-                              addSentence(identityOrLegacy);
+                            const milestoneScore = item => {
+                              const sentence = item.sentence;
+                              let score = 0;
 
-                              // Reserve room for every career stage before adding extras.
-                              if (early.length) addSentence(early[0]);
-                              if (middle.length) addSentence(middle[0]);
-                              if (later.length) addSentence(later[later.length - 1]);
+                              if (/\b(?:breakthrough|breakout|debut|rose to prominence|gained recognition|became known|commercial success)\b/i.test(sentence)) score += 35;
+                              if (/\b(?:starred|starring|portrayed|played|role|performance)\b/i.test(sentence)) score += 24;
+                              if (/\b(?:academy award|oscar|bafta|golden globe|emmy|nominated|won)\b/i.test(sentence)) score += 14;
+                              if (/\b(?:film|movie|comedy|drama|thriller|musical|franchise|series)\b/i.test(sentence)) score += 10;
+                              if (item.years.length) score += 8;
+                              if (biographyWordCount(sentence) >= 18 && biographyWordCount(sentence) <= 58) score += 8;
+                              if (biographyWordCount(sentence) > 78) score -= 15;
+                              if (isHonorInventory(sentence)) score -= 80;
 
-                              // Fill remaining room with strong source sentences in chronology.
-                              for (const sentence of careerMilestones) {
-                                if (words >= 145 || rescued.length >= 7) break;
-                                addSentence(sentence);
-                              }
+                              return score;
+                            };
 
-                              // Restore original source chronology after stage-balanced selection.
-                              const sourceOrder = new Map(wikiSentences.map((sentence, index) => [sentence, index]));
-                              const opening = rescued.shift();
-                              rescued.sort((a, b) =>
-                                (sourceOrder.get(a) ?? 9999) - (sourceOrder.get(b) ?? 9999)
+                            const bestForStage = stage => datedMilestones
+                              .filter(item => stageFor(item) === stage)
+                              .sort((a, b) =>
+                                milestoneScore(b) - milestoneScore(a) ||
+                                (a.year || 9999) - (b.year || 9999) ||
+                                a.index - b.index
                               );
-                              if (opening) rescued.unshift(opening);
 
-                              let rescuedBiography = rescued.join(" ").replace(/\s+/g, " ").trim();
-                              rescuedBiography = cleanFinalBiographyOutput(rescuedBiography);
-                              rescuedBiography = limitBiographyToCompleteSentences(rescuedBiography, 1800, 1650, 7);
+                            const earlyPool = bestForStage("early");
+                            const middlePool = bestForStage("middle");
+                            const laterPool = bestForStage("later");
 
-                              if (
-                                biographyWordCount(rescuedBiography) >= 75 &&
-                                (
-                                  rescuedBiography.length > finalBiography.length ||
-                                  hasGenericNotableFilmEnding ||
-                                  careerCoverageLooksEarly ||
-                                  endsIncomplete
-                                )
-                              ) {
-                                finalBiography = rescuedBiography;
-                              }
+                            const selected = [];
+                            const selectedKeys = new Set();
+
+                            const sentenceKey = sentence =>
+                              cleanText(sentence)
+                                .toLowerCase()
+                                .replace(/[^a-z0-9]+/g, " ")
+                                .replace(/\s+/g, " ")
+                                .trim();
+
+                            const addSelected = sentence => {
+                              const cleanSentence = cleanText(sentence).trim();
+                              const key = sentenceKey(cleanSentence);
+                              if (!cleanSentence || !key || selectedKeys.has(key)) return false;
+                              if (!isCompleteCareerSentence(cleanSentence)) return false;
+                              selected.push(cleanSentence);
+                              selectedKeys.add(key);
+                              return true;
+                            };
+
+                            addSelected(identityOrLegacy);
+
+                            // PERSON 32's key rule: every available career era gets a seat
+                            // before any era gets a second sentence.
+                            if (earlyPool[0]) addSelected(earlyPool[0].sentence);
+                            if (middlePool[0]) addSelected(middlePool[0].sentence);
+                            if (laterPool[0]) addSelected(laterPool[0].sentence);
+
+                            // Long careers can use a second strong middle/later milestone.
+                            const extras = datedMilestones
+                              .filter(item => !selectedKeys.has(sentenceKey(item.sentence)))
+                              .sort((a, b) =>
+                                milestoneScore(b) - milestoneScore(a) ||
+                                (a.year || 9999) - (b.year || 9999)
+                              );
+
+                            for (const item of extras) {
+                              if (selected.length >= 6) break;
+
+                              const stage = stageFor(item);
+                              const stageCount = selected.filter(sentence => {
+                                const years = biographyYears(sentence);
+                                if (!years.length) return false;
+                                return stageFor({
+                                  year: Math.min(...years),
+                                  years,
+                                  sentence,
+                                  index: 0
+                                }) === stage;
+                              }).length;
+
+                              if (stageCount >= 2) continue;
+                              addSelected(item.sentence);
+                            }
+
+                            // Chronological presentation after balanced selection.
+                            const opening = selected.shift();
+                            selected.sort((a, b) => {
+                              const ay = biographyYears(a);
+                              const by = biographyYears(b);
+                              const aYear = ay.length ? Math.min(...ay) : 9999;
+                              const bYear = by.length ? Math.min(...by) : 9999;
+                              return aYear - bYear;
+                            });
+                            if (opening) selected.unshift(opening);
+
+                            // Keep whole sentences and a compact Reelwise reading length.
+                            const assembled = [];
+                            let wordTotal = 0;
+
+                            for (const sentence of selected) {
+                              const count = biographyWordCount(sentence);
+                              if (assembled.length >= 5) break;
+                              if (assembled.length >= 3 && wordTotal + count > 175) break;
+                              assembled.push(sentence);
+                              wordTotal += count;
+                            }
+
+                            let careerArcBiography = assembled.join(" ").replace(/\s+/g, " ").trim();
+                            careerArcBiography = cleanFinalBiographyOutput(careerArcBiography);
+
+                            const arcYears = biographyYears(careerArcBiography);
+                            const arcLatestYear = arcYears.length ? Math.max(...arcYears) : 0;
+                            const arcHasLaterCoverage =
+                              !maxCareerYear ||
+                              !careerSpan ||
+                              arcLatestYear >= secondCut;
+
+                            const shouldUseCareerArc =
+                              biographyWordCount(careerArcBiography) >= 70 &&
+                              (
+                                finalBiography.length < 560 ||
+                                biographyWordCount(finalBiography) < 80 ||
+                                hasGenericNotableFilmEnding ||
+                                careerCoverageLooksEarly ||
+                                endsIncomplete ||
+                                arcHasLaterCoverage
+                              );
+
+                            if (shouldUseCareerArc) {
+                              finalBiography = careerArcBiography;
                             }
                           }
 
@@ -4526,7 +4631,7 @@
                             finalBiography = limitBiographyToCompleteSentences(finalBiography, 1800, 1650, 7);
                           }
 
-                          // PERSON 31: a visible Reelwise biography must end on a complete sentence.
+                          // PERSON 32: the visible biography must end on a complete sentence.
                           finalBiography = finalBiography
                             .replace(/(?:\.\.\.|…)\s*$/, ".")
                             .trim();
@@ -4534,7 +4639,7 @@
                               // Run again after compaction so the response itself is guaranteed clean.
                               finalBiography = cleanFinalBiographyOutput(finalBiography);
 
-                              // PERSON 31 — LAST-MILE RESPONSE GUARD
+                              // PERSON 32 — LAST-MILE RESPONSE GUARD
                               // Clean the exact biography string immediately before it is
                               // cached and returned. This protects against any upstream path
                               // that leaves Wikipedia's stranded leading "From" behind.
