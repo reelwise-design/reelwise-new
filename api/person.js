@@ -39,8 +39,16 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 26 BUILD
+                      REELWISE PERSON API — PERSON 29 BUILD
                       ============================================================
+
+                      PERSON 29 CHANGES:
+                        - Preserve more complete, sentence-safe career biographies so defining
+                          later work is not lost simply because early-career prose was lengthy.
+                        - Protect Academy Awards results from same-name collisions by checking
+                          plausible award year and matching film credits in addition to exact name.
+                        - Preserve Person 28 fast loading, birthday/age, deceased-age, caching,
+                          Known For, and current Reelwise biography architecture.
 
                       NORMAL MODE:
                         /api/person?id=31
@@ -3945,7 +3953,7 @@
                           "Adam Richard Sandler is an American actor, comedian, writer, and producer who first gained national attention as a cast member on Saturday Night Live in the early 1990s. He became one of the defining comedy stars of the 1990s with Billy Madison (1995), Happy Gilmore (1996), The Wedding Singer (1998), The Waterboy (1998), and Big Daddy (1999), building a screen persona around broad comedy, underdog characters, and an offbeat supporting ensemble. He remained a major comedy draw in the 2000s with films including 50 First Dates (2004) and later Grown Ups (2010), while also taking acclaimed dramatic roles in Punch-Drunk Love (2002) and Uncut Gems (2019). His career has continued across comedy, drama, voice work, writing, and producing, including the Hotel Transylvania films and a return to one of his signature characters in Happy Gilmore 2 (2025).";
                       }
 
-                      if (biography.length > 1150) {
+                      if (biography.length > 1650) {
                         const fallbackSentences = splitBioSentences(biography);
                         const compactFallback = [];
                         let fallbackLength = 0;
@@ -3957,12 +3965,12 @@
                           const addition =
                             cleanSentence.length + (compactFallback.length ? 1 : 0);
 
-                          if (fallbackLength + addition > 980) break;
+                          if (fallbackLength + addition > 1500) break;
 
                           compactFallback.push(cleanSentence);
                           fallbackLength += addition;
 
-                          if (compactFallback.length >= 4) break;
+                          if (compactFallback.length >= 8) break;
                         }
 
                         biography = compactFallback.join(" ");
@@ -3971,8 +3979,8 @@
                           Absolute last-resort guard: never let a malformed source paragraph
                           fill the entire Reelwise star card.
                         */
-                        if (biography.length > 1050) {
-                          biography = limitBiographyToCompleteSentences(biography, 1050, 980, 5);
+                        if (biography.length > 1600) {
+                          biography = limitBiographyToCompleteSentences(biography, 1600, 1450, 8);
                         }
                       }
 
@@ -4094,14 +4102,40 @@
                         nominee to equal the TMDB person's name after normalization so a search
                         for one performer cannot silently show another person's awards.
                       */
+                      const birthYear = parseInt(String(person?.birthday || "").slice(0, 4), 10) || 0;
+                      const creditTitles = new Set(
+                        getMovieCredits(person)
+                          .map(movie => normalizeName(movie?.title || movie?.original_title || ""))
+                          .filter(Boolean)
+                      );
+
                       rows = rows.filter(item => {
                         const nominee =
                           typeof item?.nominee === "string"
                             ? item.nominee
                             : item?.nominee?.name || "";
 
+                        const awardYear =
+                          parseInt(String(item?.ceremony_year || item?.year || "").slice(0, 4), 10) || 0;
+
+                        const awardMovie = normalizeName(
+                          typeof item?.movie === "string"
+                            ? item.movie
+                            : item?.movie?.title || item?.film || item?.work || ""
+                        );
+
+                        // PERSON 29 — SAME-NAME IDENTITY PROTECTION
+                        // Exact name matching alone is not enough when two industry people share
+                        // the same name. Reject awards that predate the Reelwise star's plausible
+                        // career and, when a film title is supplied, require that film to appear in
+                        // the star's own TMDB acting/crew credits.
+                        const plausibleYear = !birthYear || !awardYear || awardYear >= birthYear + 10;
+                        const plausibleFilm = !awardMovie || creditTitles.size === 0 || creditTitles.has(awardMovie);
+
                         return (
                           normalizeName(nominee) === expectedName &&
+                          plausibleYear &&
+                          plausibleFilm &&
                           academyCategoryLooksPersonal(
                             typeof item?.category === "string"
                               ? item.category
@@ -4415,8 +4449,8 @@
                             .replace(/\s+/g, " ")
                             .trim();
 
-                          if (finalBiography.length > 1050) {
-                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1050, 900, 6);
+                          if (finalBiography.length > 1550) {
+                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1550, 1400, 8);
                           }
 
                               // Run again after compaction so the response itself is guaranteed clean.
