@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person34";
+                    const BIOGRAPHY_CACHE_VERSION = "person35";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2777,13 +2777,14 @@
 
 
                     /*
-                      PERSON 34 — ONE FINAL REELWISE BIOGRAPHY BUILDER
+                      PERSON 35 — CAREER-ARC MILESTONE BUILDER
 
-                      Both the normal Star Profile response and mode=biography now pass
-                      through this same last-mile builder. Source biographies are evidence,
-                      not final copy. The builder keeps a concise identity/career-launch
-                      sentence, rejects money/business and filmography-list prose, then adds
-                      a small set of representative screen milestones across the career.
+                      Keep Person 34's single final biography path, but make the final
+                      copy read like a career story instead of a popularity-ranked list.
+                      The selector protects formative work, samples the middle of a long
+                      career, and reserves room for strong later work. It also recognizes
+                      an early television launch from the performer's own credits when the
+                      source biography does not supply a usable launch sentence.
                     */
                     function buildFinalReelwiseBiography(person, ...sources) {
                       const sourceText = sources
@@ -2818,7 +2819,7 @@
                         sentence.length <= 260
                       ) || usable[0] || "";
 
-                      const launch = usable.find(sentence =>
+                      let launch = usable.find(sentence =>
                         sentence !== identity &&
                         /\b(?:cast member|television|stage|broadway|sketch comedy|saturday night live|breakthrough|rose to|gained recognition|began|debut)\b/i.test(sentence) &&
                         sentence.length <= 300
@@ -2828,6 +2829,38 @@
                         ? person.combined_credits.cast
                         : [];
 
+                      /* If prose omitted the performer's early TV launch, recover one from
+                         credits. This is generic: it favors an early, substantial TV credit
+                         rather than any named performer or series. */
+                      if (!launch) {
+                        const tvCredits = cast
+                          .filter(item => item && item.media_type === "tv" && item.name)
+                          .map(item => ({
+                            name: cleanText(item.name),
+                            year: Number(String(item.first_air_date || "").slice(0,4)) || 0,
+                            episodes: Number(item.episode_count || 0),
+                            popularity: Number(item.popularity || 0),
+                            character: cleanText(item.character || "")
+                          }))
+                          .filter(item => item.year >= 1900 && !/\b(?:self|archive footage|uncredited)\b/i.test(item.character))
+                          .sort((a,b) => a.year-b.year || b.episodes-a.episodes || b.popularity-a.popularity);
+
+                        const firstFilmYear = cast
+                          .filter(item => item && item.media_type === "movie" && item.release_date)
+                          .map(item => Number(String(item.release_date).slice(0,4)) || 0)
+                          .filter(Boolean)
+                          .sort((a,b)=>a-b)[0] || 9999;
+
+                        const tvLaunch = tvCredits
+                          .filter(item => item.year <= firstFilmYear + 7)
+                          .sort((a,b) => (b.episodes*3 + b.popularity) - (a.episodes*3 + a.popularity) || a.year-b.year)[0];
+
+                        if (tvLaunch) {
+                          const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
+                          launch = `${subject} established an early screen presence on ${tvLaunch.name}${tvLaunch.year ? ` beginning in ${tvLaunch.year}` : ""}.`;
+                        }
+                      }
+
                       const films = cast
                         .filter(item => item && item.media_type === "movie" && item.title && item.release_date)
                         .map(item => ({
@@ -2835,6 +2868,7 @@
                           title: cleanText(item.title),
                           year: Number(String(item.release_date).slice(0, 4)) || 0,
                           votes: Number(item.vote_count || 0),
+                          rating: Number(item.vote_average || 0),
                           popularity: Number(item.popularity || 0),
                           character: cleanText(item.character || "")
                         }))
@@ -2849,30 +2883,62 @@
                         const existing = byId.get(film.id);
                         if (!existing || film.votes > existing.votes) byId.set(film.id, film);
                       }
-                      const uniqueFilms = [...byId.values()].sort((a,b) => a.year - b.year);
+                      const uniqueFilms = [...byId.values()].sort((a,b) => a.year-b.year);
 
                       const selected = [];
+                      const add = film => {
+                        if (film && !selected.some(x => x.id === film.id)) selected.push(film);
+                      };
+
                       if (uniqueFilms.length) {
                         const start = uniqueFilms[0].year;
                         const end = uniqueFilms[uniqueFilms.length - 1].year;
-                        const span = Math.max(1, end - start);
-                        const cut1 = start + Math.max(7, Math.floor(span * .34));
-                        const cut2 = start + Math.max(14, Math.floor(span * .68));
-                        const score = film => Math.log10(film.votes + 10) * 2.3 + Math.log10(film.popularity + 2);
+                        const span = Math.max(1, end-start);
+
+                        const mentioned = film => {
+                          const escaped = String(film.title || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                          return escaped && new RegExp(`\\b${escaped}\\b`, "i").test(sourceText);
+                        };
+                        const score = film =>
+                          Math.log10(film.votes + 10) * 2.15 +
+                          Math.log10(film.popularity + 2) * .7 +
+                          Math.max(0, film.rating - 5.5) * .55 +
+                          (mentioned(film) ? 1.35 : 0);
                         const pick = pool => [...pool].sort((a,b) => score(b)-score(a) || a.year-b.year)[0];
 
-                        const early = pick(uniqueFilms.filter(f => f.year <= cut1));
-                        const middle = pick(uniqueFilms.filter(f => f.year > cut1 && f.year <= cut2));
-                        const later = pick(uniqueFilms.filter(f => f.year > cut2));
-                        for (const film of [early, middle, later]) {
-                          if (film && !selected.some(x => x.id === film.id)) selected.push(film);
+                        if (span >= 22) {
+                          /* Long careers get two protected formative slots, two middle-era
+                             slots, and up to two later slots. This prevents one popular title
+                             per decade from erasing the period that actually established a star. */
+                          const earlyEnd = start + Math.min(12, Math.max(8, Math.floor(span*.27)));
+                          const middleEnd = start + Math.max(18, Math.floor(span*.66));
+                          const earlyPool = uniqueFilms.filter(f => f.year <= earlyEnd);
+                          const middlePool = uniqueFilms.filter(f => f.year > earlyEnd && f.year <= middleEnd);
+                          const laterPool = uniqueFilms.filter(f => f.year > middleEnd);
+
+                          add(pick(earlyPool));
+                          add(pick(earlyPool.filter(f => !selected.some(x=>x.id===f.id) && (mentioned(f) || f.year <= start+10))));
+                          add(pick(middlePool));
+                          add(pick(middlePool.filter(f => !selected.some(x=>x.id===f.id) && mentioned(f))));
+                          add(pick(laterPool));
+
+                          /* Reserve one slot for critically stronger later work when it is
+                             meaningfully better rated and well seen, rather than automatically
+                             giving the slot to the most popular franchise/comedy title. */
+                          const acclaimedLater = laterPool
+                            .filter(f => !selected.some(x=>x.id===f.id) && f.votes >= 1000 && f.rating >= 7.0)
+                            .sort((a,b) => b.rating-a.rating || b.votes-a.votes)[0];
+                          add(acclaimedLater);
+                        } else {
+                          const cut1 = start + Math.max(5, Math.floor(span*.38));
+                          const cut2 = start + Math.max(10, Math.floor(span*.72));
+                          add(pick(uniqueFilms.filter(f=>f.year<=cut1)));
+                          add(pick(uniqueFilms.filter(f=>f.year>cut1 && f.year<=cut2)));
+                          add(pick(uniqueFilms.filter(f=>f.year>cut2)));
+                          add(pick(uniqueFilms.filter(f=>!selected.some(x=>x.id===f.id))));
                         }
 
-                        const remaining = uniqueFilms
-                          .filter(f => !selected.some(x => x.id === f.id))
-                          .sort((a,b) => score(b)-score(a) || a.year-b.year);
-                        if (selected.length < 4 && remaining[0]) selected.push(remaining[0]);
-                        selected.sort((a,b) => a.year-b.year);
+                        selected.sort((a,b)=>a.year-b.year);
                       }
 
                       const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
@@ -2880,10 +2946,15 @@
 
                       let milestones = "";
                       if (selected.length) {
-                        const names = selected.map(f => `${f.title} (${f.year})`);
+                        const names = selected.slice(0,6).map(f => `${f.title} (${f.year})`);
                         if (names.length === 1) milestones = `${subject} became known on screen for ${names[0]}.`;
-                        else if (names.length === 2) milestones = `${subject} built ${possessive} screen career through ${names[0]} and ${names[1]}.`;
-                        else milestones = `${subject} built ${possessive} screen career through ${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}.`;
+                        else if (names.length <= 3) milestones = `${subject} built ${possessive} screen career through ${names.slice(0,-1).join(", ")} and ${names[names.length-1]}.`;
+                        else {
+                          const first = names.slice(0, Math.min(3,names.length));
+                          const later = names.slice(first.length);
+                          milestones = `${subject} built ${possessive} film career with ${first.slice(0,-1).join(", ")}${first.length>1 ? ", and " : ""}${first[first.length-1]}.`;
+                          if (later.length) milestones += ` Later work included ${later.slice(0,-1).join(", ")}${later.length>1 ? ", and " : ""}${later[later.length-1]}.`;
+                        }
                       }
 
                       let result = [identity, launch, milestones]
@@ -2896,8 +2967,8 @@
                         .replace(/^From\s+(?=[A-Z])/, "")
                         .trim();
 
-                      if (result.length > 1050) {
-                        result = limitBiographyToCompleteSentences(result, 1050, 900, 5);
+                      if (result.length > 1100) {
+                        result = limitBiographyToCompleteSentences(result, 1100, 950, 6);
                       }
 
                       return result;
