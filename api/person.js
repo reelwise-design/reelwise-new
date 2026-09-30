@@ -4357,39 +4357,58 @@
                           finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
 
                           /*
-                            PERSON 44 — BACKGROUND BIOGRAPHY RESCUE
+                            PERSON 31 — FULL-CAREER, SENTENCE-SAFE BIOGRAPHY RESCUE
 
-                            Person 43 improved the career selector, but a major performer can
-                            still arrive here with only the fast-profile fallback (identity +
-                            "Notable film work"). When that happens, use Wikipedia's concise
-                            biography summary as a SECOND background source and extract a compact
-                            career story. This never blocks the initial star card/photo load.
+                            Build the visible biography from complete source sentences across
+                            the performer's career instead of simply taking the first several
+                            sentences. This prevents long-career stars from stopping in their
+                            early/mid career and prevents a character limit from producing a
+                            dangling fragment or ellipsis.
 
                             Generic rules only:
-                            - activate only when the assembled Reelwise bio is unusually thin;
-                            - keep an identity/legacy opening plus career milestone sentences;
-                            - reject personal-life/navigation/licensing material;
-                            - target roughly 90–140 words without exposing a Wikipedia dump.
+                            - preserve a concise identity/legacy opening;
+                            - select milestone sentences from early, middle and later career;
+                            - preserve chronological source order;
+                            - favor sentences containing films, roles, breakthroughs or awards;
+                            - never cut a sentence to satisfy the display limit.
                           */
                           const biographyWordCount = value =>
                             cleanText(value).split(/\s+/).filter(Boolean).length;
 
+                          const biographyYears = value =>
+                            [...String(value || "").matchAll(/\b(19\d{2}|20\d{2})\b/g)]
+                              .map(match => Number(match[1]))
+                              .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
+
                           const hasGenericNotableFilmEnding = /\bNotable film work includes\b/i.test(finalBiography);
+
+                          const wikiSummary = cleanBiographySource(
+                            removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
+                            profile?.name || ""
+                          );
+
+                          const wikiYears = biographyYears(wikiSummary);
+                          const currentYears = biographyYears(finalBiography);
+                          const wikiLatestYear = wikiYears.length ? Math.max(...wikiYears) : 0;
+                          const currentLatestYear = currentYears.length ? Math.max(...currentYears) : 0;
+
+                          const careerCoverageLooksEarly =
+                            wikiLatestYear && currentLatestYear && wikiLatestYear - currentLatestYear >= 7;
+
+                          const endsIncomplete =
+                            /(?:\.\.\.|…|\b(?:and|or|with|by|to|of|the|a|an|director|film|role)\s*)$/i.test(finalBiography.trim());
 
                           if (
                             finalBiography.length < 560 ||
                             biographyWordCount(finalBiography) < 80 ||
-                            hasGenericNotableFilmEnding
+                            hasGenericNotableFilmEnding ||
+                            careerCoverageLooksEarly ||
+                            endsIncomplete
                           ) {
-                            const wikiSummary = cleanBiographySource(
-                              removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
-                              profile?.name || ""
-                            );
-
                             const wikiSentences = splitBioSentences(wikiSummary)
                               .map(cleanText)
                               .filter(Boolean)
-                              .filter(sentence => sentence.length >= 35 && sentence.length <= 330)
+                              .filter(sentence => sentence.length >= 35 && sentence.length <= 360)
                               .filter(sentence =>
                                 !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
                               );
@@ -4402,19 +4421,43 @@
                               const careerMilestones = wikiSentences
                                 .filter(sentence => sentence !== identityOrLegacy)
                                 .filter(sentence =>
-                                  /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|godfather|screen)\b/i.test(sentence)
+                                  /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|screen|portrayed|played|appeared)\b/i.test(sentence)
                                 );
+
+                              const milestoneYears = careerMilestones
+                                .flatMap(sentence => biographyYears(sentence));
+
+                              const minCareerYear = milestoneYears.length ? Math.min(...milestoneYears) : 0;
+                              const maxCareerYear = milestoneYears.length ? Math.max(...milestoneYears) : 0;
+                              const careerSpan = Math.max(0, maxCareerYear - minCareerYear);
+                              const firstCut = minCareerYear + careerSpan / 3;
+                              const secondCut = minCareerYear + (careerSpan * 2) / 3;
+
+                              const stageForSentence = sentence => {
+                                const years = biographyYears(sentence);
+                                if (!years.length || !careerSpan) return "middle";
+                                const year = Math.min(...years);
+                                if (year <= firstCut) return "early";
+                                if (year <= secondCut) return "middle";
+                                return "later";
+                              };
+
+                              const early = careerMilestones.filter(s => stageForSentence(s) === "early");
+                              const middle = careerMilestones.filter(s => stageForSentence(s) === "middle");
+                              const later = careerMilestones.filter(s => stageForSentence(s) === "later");
 
                               const rescued = [];
                               const seen = new Set();
                               let words = 0;
 
                               const addSentence = sentence => {
-                                const cleanSentence = cleanText(sentence);
+                                const cleanSentence = cleanText(sentence)
+                                  .replace(/(?:\.\.\.|…)\s*$/, ".")
+                                  .trim();
                                 const key = cleanSentence.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
                                 if (!cleanSentence || seen.has(key)) return false;
                                 const count = biographyWordCount(cleanSentence);
-                                if (rescued.length && words + count > 140) return false;
+                                if (rescued.length && words + count > 165) return false;
                                 rescued.push(cleanSentence);
                                 seen.add(key);
                                 words += count;
@@ -4422,16 +4465,38 @@
                               };
 
                               addSentence(identityOrLegacy);
+
+                              // Reserve room for every career stage before adding extras.
+                              if (early.length) addSentence(early[0]);
+                              if (middle.length) addSentence(middle[0]);
+                              if (later.length) addSentence(later[later.length - 1]);
+
+                              // Fill remaining room with strong source sentences in chronology.
                               for (const sentence of careerMilestones) {
-                                if (words >= 105 || rescued.length >= 5) break;
+                                if (words >= 145 || rescued.length >= 7) break;
                                 addSentence(sentence);
                               }
 
-                              const rescuedBiography = rescued.join(" ").replace(/\s+/g, " ").trim();
+                              // Restore original source chronology after stage-balanced selection.
+                              const sourceOrder = new Map(wikiSentences.map((sentence, index) => [sentence, index]));
+                              const opening = rescued.shift();
+                              rescued.sort((a, b) =>
+                                (sourceOrder.get(a) ?? 9999) - (sourceOrder.get(b) ?? 9999)
+                              );
+                              if (opening) rescued.unshift(opening);
+
+                              let rescuedBiography = rescued.join(" ").replace(/\s+/g, " ").trim();
+                              rescuedBiography = cleanFinalBiographyOutput(rescuedBiography);
+                              rescuedBiography = limitBiographyToCompleteSentences(rescuedBiography, 1800, 1650, 7);
 
                               if (
                                 biographyWordCount(rescuedBiography) >= 75 &&
-                                (rescuedBiography.length > finalBiography.length || hasGenericNotableFilmEnding)
+                                (
+                                  rescuedBiography.length > finalBiography.length ||
+                                  hasGenericNotableFilmEnding ||
+                                  careerCoverageLooksEarly ||
+                                  endsIncomplete
+                                )
                               ) {
                                 finalBiography = rescuedBiography;
                               }
@@ -4457,14 +4522,19 @@
                             .replace(/\s+/g, " ")
                             .trim();
 
-                          if (finalBiography.length > 1550) {
-                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1550, 1400, 8);
+                          if (finalBiography.length > 1800) {
+                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1800, 1650, 7);
                           }
+
+                          // PERSON 31: a visible Reelwise biography must end on a complete sentence.
+                          finalBiography = finalBiography
+                            .replace(/(?:\.\.\.|…)\s*$/, ".")
+                            .trim();
 
                               // Run again after compaction so the response itself is guaranteed clean.
                               finalBiography = cleanFinalBiographyOutput(finalBiography);
 
-                              // PERSON 30 — LAST-MILE RESPONSE GUARD
+                              // PERSON 31 — LAST-MILE RESPONSE GUARD
                               // Clean the exact biography string immediately before it is
                               // cached and returned. This protects against any upstream path
                               // that leaves Wikipedia's stranded leading "From" behind.
