@@ -39,7 +39,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 24 BUILD
+                      REELWISE PERSON API — PERSON 25 BUILD
                       ============================================================
 
                       NORMAL MODE:
@@ -440,7 +440,9 @@
                       const protectedText = cleanText(value)
                         .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`)
                         .replace(/\bNo\.(?=\s*\d)/gi, match => match.replace(".", ABBREV_TOKEN))
-                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+[A-Z])/g, match => match.replace(".", ABBREV_TOKEN));
+                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+[A-Z])/g, match => match.replace(".", ABBREV_TOKEN))
+                        // PERSON 25: protect middle initials inside names/titles, e.g. "Cecil B. DeMille".
+                        .replace(/\b[A-Z]\.(?=\s+[A-Z][a-z])/g, match => match.replace(".", ABBREV_TOKEN));
 
                       return (protectedText
                         .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [])
@@ -574,6 +576,12 @@
                         .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, " ")
                         .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, " ")
                         .replace(/\bfull list of contributors on Wikipedia\.?/gi, " ")
+                        // PERSON 25 — HEADER DATE DEDUPLICATION
+                        // Reelwise already shows Born/Died/Age above the biography. Remove
+                        // birth/death date clauses from the opening identity parenthetical.
+                        // Handles both "July 9, 1956" and "1 June 1996" date styles.
+                        .replace(/\s*\(\s*born\s+(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*\)/gi, "")
+                        .replace(/\s*\(\s*(?:born\s+)?(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*[–—-]\s*(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*\)/gi, "")
                         .replace(/\s+/g, " ")
                         .trim();
 
@@ -4263,9 +4271,12 @@
                           const biographyWordCount = value =>
                             cleanText(value).split(/\s+/).filter(Boolean).length;
 
+                          const hasGenericNotableFilmEnding = /\bNotable film work includes\b/i.test(finalBiography);
+
                           if (
                             finalBiography.length < 560 ||
-                            biographyWordCount(finalBiography) < 80
+                            biographyWordCount(finalBiography) < 80 ||
+                            hasGenericNotableFilmEnding
                           ) {
                             const wikiSummary = cleanBiographySource(
                               removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
@@ -4317,7 +4328,7 @@
 
                               if (
                                 biographyWordCount(rescuedBiography) >= 75 &&
-                                rescuedBiography.length > finalBiography.length
+                                (rescuedBiography.length > finalBiography.length || hasGenericNotableFilmEnding)
                               ) {
                                 finalBiography = rescuedBiography;
                               }
@@ -4334,6 +4345,14 @@
 
                           // PERSON 26: sanitize the exact string that will be returned.
                           finalBiography = cleanFinalBiographyOutput(finalBiography);
+
+                          // PERSON 25 — NEVER SHIP GENERIC FILM-LIST PADDING
+                          // If no stronger narrative rescue was available, remove only the
+                          // automated recap sentence instead of exposing a mechanical list.
+                          finalBiography = finalBiography
+                            .replace(/(?:^|\s)Notable film work includes[^.!?]*[.!?]/gi, " ")
+                            .replace(/\s+/g, " ")
+                            .trim();
 
                           if (finalBiography.length > 1050) {
                             const sentences = splitBioSentences(finalBiography)
