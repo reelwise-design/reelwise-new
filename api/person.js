@@ -3040,9 +3040,84 @@
                         }
 
                         selected.sort((a,b)=>a.year-b.year);
+
+                        /* PERSON 42 — DISTINCT CAREER CHAPTERS
+                           The era sampler above intentionally casts a wide net. Before writing
+                           the biography, collapse redundant installments and suppress popular
+                           supporting appearances. Keep an original/signature franchise entry,
+                           allow at most one genuinely later central return to that role, and
+                           refill vacated slots with distinct centrally billed work. No performer
+                           or title is hard-coded. */
+                        const sameSignatureRole = (a, b) => {
+                          const ak = characterKey(a);
+                          const bk = characterKey(b);
+                          if (!ak || !bk) return false;
+                          if (ak === bk) return true;
+
+                          const at = new Set(ak.split(" ").filter(x => x.length >= 4));
+                          const bt = new Set(bk.split(" ").filter(x => x.length >= 4));
+                          const shared = [...at].filter(x => bt.has(x));
+                          return shared.length >= 2;
+                        };
+
+                        const distinct = [];
+                        for (const film of selected) {
+                          const related = distinct.find(existing => sameSignatureRole(film, existing));
+                          if (!related) {
+                            distinct.push(film);
+                            continue;
+                          }
+
+                          /* An immediate sequel is redundant. A return after a long gap can
+                             represent a new career chapter, but only when the performer is
+                             still centrally billed. */
+                          const gap = film.year - related.year;
+                          if (gap >= 15 && film.order <= 2 && !distinct.some(existing =>
+                            existing !== related && sameSignatureRole(film, existing))) {
+                            distinct.push(film);
+                          }
+                        }
+
+                        /* Supporting roles in huge ensemble films can have enormous vote counts.
+                           They should not consume a scarce biography slot when a distinct lead or
+                           co-lead credit is available from the same broad career era. */
+                        const weakSupporting = film =>
+                          film.order > 3 &&
+                          !creativeFilmIds.has(film.id) &&
+                          !(characterCounts.get(characterKey(film)) >= 2 && film.order <= 4);
+
+                        let refined = distinct.filter(film => !weakSupporting(film));
+
+                        const canAddDistinct = film => {
+                          if (!film || refined.some(x => x.id === film.id)) return false;
+                          if (weakSupporting(film)) return false;
+
+                          const related = refined.filter(x => sameSignatureRole(film, x));
+                          if (!related.length) return true;
+
+                          const earliest = related.reduce((a,b) => a.year <= b.year ? a : b);
+                          return film.year - earliest.year >= 15 &&
+                            film.order <= 2 &&
+                            related.length < 2;
+                        };
+
+                        /* Refill with the strongest distinct central credits while preserving
+                           broad career coverage. Source mention, creative authorship and top
+                           billing continue to flow through the existing score(). */
+                        const refillPool = [...uniqueFilms]
+                          .filter(film => film.order <= 3 && film.votes >= 500)
+                          .sort((a,b) => score(b)-score(a) || a.year-b.year);
+
+                        for (const film of refillPool) {
+                          if (refined.length >= 6) break;
+                          if (canAddDistinct(film)) refined.push(film);
+                        }
+
+                        refined.sort((a,b)=>a.year-b.year);
+                        selected.splice(0, selected.length, ...refined.slice(0,6));
                       }
 
-                      /* PERSON 41 — CAREER ORDERING
+                      /* PERSON 42 — CAREER ORDERING
                          A television credit belongs before the film arc only when it genuinely
                          precedes or helps launch that film career. A much later television chapter
                          is retained as later work rather than presented as the origin story. */
@@ -3063,12 +3138,41 @@
                       let milestones = "";
                       if (selected.length) {
                         const names = selected.slice(0,6).map(f => `${f.title} (${f.year})`);
-                        if (names.length === 1) milestones = `${subject} became known on screen for ${names[0]}.`;
-                        else if (names.length <= 3) milestones = `${subject} built ${possessive} screen career through ${names.slice(0,-1).join(", ")} and ${names[names.length-1]}.`;
-                        else {
+                        const firstFilm = selected[0];
+
+                        /* PERSON 42 — BREAKTHROUGH IDENTIFICATION
+                           Use stronger breakthrough wording only when the earliest selected
+                           landmark is both source-supported and unusually central to the person's
+                           authorship or screen identity. Otherwise retain the neutral career-arc
+                           wording used by Person 41. */
+                        const sourceNamesFirst = (() => {
+                          const escaped = String(firstFilm?.title || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                          return Boolean(escaped && new RegExp(`\\b${escaped}\\b`, "i").test(sourceText));
+                        })();
+                        const clearBreakthrough = Boolean(
+                          firstFilm &&
+                          sourceNamesFirst &&
+                          firstFilm.order <= 1 &&
+                          (creativeFilmIds.has(firstFilm.id) ||
+                           /\b(?:breakthrough|breakout|rose to prominence|became a star|stardom|critical and commercial success|major success|iconic role|career-defining)\b/i.test(sourceText))
+                        );
+
+                        if (names.length === 1) {
+                          milestones = clearBreakthrough
+                            ? `${subject} had ${possessive} breakthrough with ${names[0]}.`
+                            : `${subject} became known on screen for ${names[0]}.`;
+                        } else if (names.length <= 3) {
+                          milestones = clearBreakthrough
+                            ? `${subject} had ${possessive} breakthrough with ${names[0]}, followed by ${names.slice(1,-1).join(", ")}${names.length>2 ? ", and " : " and "}${names[names.length-1]}.`
+                            : `${subject} built ${possessive} screen career through ${names.slice(0,-1).join(", ")} and ${names[names.length-1]}.`;
+                        } else {
                           const first = names.slice(0, Math.min(3,names.length));
                           const later = names.slice(first.length);
-                          milestones = `${subject} built ${possessive} film career with ${first.slice(0,-1).join(", ")}${first.length>1 ? ", and " : ""}${first[first.length-1]}.`;
+                          if (clearBreakthrough) {
+                            milestones = `${subject} had ${possessive} breakthrough with ${first[0]}. Other major early work included ${first.slice(1,-1).join(", ")}${first.length>2 ? ", and " : " and "}${first[first.length-1]}.`;
+                          } else {
+                            milestones = `${subject} built ${possessive} film career with ${first.slice(0,-1).join(", ")}${first.length>1 ? ", and " : ""}${first[first.length-1]}.`;
+                          }
                           if (later.length) milestones += ` Later work included ${later.slice(0,-1).join(", ")}${later.length>1 ? ", and " : ""}${later[later.length-1]}.`;
                         }
                       }
@@ -4750,7 +4854,7 @@
                               : null
                           };
 
-                          res.setHeader("X-Reelwise-Biography-Version", "person41");
+                          res.setHeader("X-Reelwise-Biography-Version", "person42");
                           res.setHeader("Cache-Control", "no-store, max-age=0");
                           res.setHeader("CDN-Cache-Control", "no-store");
                           res.setHeader("Vercel-CDN-Cache-Control", "no-store");
