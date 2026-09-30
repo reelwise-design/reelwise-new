@@ -3,43 +3,9 @@
                     const TMDB_BASE = "https://api.themoviedb.org/3";
                     const OSCARBASE_BASE = "https://api.oscarbase.com/api";
 
-                    /* ============================================================
-                       PERSON 20 — FINISHED BIOGRAPHY CACHE
-                       ============================================================
-
-                       Keep completed Reelwise biographies in the warm Vercel
-                       function instance and deduplicate simultaneous requests.
-                       The response is also browser/CDN cacheable so revisiting an
-                       actor does not rebuild the Wikipedia career story.
-                    */
-                    const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
-                    const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
-                    globalThis.__reelwiseBiographyCache = biographyCache;
-                    globalThis.__reelwiseBiographyInflight = biographyInflight;
-
-                    function getCachedBiography(personId) {
-                      const key = String(personId || "");
-                      const cached = biographyCache.get(key);
-                      if (!cached) return null;
-                      if (Date.now() - cached.savedAt > BIOGRAPHY_CACHE_TTL_MS) {
-                        biographyCache.delete(key);
-                        return null;
-                      }
-                      return cached.payload || null;
-                    }
-
-                    function saveCachedBiography(personId, payload) {
-                      biographyCache.set(String(personId || ""), {
-                        savedAt: Date.now(),
-                        payload
-                      });
-                      return payload;
-                    }
-
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 26 BUILD
+                      REELWISE PERSON API — PERSON 27
                       ============================================================
 
                       NORMAL MODE:
@@ -73,7 +39,7 @@
 
                     function setHeaders(res) {
                       res.setHeader("Content-Type", "application/json; charset=utf-8");
-                      res.setHeader("Cache-Control", "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800");
+                      res.setHeader("Cache-Control", "no-store, max-age=0");
                     }
 
                     function sendJSON(res, status, payload) {
@@ -118,12 +84,6 @@
                       text = text
                         .replace(/\s+For other people with (?:the same|a similar) name.*$/i, "")
                         .replace(/\s+For other uses, see .*$/i, "")
-                        // TMDB biographies can contain Wikipedia attribution appended to otherwise
-                        // useful prose. It is metadata, not Reelwise biography content.
-                        .replace(/\s+Description above from the Wikipedia article[\s\S]*$/i, "")
-                        .replace(/\s+Description from the Wikipedia article[\s\S]*$/i, "")
-                        .replace(/\s+Licensed under CC[-–]BY[-–]SA[\s\S]*$/i, "")
-                        .replace(/\s+Full list of contributors on Wikipedia[\s\S]*$/i, "")
                         .trim();
 
                       return text;
@@ -283,215 +243,44 @@
 
 
                     /* ============================================================
-                       PERSON 27 — WIKIPEDIA BIRTHDAY FALLBACK
-                       ============================================================ */
-                    function extractWikipediaBirthday(text) {
-                      const value = cleanText(text || "");
-                      if (!value) return null;
-
-                      const months = {
-                        january: "01", february: "02", march: "03", april: "04",
-                        may: "05", june: "06", july: "07", august: "08",
-                        september: "09", october: "10", november: "11", december: "12"
-                      };
-
-                      // Wikipedia summaries commonly begin with "(born Month D, YYYY)".
-                      const match = value.match(/\b(?:born\s+)?(January|February|March|April|May|June|July|August|September|October|November|December)\s+(\d{1,2}),\s+(\d{4})\b/i);
-                      if (!match) return null;
-
-                      const month = months[match[1].toLowerCase()];
-                      const day = String(Number(match[2])).padStart(2, "0");
-                      const year = match[3];
-                      const iso = `${year}-${month}-${day}`;
-                      const parsed = new Date(`${iso}T12:00:00Z`);
-                      if (Number.isNaN(parsed.getTime())) return null;
-                      if (parsed.getUTCFullYear() !== Number(year) || parsed.getUTCMonth() + 1 !== Number(month) || parsed.getUTCDate() !== Number(day)) return null;
-                      return iso;
-                    }
-
-                    /* ============================================================
-                       PERSON 45 — FASTER WIKIPEDIA SOURCE LOAD
-                       ============================================================
-
-                       Resolve the Wikipedia page title once, then request the summary
-                       and full article text in parallel. The previous biography path
-                       searched Wikipedia twice (once for each source), and the rescue
-                       path could search/fetch the summary a third time.
-                    */
-                    async function getWikipediaSources(name) {
-                      try {
-                        /*
-                          PERSON 23 PERFORMANCE — FAST + SAFE COLD LOAD
-
-                          Person 23 requests Wikipedia's lead extract instead of the entire
-                          article on the critical biography path. Reelwise already has TMDB
-                          combined credits for the career-film selection, so downloading a full
-                          Wikipedia article before rendering the biography adds latency without
-                          being necessary for the visible profile.
-
-                          Person 21 used generator=search with gsrlimit=5 while also asking
-                          MediaWiki for full extracts. On a cold request that could make
-                          Wikipedia build and return several large articles even though
-                          Reelwise only needs ONE performer article.
-
-                          Person 22 first asks for the exact page title (the TMDB person name)
-                          and its extract directly. For the overwhelming majority of movie
-                          stars this resolves in one request, with redirects handled by
-                          MediaWiki. Only if the exact title is missing/disambiguated do we
-                          fall back to search — and that fallback requests just ONE result.
-                        */
-                        const buildSource = page => {
-                          if (!page || page.missing !== undefined || page?.pageprops?.disambiguation !== undefined) {
-                            return null;
-                          }
-
-                          let careerText = cleanText(page?.extract || "")
-                            .replace(/\[edit\]/gi, " ")
-                            .replace(/\bedit\s+(?=(?:Main article|Filmography|Career)\b)/gi, " ")
-                            .replace(/\s+/g, " ")
-                            .trim()
-                            .slice(0, 65000);
-
-                          if (!careerText || careerText.length < 80) return null;
-
-                          const openingSentences = splitBioSentences(careerText)
-                            .map(cleanText)
-                            .filter(Boolean)
-                            .slice(0, 8);
-
-                          let summary = removeWikipediaEnding(openingSentences.join(" "));
-                          if (summary.length > 1800) {
-                            summary = summary.slice(0, 1800).replace(/\s+\S*$/, "").trim();
-                          }
-                          if (summary.length < 80) summary = "";
-
-                          return { summary, careerText };
-                        };
-
-                        const exactUrl =
-                          "https://en.wikipedia.org/w/api.php?" +
-                          new URLSearchParams({
-                            action: "query",
-                            titles: String(name || "").trim(),
-                            redirects: "1",
-                            prop: "extracts|pageprops",
-                            explaintext: "1",
-                            exintro: "1",
-                            exsectionformat: "plain",
-                            format: "json",
-                            origin: "*"
-                          });
-
-                        const exactData = await fetchJSON(exactUrl, {}, 3500);
-                        const exactPages = Object.values(exactData?.query?.pages || {});
-                        const exactSource = buildSource(exactPages[0]);
-                        if (exactSource) return exactSource;
-
-                        // Rare fallback for stage names, suffixes, ambiguous names, etc.
-                        const searchUrl =
-                          "https://en.wikipedia.org/w/api.php?" +
-                          new URLSearchParams({
-                            action: "query",
-                            generator: "search",
-                            gsrsearch: String(name || "").trim(),
-                            gsrlimit: "1",
-                            prop: "extracts|pageprops",
-                            explaintext: "1",
-                            exintro: "1",
-                            exsectionformat: "plain",
-                            redirects: "1",
-                            format: "json",
-                            origin: "*"
-                          });
-
-                        const searchData = await fetchJSON(searchUrl, {}, 3500);
-                        const searchPages = Object.values(searchData?.query?.pages || {});
-                        return buildSource(searchPages[0]) || { summary: "", careerText: "" };
-                      } catch (error) {
-                        console.error("Wikipedia source bundle error:", error);
-                        return { summary: "", careerText: "" };
-                      }
-                    }
-
-                    /* ============================================================
                        NORMAL PERSON PROFILE
                        ============================================================ */
 
                     function splitBioSentences(value) {
-                      /*
-                        PERSON 23 — SAFE SENTENCE SPLITTING
+                      const text = cleanText(value);
+                      if (!text) return [];
 
-                        Protect punctuation that belongs inside numbers before splitting.
-                        Person 22 could turn "$6.8 billion" into the broken sentence
-                        "Her films have grossed over $6." because the decimal point was
-                        mistaken for the end of a sentence.
-                      */
-                      const DECIMAL_TOKEN = "__REELWISE_DECIMAL__";
-                      const ABBREV_TOKEN = "__REELWISE_ABBREV__";
+                      // Protect periods that are not real sentence endings. This prevents
+                      // titles such as “Mr. & Mrs. Smith” from being cut at “Mr.” while
+                      // keeping the rest of Reelwise's sentence-based biography logic intact.
+                      const protectedPeriods = [];
+                      const protect = match => {
+                        const token = `__RWPERIOD_${protectedPeriods.length}__`;
+                        protectedPeriods.push(match);
+                        return match.replace(/\./g, token);
+                      };
 
-                      /*
-                        PERSON 24 — SAFE ABBREVIATION SPLITTING
+                      let safe = text
+                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|Gen|Gov|Sen|Rep|Capt|Lt|Col|Sgt|Rev)\./gi, protect)
+                        .replace(/\b(?:U\.S\.|U\.K\.|U\.N\.|D\.C\.|L\.A\.)/gi, protect)
+                        .replace(/\b[A-Z]\.(?=\s*[A-Z]\.)/g, protect);
 
-                        Protect punctuation that is not actually the end of a sentence.
-                        This fixes broken biography lines such as "box-office No." when
-                        the source really continues with "No. 1", while preserving the
-                        existing decimal protection.
-                      */
-                      const protectedText = cleanText(value)
-                        .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`)
-                        .replace(/\bNo\.(?=\s*\d)/gi, match => match.replace(".", ABBREV_TOKEN))
-                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+[A-Z])/g, match => match.replace(".", ABBREV_TOKEN))
-                        // PERSON 25: protect middle initials inside names/titles, e.g. "Cecil B. DeMille".
-                        .replace(/\b[A-Z]\.(?=\s+[A-Z][a-z])/g, match => match.replace(".", ABBREV_TOKEN));
+                      const parts = safe.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [];
 
-                      return (protectedText
-                        .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [])
-                        .map(s => s
-                          .replaceAll(DECIMAL_TOKEN, ".")
-                          .replaceAll(ABBREV_TOKEN, ".")
-                          .trim()
-                        )
+                      return parts
+                        .map(part => {
+                          let restored = part;
+                          protectedPeriods.forEach((original, index) => {
+                            const token = `__RWPERIOD_${index}__`;
+                            restored = restored.split(token).join(".");
+                          });
+                          return restored.trim();
+                        })
                         .filter(Boolean);
-                    }
-
-                    /*
-                      PERSON 24 — ORPHANED BIOGRAPHY PUNCTUATION CLEANUP
-
-                      Wikipedia can contain pronunciation / alternate-name markup inside
-                      the opening parenthetical. After that markup is stripped, punctuation
-                      can be left behind, e.g. "Marlon Brando ( ; April 3, 1924 ... )".
-                      Remove only punctuation that has clearly become orphaned; do not alter
-                      normal punctuation inside names, dates, numbers, or prose.
-                    */
-                    function cleanOrphanedBiographyPunctuation(value) {
-                      return String(value || "")
-                        .replace(/\(\s*[;,]\s*(?=[A-Z][a-z]+\s+\d{1,2},\s+\d{4})/g, "(")
-                        .replace(/\(\s*[;,]\s*(?=\d{4}\b)/g, "(")
-                        .replace(/[;,]\s*\)/g, ")")
-                        .replace(/\(\s+/g, "(")
-                        .replace(/\s+\)/g, ")")
-                        .replace(/\s+/g, " ")
-                        .trim();
                     }
 
                     function cleanBiographySource(value, personName = "") {
                       let text = cleanText(value);
-
-                      /*
-                        PERSON 25 — WIKIPEDIA BOILERPLATE + DUPLICATE-INTRO CLEANUP
-
-                        Some less-famous performer pages can leak Wikipedia chrome into the
-                        extracted lead (for example, "From Wikipedia, the free encyclopedia.")
-                        and can repeat the opening identity sentence. Strip that generically
-                        before the existing biography selector sees the text.
-                      */
-                      text = text
-                        .replace(/^\s*From Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
-                        .replace(/^\s*Wikipedia,? the free encyclopedia[.!]?\s*/i, "")
-                        .replace(/^From\s+(?=[A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3}\s*\()/, "")
-                        .replace(/\s*\(\s*born\s+at\s+[^)]+\)/gi, "")
-                        .replace(/^\s*Jump to navigation\s+Jump to search\s*/i, "")
-                        .trim();
 
                       /*
                         Remove Wikipedia navigation / hatnote language that can leak into
@@ -521,162 +310,7 @@
                         ""
                       );
 
-                      /*
-                        Remove repeated sentences while preserving their original order.
-                        This catches duplicated Wikipedia lead material without hard-coding
-                        any performer. Normalization ignores punctuation/case only; genuinely
-                        different career sentences remain untouched.
-                      */
-                      const deduped = [];
-                      const seenSentences = new Set();
-                      for (const sentence of splitBioSentences(text)) {
-                        const cleaned = cleanText(sentence);
-                        const key = cleaned
-                          .toLowerCase()
-                          .replace(/[^a-z0-9]+/g, " ")
-                          .replace(/\s+/g, " ")
-                          .trim();
-                        if (!cleaned || !key || seenSentences.has(key)) continue;
-                        seenSentences.add(key);
-                        deduped.push(cleaned);
-                      }
-
-                      text = deduped.join(" ") || text;
-                      return cleanOrphanedBiographyPunctuation(text.trim());
-                    }
-
-                    /*
-                      PERSON 26 — FINAL OUTPUT BIOGRAPHY SANITIZER
-
-                      Run one last generic cleanup on the biography that is actually sent
-                      to the browser. This is intentionally downstream of every biography
-                      source/selector so Wikipedia chrome or duplicated lead material cannot
-                      be reintroduced after an earlier cleanup pass.
-                    */
-                    /*
-                      PERSON 26 — CLEAN DISPLAY INTRO + COMPLETE-SENTENCE LIMITS
-
-                      Reelwise already displays Born / Died / Age above the biography.
-                      Wikipedia leads sometimes repeat that information inside a larger
-                      pronunciation / alternate-name parenthetical, e.g. De Niro-style
-                      intros. Remove that opening parenthetical only when it contains a
-                      full birth/death date. This leaves ordinary career parentheticals
-                      and movie years untouched.
-                    */
-                    function cleanOpeningIdentityParenthetical(value) {
-                      const fullDate = String.raw`(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})`;
-                      const openingParen = new RegExp(`^([^.!?]{1,180}?)\\s*\\(([^)]{0,240})\\)(?=\\s+(?:is|was)\\b)`, "i");
-                      const match = String(value || "").match(openingParen);
-                      if (!match) return String(value || "");
-
-                      const inside = match[2] || "";
-                      const hasLifeDate = new RegExp(`\\b(?:born\\s+)?${fullDate}\\b`, "i").test(inside) ||
-                        new RegExp(`${fullDate}\\s*[–—-]\\s*(?:${fullDate})?`, "i").test(inside);
-
-                      if (!hasLifeDate) return String(value || "");
-                      return String(value || "").replace(openingParen, "$1");
-                    }
-
-                    function limitBiographyToCompleteSentences(value, maxChars = 1050, targetChars = 900, maxSentences = 6) {
-                      const text = cleanText(value).trim();
-                      if (!text || text.length <= maxChars) return text;
-
-                      const sentences = splitBioSentences(text).map(cleanText).filter(Boolean);
-                      const kept = [];
-                      let length = 0;
-
-                      for (const sentence of sentences) {
-                        const addition = sentence.length + (kept.length ? 1 : 0);
-                        if (kept.length && length + addition > targetChars) break;
-                        kept.push(sentence);
-                        length += addition;
-                        if (kept.length >= maxSentences) break;
-                      }
-
-                      // Never character-slice a biography. If the first source sentence is
-                      // abnormally long, keep it whole rather than ending on a fragment.
-                      return kept.join(" ").trim() || sentences[0] || text;
-                    }
-
-                    function cleanFinalBiographyOutput(value) {
-                      let text = cleanText(value)
-                        .replace(/(?:^|\s)From Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
-                        .replace(/(?:^|\s)Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
-                        // PERSON 28: after Wikipedia chrome is stripped, some small pages
-                        // can leave a stranded "From" directly before the subject's name.
-                        .replace(/^From\s+(?=[A-Z][A-Za-z.'’\-]+(?:\s+[A-Z][A-Za-z.'’\-]+){1,3}\s*\()/, "")
-                        // PERSON 29: final safeguard for Wikipedia boilerplate cleanup.
-                        // If earlier cleanup removed the source phrase or malformed birth
-                        // parenthetical, a bare leading "From" can remain (for example,
-                        // "From John Cassini is..."). At this final-output stage, a biography
-                        // should never begin with source-attribution "From", so remove it only
-                        // when it is the first word.
-                        .replace(/^From\s+(?=[A-Z])/, "")
-                        // Wikipedia occasionally exposes a malformed location-only birth
-                        // parenthetical such as "(born at Toronto)". It is not a birthday,
-                        // so remove it from prose rather than presenting it as biographical data.
-                        .replace(/\s*\(\s*born\s+at\s+[^)]+\)/gi, "")
-                        .replace(/(?:^|\s)Jump to navigation\s+Jump to search\s*/gi, " ")
-                        .replace(/\bDescription above from[^.]*\.?/gi, " ")
-                        .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, " ")
-                        .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, " ")
-                        .replace(/\bfull list of contributors on Wikipedia\.?/gi, " ")
-                        // PERSON 25 — HEADER DATE DEDUPLICATION
-                        // Reelwise already shows Born/Died/Age above the biography. Remove
-                        // birth/death date clauses from the opening identity parenthetical.
-                        // Handles both "July 9, 1956" and "1 June 1996" date styles.
-                        .replace(/\s*\(\s*born\s+(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*\)/gi, "")
-                        .replace(/\s*\(\s*(?:born\s+)?(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*[–—-]\s*(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})\s*\)/gi, "")
-                        .replace(/\s+/g, " ")
-                        .trim();
-
-                      text = cleanOpeningIdentityParenthetical(text);
-                      text = cleanOrphanedBiographyPunctuation(text);
-
-                      const sentences = splitBioSentences(text)
-                        .map(sentence => cleanText(sentence))
-                        .filter(Boolean);
-
-                      const kept = [];
-                      const normalized = [];
-
-                      const keyFor = sentence => sentence
-                        .toLowerCase()
-                        .replace(/[^a-z0-9]+/g, " ")
-                        .replace(/\s+/g, " ")
-                        .trim();
-
-                      for (const sentence of sentences) {
-                        const key = keyFor(sentence);
-                        if (!key) continue;
-
-                        // Exact duplicate sentence.
-                        if (normalized.includes(key)) continue;
-
-                        // Near-duplicate lead sentence. This catches cases where one copy
-                        // has a small prefix/suffix difference but repeats the same identity
-                        // and role information.
-                        const words = new Set(key.split(" ").filter(word => word.length > 2));
-                        let duplicate = false;
-
-                        for (const priorKey of normalized) {
-                          const priorWords = new Set(priorKey.split(" ").filter(word => word.length > 2));
-                          if (!words.size || !priorWords.size) continue;
-                          let shared = 0;
-                          for (const word of words) if (priorWords.has(word)) shared += 1;
-                          const overlap = shared / Math.min(words.size, priorWords.size);
-                          if (overlap >= 0.86) {
-                            duplicate = true;
-                            break;
-                          }
-                        }
-
-                        if (duplicate) continue;
-                        kept.push(sentence);
-                        normalized.push(key);
-                      }
-
-                      return cleanOrphanedBiographyPunctuation((kept.join(" ") || text).trim());
+                      return text.trim();
                     }
 
                     function stripWikiMarkup(value) {
@@ -820,21 +454,13 @@
                         const title = String(movie.title || "").toLowerCase().trim();
                         const normalizedTitle = normalizeFilmTitle(movie.title);
 
-                        if (!title || !normalizedTitle) return false;
-
-                        /*
-                          PERSON 28 — EXACT TITLE MATCHING
-
-                          Do not use raw substring matching for movie titles. A short title
-                          such as "Cars" can otherwise match an unrelated word such as
-                          "Oscars", falsely attaching award evidence to a film the person
-                          did not actually make. Match normalized title tokens as a complete
-                          phrase instead.
-                        */
-                        const escapedTitle = normalizedTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-                        const titlePattern = new RegExp(`(?:^|\\s)${escapedTitle}(?=\\s|$)`, "i");
-
-                        return titlePattern.test(normalizedSentence);
+                        return Boolean(
+                          title &&
+                          (
+                            lower.includes(title) ||
+                            (normalizedTitle && normalizedSentence.includes(normalizedTitle))
+                          )
+                        );
                       });
                     }
 
@@ -2722,294 +2348,6 @@
                     }
 
 
-                    /* ============================================================
-                       PERSON 38 — FAST PROFILE / CURATED BIOGRAPHY
-                       ============================================================
-
-                       The normal Star-page request must never wait on Wikipedia.
-                       TMDB already supplies the photo, name, birthday, credits and a
-                       usable first biography. Return that fast payload immediately.
-                       The separate ?mode=biography request may enhance the text later.
-                    */
-                    function calculatePersonAge(birthday, deathday = null) {
-                      if (!birthday) return null;
-                      const birth = new Date(`${birthday}T12:00:00`);
-                      const end = deathday ? new Date(`${deathday}T12:00:00`) : new Date();
-                      if (Number.isNaN(birth.getTime()) || Number.isNaN(end.getTime())) return null;
-
-                      let age = end.getFullYear() - birth.getFullYear();
-                      const monthDelta = end.getMonth() - birth.getMonth();
-                      if (monthDelta < 0 || (monthDelta === 0 && end.getDate() < birth.getDate())) age -= 1;
-                      return age >= 0 ? age : null;
-                    }
-
-                    async function getFastPersonProfile(personId) {
-                      const person = await fetchTMDB(
-                        `/person/${encodeURIComponent(personId)}`,
-                        {
-                          language: "en-US",
-                          append_to_response: "combined_credits"
-                        }
-                      );
-
-                      /*
-                        PERSON 41 — FAST BIO + DISTINCT CAREER LANDMARKS
-
-                        Person 39 stopped the background biography endpoint from returning
-                        raw Wikipedia text, but the first paint could still display TMDB's
-                        full biography. Morgan Freeman exposed that path. Build the first
-                        visible biography here from the same TMDB response we already have,
-                        so this adds no network request and preserves the instant load.
-                      */
-                      /*
-                        PERSON 23 — CLEAN THE FAST BIOGRAPHY AT ITS SOURCE
-
-                        The normal /api/person response builds the first visible Star biography
-                        from TMDB's raw biography BEFORE the background biography mode runs.
-                        Clean source-attribution chrome here, before sentence splitting and before
-                        "Notable film work" is appended, so a stranded opening such as
-                        "From John Cassini is..." can never enter introParts/fastBiography.
-                      */
-                      const rawFastBio = removeWikipediaEnding(person?.biography || "");
-
-                      const cleanedFastBioSource = cleanFinalBiographyOutput(rawFastBio)
-                        .replace(/^\s*From\s+(?=[A-Z])/i, "")
-                        .trim();
-
-                      const fastBioSentences = splitBioSentences(cleanedFastBioSource)
-                        .map(cleanText)
-                        .filter(Boolean)
-                        .filter(sentence =>
-                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children)\b/i.test(sentence)
-                        );
-
-                      // Keep only a concise identity/overview opening. Do not let a long
-                      // source biography become the visible card while enhancement runs.
-                      const introParts = [];
-                      let introChars = 0;
-                      for (const sentence of fastBioSentences) {
-                        const cleaned = sentence
-                          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
-                          .replace(/^\s*From\s+(?=[A-Z])/i, "")
-                          .trim();
-                        if (!cleaned) continue;
-                        if (introChars + cleaned.length > 430) break;
-                        introParts.push(cleaned);
-                        introChars += cleaned.length + 1;
-                        if (introParts.length >= 2) break;
-                      }
-
-                      // Add representative film landmarks from the credits already returned
-                      // by append_to_response. This is deliberately generic: no actor or
-                      // title is hard-coded, and no second API request is required.
-                      const fastCredits = Array.isArray(person?.combined_credits?.cast)
-                        ? person.combined_credits.cast
-                        : [];
-
-                      const filmCandidates = fastCredits
-                        .filter(item => item && item.media_type === "movie" && item.title && item.release_date)
-                        .filter(item => !item.adult)
-                        // PERSON 43 — do not let posthumous/archive-derived releases become
-                        // representative career landmarks on the instant first paint.
-                        .filter(item => {
-                          if (!person?.deathday) return true;
-                          const releaseTime = Date.parse(`${item.release_date}T00:00:00Z`);
-                          const deathTime = Date.parse(`${person.deathday}T23:59:59Z`);
-                          return !Number.isFinite(releaseTime) || !Number.isFinite(deathTime) || releaseTime <= deathTime;
-                        })
-                        .filter(item => Number(item.vote_count || 0) >= 100)
-                        .map(item => ({
-                          title: cleanText(item.title),
-                          year: Number(String(item.release_date).slice(0, 4)) || 0,
-                          popularity: Number(item.popularity || 0),
-                          votes: Number(item.vote_count || 0),
-                          score: Number(item.vote_average || 0),
-                          character: cleanText(item.character || "")
-                        }))
-                        .filter(item => item.title && item.year)
-                        .sort((a, b) =>
-                          (b.votes * Math.max(b.score, 1)) - (a.votes * Math.max(a.score, 1)) ||
-                          b.popularity - a.popularity
-                        );
-
-                      /*
-                        PERSON 43 — SIGNIFICANT CAREER LANDMARKS
-
-                        Keep Person 40's instant first paint, but make the five-film recap
-                        represent different career chapters. Do not let sequels or recurring
-                        franchise installments consume multiple slots, and do not trim the
-                        candidate pool to the most-voted recent films before era selection.
-                      */
-                      const fastFranchiseRoot = value =>
-                        String(value || "")
-                          .toLowerCase()
-                          .replace(/[’']/g, "'")
-                          .replace(/\([^)]*\)/g, " ")
-                          .replace(/[^a-z0-9' ]+/g, " ")
-                          .replace(/\s+(?:part|chapter|episode)\s+(?:[ivxlcdm]+|\d+)$/i, "")
-                          .replace(/\s+(?:[ivxlcdm]{1,6}|\d+)$/i, "")
-                          .replace(/\s+/g, " ")
-                          .trim();
-
-                      const fastCharacterKey = item =>
-                        String(item?.character || "")
-                          .toLowerCase()
-                          .replace(/\([^)]*\)/g, " ")
-                          .replace(/[^a-z0-9 ]+/g, " ")
-                          .replace(/\b(?:voice|uncredited|archive footage|self)\b/g, " ")
-                          .replace(/\s+/g, " ")
-                          .trim();
-
-                      const fastTitleTokens = value => {
-                        const stop = new Set(["the","a","an","and","of","in","on","to","for","part","chapter","episode","movie","film"]);
-                        return fastFranchiseRoot(value)
-                          .split(/[^a-z0-9]+/)
-                          .filter(word => word.length >= 3 && !stop.has(word) && !/^(?:[ivxlcdm]+|\d+)$/.test(word));
-                      };
-
-                      const sameFastFranchise = (a, b) => {
-                        if (!a || !b) return false;
-                        const ar = fastFranchiseRoot(a.title);
-                        const br = fastFranchiseRoot(b.title);
-                        if (ar && br && ar === br) return true;
-
-                        const ac = fastCharacterKey(a);
-                        const bc = fastCharacterKey(b);
-                        if (ac && bc && ac === bc && ac.split(" ").filter(Boolean).length >= 2) return true;
-
-                        const at = fastTitleTokens(a.title);
-                        const bt = fastTitleTokens(b.title);
-                        const shared = at.filter(token => bt.includes(token));
-                        return shared.length >= 2;
-                      };
-
-                      const uniqueFilms = [];
-                      const seenFastTitles = new Set();
-                      for (const film of filmCandidates) {
-                        const key = film.title.toLowerCase();
-                        if (seenFastTitles.has(key)) continue;
-                        seenFastTitles.add(key);
-                        uniqueFilms.push(film);
-                      }
-
-                      const strength = film =>
-                        Math.log10(Math.max(film.votes, 1)) * 38 +
-                        Math.max(film.score - 5, 0) * 9 +
-                        Math.min(film.popularity, 80) * 0.08;
-
-                      /*
-                        PERSON 42 — SIGNIFICANCE BEFORE CHRONOLOGY
-
-                        Person 41 proved that five career bands give good chronological spread,
-                        but Morgan Freeman exposed the weakness of forcing a winner from every
-                        band: minor early credits such as The Pawnbroker and Brubaker could beat
-                        genuinely defining work simply because they occupied an early era.
-
-                        Keep the five-stage idea, but only let a film represent an era when it is
-                        strong enough compared with the person's strongest screen credits. Empty
-                        eras are allowed; their slots are filled by stronger DISTINCT landmarks.
-                      */
-                      const rankedByStrength = [...uniqueFilms].sort((a, b) => strength(b) - strength(a));
-                      const strongestFastScore = rankedByStrength.length ? strength(rankedByStrength[0]) : 0;
-
-                      const isFastLandmark = film => {
-                        const s = strength(film);
-                        const relativeFloor = strongestFastScore ? strongestFastScore * 0.72 : 0;
-                        const broadAudience = film.votes >= 900;
-                        const strongAudience = film.votes >= 350 && film.score >= 6.8;
-                        const majorPopularity = film.popularity >= 22 && film.votes >= 250;
-                        return s >= relativeFloor && (broadAudience || strongAudience || majorPopularity);
-                      };
-
-                      const landmarkPool = uniqueFilms.filter(isFastLandmark);
-                      const selectionPool = landmarkPool.length >= 3 ? landmarkPool : rankedByStrength.slice(0, Math.min(12, rankedByStrength.length));
-
-                      // Build five chronological career bands from the actor's meaningful film
-                      // span. A weak era is skipped instead of forcing a minor credit into the bio.
-                      const byYear = [...selectionPool].sort((a, b) => a.year - b.year);
-                      const selectedFastFilms = [];
-
-                      if (byYear.length) {
-                        const minYear = byYear[0].year;
-                        const maxYear = byYear[byYear.length - 1].year;
-                        const span = Math.max(1, maxYear - minYear + 1);
-                        const bands = Math.min(5, Math.max(1, span));
-
-                        for (let band = 0; band < bands; band++) {
-                          const startYear = minYear + Math.floor((span * band) / bands);
-                          const endYear = band === bands - 1
-                            ? maxYear
-                            : minYear + Math.floor((span * (band + 1)) / bands) - 1;
-
-                          const options = selectionPool
-                            .filter(f => f.year >= startYear && f.year <= endYear)
-                            .filter(f => !selectedFastFilms.some(existing => sameFastFranchise(f, existing)))
-                            .sort((a, b) => strength(b) - strength(a) || a.year - b.year);
-
-                          if (options.length) selectedFastFilms.push(options[0]);
-                        }
-                      }
-
-                      // Empty career bands are possible. Fill them with the strongest
-                      // remaining DISTINCT career landmarks, never another installment of
-                      // a franchise/recurring role that is already represented.
-                      const fillPool = [...selectionPool].sort((a, b) => strength(b) - strength(a) || a.year - b.year);
-                      for (const film of fillPool) {
-                        if (selectedFastFilms.length >= 5) break;
-                        if (selectedFastFilms.some(existing => sameFastFranchise(film, existing))) continue;
-                        selectedFastFilms.push(film);
-                      }
-
-                      selectedFastFilms.sort((a, b) => a.year - b.year);
-
-                      const fastIntroText = introParts.join(" ").trim();
-                      const fastIntroWordCount = fastIntroText.split(/\s+/).filter(Boolean).length;
-
-                      /*
-                        PERSON 24 — DO NOT PAD A SUBSTANTIAL BIOGRAPHY
-
-                        The generic "Notable film work includes..." recap is useful when the
-                        available biography is thin. When the source already provides a real
-                        career paragraph, however, the list reads like automated padding and
-                        can repeat titles already explained in the prose.
-                      */
-                      const fastIntroIsSubstantial =
-                        fastIntroText.length >= 500 ||
-                        fastIntroWordCount >= 80;
-
-                      const landmarkText = selectedFastFilms.length && !fastIntroIsSubstantial
-                        ? `Notable film work includes ${selectedFastFilms
-                            .slice(0, 5)
-                            .map(f => `${f.title} (${f.year})`)
-                            .join(", ")}.`
-                        : "";
-
-                      let fastBiography = [fastIntroText, landmarkText]
-                        .filter(Boolean)
-                        .join(" ")
-                        .replace(/\s+/g, " ")
-                        .trim();
-
-                      if (fastBiography.length > 850) {
-                        fastBiography = limitBiographyToCompleteSentences(fastBiography, 850, 800, 5);
-                      }
-
-                      return {
-                        ...person,
-                        biography: fastBiography,
-                        biography_original: rawFastBio,
-                        deathday: person?.deathday || null,
-                        deceased: Boolean(person?.deathday),
-                        age: person?.deathday ? null : calculatePersonAge(person?.birthday),
-                        age_at_death: person?.deathday ? calculatePersonAge(person?.birthday, person?.deathday) : null,
-                        combined_credits:
-                          person?.combined_credits && typeof person.combined_credits === "object"
-                            ? person.combined_credits
-                            : { cast: [], crew: [] }
-                      };
-                    }
-
-
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -3019,7 +2357,7 @@
                         }
                       );
 
-                      const tmdbBio = removeWikipediaEnding(person?.biography || "");
+                      const tmdbBio = cleanText(person?.biography || "");
 
                       /*
                         Primary biography source: richer Wikipedia article text.
@@ -3028,18 +2366,17 @@
                       let wikipediaCareerText = "";
                       let wikipediaSummary = "";
 
-                      /*
-                        PERSON 33 PERFORMANCE: these two independent Wikipedia calls
-                        run concurrently. The browser now requests this biography in the
-                        background, so neither call blocks the visible Star page.
-                      */
-                      const wikipediaSources = await getWikipediaSources(person?.name || "");
-                      wikipediaCareerText = wikipediaSources.careerText || "";
-                      wikipediaSummary = wikipediaSources.summary || "";
+                      try {
+                        wikipediaCareerText = await getWikipediaCareerText(person?.name || "");
+                      } catch (error) {
+                        wikipediaCareerText = "";
+                      }
 
-                      // PERSON 27: TMDB remains authoritative. Only fill a missing birthday
-                      // from a complete Month D, YYYY date present in the Wikipedia summary.
-                      const resolvedBirthday = person?.birthday || extractWikipediaBirthday(wikipediaSummary) || null;
+                      try {
+                        wikipediaSummary = await getWikipediaBiography(person?.name || "");
+                      } catch (error) {
+                        wikipediaSummary = "";
+                      }
 
                       /*
                         PERSON 22 — OVERVIEW + CAREER STORY
@@ -3085,10 +2422,16 @@
 
                         if (!sentence) continue;
 
-                        // Awards belong at the end of a Reelwise bio, not in the protected opening.
-                        // This prevents a long nomination list from squeezing out the movie story.
-                        const awardHits = (sentence.match(/\b(?:academy award|oscar|golden globe|bafta|emmy|tony|sag|award|awards|nomination|nominations|won|winning)\b/gi) || []).length;
-                        if (awardHits >= 2) continue;
+                        // Keep the opening as identity/context, not an awards paragraph,
+                        // distributor-era list, or mini-filmography. The protected film arc below
+                        // is responsible for representing the career across eras.
+                        const awardHits = (sentence.match(/\b(?:academy award|oscar|golden globe|bafta|emmy|tony|sag|mark twain|award|awards|nomination|nominations|won|winning)\b/gi) || []).length;
+                        const movieMatches = sentenceMovieMatches(sentence, getMovieCredits(person));
+                        const titleLikeCount = movieMatches.length;
+                        const slateLike = /\b(?:netflix|films? include|films? including|starred in the .* films|film series|franchise)\b/i.test(sentence);
+
+                        if (awardHits >= 1 && overviewParts.length) continue;
+                        if (titleLikeCount >= 2 || slateLike) continue;
 
                         const addition = sentence.length + (overviewParts.length ? 1 : 0);
                         if (overviewLength + addition > OVERVIEW_MAX) continue;
@@ -3155,7 +2498,7 @@
                       const sourceCareerParts = [...careerParts];
 
                       /*
-                        PERSON 26 — PROTECTED REELWISE CAREER ASSEMBLY
+                        PERSON 27 — PROTECTED REELWISE CAREER ASSEMBLY
 
                         Always run the significance-first film selector. Wikipedia career prose is
                         evidence for selection, not copy to dump onto the profile card. The finished
@@ -3189,22 +2532,10 @@
                             const release = String(movie?.release_date || "");
                             if (!release) return true;
                             const releaseTime = Date.parse(`${release}T00:00:00Z`);
-                            if (Number.isFinite(releaseTime) && releaseTime > Date.now()) return false;
-
-                            // PERSON 43 — a film released after the performer's death is not
-                            // eligible to represent the active career. This generically blocks
-                            // posthumous/archive-footage appearances from the five-film arc.
-                            if (person?.deathday) {
-                              const deathTime = Date.parse(`${person.deathday}T23:59:59Z`);
-                              if (Number.isFinite(releaseTime) && Number.isFinite(deathTime) && releaseTime > deathTime) {
-                                return false;
-                              }
-                            }
-
-                            return true;
+                            return !Number.isFinite(releaseTime) || releaseTime <= Date.now();
                           });
 
-                        const sourceSentences = splitBioSentences([wikipediaSummary, wikipediaCareerText, tmdbBio].filter(Boolean).join(" "))
+                        const sourceSentences = splitBioSentences(wikipediaCareerText || tmdbBio || "")
                           .map(cleanText)
                           .filter(Boolean);
 
@@ -3360,330 +2691,88 @@
                           return true;
                         };
 
-                        /*
-                          PERSON 29 — SOURCE-LED CAREER MILESTONES
+                        const rankedCandidates = significantFilms.slice(0, 18);
 
-                          Person 28 still allowed chronology and raw TMDB strength to promote
-                          merely "available" films. Person 29 reverses that relationship:
+                        if (rankedCandidates.length) {
+                          const years = rankedCandidates.map(movieYear).filter(Boolean);
+                          const minYear = Math.min(...years);
+                          const maxYear = Math.max(...years);
+                          const span = Math.max(1, maxYear - minYear);
 
-                            1. Wikipedia summary + career text identify the career chapters.
-                            2. Exact TMDB cast credits verify every title.
-                            3. Source language identifies breakthrough, defining/award work,
-                               prime-career landmarks, franchise/signature chapters and later
-                               achievements.
-                            4. TMDB strength ranks films INSIDE those source-supported chapters.
-                            5. Chronology only breaks ties / improves coverage; it cannot create
-                               significance by itself.
+                          // First lock the strongest career-defining anchor. This is the movie that
+                          // most deserves to be present even before chronology is considered.
+                          addFilm(rankedCandidates[0]);
 
-                          No performer, movie, franchise or award result is hard-coded.
-                        */
-
-                        // Person 28 used only the long career extract here. That can omit the
-                        // concise lead-summary sentences where Wikipedia explicitly says things
-                        // such as "breakthrough with ..." or "best known for ...". Merge all
-                        // available biography evidence before classifying milestones.
-                        const milestoneSourceSentences = splitBioSentences(
-                          [wikipediaSummary, wikipediaCareerText, tmdbBio]
-                            .filter(Boolean)
-                            .join(" ")
-                        )
-                          .map(cleanText)
-                          .filter(Boolean)
-                          .filter(sentence =>
-                            !/\b(?:description above from|licensed under|contributors on wikipedia)\b/i.test(sentence)
-                          );
-
-                        const evidenceSentencesForFilm = movie =>
-                          milestoneSourceSentences.filter(sentence =>
-                            sentenceMovieMatches(sentence, [movie]).length > 0
-                          );
-
-                        const milestoneEvidence = movie => {
-                          const filmSentences = evidenceSentencesForFilm(movie);
-                          let breakthrough = 0;
-                          let defining = 0;
-                          let prime = 0;
-                          let franchise = 0;
-                          let later = 0;
-                          let awards = 0;
-                          let majorAwardWin = 0;
-                          let sourceWeight = 0;
-
-                          for (const sentence of filmSentences) {
-                            sourceWeight += 18;
-
-                            if (/\b(?:breakthrough|breakout|rose to prominence|gained (?:wider )?recognition|first major|star-making|established (?:him|her|them)|launched (?:his|her|their) film career)\b/i.test(sentence)) {
-                              breakthrough += 125;
-                            }
-
-                            if (/\b(?:career-defining|defining|signature|iconic|landmark|widely acclaimed|most acclaimed|best known|known for|major success|critical success|commercial success)\b/i.test(sentence)) {
-                              defining += 78;
-                            }
-
-                            if (/\b(?:academy award|oscar|golden globe|bafta|cannes|screen actors guild|best actor|best actress|best supporting actor|best supporting actress|won|winning|nominated|nomination)\b/i.test(sentence)) {
-                              awards += 95;
-                              defining += 28;
-
-                              // PERSON 33: distinguish a source sentence that explicitly describes
-                              // a WIN from a generic nomination/awards mention. This gives genuinely
-                              // career-defining award-winning performances extra protection.
-                              if (/\b(?:won|winning|winner)\b/i.test(sentence) &&
-                                  /\b(?:academy award|oscar|golden globe|bafta|cannes|screen actors guild|best actor|best actress|best supporting actor|best supporting actress)\b/i.test(sentence)) {
-                                majorAwardWin += 165;
-                              }
-                            }
-
-                            if (/\b(?:leading role|lead role|starred|starring|portrayed|played|performance|collaborated|other notable films?|notable films?|successful films?|major films?)\b/i.test(sentence)) {
-                              prime += 42;
-                            }
-
-                            if (/\b(?:film series|franchise|recurring role|reprised|reprise|series of films|superhero|marvel|star wars|trilogy)\b/i.test(sentence)) {
-                              franchise += 105;
-                            }
-
-                            if (/\b(?:later career|later work|returned|comeback|revival|in recent years|subsequently|later starred|later appeared)\b/i.test(sentence)) {
-                              later += 82;
-                            }
-                          }
-
-                          return {
-                            sentences: filmSentences,
-                            mentions: filmSentences.length,
-                            sourceWeight: Math.min(sourceWeight, 72),
-                            breakthrough,
-                            defining,
-                            prime,
-                            franchise,
-                            later,
-                            awards,
-                            majorAwardWin
-                          };
-                        };
-
-                        const verifiedSourceFilms = rawFilms
-                          .filter(movie => evidenceSentencesForFilm(movie).length > 0)
-                          .filter(movie => {
-                            const order = billingOrder(movie);
-                            const ev = milestoneEvidence(movie);
-
-                            if (isPeripheralCredit(movie)) {
-                              return ev.breakthrough >= 100 || ev.defining >= 75 || ev.franchise >= 100 || ev.awards >= 90;
-                            }
-
-                            // Source support is mandatory for the five-film story. Central
-                            // billing is preferred, but explicit milestone evidence can retain
-                            // an important supporting performance.
-                            return order <= 6 || ev.breakthrough || ev.defining || ev.franchise || ev.awards;
-                          });
-
-                        const milestoneScore = (movie, kind) => {
-                          const ev = milestoneEvidence(movie);
-                          const base = significanceScore(movie);
-                          const year = movieYear(movie);
-
-                          const kindBoost =
-                            kind === "breakthrough" ? ev.breakthrough * 2.2 + ev.awards * 0.35 + ev.defining * 0.35 :
-                            kind === "defining" ? ev.defining * 1.8 + ev.awards * 1.05 + ev.breakthrough * 0.35 :
-                            kind === "prime" ? ev.prime * 1.25 + ev.defining * 0.75 + ev.awards * 0.70 :
-                            kind === "franchise" ? ev.franchise * 1.8 + ev.defining * 0.45 + ev.prime * 0.35 :
-                            kind === "later" ? ev.later * 1.55 + ev.awards * 1.05 + ev.defining * 0.55 + ev.prime * 0.35 :
-                            0;
-
-                          return base * 0.55 + ev.sourceWeight * 1.2 + kindBoost + year * 0.0001;
-                        };
-
-                        const sourceYears = verifiedSourceFilms.map(movieYear).filter(Boolean);
-                        const sourceStart = sourceYears.length ? Math.min(...sourceYears) : 0;
-                        const sourceEnd = sourceYears.length ? Math.max(...sourceYears) : 0;
-                        const sourceSpan = Math.max(1, sourceEnd - sourceStart);
-
-                        const sourcePosition = movie =>
-                          sourceStart && sourceEnd
-                            ? Math.max(0, Math.min(1, (movieYear(movie) - sourceStart) / sourceSpan))
-                            : 0.5;
-
-                        const pickMilestone = (kind, filterFn = () => true) => {
-                          const pool = verifiedSourceFilms
-                            .filter(movie => canUseFilm(movie))
-                            .filter(filterFn)
-                            .map(movie => ({ movie, ev: milestoneEvidence(movie) }))
-                            .filter(({ ev }) => {
-                              if (kind === "breakthrough") return ev.breakthrough >= 100;
-                              if (kind === "defining") return ev.defining >= 70 || ev.awards >= 90;
-                              if (kind === "franchise") return ev.franchise >= 100;
-                              if (kind === "later") return ev.later >= 80 || ev.awards >= 90 || ev.defining >= 70 || ev.franchise >= 100;
-                              if (kind === "prime") return ev.prime >= 40 || ev.defining >= 70 || ev.awards >= 90;
-                              return false;
-                            })
-                            .sort((a, b) =>
-                              milestoneScore(b.movie, kind) - milestoneScore(a.movie, kind) ||
-                              significanceScore(b.movie) - significanceScore(a.movie)
-                            );
-
-                          return pool[0]?.movie || null;
-                        };
-
-                        /*
-                          PERSON 30 — PROTECTED CAREER ANCHORS
-
-                          Person 29 correctly moved selection toward source-led career chapters,
-                          but a later/coverage slot could still displace a foundational performance.
-                          Person 30 protects the strongest source-backed career anchors FIRST.
-
-                          An anchor must have unusually strong evidence tied to the exact film:
-                          award recognition, defining/signature language, or explicit breakthrough
-                          language. Chronology can never remove an anchor. After the anchors are
-                          secured, remaining slots may represent franchise and later-career chapters.
-                          A recent title is never selected merely because it is recent.
-                        */
-                        const anchorStrength = movie => {
-                          const ev = milestoneEvidence(movie);
-                          return (
-                            ev.majorAwardWin * 2.40 +
-                            ev.awards * 2.05 +
-                            ev.defining * 1.75 +
-                            ev.breakthrough * 1.35 +
-                            ev.sourceWeight * 0.80 +
-                            significanceScore(movie) * 0.42
-                          );
-                        };
-
-                        const protectedAnchorPool = verifiedSourceFilms
-                          .filter(movie => !isPeripheralCredit(movie))
-                          .filter(movie => billingOrder(movie) <= 5)
-                          .filter(movie => {
-                            const ev = milestoneEvidence(movie);
-                            return ev.majorAwardWin >= 160 || ev.awards >= 90 || ev.defining >= 70 || ev.breakthrough >= 100;
-                          })
-                          .sort((a, b) =>
-                            anchorStrength(b) - anchorStrength(a) ||
-                            significanceScore(b) - significanceScore(a)
-                          );
-
-                        const strongestAnchorScore = protectedAnchorPool.length
-                          ? anchorStrength(protectedAnchorPool[0])
-                          : 0;
-
-                        // 1. Preserve a genuine breakthrough when the source explicitly identifies it.
-                        const breakthroughPick = pickMilestone("breakthrough");
-                        if (breakthroughPick) addFilm(breakthroughPick);
-
-                        // 2. Protect up to THREE additional foundational/signature anchors. Person 33
-                        // gives explicit major award wins special protection so a foundational film
-                        // cannot disappear merely to improve chronological spread.
-                        let protectedAnchorCount = 0;
-                        for (const movie of protectedAnchorPool) {
-                          if (protectedAnchorCount >= 3) break;
-                          if (!canUseFilm(movie)) continue;
-
-                          const strength = anchorStrength(movie);
-                          const ev = milestoneEvidence(movie);
-                          const explicitMajorAnchor = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140;
-
-                          if (
-                            strongestAnchorScore &&
-                            strength < strongestAnchorScore * 0.64 &&
-                            !explicitMajorAnchor
-                          ) {
-                            continue;
-                          }
-
-                          if (addFilm(movie)) protectedAnchorCount += 1;
-                        }
-
-                        // 3. A prime-career landmark can fill a remaining slot, but only if it is
-                        // independently source-supported. It does not replace protected anchors.
-                        if (chosen.length < 5) {
-                          const primePick = pickMilestone(
-                            "prime",
-                            movie => sourceSpan < 18 || (sourcePosition(movie) >= 0.20 && sourcePosition(movie) <= 0.78)
-                          );
-                          if (primePick) addFilm(primePick);
-                        }
-
-                        // 4. Preserve one major recurring/franchise chapter when explicitly supported.
-                        if (chosen.length < 5) {
-                          const franchisePick = pickMilestone("franchise");
-                          if (franchisePick) addFilm(franchisePick);
-                        }
-
-                        // 5. Later-career work is OPTIONAL. It must be both source-supported and
-                        // strong enough relative to the person's protected anchors. This prevents a
-                        // merely recent credit from displacing a more defining film.
-                        if (chosen.length < 5) {
-                          const laterCandidates = verifiedSourceFilms
-                            .filter(movie => canUseFilm(movie))
-                            .filter(movie => sourceSpan < 18 || sourcePosition(movie) >= 0.58)
-                            .map(movie => ({
-                              movie,
-                              ev: milestoneEvidence(movie),
-                              score: milestoneScore(movie, "later")
-                            }))
-                            .filter(({ ev }) =>
-                              ev.later >= 80 || ev.awards >= 90 || ev.defining >= 70 || ev.franchise >= 100
-                            )
-                            .filter(({ movie, ev }) => {
-                              const sig = significanceScore(movie);
-                              const topSig = protectedAnchorPool.length
-                                ? significanceScore(protectedAnchorPool[0])
-                                : sig;
-                              const exceptionalLaterMilestone = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140 || ev.franchise >= 200;
-                              return exceptionalLaterMilestone || !topSig || sig >= topSig * 0.66;
-                            })
-                            .sort((a, b) =>
-                              b.score - a.score ||
-                              significanceScore(b.movie) - significanceScore(a.movie)
-                            );
-
-                          if (laterCandidates[0]) addFilm(laterCandidates[0].movie);
-                        }
-
-                        // Fill any remaining slots only with source-backed major films. Career
-                        // distance is a modest bonus, never a reason to admit a weaker title.
-                        while (chosen.length < 5) {
-                          const candidates = verifiedSourceFilms
-                            .filter(movie => canUseFilm(movie))
-                            .filter(movie => !isPeripheralCredit(movie))
-                            .filter(movie => billingOrder(movie) <= 4)
+                          // Then seek a genuine early/breakthrough film from the already-qualified
+                          // pool. Explicit breakthrough evidence wins; otherwise the early title
+                          // still has to be close to the best films on significance.
+                          const earlyLimit = minYear + Math.max(8, Math.min(14, Math.round(span * 0.28)));
+                          const earlyCandidates = rankedCandidates
+                            .filter(movie => movieYear(movie) <= earlyLimit && canUseFilm(movie))
                             .map(movie => {
-                              const ev = milestoneEvidence(movie);
-                              const strongSourceMilestone =
-                                ev.breakthrough >= 100 || ev.defining >= 70 || ev.franchise >= 100 ||
-                                ev.awards >= 90 || ev.prime >= 40 || ev.later >= 80;
-                              const sig = significanceScore(movie);
-
-                              if (!strongSourceMilestone) return null;
-
-                              const topSig = protectedAnchorPool.length
-                                ? significanceScore(protectedAnchorPool[0])
-                                : sig;
-                              const exceptional = ev.majorAwardWin >= 160 || ev.awards >= 180 || ev.defining >= 140 || ev.breakthrough >= 200;
-                              if (!exceptional && topSig && sig < topSig * 0.58) return null;
-
-                              const distance = chosen.length
-                                ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie))))
-                                : 0;
-
-                              return {
-                                movie,
-                                score: anchorStrength(movie) + Math.min(distance * 0.55, 14)
-                              };
+                              const ev = sourceEvidenceForFilm(movie);
+                              const score = significanceScore(movie) + ev.breakthrough * 1.8 + ev.general * 0.25;
+                              return { movie, score };
                             })
-                            .filter(Boolean)
-                            .sort((a, b) => b.score - a.score || significanceScore(b.movie) - significanceScore(a.movie));
+                            .sort((a, b) => b.score - a.score);
 
-                          const next = candidates[0]?.movie;
-                          if (!next) break;
-                          addFilm(next);
+                          if (earlyCandidates[0]) {
+                            const best = earlyCandidates[0];
+                            const topScore = significanceScore(rankedCandidates[0]);
+                            const ev = sourceEvidenceForFilm(best.movie);
+                            if (ev.breakthrough >= 80 || ev.awards >= 55 || best.score >= topScore * 0.72) {
+                              addFilm(best.movie);
+                            }
+                          }
+
+                          // Fill remaining slots by significance while rewarding a new portion of
+                          // the career. Diversity is a bonus, never permission to select a weak film.
+                          const careerBand = movie => {
+                            const y = movieYear(movie);
+                            if (span <= 12) return Math.floor((y - minYear) / Math.max(1, span / 3));
+                            const pos = (y - minYear) / span;
+                            if (pos < 0.25) return 0;
+                            if (pos < 0.50) return 1;
+                            if (pos < 0.75) return 2;
+                            return 3;
+                          };
+
+                          while (chosen.length < 5) {
+                            const usedBands = new Set(chosen.map(careerBand));
+                            const pool = rankedCandidates
+                              .filter(movie => canUseFilm(movie))
+                              .map(movie => {
+                                const sig = significanceScore(movie);
+                                const bandBonus = usedBands.has(careerBand(movie)) ? 0 : 42;
+                                const distanceBonus = chosen.length
+                                  ? Math.min(...chosen.map(existing => Math.abs(movieYear(existing) - movieYear(movie)))) * 1.4
+                                  : 0;
+                                return { movie, sig, score: sig + bandBonus + Math.min(distanceBonus, 28) };
+                              })
+                              .sort((a, b) => b.score - a.score || b.sig - a.sig);
+
+                            const next = pool[0];
+                            if (!next) break;
+
+                            // Do not fill the fifth (or any later) slot with a noticeably weak title.
+                            // Every selection must remain within a meaningful range of the strongest
+                            // career film, unless the source itself marks it as a milestone.
+                            const topSig = significanceScore(rankedCandidates[0]);
+                            const ev = sourceEvidenceForFilm(next.movie);
+                            const milestone = ev.general >= 75 || ev.awards >= 55 || ev.breakthrough >= 80 || ev.defining >= 70;
+                            const floor = chosen.length >= 4 ? 0.60 : 0.52;
+                            if (!milestone && next.sig < topSig * floor) break;
+
+                            addFilm(next.movie);
+                          }
                         }
 
-                        // If the strict pool is unusually small, add only genuinely strong,
-                        // central, non-peripheral cast credits. Never force five titles.
+                        // If the strict pool is unusually small, add only genuinely strong
+                        // non-peripheral credits. Never force the biography to reach five titles.
                         if (chosen.length < 3) {
                           const reserve = rawFilms
                             .filter(movie => canUseFilm(movie))
                             .filter(movie => !isPeripheralCredit(movie))
-                            .filter(movie => billingOrder(movie) <= 4)
                             .map(movie => ({ movie, score: significanceScore(movie) }))
                             .sort((a, b) => b.score - a.score);
 
@@ -3694,193 +2783,16 @@
                           }
                         }
 
-                        /*
-                          PERSON 34 — CAREER-ROLE FINALIZER
-
-                          Person 33 could still cluster several strong films into one short
-                          period. Person 34 treats the five positions as career jobs rather
-                          than five independent score winners. The source-backed pool remains
-                          mandatory; this pass only decides which major films tell the clearest
-                          whole-career story. No performer or title is hard-coded.
-                        */
-                        const finalCareerFilms = [];
-                        const finalIds = new Set();
-
-                        const addFinal = movie => {
-                          if (!movie || finalIds.has(movie.id)) return false;
-                          finalCareerFilms.push(movie);
-                          finalIds.add(movie.id);
-                          return true;
-                        };
-
-                        const careerPool = verifiedSourceFilms
-                          .filter(movie => !isPeripheralCredit(movie))
-                          .filter(movie => billingOrder(movie) <= 5)
-                          .sort((a, b) => anchorStrength(b) - anchorStrength(a));
-
-                        const careerYearsFinal = careerPool.map(movieYear).filter(Boolean);
-                        const careerFirstFinal = careerYearsFinal.length ? Math.min(...careerYearsFinal) : 0;
-                        const careerLastFinal = careerYearsFinal.length ? Math.max(...careerYearsFinal) : 0;
-                        const careerSpanFinal = Math.max(1, careerLastFinal - careerFirstFinal);
-                        const careerPosFinal = movie =>
-                          careerFirstFinal && careerLastFinal
-                            ? (movieYear(movie) - careerFirstFinal) / careerSpanFinal
-                            : 0.5;
-
-                        const bestForRole = (role, minPos, maxPos) => careerPool
-                          .filter(movie => !finalIds.has(movie.id))
-                          .filter(movie => careerPosFinal(movie) >= minPos && careerPosFinal(movie) <= maxPos)
-                          .map(movie => {
-                            const ev = milestoneEvidence(movie);
-                            let roleBoost = 0;
-                            if (role === "foundation") roleBoost = ev.breakthrough * 2.2 + ev.defining * .7 + ev.awards * .55;
-                            if (role === "signature") roleBoost = ev.majorAwardWin * 2.6 + ev.awards * 1.7 + ev.defining * 1.8 + ev.breakthrough * .55;
-                            if (role === "prime") roleBoost = ev.defining * 1.55 + ev.awards * 1.25 + ev.prime * 1.1 + ev.franchise * .55;
-                            if (role === "laterSignature") roleBoost = ev.defining * 1.35 + ev.franchise * 1.25 + ev.awards * 1.0 + ev.prime * .75;
-                            if (role === "lateLandmark") roleBoost = ev.majorAwardWin * 2.3 + ev.awards * 1.55 + ev.later * 1.5 + ev.defining * 1.1 + ev.franchise * .8;
-                            return { movie, score: anchorStrength(movie) * .72 + roleBoost };
-                          })
-                          .sort((a,b) => b.score - a.score || significanceScore(b.movie) - significanceScore(a.movie))[0]?.movie || null;
-
-                        if (careerPool.length) {
-                          // Foundation / breakthrough: earliest quarter, but only among already
-                          // source-verified significant work.
-                          addFinal(bestForRole("foundation", 0, .28));
-
-                          // Signature achievement: early-to-mid career. This protects a defining
-                          // performance from being crowded out by several later popular titles.
-                          addFinal(bestForRole("signature", .08, .48));
-
-                          // Prime-career landmark: the center of the career.
-                          addFinal(bestForRole("prime", .28, .68));
-
-                          // Later signature/popular chapter.
-                          addFinal(bestForRole("laterSignature", .52, .86));
-
-                          // Late-career landmark: optional and never selected merely for recency.
-                          addFinal(bestForRole("lateLandmark", .72, 1));
-                        }
-
-                        // If a role window was empty, retain the strongest protected Person 33
-                        // selections, then the strongest source-backed films. Never force five.
-                        for (const movie of chosen) {
-                          if (finalCareerFilms.length >= 5) break;
-                          addFinal(movie);
-                        }
-                        for (const movie of careerPool) {
-                          if (finalCareerFilms.length >= 5) break;
-                          addFinal(movie);
-                        }
-
-                        const fallbackFilms = finalCareerFilms
+                        const fallbackFilms = chosen
                           .slice(0, 5)
                           .sort((a, b) => movieYear(a) - movieYear(b));
 
                         const selectedCareerParts = [];
 
-                        /*
-                          PERSON 36 — NARRATIVE DEPTH
-
-                          Keep up to two genuine career-story sentences from the source before the
-                          compact five-film recap. This restores the missing middle ground between
-                          an oversized Wikipedia dump and a two-sentence title list. The rule is
-                          generic: sentences must describe screen-career milestones and must connect
-                          to actual credits in this person's filmography. No names or titles are
-                          hard-coded.
-                        */
-                        /*
-                          PERSON 43 — BIOGRAPHY DEPTH FLOOR
-
-                          Person 42 could still collapse a major career to an overview plus a
-                          five-title list when the earlier career extractor returned too few
-                          sentences. Build the narrative pool from BOTH the curated career parts
-                          and the verified source sentences, then keep up to three distinct career
-                          milestones. This preserves Reelwise's compact style while giving major,
-                          long careers an actual story instead of a bare film list.
-                        */
-                        const narrativePool = [...sourceCareerParts, ...sourceSentences]
-                          .map(cleanText)
-                          .filter(Boolean)
-                          .filter(sentence => sentence.length >= 55 && sentence.length <= 300)
-                          .filter(sentence => sentenceMovieMatches(sentence, rawFilms).length > 0)
-                          .filter(sentence => /\b(?:film|movie|role|starred|performance|acting|breakthrough|breakout|prominence|acclaim|award|oscar|academy award|career|directed|portrayed)\b/i.test(sentence))
-                          .filter(sentence => !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|political|activist)\b/i.test(sentence));
-
-                        const narrativeCareerParts = [];
-                        const narrativeKeys = new Set();
-
-                        for (const sentence of narrativePool) {
-                          const key = sentence
-                            .toLowerCase()
-                            .replace(/[^a-z0-9 ]+/g, " ")
-                            .replace(/\s+/g, " ")
-                            .trim();
-
-                          if (!key || narrativeKeys.has(key)) continue;
-
-                          // Avoid near-duplicate source sentences that discuss exactly the same
-                          // set of films. We want career progression, not repetition.
-                          const filmKey = sentenceMovieMatches(sentence, rawFilms)
-                            .map(movie => movie.id)
-                            .sort((a, b) => a - b)
-                            .join("|");
-
-                          if (filmKey && narrativeKeys.has(`films:${filmKey}`)) continue;
-
-                          narrativeCareerParts.push(sentence);
-                          narrativeKeys.add(key);
-                          if (filmKey) narrativeKeys.add(`films:${filmKey}`);
-
-                          if (narrativeCareerParts.length >= 3) break;
-                        }
-
-                        selectedCareerParts.push(...narrativeCareerParts);
-
                         if (fallbackFilms.length) {
-                          const recap = `Notable film work includes ${formatFilmList(fallbackFilms)}.`;
-                          const alreadyCovered = fallbackFilms.filter(movie =>
-                            narrativeCareerParts.some(sentence =>
-                              sentence.toLowerCase().includes(String(movie?.title || "").toLowerCase())
-                            )
-                          ).length;
-
-                          const narrativeText = narrativeCareerParts.join(" ").trim();
-                          const narrativeWordCount = narrativeText.split(/\s+/).filter(Boolean).length;
-                          const narrativeIsSubstantial =
-                            narrativeText.length >= 500 ||
-                            narrativeWordCount >= 80 ||
-                            narrativeCareerParts.length >= 3;
-
-                          /*
-                            PERSON 24 — RECAP ONLY FOR THIN BIOGRAPHIES
-
-                            Once Reelwise already has a substantial career narrative, do not append
-                            a generic "Notable film work includes..." list. Keep the recap only as
-                            a depth fallback for profiles whose narrative is still thin.
-                          */
-                          if (
-                            !narrativeIsSubstantial &&
-                            (narrativeCareerParts.length < 2 || alreadyCovered < 3)
-                          ) {
-                            selectedCareerParts.push(recap);
-                          }
-                        }
-
-                        /*
-                          If the assembled career story is still unusually thin, add one more
-                          verified career sentence. This is a floor, not padding: the sentence must
-                          connect to a real, pre-death film credit and must add new text.
-                        */
-                        const provisionalBiography = [overviewText, ...selectedCareerParts]
-                          .filter(Boolean)
-                          .join(" ");
-
-                        if (provisionalBiography.length < 520) {
-                          const extraCareerSentence = narrativePool.find(sentence =>
-                            !selectedCareerParts.includes(sentence) &&
-                            !overviewText.includes(sentence)
+                          selectedCareerParts.push(
+                            `Notable film work includes ${formatFilmList(fallbackFilms)}.`
                           );
-                          if (extraCareerSentence) selectedCareerParts.push(extraCareerSentence);
                         }
 
                         // One concise accolade/legacy sentence may follow the films, but only when
@@ -3928,8 +2840,6 @@
                         .replace(/\s+/g, " ")
                         .trim();
 
-                      biography = cleanOrphanedBiographyPunctuation(biography);
-
                       if (biography.length > 1150) {
                         const fallbackSentences = splitBioSentences(biography);
                         const compactFallback = [];
@@ -3942,7 +2852,7 @@
                           const addition =
                             cleanSentence.length + (compactFallback.length ? 1 : 0);
 
-                          if (fallbackLength + addition > 980) break;
+                          if (fallbackLength + addition > 760) break;
 
                           compactFallback.push(cleanSentence);
                           fallbackLength += addition;
@@ -3956,21 +2866,16 @@
                           Absolute last-resort guard: never let a malformed source paragraph
                           fill the entire Reelwise star card.
                         */
-                        if (biography.length > 1050) {
-                          biography = limitBiographyToCompleteSentences(biography, 1050, 980, 5);
+                        if (biography.length > 820) {
+                          biography = biography.slice(0, 817).replace(/\s+\S*$/, "") + "...";
                         }
                       }
 
                       return {
                         ...person,
                         biography,
-                        biography_original: tmdbBio,
-                        wikipedia_summary_internal: wikipediaSummary,
-                        birthday: resolvedBirthday,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
-                        age: person?.deathday ? null : calculatePersonAge(resolvedBirthday),
-                        age_at_death: person?.deathday ? calculatePersonAge(resolvedBirthday, person?.deathday) : null,
                         combined_credits:
                           person?.combined_credits &&
                           typeof person.combined_credits === "object"
@@ -4241,234 +3146,15 @@
                         }
 
                         /*
-                          PERSON 34 — BACKGROUND BIOGRAPHY MODE
-
-                          The Star page itself is rendered immediately from /api/search.
-                          Only the biography waits for the richer Wikipedia/TMDB career
-                          engine. Keeping this as a separate mode prevents biography work
-                          from blocking the photo, name, Known For and Filmography.
+                          NORMAL STAR PROFILE MODE
                         */
-                        if (mode === "biography") {
-                          const cachedBiography = getCachedBiography(id);
-                          if (cachedBiography) {
-                            // PERSON 31 — SANITIZE LEGACY CACHED BIOGRAPHIES
-                            // Older warm-cache payloads may predate the final biography
-                            // sanitizer. Clean the exact cached biography before returning it.
-                            const cleanedCachedBiography = {
-                              ...cachedBiography,
-                              biography: cleanFinalBiographyOutput(cachedBiography?.biography || "")
-                                .replace(/^From\s+(?=[A-Z])/, "")
-                                .trim()
-                            };
+                        const profile = await getPersonProfile(id);
 
-                            // Refresh the warm cache with the cleaned payload so subsequent
-                            // requests in this function instance are clean as well.
-                            saveCachedBiography(id, cleanedCachedBiography);
-
-                            res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("Cache-Control", "no-store, max-age=0");
-                            res.setHeader("CDN-Cache-Control", "no-store");
-                            res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-                            return res.status(200).json(cleanedCachedBiography);
-                          }
-
-                          let biographyPromise = biographyInflight.get(id);
-
-                          if (!biographyPromise) {
-                            biographyPromise = (async () => {
-                              const profile = await getPersonProfile(id);
-
-                          /*
-                            PERSON 39 — REELWISE BIO ONLY
-
-                            Preserve Person 37/38's fast page architecture, but never hand the
-                            raw source/Wikipedia biography back to the visible Star Profile.
-                            getPersonProfile() already builds the concise Reelwise career story;
-                            the source biography remains internal evidence only.
-                          */
-                          let finalBiography = removeWikipediaEnding(profile?.biography || "");
-
-                          finalBiography = cleanText(finalBiography)
-                            .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
-                            .replace(/\bDescription above from[^.]*\.?/gi, "")
-                            .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, "")
-                            .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
-                            .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
-                            .replace(/\s+/g, " ")
-                            .trim();
-
-                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
-
-                          /*
-                            PERSON 44 — BACKGROUND BIOGRAPHY RESCUE
-
-                            Person 43 improved the career selector, but a major performer can
-                            still arrive here with only the fast-profile fallback (identity +
-                            "Notable film work"). When that happens, use Wikipedia's concise
-                            biography summary as a SECOND background source and extract a compact
-                            career story. This never blocks the initial star card/photo load.
-
-                            Generic rules only:
-                            - activate only when the assembled Reelwise bio is unusually thin;
-                            - keep an identity/legacy opening plus career milestone sentences;
-                            - reject personal-life/navigation/licensing material;
-                            - target roughly 90–140 words without exposing a Wikipedia dump.
-                          */
-                          const biographyWordCount = value =>
-                            cleanText(value).split(/\s+/).filter(Boolean).length;
-
-                          const hasGenericNotableFilmEnding = /\bNotable film work includes\b/i.test(finalBiography);
-
-                          if (
-                            finalBiography.length < 560 ||
-                            biographyWordCount(finalBiography) < 80 ||
-                            hasGenericNotableFilmEnding
-                          ) {
-                            const wikiSummary = cleanBiographySource(
-                              removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
-                              profile?.name || ""
-                            );
-
-                            const wikiSentences = splitBioSentences(wikiSummary)
-                              .map(cleanText)
-                              .filter(Boolean)
-                              .filter(sentence => sentence.length >= 35 && sentence.length <= 330)
-                              .filter(sentence =>
-                                !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship)\b/i.test(sentence)
-                              );
-
-                            if (wikiSentences.length) {
-                              const identityOrLegacy = wikiSentences.find(sentence =>
-                                /\b(?:actor|actress|filmmaker|director|performer|comedian|known|regarded|influential|acclaimed|award)\b/i.test(sentence)
-                              ) || wikiSentences[0];
-
-                              const careerMilestones = wikiSentences
-                                .filter(sentence => sentence !== identityOrLegacy)
-                                .filter(sentence =>
-                                  /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|godfather|screen)\b/i.test(sentence)
-                                );
-
-                              const rescued = [];
-                              const seen = new Set();
-                              let words = 0;
-
-                              const addSentence = sentence => {
-                                const cleanSentence = cleanText(sentence);
-                                const key = cleanSentence.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-                                if (!cleanSentence || seen.has(key)) return false;
-                                const count = biographyWordCount(cleanSentence);
-                                if (rescued.length && words + count > 140) return false;
-                                rescued.push(cleanSentence);
-                                seen.add(key);
-                                words += count;
-                                return true;
-                              };
-
-                              addSentence(identityOrLegacy);
-                              for (const sentence of careerMilestones) {
-                                if (words >= 105 || rescued.length >= 5) break;
-                                addSentence(sentence);
-                              }
-
-                              const rescuedBiography = rescued.join(" ").replace(/\s+/g, " ").trim();
-
-                              if (
-                                biographyWordCount(rescuedBiography) >= 75 &&
-                                (rescuedBiography.length > finalBiography.length || hasGenericNotableFilmEnding)
-                              ) {
-                                finalBiography = rescuedBiography;
-                              }
-                            }
-                          }
-
-                          /*
-                            Safety guard only. Do not substitute biography_original here.
-                            If the career builder ever returns an unexpectedly long paragraph,
-                            keep the strongest opening career sentences rather than exposing
-                            the unedited source biography.
-                          */
-                          finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
-
-                          // PERSON 26: sanitize the exact string that will be returned.
-                          finalBiography = cleanFinalBiographyOutput(finalBiography);
-
-                          // PERSON 25 — NEVER SHIP GENERIC FILM-LIST PADDING
-                          // If no stronger narrative rescue was available, remove only the
-                          // automated recap sentence instead of exposing a mechanical list.
-                          finalBiography = finalBiography
-                            .replace(/(?:^|\s)Notable film work includes[^.!?]*[.!?]/gi, " ")
-                            .replace(/\s+/g, " ")
-                            .trim();
-
-                          if (finalBiography.length > 1050) {
-                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1050, 900, 6);
-                          }
-
-                              // Run again after compaction so the response itself is guaranteed clean.
-                              finalBiography = cleanFinalBiographyOutput(finalBiography);
-
-                              // PERSON 30 — LAST-MILE RESPONSE GUARD
-                              // Clean the exact biography string immediately before it is
-                              // cached and returned. This protects against any upstream path
-                              // that leaves Wikipedia's stranded leading "From" behind.
-                              finalBiography = cleanFinalBiographyOutput(finalBiography)
-                                .replace(/^From\s+(?=[A-Z])/, "")
-                                .trim();
-
-                              const payload = {
-                                person_id: profile?.id || Number(id),
-                                name: profile?.name || "",
-                                biography: finalBiography,
-                                birthday: profile?.birthday || null,
-                                deathday: profile?.deathday || null,
-                                age: profile?.age ?? null,
-                                age_at_death: profile?.age_at_death ?? null
-                              };
-
-                              return saveCachedBiography(id, payload);
-                            })().finally(() => {
-                              biographyInflight.delete(id);
-                            });
-
-                            biographyInflight.set(id, biographyPromise);
-                          }
-
-                          const payload = await biographyPromise;
-
-                          // PERSON 32 — ABSOLUTE RESPONSE-LEVEL BIOGRAPHY GUARD
-                          // Sanitize the exact object sent over HTTP, regardless of whether
-                          // the biography came from the builder, rescue logic, or warm cache.
-                          const responsePayload = {
-                            ...payload,
-                            biography: cleanFinalBiographyOutput(payload?.biography || "")
-                              .replace(/^From\s+(?=[A-Z])/, "")
-                              .trim()
-                          };
-
-                          saveCachedBiography(id, responsePayload);
-
-                          res.setHeader("X-Reelwise-Biography-Cache", "MISS");
-                          res.setHeader("Cache-Control", "no-store, max-age=0");
-                          res.setHeader("CDN-Cache-Control", "no-store");
-                          res.setHeader("Vercel-CDN-Cache-Control", "no-store");
-                          return res.status(200).json(responsePayload);
-                        }
-
-                        /*
-                          PERSON 39 — NORMAL STAR PROFILE MODE
-
-                          Do not run the Wikipedia enhancement path here. The page gets
-                          TMDB profile/photo/credits immediately; the browser's existing
-                          background biography request can upgrade the text independently.
-                        */
-                        const profile = await getFastPersonProfile(id);
-
-                        res.setHeader(
-                          "Cache-Control",
-                          "public, max-age=0, s-maxage=86400, stale-while-revalidate=604800"
+                        return sendJSON(
+                          res,
+                          200,
+                          profile
                         );
-
-                        return res.status(200).json(profile);
 
                       } catch (error) {
                         console.error(
