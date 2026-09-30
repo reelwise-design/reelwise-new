@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person35";
+                    const BIOGRAPHY_CACHE_VERSION = "person36";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2777,14 +2777,16 @@
 
 
                     /*
-                      PERSON 35 — CAREER-ARC MILESTONE BUILDER
+                      PERSON 36 — CAREER-ARC MILESTONE BUILDER
 
                       Keep Person 34's single final biography path, but make the final
                       copy read like a career story instead of a popularity-ranked list.
                       The selector protects formative work, samples the middle of a long
                       career, and reserves room for strong later work. It also recognizes
                       an early television launch from the performer's own credits when the
-                      source biography does not supply a usable launch sentence.
+                      source biography does not supply a usable launch sentence. Person 36
+                      excludes talk shows, interview programs, award/game shows and guest/self
+                      appearances from the recovered television-launch candidate pool.
                     */
                     function buildFinalReelwiseBiography(person, ...sources) {
                       const sourceText = sources
@@ -2843,6 +2845,8 @@
                             character: cleanText(item.character || "")
                           }))
                           .filter(item => item.year >= 1900 && !/\b(?:self|archive footage|uncredited)\b/i.test(item.character))
+                          .filter(item => !/\b(?:tonight show|late show|late night|jimmy kimmel|jimmy fallon|david letterman|jay leno|conan|graham norton|ellen|kelly clarkson|daily show|colbert|talk|interview|awards?|oscars?|golden globes?|emmys?|grammys?|game show|jeopardy|wheel of fortune|red carpet|aftershow|after show|special)\b/i.test(item.name))
+                          .filter(item => item.episodes >= 2 || /\b(?:cast|regular|series regular|host)\b/i.test(item.character))
                           .sort((a,b) => a.year-b.year || b.episodes-a.episodes || b.popularity-a.popularity);
 
                         const firstFilmYear = cast
