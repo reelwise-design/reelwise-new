@@ -39,7 +39,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 38
+                      REELWISE PERSON API — PERSON 24 BUILD
                       ============================================================
 
                       NORMAL MODE:
@@ -427,12 +427,28 @@
                         mistaken for the end of a sentence.
                       */
                       const DECIMAL_TOKEN = "__REELWISE_DECIMAL__";
+                      const ABBREV_TOKEN = "__REELWISE_ABBREV__";
+
+                      /*
+                        PERSON 24 — SAFE ABBREVIATION SPLITTING
+
+                        Protect punctuation that is not actually the end of a sentence.
+                        This fixes broken biography lines such as "box-office No." when
+                        the source really continues with "No. 1", while preserving the
+                        existing decimal protection.
+                      */
                       const protectedText = cleanText(value)
-                        .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`);
+                        .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`)
+                        .replace(/\bNo\.(?=\s*\d)/gi, match => match.replace(".", ABBREV_TOKEN))
+                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+[A-Z])/g, match => match.replace(".", ABBREV_TOKEN));
 
                       return (protectedText
                         .match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [])
-                        .map(s => s.replaceAll(DECIMAL_TOKEN, ".").trim())
+                        .map(s => s
+                          .replaceAll(DECIMAL_TOKEN, ".")
+                          .replaceAll(ABBREV_TOKEN, ".")
+                          .trim()
+                        )
                         .filter(Boolean);
                     }
 
@@ -2892,14 +2908,29 @@
 
                       selectedFastFilms.sort((a, b) => a.year - b.year);
 
-                      const landmarkText = selectedFastFilms.length
+                      const fastIntroText = introParts.join(" ").trim();
+                      const fastIntroWordCount = fastIntroText.split(/\s+/).filter(Boolean).length;
+
+                      /*
+                        PERSON 24 — DO NOT PAD A SUBSTANTIAL BIOGRAPHY
+
+                        The generic "Notable film work includes..." recap is useful when the
+                        available biography is thin. When the source already provides a real
+                        career paragraph, however, the list reads like automated padding and
+                        can repeat titles already explained in the prose.
+                      */
+                      const fastIntroIsSubstantial =
+                        fastIntroText.length >= 500 ||
+                        fastIntroWordCount >= 80;
+
+                      const landmarkText = selectedFastFilms.length && !fastIntroIsSubstantial
                         ? `Notable film work includes ${selectedFastFilms
                             .slice(0, 5)
                             .map(f => `${f.title} (${f.year})`)
                             .join(", ")}.`
                         : "";
 
-                      let fastBiography = [introParts.join(" "), landmarkText]
+                      let fastBiography = [fastIntroText, landmarkText]
                         .filter(Boolean)
                         .join(" ")
                         .replace(/\s+/g, " ")
@@ -3759,10 +3790,24 @@
                             )
                           ).length;
 
-                          // Add the five-film career arc when the narrative has not already covered
-                          // most of those milestones. This keeps the paragraph informative without
-                          // mechanically repeating the same titles twice.
-                          if (narrativeCareerParts.length < 2 || alreadyCovered < 3) {
+                          const narrativeText = narrativeCareerParts.join(" ").trim();
+                          const narrativeWordCount = narrativeText.split(/\s+/).filter(Boolean).length;
+                          const narrativeIsSubstantial =
+                            narrativeText.length >= 500 ||
+                            narrativeWordCount >= 80 ||
+                            narrativeCareerParts.length >= 3;
+
+                          /*
+                            PERSON 24 — RECAP ONLY FOR THIN BIOGRAPHIES
+
+                            Once Reelwise already has a substantial career narrative, do not append
+                            a generic "Notable film work includes..." list. Keep the recap only as
+                            a depth fallback for profiles whose narrative is still thin.
+                          */
+                          if (
+                            !narrativeIsSubstantial &&
+                            (narrativeCareerParts.length < 2 || alreadyCovered < 3)
+                          ) {
                             selectedCareerParts.push(recap);
                           }
                         }
