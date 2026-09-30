@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person44";
+                    const BIOGRAPHY_CACHE_VERSION = "person46";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -325,7 +325,7 @@
                     }
 
                     /* ============================================================
-                       PERSON 45 — FASTER WIKIPEDIA SOURCE LOAD
+                       PERSON 46 — FASTER WIKIPEDIA SOURCE LOAD
                        ============================================================
 
                        Resolve the Wikipedia page title once, then request the summary
@@ -2802,7 +2802,7 @@
                         .filter(Boolean);
 
                       const financial = sentence =>
-                        /\b(?:net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth|grossed|grossing|box office)\b/i.test(sentence) ||
+                        /\b(?:net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|highest-paid|highest paid|million deal|billion deal|deal with netflix|deal worth|contract worth|grossed|grossing|box office)\b/i.test(sentence) ||
                         /\$\s*\d/i.test(sentence);
 
                       const movieListLike = sentence => {
@@ -4840,7 +4840,7 @@
                         */
                         if (mode === "biography") {
                           /*
-                            PERSON 45 — REELWISE CAREER STORY + CONTROLLED CONTEXT
+                            PERSON 46 — SINGLE CAREER-STORY PIPELINE
 
                             Keep the fast Star page architecture from Person 43: the photo,
                             name, birthday/age, Known For and filmography still arrive from the
@@ -4853,8 +4853,8 @@
                           const cachedBiography = getCachedBiography(id);
                           if (cachedBiography) {
                             res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("X-Reelwise-Biography-Version", "person45");
-                            res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
+                            res.setHeader("X-Reelwise-Biography-Version", "person46");
+                            res.setHeader("Cache-Control", "no-store, max-age=0");
                             return res.status(200).json(cachedBiography);
                           }
 
@@ -4864,116 +4864,28 @@
                             biographyPromise = (async () => {
                               const profile = await getPersonProfile(id);
 
-                              let finalBiography = cleanFinalBiographyOutput(
-                                removeWikipediaEnding(profile?.biography || "")
+                              /*
+                                PERSON 46 — ONE BIOGRAPHY COMPOSER
+
+                                Person 44/45 exposed the real bug: a source-summary biography and
+                                a generated career chronology could both survive and then be stitched
+                                together. That produced strong sentences followed by nonsense such as
+                                a late film being described as career-establishing work.
+
+                                Person 46 has one owner for the visible biography. Feed the canonical
+                                Reelwise career-arc composer all available evidence, then accept only
+                                that composer's output. Nothing is appended afterward.
+                              */
+                              const finalBiography = cleanFinalBiographyOutput(
+                                buildFinalReelwiseBiography(
+                                  profile,
+                                  profile?.wikipedia_summary_internal || "",
+                                  profile?.biography_original || "",
+                                  profile?.biography || ""
+                                ) || profile?.biography || ""
                               )
                                 .replace(/^From\s+(?=[A-Z])/, "")
-                                .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/gi, "")
-                                .replace(/\bDescription above from[^.]*\.?/gi, "")
-                                .replace(/\bDescription from the Wikipedia article[^.]*\.?/gi, "")
-                                .replace(/\blicensed under CC-BY-SA[^.]*\.?/gi, "")
-                                .replace(/\bfull list of contributors on Wikipedia\.?/gi, "")
-                                .replace(/\s+/g, " ")
                                 .trim();
-
-                              finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
-
-                              /*
-                                PERSON 45 — CAREER-STORY ENRICHMENT, NOT REPLACEMENT
-
-                                Person 44 proved that Wikipedia can supply excellent context, but
-                                replacing the generated Reelwise story wholesale could erase the
-                                performer's defining career arc. Person 45 keeps the generic Reelwise
-                                chronology as the backbone and only borrows a small number of useful
-                                contextual sentences when they add information without contradicting
-                                or overwhelming that chronology. No performer or title is hard-coded.
-                              */
-                              const biographyWordCount = value =>
-                                cleanText(value).split(/\s+/).filter(Boolean).length;
-
-                              const wikiSummary = cleanBiographySource(
-                                removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
-                                profile?.name || ""
-                              );
-
-                              const baseSentences = splitBioSentences(finalBiography)
-                                .map(cleanText)
-                                .filter(Boolean);
-
-                              const wikiSentences = splitBioSentences(wikiSummary)
-                                .map(cleanText)
-                                .filter(Boolean)
-                                .filter(sentence => sentence.length >= 35 && sentence.length <= 300)
-                                .filter(sentence =>
-                                  !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship|net worth|salary|earnings|wealth|highest-paid|highest paid|contract worth|deal worth|grossed|grossing|box office|million|billion)\b/i.test(sentence)
-                                );
-
-                              if (wikiSentences.length && baseSentences.length) {
-                                const normalizeBioSentence = sentence =>
-                                  cleanText(sentence).toLowerCase().replace(/[^a-z0-9]+/g, " " ).trim();
-
-                                const baseKeys = baseSentences.map(normalizeBioSentence);
-                                const baseText = ` ${baseKeys.join(" " )} `;
-
-                                const identityContext = wikiSentences.find(sentence =>
-                                  /\b(?:known for|regarded as|recognized for|acclaimed for|best known|prominent|influential)\b/i.test(sentence) &&
-                                  !/\b(?:award|prize|won|nominated|nomination)\b/i.test(sentence)
-                                ) || "";
-
-                                const careerContext = wikiSentences.filter(sentence => {
-                                  if (sentence === identityContext) return false;
-                                  if (/\b(?:award|prize|won|nominated|nomination|honor|accolade)\b/i.test(sentence)) return false;
-                                  if (!/\b(?:breakthrough|breakout|rose to|gained recognition|career|role|film|television|series|franchise|portrayed|starred)\b/i.test(sentence)) return false;
-
-                                  const years = sentence.match(/\((?:19|20)\d{2}\)/g) || [];
-                                  if (years.length >= 4) return false;
-
-                                  const key = normalizeBioSentence(sentence);
-                                  if (!key || baseKeys.includes(key)) return false;
-
-                                  const words = key.split(" " ).filter(word => word.length > 3);
-                                  if (!words.length) return false;
-                                  const overlap = words.filter(word => baseText.includes(` ${word} `)).length / words.length;
-                                  return overlap < 0.82;
-                                });
-
-                                const additions = [];
-                                if (identityContext && biographyWordCount(finalBiography) < 125) {
-                                  additions.push(identityContext);
-                                }
-
-                                for (const sentence of careerContext) {
-                                  if (additions.length >= 2) break;
-                                  const projectedWords = biographyWordCount(
-                                    [...baseSentences, ...additions, sentence].join(" " )
-                                  );
-                                  if (projectedWords > 145) continue;
-                                  additions.push(sentence);
-                                }
-
-                                if (additions.length) {
-                                  // Preserve the generated chronology. Context is inserted after the
-                                  // opening identity sentence, never allowed to replace the backbone.
-                                  finalBiography = cleanFinalBiographyOutput([
-                                    baseSentences[0],
-                                    ...additions,
-                                    ...baseSentences.slice(1)
-                                  ].join(" " ));
-                                }
-                              }
-
-                              // Final Person 45 safety: financial/business-status language does not
-                              // belong in a Reelwise career biography even if a source supplied it.
-                              finalBiography = splitBioSentences(finalBiography)
-                                .map(cleanText)
-                                .filter(Boolean)
-                                .filter(sentence =>
-                                  !/\b(?:net worth|salary|earnings|wealth|highest-paid|highest paid|contract worth|deal worth|grossed|grossing|box office)\b/i.test(sentence) &&
-                                  !/\$\s*\d/i.test(sentence)
-                                )
-                                .join(" " );
-
-                              finalBiography = cleanFinalBiographyOutput(finalBiography).trim();
 
                               const payload = {
                                 person_id: profile?.id || Number(id),
@@ -4996,8 +4908,8 @@
                           try {
                             const payload = await biographyPromise;
                             res.setHeader("X-Reelwise-Biography-Cache", "MISS");
-                            res.setHeader("X-Reelwise-Biography-Version", "person45");
-                            res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
+                            res.setHeader("X-Reelwise-Biography-Version", "person46");
+                            res.setHeader("Cache-Control", "no-store, max-age=0");
                             return res.status(200).json(payload);
                           } finally {
                             biographyInflight.delete(String(id));
