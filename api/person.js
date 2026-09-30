@@ -580,6 +580,19 @@
                         /\b(?:actor|actress),?\s+(?:and\s+)?(?:filmmaker|director)\b/i.test(introText);
 
                       const introSaysActress = /\bactress\b/i.test(introText);
+
+                      /*
+                        Preserve the nationality descriptor from the source introduction
+                        when Wikipedia explicitly supplies one (for example,
+                        "American actress" or "British actor"). This is source-derived;
+                        Reelwise never guesses nationality from birthplace.
+                      */
+                      const nationalityMatch = introText.match(
+                        /\b(?:is|was)\s+(?:an?\s+)?([A-Z][A-Za-z-]+)\s+(?=(?:actor|actress|filmmaker|director|comedian|performer)\b)/
+                      );
+                      const nationality = nationalityMatch ? nationalityMatch[1] : "";
+                      const nationalityPrefix = nationality ? `${nationality} ` : "";
+
                       const isActingProfile =
                         department === "acting" ||
                         /\bactor\b|\bactress\b/i.test(introText);
@@ -593,11 +606,11 @@
                       const introSaysMusician = /\bmusician\b/i.test(introText);
 
                       const identity = isFilmmaker && isActingProfile
-                        ? `${name} ${identityVerb} an actor and filmmaker.`
+                        ? `${name} ${identityVerb} ${nationalityPrefix ? "a " + nationalityPrefix : "an "}actor and filmmaker.`
                         : introSaysActress
-                          ? `${name} ${identityVerb} an actress${introSaysMusician ? " and musician" : ""}.`
+                          ? `${name} ${identityVerb} ${nationalityPrefix ? "a " + nationalityPrefix : "an "}actress${introSaysMusician ? " and musician" : ""}.`
                           : isActingProfile
-                            ? `${name} ${identityVerb} an actor${introSaysMusician ? " and musician" : ""}.`
+                            ? `${name} ${identityVerb} ${nationalityPrefix ? "a " + nationalityPrefix : "an "}actor${introSaysMusician ? " and musician" : ""}.`
                             : `${name} ${identityVerb} a film professional.`;
 
                       /*
@@ -1645,6 +1658,29 @@
                     }
 
 
+                    function calculatePersonAge(birthday, deathday = null) {
+                      if (!birthday) return null;
+
+                      const born = new Date(`${birthday}T00:00:00Z`);
+                      const end = deathday
+                        ? new Date(`${deathday}T00:00:00Z`)
+                        : new Date();
+
+                      if (Number.isNaN(born.getTime()) || Number.isNaN(end.getTime())) {
+                        return null;
+                      }
+
+                      let age = end.getUTCFullYear() - born.getUTCFullYear();
+                      const beforeBirthday =
+                        end.getUTCMonth() < born.getUTCMonth() ||
+                        (end.getUTCMonth() === born.getUTCMonth() &&
+                         end.getUTCDate() < born.getUTCDate());
+
+                      if (beforeBirthday) age -= 1;
+                      return age >= 0 ? age : null;
+                    }
+
+
                     async function getPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -1744,6 +1780,7 @@
                       return {
                         ...person,
                         biography,
+                        age: calculatePersonAge(person?.birthday, person?.deathday),
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
                         combined_credits:
