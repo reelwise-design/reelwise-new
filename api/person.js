@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person30";
+                    const BIOGRAPHY_CACHE_VERSION = "person31";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2812,7 +2812,8 @@
                         .map(cleanText)
                         .filter(Boolean)
                         .filter(sentence =>
-                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth)\b/i.test(sentence)
+                          !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth)\b/i.test(sentence) &&
+                          !/(?:\$\s*\d|\b(?:grossed|grossing|earned|earn|box office)\b.*\b(?:million|billion)\b)/i.test(sentence)
                         );
 
                       // Keep only a concise identity/overview opening. Do not let a long
@@ -2992,6 +2993,58 @@
                         selectedFastFilms.push(film);
                       }
 
+                      /*
+                        PERSON 31 — FORMATIVE CAREER LANDMARKS
+
+                        A long career should not jump from one early hit straight to much later
+                        work simply because later titles have larger modern vote totals. Reserve
+                        room for a second strong formative-era landmark when the credits support
+                        it. This is generic and title-agnostic: it uses only year, audience strength
+                        and franchise diversity.
+                      */
+                      if (byYear.length >= 4) {
+                        const careerStart = byYear[0].year;
+                        const careerEnd = byYear[byYear.length - 1].year;
+                        const careerSpanYears = Math.max(1, careerEnd - careerStart);
+
+                        if (careerSpanYears >= 18) {
+                          const formativeEnd = careerStart + Math.max(8, Math.floor(careerSpanYears * 0.32));
+                          const formativePool = selectionPool
+                            .filter(f => f.year <= formativeEnd)
+                            .sort((a, b) => strength(b) - strength(a) || a.year - b.year);
+
+                          const formativeChosen = [];
+                          for (const film of formativePool) {
+                            if (formativeChosen.some(existing => sameFastFranchise(film, existing))) continue;
+                            formativeChosen.push(film);
+                            if (formativeChosen.length >= 2) break;
+                          }
+
+                          if (formativeChosen.length >= 2) {
+                            const formativeIds = new Set(formativeChosen.map(f => f.id));
+                            const laterChoices = selectedFastFilms
+                              .filter(f => !formativeIds.has(f.id))
+                              .sort((a, b) => strength(b) - strength(a) || a.year - b.year);
+
+                            selectedFastFilms.length = 0;
+                            selectedFastFilms.push(...formativeChosen);
+
+                            for (const film of laterChoices) {
+                              if (selectedFastFilms.length >= 5) break;
+                              if (selectedFastFilms.some(existing => sameFastFranchise(film, existing))) continue;
+                              selectedFastFilms.push(film);
+                            }
+
+                            for (const film of fillPool) {
+                              if (selectedFastFilms.length >= 5) break;
+                              if (selectedFastFilms.some(existing => existing.id === film.id)) continue;
+                              if (selectedFastFilms.some(existing => sameFastFranchise(film, existing))) continue;
+                              selectedFastFilms.push(film);
+                            }
+                          }
+                        }
+                      }
+
                       selectedFastFilms.sort((a, b) => a.year - b.year);
 
                       const fastIntroText = introParts.join(" ").trim();
@@ -3010,10 +3063,19 @@
                         fastIntroWordCount >= 80;
 
                       const landmarkText = selectedFastFilms.length && !fastIntroIsSubstantial
-                        ? `Notable film work includes ${selectedFastFilms
-                            .slice(0, 5)
-                            .map(f => `${f.title} (${f.year})`)
-                            .join(", ")}.`
+                        ? (() => {
+                            const films = selectedFastFilms.slice(0, 5);
+                            const formatted = films.map(f => `${f.title} (${f.year})`);
+                            const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
+                            const possessive = Number(person?.gender) === 1 ? "her" : Number(person?.gender) === 2 ? "his" : "their";
+                            if (formatted.length === 1) {
+                              return `${subject} also built ${possessive} screen career with ${formatted[0]}.`;
+                            }
+                            if (formatted.length === 2) {
+                              return `${subject} also built ${possessive} screen career with ${formatted[0]} and ${formatted[1]}.`;
+                            }
+                            return `Across ${possessive} career, ${subject.toLowerCase()} appeared in ${formatted.slice(0, -1).join(", ")}, and ${formatted[formatted.length - 1]}.`;
+                          })()
                         : "";
 
                       let fastBiography = [fastIntroText, landmarkText]
