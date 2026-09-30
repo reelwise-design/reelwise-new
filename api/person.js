@@ -329,13 +329,14 @@
                     async function getWikipediaSources(name) {
                       try {
                         /*
-                          PERSON 23 PERFORMANCE — FAST + SAFE COLD LOAD
+                          PERSON 30 — FAST, CAREER-COMPLETE WIKIPEDIA LOAD
 
-                          Person 23 requests Wikipedia's lead extract instead of the entire
-                          article on the critical biography path. Reelwise already has TMDB
-                          combined credits for the career-film selection, so downloading a full
-                          Wikipedia article before rendering the biography adds latency without
-                          being necessary for the visible profile.
+                          Person 30 requests a bounded extract from the full article rather than only
+                          Wikipedia's lead. Person 29 proved the lead can end before defining
+                          later-career work, which left otherwise major careers incomplete. The
+                          18,000-character bound keeps the request controlled while giving the
+                          career selector enough chronology to build early, signature and later
+                          career beats.
 
                           Person 21 used generator=search with gsrlimit=5 while also asking
                           MediaWiki for full extracts. On a cold request that could make
@@ -384,7 +385,13 @@
                             redirects: "1",
                             prop: "extracts|pageprops",
                             explaintext: "1",
-                            exintro: "1",
+                            // PERSON 30 — CAREER-COMPLETE SOURCE
+                            // Do not restrict the extract to Wikipedia's lead. The lead can stop
+                            // before a performer's defining later work (for example a comeback or
+                            // second career peak). A bounded full-page extract gives the existing
+                            // career selector evidence from the whole career without downloading an
+                            // unbounded article.
+                            exchars: "18000",
                             exsectionformat: "plain",
                             format: "json",
                             origin: "*"
@@ -405,7 +412,8 @@
                             gsrlimit: "1",
                             prop: "extracts|pageprops",
                             explaintext: "1",
-                            exintro: "1",
+                            // PERSON 30 — same bounded career-complete extraction on fallback.
+                            exchars: "18000",
                             exsectionformat: "plain",
                             redirects: "1",
                             format: "json",
@@ -438,7 +446,7 @@
                       const ABBREV_TOKEN = "__REELWISE_ABBREV__";
 
                       /*
-                        PERSON 24 — SAFE ABBREVIATION SPLITTING
+                        PERSON 30 — SAFE ABBREVIATION SPLITTING
 
                         Protect punctuation that is not actually the end of a sentence.
                         This fixes broken biography lines such as "box-office No." when
@@ -448,7 +456,7 @@
                       const protectedText = cleanText(value)
                         .replace(/(\d)\.(?=\d)/g, `$1${DECIMAL_TOKEN}`)
                         .replace(/\bNo\.(?=\s*\d)/gi, match => match.replace(".", ABBREV_TOKEN))
-                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+[A-Z])/g, match => match.replace(".", ABBREV_TOKEN))
+                        .replace(/\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St)\.(?=\s+(?:[A-Z]|&))/g, match => match.replace(".", ABBREV_TOKEN))
                         // PERSON 25: protect middle initials inside names/titles, e.g. "Cecil B. DeMille".
                         .replace(/\b[A-Z]\.(?=\s+[A-Z][a-z])/g, match => match.replace(".", ABBREV_TOKEN));
 
