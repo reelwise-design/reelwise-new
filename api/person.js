@@ -4840,7 +4840,7 @@
                         */
                         if (mode === "biography") {
                           /*
-                            PERSON 44 — ONE CONSISTENT REELWISE BIOGRAPHY PIPELINE
+                            PERSON 45 — REELWISE CAREER STORY + CONTROLLED CONTEXT
 
                             Keep the fast Star page architecture from Person 43: the photo,
                             name, birthday/age, Known For and filmography still arrive from the
@@ -4853,7 +4853,7 @@
                           const cachedBiography = getCachedBiography(id);
                           if (cachedBiography) {
                             res.setHeader("X-Reelwise-Biography-Cache", "HIT");
-                            res.setHeader("X-Reelwise-Biography-Version", "person44");
+                            res.setHeader("X-Reelwise-Biography-Version", "person45");
                             res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
                             return res.status(200).json(cachedBiography);
                           }
@@ -4879,75 +4879,101 @@
                               finalBiography = cleanOrphanedBiographyPunctuation(finalBiography);
 
                               /*
-                                PERSON 44 — BACKGROUND BIOGRAPHY RESCUE
+                                PERSON 45 — CAREER-STORY ENRICHMENT, NOT REPLACEMENT
 
-                                If the full career builder still produces an unusually thin bio,
-                                use the concise Wikipedia summary as a SECOND background evidence
-                                source. Select only identity/legacy and career-milestone sentences;
-                                reject personal-life/navigation/licensing material. This is generic
-                                and title/actor agnostic.
+                                Person 44 proved that Wikipedia can supply excellent context, but
+                                replacing the generated Reelwise story wholesale could erase the
+                                performer's defining career arc. Person 45 keeps the generic Reelwise
+                                chronology as the backbone and only borrows a small number of useful
+                                contextual sentences when they add information without contradicting
+                                or overwhelming that chronology. No performer or title is hard-coded.
                               */
                               const biographyWordCount = value =>
                                 cleanText(value).split(/\s+/).filter(Boolean).length;
 
-                              if (
-                                finalBiography.length < 560 ||
-                                biographyWordCount(finalBiography) < 80
-                              ) {
-                                const wikiSummary = cleanBiographySource(
-                                  removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
-                                  profile?.name || ""
+                              const wikiSummary = cleanBiographySource(
+                                removeWikipediaEnding(profile?.wikipedia_summary_internal || ""),
+                                profile?.name || ""
+                              );
+
+                              const baseSentences = splitBioSentences(finalBiography)
+                                .map(cleanText)
+                                .filter(Boolean);
+
+                              const wikiSentences = splitBioSentences(wikiSummary)
+                                .map(cleanText)
+                                .filter(Boolean)
+                                .filter(sentence => sentence.length >= 35 && sentence.length <= 300)
+                                .filter(sentence =>
+                                  !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship|net worth|salary|earnings|wealth|highest-paid|highest paid|contract worth|deal worth|grossed|grossing|box office|million|billion)\b/i.test(sentence)
                                 );
 
-                                const wikiSentences = splitBioSentences(wikiSummary)
-                                  .map(cleanText)
-                                  .filter(Boolean)
-                                  .filter(sentence => sentence.length >= 35 && sentence.length <= 330)
-                                  .filter(sentence =>
-                                    !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|divorce|relationship|net worth|salary|earnings|wealth|contract worth|deal worth)\b/i.test(sentence)
+                              if (wikiSentences.length && baseSentences.length) {
+                                const normalizeBioSentence = sentence =>
+                                  cleanText(sentence).toLowerCase().replace(/[^a-z0-9]+/g, " " ).trim();
+
+                                const baseKeys = baseSentences.map(normalizeBioSentence);
+                                const baseText = ` ${baseKeys.join(" " )} `;
+
+                                const identityContext = wikiSentences.find(sentence =>
+                                  /\b(?:known for|regarded as|recognized for|acclaimed for|best known|prominent|influential)\b/i.test(sentence) &&
+                                  !/\b(?:award|prize|won|nominated|nomination)\b/i.test(sentence)
+                                ) || "";
+
+                                const careerContext = wikiSentences.filter(sentence => {
+                                  if (sentence === identityContext) return false;
+                                  if (/\b(?:award|prize|won|nominated|nomination|honor|accolade)\b/i.test(sentence)) return false;
+                                  if (!/\b(?:breakthrough|breakout|rose to|gained recognition|career|role|film|television|series|franchise|portrayed|starred)\b/i.test(sentence)) return false;
+
+                                  const years = sentence.match(/\((?:19|20)\d{2}\)/g) || [];
+                                  if (years.length >= 4) return false;
+
+                                  const key = normalizeBioSentence(sentence);
+                                  if (!key || baseKeys.includes(key)) return false;
+
+                                  const words = key.split(" " ).filter(word => word.length > 3);
+                                  if (!words.length) return false;
+                                  const overlap = words.filter(word => baseText.includes(` ${word} `)).length / words.length;
+                                  return overlap < 0.82;
+                                });
+
+                                const additions = [];
+                                if (identityContext && biographyWordCount(finalBiography) < 125) {
+                                  additions.push(identityContext);
+                                }
+
+                                for (const sentence of careerContext) {
+                                  if (additions.length >= 2) break;
+                                  const projectedWords = biographyWordCount(
+                                    [...baseSentences, ...additions, sentence].join(" " )
                                   );
+                                  if (projectedWords > 145) continue;
+                                  additions.push(sentence);
+                                }
 
-                                if (wikiSentences.length) {
-                                  const identityOrLegacy = wikiSentences.find(sentence =>
-                                    /\b(?:actor|actress|filmmaker|director|performer|comedian|known|regarded|influential|acclaimed|award)\b/i.test(sentence)
-                                  ) || wikiSentences[0];
-
-                                  const careerMilestones = wikiSentences
-                                    .filter(sentence => sentence !== identityOrLegacy)
-                                    .filter(sentence =>
-                                      /\b(?:film|movie|role|starred|performance|career|breakthrough|breakout|debut|academy award|oscar|won|nominated|screen|television|series)\b/i.test(sentence)
-                                    );
-
-                                  const rescued = [];
-                                  const seen = new Set();
-                                  let words = 0;
-
-                                  for (const sentence of [identityOrLegacy, ...careerMilestones]) {
-                                    const key = sentence.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-                                    if (!key || seen.has(key)) continue;
-                                    const sentenceWords = biographyWordCount(sentence);
-                                    if (rescued.length && words + sentenceWords > 140) break;
-                                    rescued.push(sentence);
-                                    seen.add(key);
-                                    words += sentenceWords;
-                                    if (words >= 90) break;
-                                  }
-
-                                  const rescuedBiography = cleanFinalBiographyOutput(rescued.join(" "))
-                                    .replace(/^From\s+(?=[A-Z])/, "")
-                                    .trim();
-
-                                  // Use the rescue only when it genuinely adds career substance.
-                                  // Never replace a stronger generated Reelwise biography with a
-                                  // shorter source-derived paragraph.
-                                  if (
-                                    biographyWordCount(rescuedBiography) > biographyWordCount(finalBiography) &&
-                                    biographyWordCount(rescuedBiography) >= 70
-                                  ) {
-                                    finalBiography = rescuedBiography;
-                                  }
+                                if (additions.length) {
+                                  // Preserve the generated chronology. Context is inserted after the
+                                  // opening identity sentence, never allowed to replace the backbone.
+                                  finalBiography = cleanFinalBiographyOutput([
+                                    baseSentences[0],
+                                    ...additions,
+                                    ...baseSentences.slice(1)
+                                  ].join(" " ));
                                 }
                               }
+
+                              // Final Person 45 safety: financial/business-status language does not
+                              // belong in a Reelwise career biography even if a source supplied it.
+                              finalBiography = splitBioSentences(finalBiography)
+                                .map(cleanText)
+                                .filter(Boolean)
+                                .filter(sentence =>
+                                  !/\b(?:net worth|salary|earnings|wealth|highest-paid|highest paid|contract worth|deal worth|grossed|grossing|box office)\b/i.test(sentence) &&
+                                  !/\$\s*\d/i.test(sentence)
+                                )
+                                .join(" " );
+
+                              finalBiography = cleanFinalBiographyOutput(finalBiography).trim();
 
                               const payload = {
                                 person_id: profile?.id || Number(id),
@@ -4970,7 +4996,7 @@
                           try {
                             const payload = await biographyPromise;
                             res.setHeader("X-Reelwise-Biography-Cache", "MISS");
-                            res.setHeader("X-Reelwise-Biography-Version", "person44");
+                            res.setHeader("X-Reelwise-Biography-Version", "person45");
                             res.setHeader("Cache-Control", "public, max-age=86400, s-maxage=604800, stale-while-revalidate=2592000");
                             return res.status(200).json(payload);
                           } finally {
