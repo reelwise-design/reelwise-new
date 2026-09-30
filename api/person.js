@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person39";
+                    const BIOGRAPHY_CACHE_VERSION = "person43";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -3636,6 +3636,13 @@
                         overviewParts.map(sentence => sentence.toLowerCase())
                       );
 
+                      /* PERSON 43 — OVERVIEW MILESTONE DEDUPLICATION
+                         Films already used by the protected opening are part of the story.
+                         Do not spend a second generated milestone slot repeating them. */
+                      const overviewMovieIds = new Set(
+                        sentenceMovieMatches(overviewText, profileMovies).map(movie => movie.id)
+                      );
+
                       let careerParts = splitBioSentences(careerBiography)
                         .map(cleanText)
                         .filter(Boolean)
@@ -4326,6 +4333,10 @@
                         const narrativePool = [...sourceCareerParts, ...sourceSentences]
                           .map(cleanText)
                           .filter(Boolean)
+                          .filter(sentence => {
+                            const ids = sentenceMovieMatches(sentence, rawFilms).map(movie => movie.id);
+                            return !ids.length || ids.some(id => !overviewMovieIds.has(id));
+                          })
                           .filter(sentence => sentence.length >= 55 && sentence.length <= 300)
                           // PERSON 32 — reject source sentences that are really disguised filmographies.
                           // A career-story sentence may mention several films, but once it names more
@@ -4382,7 +4393,10 @@
                               .map(movie => movie.id)
                           );
 
-                          const uncovered = fallbackFilms.filter(movie => !alreadyCoveredIds.has(movie.id));
+                          const uncovered = fallbackFilms.filter(movie =>
+                            !alreadyCoveredIds.has(movie.id) &&
+                            !overviewMovieIds.has(movie.id)
+                          );
                           const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
                           const possessive = Number(person?.gender) === 1 ? "her" : Number(person?.gender) === 2 ? "his" : "their";
 
