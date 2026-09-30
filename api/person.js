@@ -2777,7 +2777,7 @@
 
 
                     /*
-                      PERSON 39 — CAREER-ARC MILESTONE BUILDER
+                      PERSON 41 — CAREER-ARC MILESTONE BUILDER
 
                       Keep Person 34's single final biography path, but make the final
                       copy read like a career story instead of a popularity-ranked list.
@@ -2928,13 +2928,29 @@
                           votes: Number(item.vote_count || 0),
                           rating: Number(item.vote_average || 0),
                           popularity: Number(item.popularity || 0),
-                          character: cleanText(item.character || "")
+                          character: cleanText(item.character || ""),
+                          order: Number.isFinite(Number(item.order)) ? Number(item.order) : 99
                         }))
                         .filter(item =>
                           item.year >= 1900 &&
                           item.title &&
                           !/\b(?:self|archive footage|uncredited)\b/i.test(item.character)
                         );
+
+                      /* PERSON 41 — ROLE-IMPORTANCE INTELLIGENCE
+                         Popularity alone cannot define a career. Protect central starring work,
+                         repeated signature characters, and films where the performer also had a
+                         major creative role (writer/director/producer). Supporting appearances in
+                         very popular ensemble films should not outrank those chapters. */
+                      const crewCredits = Array.isArray(person?.combined_credits?.crew)
+                        ? person.combined_credits.crew
+                        : [];
+                      const creativeFilmIds = new Set(
+                        crewCredits
+                          .filter(item => item && item.media_type === "movie" && item.id)
+                          .filter(item => /\b(?:director|writer|screenplay|story|producer|executive producer)\b/i.test(String(item.job || "")))
+                          .map(item => item.id)
+                      );
 
                       const byId = new Map();
                       for (const film of films) {
@@ -2957,11 +2973,38 @@
                           const escaped = String(film.title || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                           return escaped && new RegExp(`\\b${escaped}\\b`, "i").test(sourceText);
                         };
-                        const score = film =>
-                          Math.log10(film.votes + 10) * 2.15 +
-                          Math.log10(film.popularity + 2) * .7 +
-                          Math.max(0, film.rating - 5.5) * .55 +
-                          (mentioned(film) ? 1.35 : 0);
+                        const characterKey = film => String(film.character || "")
+                          .toLowerCase()
+                          .replace(/\([^)]*\)/g, " ")
+                          .replace(/\b(?:voice|uncredited|archive footage|cameo)\b/g, " ")
+                          .replace(/[^a-z0-9]+/g, " ")
+                          .replace(/\s+/g, " ")
+                          .trim();
+
+                        const characterCounts = new Map();
+                        for (const film of uniqueFilms) {
+                          const key = characterKey(film);
+                          if (key && key.length >= 4) characterCounts.set(key, (characterCounts.get(key) || 0) + 1);
+                        }
+
+                        const centrality = film => {
+                          const order = Number.isFinite(Number(film.order)) ? Number(film.order) : 99;
+                          let value = order === 0 ? 7.5 : order === 1 ? 6.2 : order === 2 ? 4.8 : order === 3 ? 3.2 : order <= 5 ? 1.2 : -2.8;
+                          if (/\b(?:cameo|uncredited|archive footage|self)\b/i.test(String(film.character || ""))) value -= 8;
+                          return value;
+                        };
+
+                        const score = film => {
+                          const key = characterKey(film);
+                          const recurring = key ? Number(characterCounts.get(key) || 0) : 0;
+                          const creative = creativeFilmIds.has(film.id) ? 5.5 : 0;
+                          const franchise = recurring >= 2 ? Math.min(5.5, 2.2 + recurring * .8) : 0;
+                          return Math.log10(film.votes + 10) * 1.45 +
+                            Math.log10(film.popularity + 2) * .35 +
+                            Math.max(0, film.rating - 5.5) * .65 +
+                            (mentioned(film) ? 4.0 : 0) +
+                            centrality(film) + creative + franchise;
+                        };
                         const pick = pool => [...pool].sort((a,b) => score(b)-score(a) || a.year-b.year)[0];
 
                         if (span >= 22) {
@@ -2999,6 +3042,21 @@
                         selected.sort((a,b)=>a.year-b.year);
                       }
 
+                      /* PERSON 41 — CAREER ORDERING
+                         A television credit belongs before the film arc only when it genuinely
+                         precedes or helps launch that film career. A much later television chapter
+                         is retained as later work rather than presented as the origin story. */
+                      let laterTelevision = "";
+                      if (launch && selected.length) {
+                        const launchYears = [...launch.matchAll(/\b((?:19|20)\d{2})\b/g)].map(match => Number(match[1]));
+                        const launchYear = launchYears.length ? Math.min(...launchYears) : 0;
+                        const firstSelectedYear = selected[0]?.year || 0;
+                        if (launchYear && firstSelectedYear && launchYear > firstSelectedYear + 7) {
+                          laterTelevision = launch;
+                          launch = "";
+                        }
+                      }
+
                       const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
                       const possessive = Number(person?.gender) === 1 ? "her" : Number(person?.gender) === 2 ? "his" : "their";
 
@@ -3015,7 +3073,7 @@
                         }
                       }
 
-                      let result = [identity, launch, milestones]
+                      let result = [identity, launch, milestones, laterTelevision]
                         .filter(Boolean)
                         .join(" ")
                         .replace(/\s+/g, " ")
@@ -4664,7 +4722,7 @@
                         */
                         if (mode === "biography") {
                           /*
-                            PERSON 40 — ONE BIOGRAPHY, ONE SOURCE OF TRUTH
+                            PERSON 41 — ONE BIOGRAPHY, ONE SOURCE OF TRUTH
 
                             The background biography endpoint must never rebuild a second,
                             competing biography from Wikipedia. The normal Star Profile already
@@ -4692,7 +4750,7 @@
                               : null
                           };
 
-                          res.setHeader("X-Reelwise-Biography-Version", "person40");
+                          res.setHeader("X-Reelwise-Biography-Version", "person41");
                           res.setHeader("Cache-Control", "no-store, max-age=0");
                           res.setHeader("CDN-Cache-Control", "no-store");
                           res.setHeader("Vercel-CDN-Cache-Control", "no-store");
@@ -4700,7 +4758,7 @@
                         }
 
                         /*
-                          PERSON 40 — NORMAL STAR PROFILE MODE
+                          PERSON 41 — NORMAL STAR PROFILE MODE
 
                           Do not run the Wikipedia enhancement path here. The page gets
                           TMDB profile/photo/credits immediately; the browser's existing
