@@ -39,7 +39,7 @@
 
                     /*
                       ============================================================
-                      REELWISE PERSON API — PERSON 25 BUILD
+                      REELWISE PERSON API — PERSON 26 BUILD
                       ============================================================
 
                       NORMAL MODE:
@@ -553,6 +553,51 @@
                       source/selector so Wikipedia chrome or duplicated lead material cannot
                       be reintroduced after an earlier cleanup pass.
                     */
+                    /*
+                      PERSON 26 — CLEAN DISPLAY INTRO + COMPLETE-SENTENCE LIMITS
+
+                      Reelwise already displays Born / Died / Age above the biography.
+                      Wikipedia leads sometimes repeat that information inside a larger
+                      pronunciation / alternate-name parenthetical, e.g. De Niro-style
+                      intros. Remove that opening parenthetical only when it contains a
+                      full birth/death date. This leaves ordinary career parentheticals
+                      and movie years untouched.
+                    */
+                    function cleanOpeningIdentityParenthetical(value) {
+                      const fullDate = String.raw`(?:[A-Z][a-z]+\s+\d{1,2},\s+\d{4}|\d{1,2}\s+[A-Z][a-z]+\s+\d{4})`;
+                      const openingParen = new RegExp(`^([^.!?]{1,180}?)\\s*\\(([^)]{0,240})\\)(?=\\s+(?:is|was)\\b)`, "i");
+                      const match = String(value || "").match(openingParen);
+                      if (!match) return String(value || "");
+
+                      const inside = match[2] || "";
+                      const hasLifeDate = new RegExp(`\\b(?:born\\s+)?${fullDate}\\b`, "i").test(inside) ||
+                        new RegExp(`${fullDate}\\s*[–—-]\\s*(?:${fullDate})?`, "i").test(inside);
+
+                      if (!hasLifeDate) return String(value || "");
+                      return String(value || "").replace(openingParen, "$1");
+                    }
+
+                    function limitBiographyToCompleteSentences(value, maxChars = 1050, targetChars = 900, maxSentences = 6) {
+                      const text = cleanText(value).trim();
+                      if (!text || text.length <= maxChars) return text;
+
+                      const sentences = splitBioSentences(text).map(cleanText).filter(Boolean);
+                      const kept = [];
+                      let length = 0;
+
+                      for (const sentence of sentences) {
+                        const addition = sentence.length + (kept.length ? 1 : 0);
+                        if (kept.length && length + addition > targetChars) break;
+                        kept.push(sentence);
+                        length += addition;
+                        if (kept.length >= maxSentences) break;
+                      }
+
+                      // Never character-slice a biography. If the first source sentence is
+                      // abnormally long, keep it whole rather than ending on a fragment.
+                      return kept.join(" ").trim() || sentences[0] || text;
+                    }
+
                     function cleanFinalBiographyOutput(value) {
                       let text = cleanText(value)
                         .replace(/(?:^|\s)From Wikipedia,? the free encyclopedia[.!]?\s*/gi, " ")
@@ -585,6 +630,7 @@
                         .replace(/\s+/g, " ")
                         .trim();
 
+                      text = cleanOpeningIdentityParenthetical(text);
                       text = cleanOrphanedBiographyPunctuation(text);
 
                       const sentences = splitBioSentences(text)
@@ -2945,7 +2991,7 @@
                         .trim();
 
                       if (fastBiography.length > 850) {
-                        fastBiography = fastBiography.slice(0, 847).replace(/\s+\S*$/, "") + "...";
+                        fastBiography = limitBiographyToCompleteSentences(fastBiography, 850, 800, 5);
                       }
 
                       return {
@@ -3911,7 +3957,7 @@
                           fill the entire Reelwise star card.
                         */
                         if (biography.length > 1050) {
-                          biography = biography.slice(0, 1047).replace(/\s+\S*$/, "") + "...";
+                          biography = limitBiographyToCompleteSentences(biography, 1050, 980, 5);
                         }
                       }
 
@@ -4355,22 +4401,7 @@
                             .trim();
 
                           if (finalBiography.length > 1050) {
-                            const sentences = splitBioSentences(finalBiography)
-                              .map(cleanText)
-                              .filter(Boolean);
-
-                            const compact = [];
-                            let length = 0;
-
-                            for (const sentence of sentences) {
-                              const addition = sentence.length + (compact.length ? 1 : 0);
-                              if (length + addition > 900) break;
-                              compact.push(sentence);
-                              length += addition;
-                              if (compact.length >= 5) break;
-                            }
-
-                            finalBiography = compact.join(" ") || finalBiography.slice(0, 897).replace(/\s+\S*$/, "") + "...";
+                            finalBiography = limitBiographyToCompleteSentences(finalBiography, 1050, 900, 6);
                           }
 
                               // Run again after compaction so the response itself is guaranteed clean.
