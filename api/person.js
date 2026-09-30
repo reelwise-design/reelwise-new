@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person38";
+                    const BIOGRAPHY_CACHE_VERSION = "person39";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2755,7 +2755,7 @@
 
 
                     /* ============================================================
-                       PERSON 38 — FAST PROFILE / CURATED BIOGRAPHY
+                       PERSON 39 — FAST PROFILE / CURATED BIOGRAPHY
                        ============================================================
 
                        The normal Star-page request must never wait on Wikipedia.
@@ -2777,7 +2777,7 @@
 
 
                     /*
-                      PERSON 38 — CAREER-ARC MILESTONE BUILDER
+                      PERSON 39 — CAREER-ARC MILESTONE BUILDER
 
                       Keep Person 34's single final biography path, but make the final
                       copy read like a career story instead of a popularity-ranked list.
@@ -2847,7 +2847,7 @@
                           }))
                           .filter(item => item.year >= 1900 && !/\b(?:archive footage|uncredited)\b/i.test(item.character))
                           .filter(item => !/\b(?:tonight show|late show|late night|jimmy kimmel|jimmy fallon|david letterman|jay leno|conan|graham norton|ellen|kelly clarkson|daily show|colbert|talk|interview|awards?|oscars?|golden globes?|emmys?|grammys?|game show|jeopardy|wheel of fortune|red carpet|aftershow|after show|special)\b/i.test(item.name))
-                          /* PERSON 38: TMDB often labels performers as "Self" on sketch/variety
+                          /* PERSON 39: TMDB often labels performers as "Self" on sketch/variety
                              ensemble series even when they were sustained cast members. Keep a
                              Self credit only when the episode count itself shows meaningful,
                              recurring participation; one-off promotional appearances stay out. */
@@ -2861,7 +2861,7 @@
                           .filter(Boolean)
                           .sort((a,b)=>a-b)[0] || 9999;
 
-                        /* PERSON 38 — CAREER-SIGNIFICANCE TV RANKING
+                        /* PERSON 39 — CAREER-SIGNIFICANCE TV RANKING
                            Do not equate "earliest recurring credit" with "formative career milestone."
                            Rank eligible early television work by sustained participation and role
                            substance, while still allowing an earlier credit to win when it was truly
@@ -2899,7 +2899,23 @@
 
                         if (tvLaunch) {
                           const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
-                          launch = `${subject} established an early screen presence on ${tvLaunch.name}${tvLaunch.year ? ` beginning in ${tvLaunch.year}` : ""}.`;
+
+                          /* PERSON 39 — PARTICIPATION-YEAR SAFETY
+                             combined_credits.first_air_date is the SERIES premiere date, not the
+                             performer's join date. Never present that value as the performer's
+                             career start. If a reliable participation year is not present in the
+                             credit itself, omit the year rather than inventing one. Source prose
+                             with a genuine performer-specific date is preserved above. */
+                          const participationYear = Number(
+                            String(
+                              tvLaunch.participation_date ||
+                              tvLaunch.credit_date ||
+                              tvLaunch.start_date ||
+                              ""
+                            ).slice(0,4)
+                          ) || 0;
+
+                          launch = `${subject} established an early screen presence on ${tvLaunch.name}${participationYear ? ` beginning in ${participationYear}` : ""}.`;
                         }
                       }
 
@@ -4126,7 +4142,7 @@
                         const selectedCareerParts = [];
 
                         /*
-                          PERSON 38 — NARRATIVE DEPTH
+                          PERSON 39 — NARRATIVE DEPTH
 
                           Keep up to two genuine career-story sentences from the source before the
                           compact five-film recap. This restores the missing middle ground between
