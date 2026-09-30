@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person33";
+                    const BIOGRAPHY_CACHE_VERSION = "person34";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2775,6 +2775,134 @@
                       return age >= 0 ? age : null;
                     }
 
+
+                    /*
+                      PERSON 34 — ONE FINAL REELWISE BIOGRAPHY BUILDER
+
+                      Both the normal Star Profile response and mode=biography now pass
+                      through this same last-mile builder. Source biographies are evidence,
+                      not final copy. The builder keeps a concise identity/career-launch
+                      sentence, rejects money/business and filmography-list prose, then adds
+                      a small set of representative screen milestones across the career.
+                    */
+                    function buildFinalReelwiseBiography(person, ...sources) {
+                      const sourceText = sources
+                        .filter(Boolean)
+                        .map(value => String(value || ""))
+                        .join(" ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      const sourceSentences = splitBioSentences(sourceText)
+                        .map(cleanText)
+                        .filter(Boolean);
+
+                      const financial = sentence =>
+                        /\b(?:net worth|estimated net worth|salary|paycheck|earnings|richest|wealth|million deal|billion deal|deal with netflix|deal worth|contract worth|grossed|grossing|box office)\b/i.test(sentence) ||
+                        /\$\s*\d/i.test(sentence);
+
+                      const movieListLike = sentence => {
+                        const years = sentence.match(/\((?:19|20)\d{2}\)/g) || [];
+                        const commas = (sentence.match(/,/g) || []).length;
+                        return years.length >= 4 || (years.length >= 3 && commas >= 3);
+                      };
+
+                      const usable = sourceSentences.filter(sentence =>
+                        !financial(sentence) &&
+                        !movieListLike(sentence) &&
+                        !/\b(?:description above from|licensed under|contributors on wikipedia)\b/i.test(sentence)
+                      );
+
+                      const identity = usable.find(sentence =>
+                        /\b(?:actor|actress|comedian|filmmaker|director|producer|writer|performer|singer)\b/i.test(sentence) &&
+                        sentence.length <= 260
+                      ) || usable[0] || "";
+
+                      const launch = usable.find(sentence =>
+                        sentence !== identity &&
+                        /\b(?:cast member|television|stage|broadway|sketch comedy|saturday night live|breakthrough|rose to|gained recognition|began|debut)\b/i.test(sentence) &&
+                        sentence.length <= 300
+                      ) || "";
+
+                      const cast = Array.isArray(person?.combined_credits?.cast)
+                        ? person.combined_credits.cast
+                        : [];
+
+                      const films = cast
+                        .filter(item => item && item.media_type === "movie" && item.title && item.release_date)
+                        .map(item => ({
+                          id: item.id,
+                          title: cleanText(item.title),
+                          year: Number(String(item.release_date).slice(0, 4)) || 0,
+                          votes: Number(item.vote_count || 0),
+                          popularity: Number(item.popularity || 0),
+                          character: cleanText(item.character || "")
+                        }))
+                        .filter(item =>
+                          item.year >= 1900 &&
+                          item.title &&
+                          !/\b(?:self|archive footage|uncredited)\b/i.test(item.character)
+                        );
+
+                      const byId = new Map();
+                      for (const film of films) {
+                        const existing = byId.get(film.id);
+                        if (!existing || film.votes > existing.votes) byId.set(film.id, film);
+                      }
+                      const uniqueFilms = [...byId.values()].sort((a,b) => a.year - b.year);
+
+                      const selected = [];
+                      if (uniqueFilms.length) {
+                        const start = uniqueFilms[0].year;
+                        const end = uniqueFilms[uniqueFilms.length - 1].year;
+                        const span = Math.max(1, end - start);
+                        const cut1 = start + Math.max(7, Math.floor(span * .34));
+                        const cut2 = start + Math.max(14, Math.floor(span * .68));
+                        const score = film => Math.log10(film.votes + 10) * 2.3 + Math.log10(film.popularity + 2);
+                        const pick = pool => [...pool].sort((a,b) => score(b)-score(a) || a.year-b.year)[0];
+
+                        const early = pick(uniqueFilms.filter(f => f.year <= cut1));
+                        const middle = pick(uniqueFilms.filter(f => f.year > cut1 && f.year <= cut2));
+                        const later = pick(uniqueFilms.filter(f => f.year > cut2));
+                        for (const film of [early, middle, later]) {
+                          if (film && !selected.some(x => x.id === film.id)) selected.push(film);
+                        }
+
+                        const remaining = uniqueFilms
+                          .filter(f => !selected.some(x => x.id === f.id))
+                          .sort((a,b) => score(b)-score(a) || a.year-b.year);
+                        if (selected.length < 4 && remaining[0]) selected.push(remaining[0]);
+                        selected.sort((a,b) => a.year-b.year);
+                      }
+
+                      const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
+                      const possessive = Number(person?.gender) === 1 ? "her" : Number(person?.gender) === 2 ? "his" : "their";
+
+                      let milestones = "";
+                      if (selected.length) {
+                        const names = selected.map(f => `${f.title} (${f.year})`);
+                        if (names.length === 1) milestones = `${subject} became known on screen for ${names[0]}.`;
+                        else if (names.length === 2) milestones = `${subject} built ${possessive} screen career through ${names[0]} and ${names[1]}.`;
+                        else milestones = `${subject} built ${possessive} screen career through ${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}.`;
+                      }
+
+                      let result = [identity, launch, milestones]
+                        .filter(Boolean)
+                        .join(" ")
+                        .replace(/\s+/g, " ")
+                        .trim();
+
+                      result = cleanFinalBiographyOutput(result)
+                        .replace(/^From\s+(?=[A-Z])/, "")
+                        .trim();
+
+                      if (result.length > 1050) {
+                        result = limitBiographyToCompleteSentences(result, 1050, 900, 5);
+                      }
+
+                      return result;
+                    }
+
                     async function getFastPersonProfile(personId) {
                       const person = await fetchTMDB(
                         `/person/${encodeURIComponent(personId)}`,
@@ -3090,7 +3218,7 @@
 
                       return {
                         ...person,
-                        biography: fastBiography,
+                        biography: buildFinalReelwiseBiography(person, rawFastBio, fastBiography) || fastBiography,
                         biography_original: rawFastBio,
                         deathday: person?.deathday || null,
                         deceased: Boolean(person?.deathday),
@@ -3123,7 +3251,7 @@
                       let wikipediaSummary = "";
 
                       /*
-                        PERSON 33 PERFORMANCE: these two independent Wikipedia calls
+                        PERSON 34 PERFORMANCE: these two independent Wikipedia calls
                         run concurrently. The browser now requests this biography in the
                         background, so neither call blocks the visible Star page.
                       */
@@ -3530,7 +3658,7 @@
                               awards += 95;
                               defining += 28;
 
-                              // PERSON 33: distinguish a source sentence that explicitly describes
+                              // PERSON 34: distinguish a source sentence that explicitly describes
                               // a WIN from a generic nomination/awards mention. This gives genuinely
                               // career-defining award-winning performances extra protection.
                               if (/\b(?:won|winning|winner)\b/i.test(sentence) &&
@@ -4053,7 +4181,7 @@
                       biography = cleanOrphanedBiographyPunctuation(biography);
 
                       /*
-                        PERSON 33 — GENERIC CAREER ENGINE ONLY
+                        PERSON 34 — GENERIC CAREER ENGINE ONLY
 
                         Person 28 contained a one-person Adam Sandler biography override.
                         That override bypassed every later generic career-selection improvement
@@ -4434,6 +4562,15 @@
                           if (!biographyPromise) {
                             biographyPromise = (async () => {
                               const profile = await getPersonProfile(id);
+
+                              // PERSON 34: mode=biography uses the exact same final builder
+                              // as the normal Star Profile response.
+                              profile.biography = buildFinalReelwiseBiography(
+                                profile,
+                                profile?.wikipedia_summary_internal || "",
+                                profile?.biography_original || "",
+                                profile?.biography || ""
+                              ) || profile?.biography || "";
 
                           /*
                             PERSON 39 — REELWISE BIO ONLY
