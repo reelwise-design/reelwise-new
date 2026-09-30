@@ -13,7 +13,7 @@
                        actor does not rebuild the Wikipedia career story.
                     */
                     const BIOGRAPHY_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-                    const BIOGRAPHY_CACHE_VERSION = "person31";
+                    const BIOGRAPHY_CACHE_VERSION = "person32";
                     const biographyCache = globalThis.__reelwiseBiographyCache || new Map();
                     const biographyInflight = globalThis.__reelwiseBiographyInflight || new Map();
                     globalThis.__reelwiseBiographyCache = biographyCache;
@@ -2994,7 +2994,7 @@
                       }
 
                       /*
-                        PERSON 31 — FORMATIVE CAREER LANDMARKS
+                        PERSON 32 — FORMATIVE CAREER LANDMARKS
 
                         A long career should not jump from one early hit straight to much later
                         work simply because later titles have larger modern vote totals. Reserve
@@ -3233,7 +3233,19 @@
                           /\b(?:academy award|oscar|golden globe|bafta|emmy|tony|honorary|lifetime achievement|award|awards|nomination|nominated|won)\b/i.test(sentence)
                         );
 
+                        // PERSON 32 — preserve one concise pre-film launch chapter when the source
+                        // identifies television, sketch comedy, stage, or an ensemble/cast role as
+                        // the bridge into the screen career. This keeps origin stories without
+                        // hard-coding any performer or program.
+                        const launchMilestone = careerParts.find(sentence =>
+                          !sentenceMovieMatches(sentence, profileMovies).length &&
+                          sentence.length <= 220 &&
+                          /\b(?:television|tv|sketch comedy|cast member|stage|theatre|theater|series|sitcom)\b/i.test(sentence) &&
+                          /\b(?:career|cast member|joined|appeared|performed|starred|began|breakthrough|recognition)\b/i.test(sentence)
+                        );
+
                         careerParts = [
+                          ...([launchMilestone].filter(Boolean)),
                           ...movieCareerParts,
                           ...([nonMovieMilestone].filter(Boolean))
                         ];
@@ -3896,7 +3908,11 @@
                           .map(cleanText)
                           .filter(Boolean)
                           .filter(sentence => sentence.length >= 55 && sentence.length <= 300)
+                          // PERSON 32 — reject source sentences that are really disguised filmographies.
+                          // A career-story sentence may mention several films, but once it names more
+                          // than four verified credits it reads like a catalog instead of biography.
                           .filter(sentence => sentenceMovieMatches(sentence, rawFilms).length > 0)
+                          .filter(sentence => sentenceMovieMatches(sentence, rawFilms).length <= 4)
                           .filter(sentence => /\b(?:film|movie|role|starred|performance|acting|breakthrough|breakout|prominence|acclaim|award|oscar|academy award|career|directed|portrayed)\b/i.test(sentence))
                           .filter(sentence => !/\b(?:description above from|licensed under|contributors on wikipedia|personal life|married|spouse|children|political|activist)\b/i.test(sentence));
 
@@ -3931,32 +3947,44 @@
                         selectedCareerParts.push(...narrativeCareerParts);
 
                         if (fallbackFilms.length) {
-                          const recap = `Notable film work includes ${formatFilmList(fallbackFilms)}.`;
-                          const alreadyCovered = fallbackFilms.filter(movie =>
-                            narrativeCareerParts.some(sentence =>
-                              sentence.toLowerCase().includes(String(movie?.title || "").toLowerCase())
-                            )
-                          ).length;
-
-                          const narrativeText = narrativeCareerParts.join(" ").trim();
-                          const narrativeWordCount = narrativeText.split(/\s+/).filter(Boolean).length;
-                          const narrativeIsSubstantial =
-                            narrativeText.length >= 500 ||
-                            narrativeWordCount >= 80 ||
-                            narrativeCareerParts.length >= 3;
-
                           /*
-                            PERSON 24 — RECAP ONLY FOR THIN BIOGRAPHIES
+                            PERSON 32 — NARRATIVE FILM ARC
 
-                            Once Reelwise already has a substantial career narrative, do not append
-                            a generic "Notable film work includes..." list. Keep the recap only as
-                            a depth fallback for profiles whose narrative is still thin.
+                            Never solve a thin biography by appending a five-title catalog. Turn the
+                            protected career landmarks into two short chronological career beats.
+                            This is generic: the films still come entirely from the source-backed
+                            significance selector above.
                           */
-                          if (
-                            !narrativeIsSubstantial &&
-                            (narrativeCareerParts.length < 2 || alreadyCovered < 3)
-                          ) {
-                            selectedCareerParts.push(recap);
+                          const alreadyCoveredIds = new Set(
+                            fallbackFilms
+                              .filter(movie => narrativeCareerParts.some(sentence =>
+                                sentenceMovieMatches(sentence, [movie]).length > 0
+                              ))
+                              .map(movie => movie.id)
+                          );
+
+                          const uncovered = fallbackFilms.filter(movie => !alreadyCoveredIds.has(movie.id));
+                          const subject = Number(person?.gender) === 1 ? "She" : Number(person?.gender) === 2 ? "He" : "They";
+                          const possessive = Number(person?.gender) === 1 ? "her" : Number(person?.gender) === 2 ? "his" : "their";
+
+                          if (uncovered.length) {
+                            const early = uncovered.slice(0, Math.min(2, uncovered.length));
+                            const later = uncovered.slice(early.length, Math.min(early.length + 2, uncovered.length));
+                            const finalFilm = uncovered.length > 4 ? uncovered[uncovered.length - 1] : null;
+
+                            if (early.length === 1) {
+                              selectedCareerParts.push(`${subject} established ${possessive} film career with ${formatFilmList(early)}.`);
+                            } else if (early.length > 1) {
+                              selectedCareerParts.push(`${subject} established ${possessive} film career with ${formatFilmList(early)}.`);
+                            }
+
+                            if (later.length) {
+                              selectedCareerParts.push(`Later highlights included ${formatFilmList(later)}.`);
+                            }
+
+                            if (finalFilm && !later.some(movie => movie.id === finalFilm.id)) {
+                              selectedCareerParts.push(`A later-career landmark was ${formatFilm(finalFilm)}.`);
+                            }
                           }
                         }
 
