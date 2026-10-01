@@ -674,24 +674,26 @@
       ).filter(Boolean);
 
       /*
-        PERSON 58 — REELWISE BIOGRAPHY EDITOR
+        PERSON 59 — CAREER NARRATIVE ENGINE
 
-        The source biography is research material, not finished copy.
-        We extract career facts, select the strongest milestones, then
-        rebuild a compact career story.
+        Person 58 could still choose individually strong sentences that
+        produced a weak career story. Person 59 selects career chapters.
 
-        Target arc:
-          identity -> breakthrough -> defining period -> major/critical
-          milestone -> later-career chapter
+        Required arc:
+          identity -> rise/breakthrough -> defining work -> major
+          achievement/recognition -> later-career milestone
 
-        Person 58 is a precision pass on Person 57:
-          - repair abbreviation sentence boundaries
-          - reject context-dependent chronology fragments
-          - suppress filmography/title dumps
-          - preserve a strong late-career milestone
-
-        Target length: 120–170 words. We never chop a sentence merely
-        to hit the limit.
+        Generic safeguards:
+          - preserve source chronology instead of ranking every sentence
+            against every other sentence
+          - reject orphaned/context-dependent fragments (including "Or ...")
+          - reject title/catalog dumps, including streaming-service lists
+          - protect an early-career/rise sentence even when the source does
+            not literally use the word "breakthrough"
+          - protect one major recognition/award sentence when available
+          - protect one meaningful late-career chapter
+          - never invent a career fact from TMDB; credits only help measure
+            title significance and career timing
       */
 
       const norm = value => cleanText(value)
@@ -706,34 +708,33 @@
         [...String(value || "").matchAll(/\b(19\d{2}|20\d{2})\b/g)]
           .map(m => Number(m[1]));
 
-      const careerWords = /\b(film|films|movie|movies|role|roles|performance|portrayed|played|starred|starring|career|breakthrough|fame|success|acclaim|acclaimed|recognition|franchise|comedy|comedies|drama|dramas|action|box.office|award|oscar|academy award|golden globe|bafta|emmy|nominated|nomination|won|directed|wrote|writer|producer|filmmaker)\b/i;
-      const noiseWords = /\b(personal life|relationship|married|divorce|children|political|religion|controversy|lawsuit|net worth|salary)\b/i;
-
       const allNotable = (timeline.notable || []).filter(m => m?.title);
       const titleHits = sentence => allNotable.filter(m =>
         sentenceMentionsTitle(sentence, m.title)
       );
 
+      const careerWords = /\b(film|films|movie|movies|role|roles|performance|portrayed|played|starred|starring|career|breakthrough|fame|success|acclaim|acclaimed|recognition|franchise|comedy|comedies|drama|dramas|action|box.office|award|oscar|academy award|golden globe|bafta|emmy|nominated|nomination|won|directed|wrote|writer|producer|filmmaker|television|series|cast member|saturday night live)\b/i;
+      const noiseWords = /\b(personal life|relationship|married|divorce|children|political|religion|controversy|lawsuit|net worth|salary)\b/i;
+      const orphanStart = /^(or|and|but|that|this|these|those|the same|thereafter|subsequently|meanwhile|afterward|afterwards|however|also)\b/i;
+
+      function isCatalogDump(text, hits) {
+        const yearCount = yearsIn(text).length;
+        const commaCount = (text.match(/,/g) || []).length;
+        const serviceList = /\b(netflix|streaming)\b/i.test(text) &&
+          (hits.length >= 3 || yearCount >= 4 || commaCount >= 4);
+        const genericList = hits.length >= 4 ||
+          (yearCount >= 5 && commaCount >= 4);
+        return serviceList || genericList;
+      }
+
       function usable(sentence) {
         const text = cleanText(sentence);
         const wc = words(text);
         const hits = titleHits(text);
-        if (!text || wc < 7 || wc > 58) return false;
+        if (!text || wc < 7 || wc > 62) return false;
         if (noiseWords.test(text)) return false;
-
-        /* A selected sentence must make sense after neighboring source
-           sentences have been removed. */
-        if (/^(that|this|the same) (year|month|season|period)\b/i.test(text)) return false;
-        if (/^(thereafter|subsequently|meanwhile|afterward|afterwards)\b/i.test(text)) return false;
-
-        /* Four or more recognized movie titles is normally filmography,
-           not biography. Keep only a rare source sentence that also
-           explains a genuine career milestone. */
-        if (hits.length >= 4 &&
-            !/\b(breakthrough|rose to fame|highest.paid|box.office no\.? ?1|franchise|academy award|oscar|golden globe|major success|critical acclaim)\b/i.test(text)) {
-          return false;
-        }
-
+        if (orphanStart.test(text)) return false;
+        if (isCatalogDump(text, hits)) return false;
         return careerWords.test(text) || hits.length > 0;
       }
 
@@ -741,158 +742,156 @@
         const pool = [...summarySentences, ...sourceSentences];
         const found = pool.find(sentence => {
           const text = cleanText(sentence);
-          return text.length >= 25 && text.length <= 260 &&
+          return text.length >= 25 && text.length <= 280 &&
             /\b(is an?|was an?)\b/i.test(text) &&
             /\b(actor|actress|comedian|filmmaker|director|producer|writer|performer)\b/i.test(text);
         });
-        if (found) return ensurePeriod(cleanText(found));
-        return ensurePeriod(`${name} is a film actor and filmmaker`);
+        return found
+          ? ensurePeriod(cleanText(found))
+          : ensurePeriod(`${name} is a film actor and filmmaker`);
       }
 
       const intro = identitySentence();
-      const introYears = yearsIn(intro);
-      const birthYear = person?.birthday ? Number(String(person.birthday).slice(0, 4)) : null;
+      const birthYear = person?.birthday
+        ? Number(String(person.birthday).slice(0, 4))
+        : null;
+      const firstCareerYear = timeline.firstYear || (birthYear ? birthYear + 18 : 1970);
+      const latestCareerYear = timeline.latestYear || firstCareerYear + 30;
+      const span = Math.max(12, latestCareerYear - firstCareerYear);
+      const earlyEnd = firstCareerYear + Math.round(span * 0.40);
+      const lateStart = firstCareerYear + Math.round(span * 0.68);
 
-      /* Prefer explicit source language for the breakthrough. */
-      const breakthrough = sourceSentences.find(sentence =>
-        usable(sentence) &&
-        /\b(breakthrough|rose to fame|achieved.*fame|worldwide fame|became.*star|star status|established.*career|critical and commercial success|gained.*recognition)\b/i.test(sentence)
-      ) || findBreakthroughSentence(source, name) || "";
+      const candidates = sourceSentences
+        .map((sentence, index) => {
+          const text = ensurePeriod(cleanText(sentence));
+          const ys = yearsIn(text);
+          const hits = titleHits(text);
+          return {
+            sentence: text,
+            index,
+            years: ys,
+            year: ys.length ? Math.min(...ys) : null,
+            hits
+          };
+        })
+        .filter(x => usable(x.sentence))
+        .filter(x => norm(x.sentence) !== norm(intro));
 
-      const careerPool = sourceSentences
-        .filter(usable)
-        .filter(s => norm(s) !== norm(intro))
-        .filter(s => !breakthrough || norm(s) !== norm(breakthrough));
-
-      /*
-        Give source sentences a story score. A focused sentence with
-        one or two meaningful films beats an awards-only sentence or a
-        long title dump. Source chronology remains evidence; TMDB is
-        used only as a notability signal, never to invent a fact.
-      */
-      function scoreSentence(sentence) {
-        const hits = titleHits(sentence);
+      function significance(item) {
+        const text = item.sentence;
         let score = 0;
-        if (hits.length === 1) score += 9;
-        else if (hits.length === 2) score += 8;
-        else if (hits.length === 3) score += 1;
-        else if (hits.length >= 4) score -= 12;
-
-        score += Math.min(8, hits.reduce((sum, movie) =>
-          sum + Math.max(0, movieRecognitionScore(movie)) / 40, 0));
-
-        if (/\b(iconic|defining|major|successful|success|acclaim|acclaimed|praised|signature|highest.paid|box.office)\b/i.test(sentence)) score += 4;
-        if (/\b(role|portrayed|played|performance|starred|starring|wrote|directed|created)\b/i.test(sentence)) score += 3;
-        if (/\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i.test(sentence)) score += 2;
-        if (words(sentence) > 44) score -= 3;
+        if (item.hits.length === 1) score += 8;
+        if (item.hits.length === 2) score += 7;
+        if (item.hits.length === 3) score += 2;
+        score += Math.min(9, item.hits.reduce((sum, movie) =>
+          sum + Math.max(0, movieRecognitionScore(movie)) / 38, 0));
+        if (/\b(breakthrough|breakout|rose to|fame|prominence|star status|established|defining|iconic|signature|major success|commercial success|critical acclaim|highest.paid)\b/i.test(text)) score += 8;
+        if (/\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i.test(text)) score += 6;
+        if (/\b(returned|return|reprise|reprised|revival|comeback|franchise)\b/i.test(text)) score += 4;
+        if (words(text) > 48) score -= 2;
         return score;
       }
 
-      const dated = careerPool.map((sentence, index) => {
-        const ys = yearsIn(sentence);
-        return {
-          sentence: ensurePeriod(cleanText(sentence)),
-          index,
-          years: ys,
-          year: ys.length ? Math.min(...ys) : null,
-          score: scoreSentence(sentence)
-        };
+      function best(items) {
+        return [...items].sort((a, b) =>
+          significance(b) - significance(a) || a.index - b.index
+        )[0] || null;
+      }
+
+      /* Chapter 1: how the career actually started/rise to prominence. */
+      const explicitRise = candidates.find(x =>
+        /\b(breakthrough|breakout|rose to (?:fame|prominence)|gained .*recognition|came to prominence|worldwide fame|star status|established (?:his|her|their) (?:film )?career|critical and commercial success)\b/i.test(x.sentence)
+      );
+
+      const earlyPool = candidates.filter(x =>
+        (x.year && x.year <= earlyEnd) ||
+        /\b(saturday night live|cast member|debut|began (?:his|her|their) career|early career|first gained|first major|first leading|first lead)\b/i.test(x.sentence)
+      );
+
+      const rise = explicitRise || best(earlyPool);
+
+      /* Chapter 2: defining work after the initial rise. */
+      const definingPool = candidates.filter(x => {
+        if (rise && x.index === rise.index) return false;
+        if (x.year && x.year <= earlyEnd + Math.round(span * 0.28)) return true;
+        return /\b(defining|iconic|signature|starred|major success|commercial success|critical acclaim|franchise)\b/i.test(x.sentence);
+      });
+      const defining = best(definingPool);
+
+      /* Chapter 3: recognition must not disappear behind lesser credits. */
+      const recognitionPool = candidates.filter(x =>
+        /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence)
+      );
+      const recognition = best(recognitionPool);
+
+      /* Chapter 4: a meaningful later chapter, not simply the newest title. */
+      const latePool = candidates.filter(x =>
+        (x.year && x.year >= lateStart) &&
+        (x.hits.length <= 3) &&
+        (/\b(returned|return|reprise|reprised|revival|comeback|acclaim|acclaimed|award|nominated|won|franchise|major|success|starred|portrayed|played)\b/i.test(x.sentence) ||
+          significance(x) >= 9)
+      );
+      const late = best(latePool);
+
+      const chosen = [rise, defining, recognition, late].filter(Boolean);
+      const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
+
+      /* If a chapter is missing, fill it with a strong source sentence,
+         but retain source order and never use a catalog dump. */
+      if (chosen.length < 4) {
+        for (const item of [...candidates].sort((a, b) =>
+          significance(b) - significance(a) || a.index - b.index
+        )) {
+          if (chosen.length >= 4) break;
+          const key = norm(item.sentence);
+          if (!chosenKeys.has(key)) {
+            chosen.push(item);
+            chosenKeys.add(key);
+          }
+        }
+      }
+
+      /* The biography reads in career/source chronology. Recognition is
+         allowed to stay beside the career event it describes. */
+      chosen.sort((a, b) => {
+        const ay = a.year || 9999;
+        const by = b.year || 9999;
+        return ay - by || a.index - b.index;
       });
 
-      const knownYears = dated.map(x => x.year).filter(Boolean);
-      const firstCareerYear = timeline.firstYear || (birthYear ? birthYear + 18 : 1970);
-      const latestCareerYear = timeline.latestYear || Math.max(...knownYears, firstCareerYear + 20);
-      const span = Math.max(12, latestCareerYear - firstCareerYear);
-      const earlyEnd = firstCareerYear + Math.round(span * 0.38);
-      const midEnd = firstCareerYear + Math.round(span * 0.72);
-
-      function bestForRange(min, max, exclude = new Set()) {
-        return dated
-          .filter(x => x.year && x.year >= min && x.year <= max)
-          .filter(x => !exclude.has(norm(x.sentence)))
-          .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.sentence || "";
-      }
-
-      function bestUndated(exclude = new Set()) {
-        return dated
-          .filter(x => !x.year)
-          .filter(x => !exclude.has(norm(x.sentence)))
-          .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.sentence || "";
-      }
-
-      /*
-        Protect one meaningful late-career chapter. This is generic: it
-        rewards a focused later sentence tied to a highly recognized film,
-        a return/revival, major acclaim, or a major franchise milestone.
-      */
-      function bestLateMilestone(exclude = new Set()) {
-        const lateStart = firstCareerYear + Math.round(span * 0.68);
-
-        return dated
-          .filter(x => x.year && x.year >= lateStart)
-          .filter(x => !exclude.has(norm(x.sentence)))
-          .map(x => {
-            const hits = titleHits(x.sentence);
-            const recognition = hits.reduce((best, movie) =>
-              Math.max(best, movieRecognitionScore(movie)), 0);
-            let bonus = 0;
-            if (/\b(returned|return|revival|reprise|reprised|comeback|acclaim|acclaimed|nominated|won|academy award|oscar|golden globe|franchise)\b/i.test(x.sentence)) bonus += 8;
-            if (hits.length >= 1 && hits.length <= 2) bonus += 5;
-            bonus += Math.max(0, recognition) / 18;
-            return { ...x, lateScore: x.score + bonus };
-          })
-          .sort((a, b) => b.lateScore - a.lateScore || b.year - a.year || a.index - b.index)[0]?.sentence || "";
-      }
-
-      const selected = [];
-      const used = new Set();
-      function add(sentence) {
-        const text = ensurePeriod(cleanText(sentence));
-        const key = norm(text);
-        if (!text || !key || used.has(key)) return;
+      const selected = [intro];
+      const used = new Set([norm(intro)]);
+      for (const item of chosen) {
+        const key = norm(item.sentence);
+        if (!key || used.has(key)) continue;
+        selected.push(item.sentence);
         used.add(key);
-        selected.push(text);
       }
 
-      add(intro);
-      add(breakthrough);
-
-      const early = bestForRange(firstCareerYear, earlyEnd, used);
-      add(early);
-
-      const mid = bestForRange(earlyEnd + 1, midEnd, used);
-      add(mid);
-
-      const late = bestForRange(midEnd + 1, latestCareerYear + 2, used);
-      add(late);
-
-      const lateMilestone = bestLateMilestone(used);
-      add(lateMilestone);
-
-      /* Fill gaps with the best source-supported career facts. */
-      const ranked = [...dated].sort((a, b) => b.score - a.score || a.index - b.index);
-      for (const item of ranked) {
-        if (words(selected.join(" ")) >= 120) break;
-        add(item.sentence);
+      /* Add one more high-value source sentence only when the story is too
+         thin. This prevents the Sandler-style Netflix list from becoming
+         filler simply because the biography needs more words. */
+      if (words(selected.join(" ")) < 105) {
+        const filler = candidates
+          .filter(x => !used.has(norm(x.sentence)))
+          .sort((a, b) => significance(b) - significance(a) || a.index - b.index)[0];
+        if (filler) selected.push(filler.sentence);
       }
-      if (words(selected.join(" ")) < 120) add(bestUndated(used));
 
-      /*
-        Edit to the 120–170 word window by removing the weakest
-        nonessential sentences, while preserving identity and the
-        breakthrough whenever one was supported.
-      */
-      const protectedKeys = new Set([
-        norm(intro),
-        norm(breakthrough),
-        norm(lateMilestone)
-      ].filter(Boolean));
-      while (words(selected.join(" ")) > 170 && selected.length > 3) {
+      /* Remove the weakest optional chapter until the card stays readable.
+         Identity, rise, recognition and late milestone are favored. */
+      while (words(selected.join(" ")) > 175 && selected.length > 4) {
         let weakestIndex = -1;
         let weakestScore = Infinity;
         for (let i = 1; i < selected.length; i++) {
-          if (protectedKeys.has(norm(selected[i]))) continue;
-          const score = scoreSentence(selected[i]);
+          const sentence = selected[i];
+          const protectedSentence =
+            (rise && norm(sentence) === norm(rise.sentence)) ||
+            (recognition && norm(sentence) === norm(recognition.sentence)) ||
+            (late && norm(sentence) === norm(late.sentence));
+          if (protectedSentence) continue;
+          const item = candidates.find(x => norm(x.sentence) === norm(sentence));
+          const score = item ? significance(item) : 0;
           if (score < weakestScore) {
             weakestScore = score;
             weakestIndex = i;
@@ -902,32 +901,20 @@
         selected.splice(weakestIndex, 1);
       }
 
-      /* Keep the narrative chronological after the opening. */
-      const opening = selected[0];
-      const rest = selected.slice(1).map((sentence, index) => ({
-        sentence,
-        index,
-        years: yearsIn(sentence)
-      }));
-      rest.sort((a, b) => {
-        const ay = a.years.length ? Math.min(...a.years) : 9999;
-        const by = b.years.length ? Math.min(...b.years) : 9999;
-        return ay - by || a.index - b.index;
-      });
+      let story = selected.filter(Boolean).join(" ");
 
-      let story = [opening, ...rest.map(x => x.sentence)].filter(Boolean).join(" ");
-
-      /* Never return an unbounded encyclopedia dump. */
-      if (words(story) > 185) {
+      /* Absolute guard against encyclopedia dumps. */
+      if (words(story) > 190) {
         story = selected.slice(0, 4).join(" ");
       }
 
       if (words(story) >= 70) return story;
 
       const fallback = summarySentences
-        .filter(Boolean)
+        .filter(sentence => !orphanStart.test(cleanText(sentence)))
+        .filter(sentence => !isCatalogDump(cleanText(sentence), titleHits(sentence)))
         .slice(0, 4)
-        .map(ensurePeriod)
+        .map(sentence => ensurePeriod(cleanText(sentence)))
         .join(" ");
 
       return fallback || story || `${name} is a film actor and filmmaker.`;
