@@ -412,12 +412,35 @@
       );
     }
 
-    /* PERSON 64: biography safety-net credits must represent a substantive
-       acting appearance, not merely a peripheral/uncredited cast entry. */
+    /* ============================================================
+       PERSON 65 — SUBSTANTIVE CAST-CREDIT SAFETY
+
+       Person 64 still allowed peripheral cast entries when TMDB supplied a
+       non-empty character string. For biography-generated career chapters,
+       Reelwise now requires BOTH a real acting role and meaningful billing.
+
+       This stays generic: no performer names and no title overrides. The
+       original TMDB movie_credits.cast response remains the only source for
+       generated acting-film sentences. Known For and source-driven biography
+       sentences are unchanged.
+       ============================================================ */
     function isBiographyActingCredit(movie) {
       if (!isActingMovieCredit(movie)) return false;
-      const character = String(movie.character || "").toLowerCase();
-      return !/\b(uncredited|cameo|archive footage|self)\b/i.test(character);
+
+      const character = String(movie.character || "").trim().toLowerCase();
+      if (/\b(uncredited|cameo|archive footage|self)\b/i.test(character)) {
+        return false;
+      }
+
+      /* TMDB's cast order is the safest generic signal that the performer had
+         a substantive on-screen role. Keep leading/supporting ensemble roles;
+         reject deep-billing peripheral appearances from auto-generated arcs. */
+      const billingOrder = Number(movie?.order);
+      if (Number.isFinite(billingOrder) && billingOrder > 12) {
+        return false;
+      }
+
+      return true;
     }
 
     function movieRecognitionScore(movie) {
