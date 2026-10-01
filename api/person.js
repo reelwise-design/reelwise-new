@@ -412,6 +412,14 @@
       );
     }
 
+    /* PERSON 64: biography safety-net credits must represent a substantive
+       acting appearance, not merely a peripheral/uncredited cast entry. */
+    function isBiographyActingCredit(movie) {
+      if (!isActingMovieCredit(movie)) return false;
+      const character = String(movie.character || "").toLowerCase();
+      return !/\b(uncredited|cameo|archive footage|self)\b/i.test(character);
+    }
+
     function movieRecognitionScore(movie) {
       const popularity =
         Number(movie?.popularity) || 0;
@@ -500,8 +508,7 @@
               (a, b) =>
                 movieRecognitionScore(b) -
                 movieRecognitionScore(a)
-            )
-            .slice(0, 5);
+            );
       }
 
       const notable =
@@ -908,7 +915,7 @@
       if (!resolvedRise) {
         const earlyMovies = allNotable
           .filter(movie =>
-            isActingMovieCredit(movie) &&
+            isBiographyActingCredit(movie) &&
             movie.year &&
             movie.year <= earlyEnd
           )
@@ -998,11 +1005,11 @@
             decade,
             movies: (movies || [])
               .filter(movie =>
-                isActingMovieCredit(movie) &&
+                isBiographyActingCredit(movie) &&
                 movie?.year &&
                 movie.year <= earlyEnd
               )
-              .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a))
+              .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
           }))
           .filter(group => group.movies.length >= 3)
           .sort((a, b) =>
@@ -1014,7 +1021,9 @@
         if (runGroup) {
           /* Keep up to five films so a genuine concentrated star-making run
              can read as a run, rather than collapsing to two random credits. */
-          const runMovies = runGroup.movies.slice(0, 5);
+          const runMovies = runGroup.movies
+            .slice(0, 5)
+            .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
           const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
           let joined = "";
 
