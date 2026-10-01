@@ -77,16 +77,35 @@
     }
 
     function sentenceSplit(text = "") {
-      const cleaned = cleanText(text);
+      let cleaned = cleanText(text);
 
       if (!cleaned) {
         return [];
       }
 
+      /*
+        PERSON 58: protect common abbreviations before sentence splitting.
+        Person 57 could split a title such as "Mr. Deeds" into the broken
+        fragment "Mr." and then attach the next sentence to it.
+      */
+      const protectedDots = [
+        "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Sr.", "Jr.",
+        "St.", "Mt.", "No.", "U.S.", "U.K.", "e.g.", "i.e."
+      ];
+
+      const token = "__RW_DOT__";
+      for (const abbreviation of protectedDots) {
+        const safe = abbreviation.replace(/\./g, token);
+        cleaned = cleaned.replace(
+          new RegExp(abbreviation.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+          safe
+        );
+      }
+
       return (
         cleaned.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) || []
       )
-        .map(sentence => cleanText(sentence))
+        .map(sentence => cleanText(sentence.replace(new RegExp(token, "g"), ".")))
         .filter(Boolean);
     }
 
@@ -655,7 +674,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 57 — REELWISE BIOGRAPHY EDITOR
+        PERSON 58 — REELWISE BIOGRAPHY EDITOR
 
         The source biography is research material, not finished copy.
         We extract career facts, select the strongest milestones, then
@@ -664,6 +683,12 @@
         Target arc:
           identity -> breakthrough -> defining period -> major/critical
           milestone -> later-career chapter
+
+        Person 58 is a precision pass on Person 57:
+          - repair abbreviation sentence boundaries
+          - reject context-dependent chronology fragments
+          - suppress filmography/title dumps
+          - preserve a strong late-career milestone
 
         Target length: 120–170 words. We never chop a sentence merely
         to hit the limit.
@@ -692,9 +717,24 @@
       function usable(sentence) {
         const text = cleanText(sentence);
         const wc = words(text);
+        const hits = titleHits(text);
         if (!text || wc < 7 || wc > 58) return false;
         if (noiseWords.test(text)) return false;
-        return careerWords.test(text) || titleHits(text).length > 0;
+
+        /* A selected sentence must make sense after neighboring source
+           sentences have been removed. */
+        if (/^(that|this|the same) (year|month|season|period)\b/i.test(text)) return false;
+        if (/^(thereafter|subsequently|meanwhile|afterward|afterwards)\b/i.test(text)) return false;
+
+        /* Four or more recognized movie titles is normally filmography,
+           not biography. Keep only a rare source sentence that also
+           explains a genuine career milestone. */
+        if (hits.length >= 4 &&
+            !/\b(breakthrough|rose to fame|highest.paid|box.office no\.? ?1|franchise|academy award|oscar|golden globe|major success|critical acclaim)\b/i.test(text)) {
+          return false;
+        }
+
+        return careerWords.test(text) || hits.length > 0;
       }
 
       function identitySentence() {
@@ -733,10 +773,10 @@
       function scoreSentence(sentence) {
         const hits = titleHits(sentence);
         let score = 0;
-        if (hits.length === 1) score += 8;
-        else if (hits.length === 2) score += 7;
-        else if (hits.length === 3) score += 3;
-        else if (hits.length >= 4) score -= 5;
+        if (hits.length === 1) score += 9;
+        else if (hits.length === 2) score += 8;
+        else if (hits.length === 3) score += 1;
+        else if (hits.length >= 4) score -= 12;
 
         score += Math.min(8, hits.reduce((sum, movie) =>
           sum + Math.max(0, movieRecognitionScore(movie)) / 40, 0));
@@ -780,6 +820,30 @@
           .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.sentence || "";
       }
 
+      /*
+        Protect one meaningful late-career chapter. This is generic: it
+        rewards a focused later sentence tied to a highly recognized film,
+        a return/revival, major acclaim, or a major franchise milestone.
+      */
+      function bestLateMilestone(exclude = new Set()) {
+        const lateStart = firstCareerYear + Math.round(span * 0.68);
+
+        return dated
+          .filter(x => x.year && x.year >= lateStart)
+          .filter(x => !exclude.has(norm(x.sentence)))
+          .map(x => {
+            const hits = titleHits(x.sentence);
+            const recognition = hits.reduce((best, movie) =>
+              Math.max(best, movieRecognitionScore(movie)), 0);
+            let bonus = 0;
+            if (/\b(returned|return|revival|reprise|reprised|comeback|acclaim|acclaimed|nominated|won|academy award|oscar|golden globe|franchise)\b/i.test(x.sentence)) bonus += 8;
+            if (hits.length >= 1 && hits.length <= 2) bonus += 5;
+            bonus += Math.max(0, recognition) / 18;
+            return { ...x, lateScore: x.score + bonus };
+          })
+          .sort((a, b) => b.lateScore - a.lateScore || b.year - a.year || a.index - b.index)[0]?.sentence || "";
+      }
+
       const selected = [];
       const used = new Set();
       function add(sentence) {
@@ -802,6 +866,9 @@
       const late = bestForRange(midEnd + 1, latestCareerYear + 2, used);
       add(late);
 
+      const lateMilestone = bestLateMilestone(used);
+      add(lateMilestone);
+
       /* Fill gaps with the best source-supported career facts. */
       const ranked = [...dated].sort((a, b) => b.score - a.score || a.index - b.index);
       for (const item of ranked) {
@@ -815,7 +882,11 @@
         nonessential sentences, while preserving identity and the
         breakthrough whenever one was supported.
       */
-      const protectedKeys = new Set([norm(intro), norm(breakthrough)].filter(Boolean));
+      const protectedKeys = new Set([
+        norm(intro),
+        norm(breakthrough),
+        norm(lateMilestone)
+      ].filter(Boolean));
       while (words(selected.join(" ")) > 170 && selected.length > 3) {
         let weakestIndex = -1;
         let weakestScore = Infinity;
