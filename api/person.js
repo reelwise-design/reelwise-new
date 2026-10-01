@@ -708,7 +708,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 61 — CAREER-DEFINING RUN ENGINE
+        PERSON 62 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -904,9 +904,9 @@
       }
 
       /*
-        PERSON 61 — GENERIC CAREER-DEFINING RUN
+        PERSON 62 — REQUIRED GENERIC CAREER-DEFINING RUN
 
-        Person 60 could preserve a technically valid source biography while
+        Person 61 could preserve a technically valid source biography while
         still skipping the cluster of films that made an actor a movie star.
         Sandler is the clearest example: a later-career/awards sentence could
         survive while Billy Madison, Happy Gilmore, The Wedding Singer,
@@ -921,23 +921,40 @@
       */
       let careerRun = null;
 
-      const earlySourceTitleKeys = new Set();
-      for (const sentence of sourceSentences) {
-        const sentenceYears = yearsIn(sentence);
-        const clearlyEarly =
-          sentenceYears.some(year => year <= earlyEnd) ||
-          /\b(early|began|debut|breakthrough|breakout|rose to|fame|prominence|established)\b/i.test(sentence);
+      /*
+        PERSON 62 — REQUIRE THE DEFINING EARLY CHAPTER IN THE OUTPUT
 
-        if (!clearlyEarly) continue;
+        Person 61 inspected the entire source article before deciding whether
+        the safety-net career run was needed. That was too early in the
+        pipeline: a source could mention several defining early films, yet the
+        chapter selector could discard those sentences later. The final card
+        would then contain none of the films that established the performer.
 
+        Person 62 measures the chapters that are actually headed for the
+        biography. If resolvedRise + defining already contain at least two
+        notable early films, nothing changes. Otherwise Reelwise creates one
+        neutral, factual early-film chapter from the credit timeline.
+
+        This remains completely generic: no performer names, no title
+        overrides, and no invented claim that a film was a breakthrough.
+      */
+      const selectedEarlyTitleKeys = new Set();
+      const plannedEarlyChapters = [resolvedRise, defining].filter(Boolean);
+
+      for (const chapter of plannedEarlyChapters) {
+        const text = chapter?.sentence || "";
         for (const movie of allNotable) {
-          if (movie?.year && movie.year <= earlyEnd && sentenceMentionsTitle(sentence, movie.title)) {
-            earlySourceTitleKeys.add(norm(movie.title));
+          if (
+            movie?.year &&
+            movie.year <= earlyEnd &&
+            sentenceMentionsTitle(text, movie.title)
+          ) {
+            selectedEarlyTitleKeys.add(norm(movie.title));
           }
         }
       }
 
-      if (earlySourceTitleKeys.size < 2) {
+      if (selectedEarlyTitleKeys.size < 2) {
         const earlyDecades = Object.entries(timeline.byDecade || {})
           .map(([decade, movies]) => ({
             decade,
