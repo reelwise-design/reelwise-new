@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API
+      REELWISE PERSON API — PERSON 60
       ============================================================
 
       STAR PROFILE
@@ -124,6 +124,40 @@
     function yearFromDate(value = "") {
       const match = String(value).match(/^(\d{4})/);
       return match ? Number(match[1]) : null;
+    }
+
+    /*
+      PERSON 60 — AGE CONTRACT
+
+      Older Reelwise person responses exposed `age` / `age_at_death`, and
+      the current index uses those fields beside Born/Died. Person 58/59
+      preserved birthday/deathday but dropped the derived age fields.
+      Restore them at the API boundary so the display cannot regress.
+    */
+    function calculatePersonAge(birthday, endDate = null) {
+      if (!birthday) return null;
+
+      const born = new Date(`${birthday}T00:00:00Z`);
+      const end = endDate
+        ? new Date(`${endDate}T00:00:00Z`)
+        : new Date();
+
+      if (Number.isNaN(born.getTime()) || Number.isNaN(end.getTime())) {
+        return null;
+      }
+
+      let age = end.getUTCFullYear() - born.getUTCFullYear();
+      const endMonth = end.getUTCMonth();
+      const birthMonth = born.getUTCMonth();
+
+      if (
+        endMonth < birthMonth ||
+        (endMonth === birthMonth && end.getUTCDate() < born.getUTCDate())
+      ) {
+        age -= 1;
+      }
+
+      return age >= 0 ? age : null;
     }
 
     function decadeLabel(year) {
@@ -787,6 +821,9 @@
           sum + Math.max(0, movieRecognitionScore(movie)) / 38, 0));
         if (/\b(breakthrough|breakout|rose to|fame|prominence|star status|established|defining|iconic|signature|major success|commercial success|critical acclaim|highest.paid)\b/i.test(text)) score += 8;
         if (/\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i.test(text)) score += 6;
+        /* Person 60: negative-award / reception trivia should never outrank
+           the films that actually define a career. */
+        if (/\b(golden raspberry|razzie|razzies|panned|worst actor|worst actress|worst picture)\b/i.test(text)) score -= 18;
         if (/\b(returned|return|reprise|reprised|revival|comeback|franchise)\b/i.test(text)) score += 4;
         if (words(text) > 48) score -= 2;
         return score;
@@ -820,7 +857,8 @@
 
       /* Chapter 3: recognition must not disappear behind lesser credits. */
       const recognitionPool = candidates.filter(x =>
-        /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence)
+        /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence) &&
+        !/\b(golden raspberry|razzie|razzies|panned|worst actor|worst actress|worst picture)\b/i.test(x.sentence)
       );
       const recognition = best(recognitionPool);
 
@@ -831,9 +869,59 @@
         (/\b(returned|return|reprise|reprised|revival|comeback|acclaim|acclaimed|award|nominated|won|franchise|major|success|starred|portrayed|played)\b/i.test(x.sentence) ||
           significance(x) >= 9)
       );
-      const late = best(latePool);
+      let late = best(latePool);
 
-      const chosen = [rise, defining, recognition, late].filter(Boolean);
+      /*
+        PERSON 60 — FILMOGRAPHY SAFETY NET
+
+        Wikipedia sometimes skips the very movies that explain a star's
+        rise (Sandler) or stops before a meaningful later chapter (Hathaway).
+        TMDB credits may fill a missing chapter, but only with neutral factual
+        wording — never an invented "breakthrough" or critical judgment.
+      */
+      let resolvedRise = rise;
+
+      if (!resolvedRise) {
+        const earlyMovies = allNotable
+          .filter(movie => movie.year && movie.year <= earlyEnd)
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .slice(0, 4);
+
+        if (earlyMovies.length >= 2) {
+          const titles = earlyMovies.map(movie => `${movie.title} (${movie.year})`);
+          const joined = titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+
+          resolvedRise = {
+            sentence: `Important early film work included ${joined}.`,
+            index: -2,
+            years: earlyMovies.map(movie => movie.year),
+            year: Math.min(...earlyMovies.map(movie => movie.year)),
+            hits: earlyMovies
+          };
+        }
+      }
+
+      if (!late) {
+        const laterMovies = allNotable
+          .filter(movie => movie.year && movie.year >= lateStart)
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .slice(0, 2);
+
+        if (laterMovies.length) {
+          const titles = laterMovies.map(movie => `${movie.title} (${movie.year})`);
+          late = {
+            sentence: `Later film work included ${titles.join(" and ")}.`,
+            index: 9998,
+            years: laterMovies.map(movie => movie.year),
+            year: Math.min(...laterMovies.map(movie => movie.year)),
+            hits: laterMovies
+          };
+        }
+      }
+
+      const chosen = [resolvedRise, defining, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -886,7 +974,7 @@
         for (let i = 1; i < selected.length; i++) {
           const sentence = selected[i];
           const protectedSentence =
-            (rise && norm(sentence) === norm(rise.sentence)) ||
+            (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
@@ -1590,6 +1678,19 @@
 
             deathday:
               person.deathday || null,
+
+            deceased:
+              Boolean(person.deathday),
+
+            age:
+              person.deathday
+                ? null
+                : calculatePersonAge(person.birthday),
+
+            age_at_death:
+              person.deathday
+                ? calculatePersonAge(person.birthday, person.deathday)
+                : null,
 
             place_of_birth:
               person.place_of_birth || "",
