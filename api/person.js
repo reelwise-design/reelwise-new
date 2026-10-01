@@ -466,7 +466,7 @@
 
                     function chooseCareerSentences(articleText, person) {
                       /*
-                        PERSON 53 — UNIFIED CAREER-SIGNIFICANCE ENGINE
+                        PERSON 54 — CAREER-LANDMARK SIGNIFICANCE ENGINE
 
                         Goals:
                         1. Every actor goes through the same biography builder.
@@ -645,6 +645,12 @@
                           !weakCreditTerms.test(sentence)
                         );
 
+                      const CURRENT_YEAR = new Date().getFullYear();
+                      const maxVotes = Math.max(
+                        1,
+                        ...movies.map(movie => Number(movie?.vote_count || 0))
+                      );
+
                       const significance = movie => {
                         const evidence = meaningfulEvidence(movie);
                         const order = Number.isFinite(Number(movie?.order))
@@ -658,6 +664,34 @@
                         /* Audience recognition — useful, but never dominant. */
                         score += Math.min(Math.log10(Math.max(votes, 1)) * 10, 52);
                         score += Math.max(rating - 5.5, 0) * 2;
+
+                        /*
+                          Career-landmark recognition. A title that is one of this
+                          performer's most broadly recognized films gets a modest boost.
+                          This is relative to the performer's own filmography, not a
+                          universal popularity contest.
+                        */
+                        const recognitionRatio = votes / maxVotes;
+                        if (recognitionRatio >= 0.70) score += 38;
+                        else if (recognitionRatio >= 0.40) score += 26;
+                        else if (recognitionRatio >= 0.18) score += 14;
+
+                        /*
+                          Do not let a brand-new or future title become a career landmark
+                          merely because it appears prominently in a current source. It
+                          can still qualify when the source supplies strong award, acclaim,
+                          breakthrough or signature-role evidence.
+                        */
+                        const movieYear = yearOf(movie);
+                        const hasLandmarkEvidence = evidence.some(sentence =>
+                          breakthroughTerms.test(sentence) ||
+                          signatureTerms.test(sentence) ||
+                          awardTerms.test(sentence) ||
+                          acclaimTerms.test(sentence)
+                        );
+                        if (movieYear > CURRENT_YEAR && !hasLandmarkEvidence) score -= 95;
+                        else if (movieYear === CURRENT_YEAR && !hasLandmarkEvidence) score -= 42;
+                        else if (movieYear === CURRENT_YEAR - 1 && !hasLandmarkEvidence) score -= 18;
 
                         /* Billing / prominence in the film. */
                         if (order === 0) score += 52;
@@ -761,8 +795,9 @@
 
                       /*
                         Career chapters. A title must clear a significance floor.
-                        This is the key Person 53 change: chronology only decides WHERE
-                        a film belongs after significance decides WHETHER it belongs.
+                        Person 54 tightens the quality gate: career significance decides WHETHER
+                        a film belongs; chronology only decides WHERE it belongs. Recent
+                        and future titles no longer receive an automatic advantage.
                       */
                       const span = breakthroughYear && lastYear
                         ? Math.max(lastYear - breakthroughYear, 1)
@@ -772,7 +807,7 @@
                       const middleEnd = breakthroughYear + Math.max(18, Math.round(span * 0.68));
 
                       const strongMovies = validMovies
-                        .filter(movie => significance(movie) >= 92)
+                        .filter(movie => significance(movie) >= 112)
                         .sort((a, b) =>
                           significance(b) - significance(a) ||
                           yearOf(a) - yearOf(b)
@@ -799,7 +834,7 @@
                       const earlyPicks = pickChapter(
                         breakthroughYear || firstYear,
                         earlyEnd,
-                        3
+                        2
                       );
 
                       const midPicks = pickChapter(
@@ -823,7 +858,7 @@
                       for (const movie of strongMovies) {
                         if (selected.some(item => item.id === movie.id)) continue;
                         if ([...selected, ...fillPicks].some(item => sameFamily(item, movie))) continue;
-                        if (significance(movie) < 125) continue;
+                        if (significance(movie) < 145) continue;
 
                         fillPicks.push(movie);
                         if (fillPicks.length >= 2) break;
