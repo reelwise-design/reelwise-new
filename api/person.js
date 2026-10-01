@@ -466,7 +466,7 @@
 
                     function chooseCareerSentences(articleText, person) {
                       /*
-                        PERSON 54 — CAREER-LANDMARK SIGNIFICANCE ENGINE
+                        PERSON 55 — ESTABLISHED CAREER SIGNIFICANCE ENGINE
 
                         Goals:
                         1. Every actor goes through the same biography builder.
@@ -645,11 +645,45 @@
                           !weakCreditTerms.test(sentence)
                         );
 
-                      const CURRENT_YEAR = new Date().getFullYear();
+                      const NOW = new Date();
+                      const CURRENT_YEAR = NOW.getFullYear();
+                      const TODAY_ISO = NOW.toISOString().slice(0, 10);
                       const maxVotes = Math.max(
                         1,
                         ...movies.map(movie => Number(movie?.vote_count || 0))
                       );
+
+                      const recognitionRatioOf = movie =>
+                        Number(movie?.vote_count || 0) / maxVotes;
+
+                      const isReleased = movie => {
+                        const date = String(movie?.release_date || "").slice(0, 10);
+                        return Boolean(date && date <= TODAY_ISO);
+                      };
+
+                      const landmarkEvidenceCount = movie =>
+                        meaningfulEvidence(movie).filter(sentence =>
+                          breakthroughTerms.test(sentence) ||
+                          signatureTerms.test(sentence) ||
+                          awardTerms.test(sentence) ||
+                          acclaimTerms.test(sentence) ||
+                          successTerms.test(sentence)
+                        ).length;
+
+                      const hasStrongCareerEvidence = movie => {
+                        const evidence = meaningfulEvidence(movie);
+                        const recognition = recognitionRatioOf(movie);
+                        const order = Number.isFinite(Number(movie?.order))
+                          ? Number(movie.order)
+                          : 99;
+
+                        return (
+                          landmarkEvidenceCount(movie) >= 1 ||
+                          evidence.length >= 2 ||
+                          (recognition >= 0.40 && order <= 3) ||
+                          (recognition >= 0.22 && order <= 1)
+                        );
+                      };
 
                       const significance = movie => {
                         const evidence = meaningfulEvidence(movie);
@@ -671,7 +705,7 @@
                           This is relative to the performer's own filmography, not a
                           universal popularity contest.
                         */
-                        const recognitionRatio = votes / maxVotes;
+                        const recognitionRatio = recognitionRatioOf(movie);
                         if (recognitionRatio >= 0.70) score += 38;
                         else if (recognitionRatio >= 0.40) score += 26;
                         else if (recognitionRatio >= 0.18) score += 14;
@@ -683,15 +717,18 @@
                           breakthrough or signature-role evidence.
                         */
                         const movieYear = yearOf(movie);
-                        const hasLandmarkEvidence = evidence.some(sentence =>
-                          breakthroughTerms.test(sentence) ||
-                          signatureTerms.test(sentence) ||
-                          awardTerms.test(sentence) ||
-                          acclaimTerms.test(sentence)
-                        );
-                        if (movieYear > CURRENT_YEAR && !hasLandmarkEvidence) score -= 95;
-                        else if (movieYear === CURRENT_YEAR && !hasLandmarkEvidence) score -= 42;
-                        else if (movieYear === CURRENT_YEAR - 1 && !hasLandmarkEvidence) score -= 18;
+                        const hasLandmarkEvidence = landmarkEvidenceCount(movie) >= 1;
+
+                        /*
+                          Recency is not significance. Even when a current title has press,
+                          acclaim or nominations, it should not automatically outrank an
+                          established signature film. Unreleased work is never a completed
+                          career highlight.
+                        */
+                        if (!isReleased(movie)) score -= 220;
+                        else if (movieYear === CURRENT_YEAR) score -= hasLandmarkEvidence ? 48 : 82;
+                        else if (movieYear === CURRENT_YEAR - 1) score -= hasLandmarkEvidence ? 22 : 45;
+                        else if (movieYear === CURRENT_YEAR - 2 && !hasLandmarkEvidence) score -= 18;
 
                         /* Billing / prominence in the film. */
                         if (order === 0) score += 52;
@@ -795,9 +832,10 @@
 
                       /*
                         Career chapters. A title must clear a significance floor.
-                        Person 54 tightens the quality gate: career significance decides WHETHER
-                        a film belongs; chronology only decides WHERE it belongs. Recent
-                        and future titles no longer receive an automatic advantage.
+                        Person 55 tightens the quality gate again: established career significance
+                        decides WHETHER a film belongs; chronology only decides WHERE it belongs.
+                        Unreleased titles are excluded from career-highlight slots, and very recent
+                        work must clear a higher evidence bar than established landmark films.
                       */
                       const span = breakthroughYear && lastYear
                         ? Math.max(lastYear - breakthroughYear, 1)
@@ -807,7 +845,11 @@
                       const middleEnd = breakthroughYear + Math.max(18, Math.round(span * 0.68));
 
                       const strongMovies = validMovies
-                        .filter(movie => significance(movie) >= 112)
+                        .filter(movie =>
+                          isReleased(movie) &&
+                          significance(movie) >= 145 &&
+                          hasStrongCareerEvidence(movie)
+                        )
                         .sort((a, b) =>
                           significance(b) - significance(a) ||
                           yearOf(a) - yearOf(b)
@@ -901,6 +943,13 @@
                           if (/\b(nominated|nomination)\b/i.test(sentence)) score += 45;
                           if (/\b(grossed|box office|box-office)\b/i.test(sentence)) score -= 35;
 
+                          const newestLinkedYear = linked.reduce(
+                            (best, movie) => Math.max(best, yearOf(movie)),
+                            0
+                          );
+                          if (newestLinkedYear === CURRENT_YEAR) score -= 55;
+                          else if (newestLinkedYear === CURRENT_YEAR - 1) score -= 28;
+
                           return { sentence, linked, score };
                         })
                         .sort((a, b) =>
@@ -931,7 +980,11 @@
                       }
 
                       if (bestAward && bestAward.score >= 100) {
-                        if (bestAward.sentence.length <= 250) {
+                        const awardIsEstablished = bestAward.linked.some(movie =>
+                          isReleased(movie) && yearOf(movie) <= CURRENT_YEAR - 2
+                        );
+
+                        if (bestAward.sentence.length <= 190 && awardIsEstablished) {
                           output.push(bestAward.sentence);
                         } else if (bestAward.linked.length) {
                           const awardMovie = [...bestAward.linked]
@@ -948,10 +1001,13 @@
                           arr.findIndex(item => item.id === movie.id) === index
                         )
                         .filter(movie =>
+                          isReleased(movie) &&
+                          hasStrongCareerEvidence(movie) &&
                           !earlyPicks.some(item => item.id === movie.id) &&
                           !midPicks.some(item => item.id === movie.id) &&
                           movie?.id !== breakthroughMovie?.id
                         )
+                        .sort((a, b) => significance(b) - significance(a))
                         .slice(0, 2);
 
                       if (later.length) {
