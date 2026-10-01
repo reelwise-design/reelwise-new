@@ -1,1005 +1,1595 @@
-const token = process.env.TMDB_READ_ACCESS_TOKEN;
+    const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
-const OSCARBASE = "https://api.oscarbase.com/api";
+    /*
+      ============================================================
+      REELWISE PERSON API
+      ============================================================
 
-async function tmdbPerson(id) {
-  if (!token) throw new Error("TMDB token is not configured");
+      STAR PROFILE
+      - Pulls person details and movie credits from TMDB
+      - Uses Wikipedia for factual career context
+      - Builds a story-driven Reelwise biography
+      - Preserves the working Academy Awards / Accolades endpoint
 
-  const response = await fetch(
-    `https://api.themoviedb.org/3/person/${encodeURIComponent(id)}?append_to_response=movie_credits&language=en-US`,
-    {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        accept: "application/json"
-      }
+      REELWISE BIOGRAPHY GOAL
+      The biography should read as a career story:
+      early career -> breakthrough -> rise -> defining films across
+      the decades -> later/current career.
+
+      It intentionally avoids a stats panel or resume-style format.
+      ============================================================
+    */
+
+
+    /* ============================================================
+       GENERAL HELPERS
+       ============================================================ */
+
+    function cleanText(value = "") {
+      return String(value)
+        .replace(/\s+/g, " ")
+        .replace(/\[\d+\]/g, "")
+        .trim();
     }
-  );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    throw new Error(data.status_message || "Person lookup failed");
-  }
-
-  return data;
-}
-
-async function oscarbase(path) {
-  const response = await fetch(`${OSCARBASE}${path}`, {
-    headers: { accept: "application/json" }
-  });
-
-  if (!response.ok) {
-    throw new Error(`OscarBase request failed: ${response.status}`);
-  }
-
-  return response.json();
-}
-
-async function getAccolades(tmdbPersonId) {
-  const search = await oscarbase(
-    `/nominees?tmdb_person_id=${encodeURIComponent(tmdbPersonId)}&limit=5`
-  );
-
-  const nominees = Array.isArray(search)
-    ? search
-    : Array.isArray(search?.data)
-      ? search.data
-      : [];
-
-  const nominee =
-    nominees.find(
-      item => Number(item?.tmdb_person_id) === Number(tmdbPersonId)
-    ) ||
-    nominees[0] ||
-    null;
-
-  if (!nominee || !nominee.id) {
-    return {
-      found: false,
-      tmdb_person_id: Number(tmdbPersonId),
-      nominations: 0,
-      wins: 0,
-      history: []
-    };
-  }
-
-  const detailResponse = await oscarbase(
-    `/nominees/${encodeURIComponent(nominee.id)}`
-  );
-
-  const detail =
-    detailResponse?.data && !Array.isArray(detailResponse.data)
-      ? detailResponse.data
-      : detailResponse;
-
-  const nominations = Array.isArray(detail?.nominations)
-    ? detail.nominations
-    : [];
-
-  const history = nominations
-    .map(item => ({
-      id: item?.id || null,
-      year: Number(item?.ceremony_year || item?.year) || null,
-      category: String(
-        item?.category || item?.category_name || ""
-      ).trim(),
-      movie: String(
-        item?.movie || item?.movie_title || ""
-      ).trim(),
-      winner:
-        item?.winner === true ||
-        item?.winner === 1 ||
-        String(item?.winner).toLowerCase() === "true"
-    }))
-    .filter(item => item.category || item.movie)
-    .sort((a, b) => (b.year || 0) - (a.year || 0));
-
-  const wins = history.filter(item => item.winner);
-
-  return {
-    found: history.length > 0,
-    person: {
-      name: detail?.name || nominee?.name || "",
-      tmdb_person_id: Number(tmdbPersonId)
-    },
-    nominations: history.length,
-    wins: wins.length,
-    history
-  };
-}
-
-/*
-  ============================================================
-  REELWISE SPOTLIGHT BIO
-  ============================================================
-*/
-
-function cleanBiography(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function splitSentences(value) {
-  const clean = cleanBiography(value);
-  if (!clean) return [];
-  return clean.match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(s => s.trim()).filter(Boolean) || [];
-}
-
-function normalizeTitle(value) {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/&/g, "and")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
-function dedupeMovies(movies) {
-  const seen = new Set();
-
-  return movies.filter(movie => {
-    const key = normalizeTitle(movie?.title);
-    if (!key || seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function getCareerYears(person) {
-  const cast = Array.isArray(person?.movie_credits?.cast)
-    ? person.movie_credits.cast
-    : [];
-
-  const years = cast
-    .map(movie => Number(String(movie?.release_date || "").slice(0, 4)))
-    .filter(year => year >= 1900 && year <= new Date().getFullYear() + 2);
-
-  if (!years.length) return null;
-
-  return {
-    first: Math.min(...years),
-    last: Math.max(...years)
-  };
-}
-
-/*
-  ============================================================
-  REELWISE CAREER INTELLIGENCE
-  ============================================================
-
-  This is not a hand-written biography database.
-
-  It is a compact editorial fact layer for major stars where
-  raw credits alone cannot reliably determine:
-    - signature films
-    - signature franchises
-    - iconic characters
-    - defining collaborators
-    - creator/writer significance
-
-  Everyone not listed here still receives a fully automatic bio.
-*/
-
-const CAREER_INTELLIGENCE = {
-  380: {
-    name: "Robert De Niro",
-    roles: ["actor", "producer"],
-    collaborationText:
-      "His celebrated collaboration with Martin Scorsese produced some of his most memorable performances.",
-    narrativeFilms: [],
-    signatureFilms: [
-      "The Godfather Part II",
-      "Taxi Driver",
-      "Raging Bull",
-      "GoodFellas",
-      "Casino"
-    ]
-  },
-
-  500: {
-    name: "Tom Cruise",
-    roles: ["actor", "producer"],
-    franchiseTexts: [
-      {
-        text: "Top Gun made him a global movie star.",
-        films: ["Top Gun"]
-      },
-      {
-        text: "Mission: Impossible became his signature franchise.",
-        films: ["Mission: Impossible"]
-      }
-    ],
-    signatureFilms: [
-      "Top Gun",
-      "A Few Good Men",
-      "Jerry Maguire",
-      "Mission: Impossible",
-      "Top Gun: Maverick"
-    ]
-  },
-
-  16483: {
-    name: "Sylvester Stallone",
-    roles: ["actor", "screenwriter"],
-    franchiseTexts: [
-      {
-        text: "As the writer and star of Rocky, he created one of cinema's most enduring characters.",
-        films: ["Rocky"]
-      },
-      {
-        text: "John Rambo established another signature character and franchise.",
-        films: ["First Blood", "Rambo"]
-      }
-    ],
-    signatureFilms: [
-      "Rocky",
-      "First Blood",
-      "Rocky III",
-      "Creed"
-    ]
-  },
-
-  1158: {
-    name: "Al Pacino",
-    roles: ["actor", "filmmaker"],
-    franchiseTexts: [
-      {
-        text: "Michael Corleone in The Godfather films became one of his defining screen roles.",
-        films: ["The Godfather", "The Godfather Part II"]
-      }
-    ],
-    signatureFilms: [
-      "The Godfather",
-      "The Godfather Part II",
-      "Serpico",
-      "Dog Day Afternoon",
-      "Scarface",
-      "Scent of a Woman"
-    ]
-  },
-
-  3: {
-    name: "Harrison Ford",
-    roles: ["actor", "producer"],
-    franchiseTexts: [
-      {
-        text: "Han Solo in Star Wars helped establish him as a global movie star.",
-        films: ["Star Wars"]
-      },
-      {
-        text: "Indiana Jones became his other signature screen character and franchise.",
-        films: [
-          "Raiders of the Lost Ark",
-          "Indiana Jones and the Temple of Doom",
-          "Indiana Jones and the Last Crusade",
-          "Indiana Jones and the Kingdom of the Crystal Skull",
-          "Indiana Jones and the Dial of Destiny"
-        ]
-      }
-    ],
-    signatureFilms: [
-      "Star Wars",
-      "Raiders of the Lost Ark",
-      "Blade Runner",
-      "Witness",
-      "The Fugitive"
-    ]
-  },
-
-  5064: {
-    name: "Meryl Streep",
-    roles: ["actor"],
-    signatureFilms: [
-      "Kramer vs. Kramer",
-      "Sophie's Choice",
-      "The Devil Wears Prada",
-      "The Iron Lady",
-      "Out of Africa"
-    ]
-  },
-
-  5292: {
-    name: "Denzel Washington",
-    roles: ["actor", "filmmaker"],
-    signatureFilms: [
-      "Glory",
-      "Malcolm X",
-      "Training Day",
-      "Remember the Titans",
-      "Fences"
-    ]
-  },
-
-  1204: {
-    name: "Julia Roberts",
-    roles: ["actor", "producer"],
-    signatureFilms: [
-      "Pretty Woman",
-      "Erin Brockovich",
-      "Notting Hill",
-      "My Best Friend's Wedding",
-      "Ocean's Eleven"
-    ]
-  }
-};
-
-function getCareerIntelligence(person) {
-  const id = Number(person?.id);
-  return CAREER_INTELLIGENCE[id] || null;
-}
-
-function findCreditByTitle(person, wantedTitle) {
-  const cast = Array.isArray(person?.movie_credits?.cast)
-    ? person.movie_credits.cast
-    : [];
-
-  const wanted = normalizeTitle(wantedTitle);
-
-  return cast.find(movie =>
-    normalizeTitle(movie?.title) === wanted
-  ) || null;
-}
-
-function validatedIntelligenceFilms(person, intelligence) {
-  if (!intelligence?.signatureFilms) return [];
-
-  /*
-    6.2.1:
-    Career Intelligence titles are editorial facts and must not
-    disappear merely because TMDB uses a slightly different title
-    string, alternate punctuation, or localized credit title.
-
-    When an exact TMDB credit exists, use it. Otherwise preserve
-    the Career Intelligence title itself.
-  */
-  return intelligence.signatureFilms
-    .map(title => {
-      const credit = findCreditByTitle(person, title);
-
-      return credit
-        ? { ...credit, title: String(title).trim() || credit.title }
-        : { title: String(title).trim() };
-    })
-    .filter(movie => movie?.title);
-}
-
-/*
-  ============================================================
-  AUTOMATIC CAREER SCORING
-  ============================================================
-*/
-
-function biographySignals(person) {
-  const bio = cleanBiography(person?.biography);
-  const normalizedBio = normalizeTitle(bio);
-  const cast = Array.isArray(person?.movie_credits?.cast)
-    ? person.movie_credits.cast
-    : [];
-
-  const titleSignals = new Map();
-
-  for (const movie of cast) {
-    const key = normalizeTitle(movie?.title);
-    if (!key || key.length < 3) continue;
-
-    const position = normalizedBio.indexOf(key);
-    if (position < 0) continue;
-
-    const signal = Math.max(8, 38 - Math.floor(position / 75));
-    titleSignals.set(
-      key,
-      Math.max(titleSignals.get(key) || 0, signal)
-    );
-  }
-
-  return { titleSignals };
-}
-
-function oscarSignals(accolades) {
-  const map = new Map();
-
-  if (!Array.isArray(accolades?.history)) return map;
-
-  for (const item of accolades.history) {
-    const key = normalizeTitle(item?.movie);
-    if (!key) continue;
-
-    const score = item?.winner ? 48 : 22;
-    map.set(key, Math.max(map.get(key) || 0, score));
-  }
-
-  return map;
-}
-
-function baseMovieScores(person, accolades) {
-  const cast = Array.isArray(person?.movie_credits?.cast)
-    ? person.movie_credits.cast
-    : [];
-
-  const { titleSignals } = biographySignals(person);
-  const awards = oscarSignals(accolades);
-
-  return dedupeMovies(
-    cast
-      .filter(movie =>
-        movie &&
-        movie.title &&
-        movie.release_date &&
-        Number(movie.vote_count || 0) >= 100
-      )
-      .map(movie => {
-        const key = normalizeTitle(movie.title);
-        const votes = Number(movie.vote_count || 0);
-        const rating = Number(movie.vote_average || 0);
-        const order = Number.isFinite(Number(movie.order))
-          ? Number(movie.order)
-          : 99;
-
-        let billing = 0;
-
-        if (order === 0) billing = 62;
-        else if (order === 1) billing = 54;
-        else if (order === 2) billing = 45;
-        else if (order <= 5) billing = 26;
-        else if (order <= 10) billing = 8;
-
-        const durableRecognition =
-          Math.log10(Math.max(votes, 1)) * 21 +
-          Math.max(0, rating - 5) * 4;
-
-        return {
-          ...movie,
-
-          reelwise_score:
-            billing +
-            durableRecognition +
-            (titleSignals.get(key) || 0) +
-            (awards.get(key) || 0)
-        };
-      })
-      .sort((a, b) =>
-        b.reelwise_score - a.reelwise_score
-      )
-  );
-}
-
-/*
-  ============================================================
-  AUTOMATIC FRANCHISE INTELLIGENCE
-  ============================================================
-*/
-
-function franchiseKey(title) {
-  const normalized = normalizeTitle(title);
-
-  const families = [
-    ["mission impossible", "Mission: Impossible"],
-    ["top gun", "Top Gun"],
-    ["rocky", "Rocky"],
-    ["creed", "Rocky / Creed"],
-    ["rambo", "Rambo"],
-    ["terminator", "Terminator"],
-    ["indiana jones", "Indiana Jones"],
-    ["die hard", "Die Hard"],
-    ["lethal weapon", "Lethal Weapon"],
-    ["jurassic", "Jurassic"],
-    ["fast and furious", "Fast & Furious"],
-    ["fast furious", "Fast & Furious"],
-    ["star wars", "Star Wars"],
-    ["harry potter", "Harry Potter"],
-    ["lord of the rings", "The Lord of the Rings"],
-    ["pirates of the caribbean", "Pirates of the Caribbean"],
-    ["hunger games", "The Hunger Games"],
-    ["matrix", "The Matrix"],
-    ["bourne", "Bourne"],
-    ["spider man", "Spider-Man"],
-    ["batman", "Batman"],
-    ["avengers", "Avengers"],
-    ["guardians of the galaxy", "Guardians of the Galaxy"],
-    ["toy story", "Toy Story"],
-    ["shrek", "Shrek"]
-  ];
-
-  for (const [needle, label] of families) {
-    if (normalized.includes(needle)) {
-      return { key: needle, label };
+    function removeWikipediaEnding(text = "") {
+      return text
+        .replace(/\s*References\s*$/i, "")
+        .replace(/\s*External links\s*$/i, "")
+        .trim();
     }
-  }
 
-  return null;
-}
+    function stripHtml(value = "") {
+      return cleanText(
+        String(value)
+          .replace(/<[^>]*>/g, " ")
+          .replace(/&quot;/g, '"')
+          .replace(/&#039;/g, "'")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+      );
+    }
 
-function detectSignatureFranchise(scoredMovies) {
-  const groups = new Map();
+    async function fetchJSON(url, options = {}) {
+      const response = await fetch(url, options);
 
-  for (const movie of scoredMovies) {
-    const family = franchiseKey(movie.title);
-    if (!family) continue;
+      if (!response.ok) {
+        throw new Error(`Request failed: ${response.status}`);
+      }
 
-    if (!groups.has(family.key)) {
-      groups.set(family.key, {
-        label: family.label,
-        movies: [],
-        score: 0
+      return response.json();
+    }
+
+    function uniqueStrings(values = []) {
+      const seen = new Set();
+
+      return values.filter(value => {
+        const key = cleanText(value).toLowerCase();
+
+        if (!key || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
       });
     }
 
-    const group = groups.get(family.key);
-    group.movies.push(movie);
-    group.score += Number(movie.reelwise_score || 0);
-  }
+    function sentenceSplit(text = "") {
+      const cleaned = cleanText(text);
 
-  return Array.from(groups.values())
-    .filter(group => group.movies.length >= 2)
-    .sort((a, b) => b.score - a.score)[0] || null;
-}
-
-function automaticCareer(person, accolades) {
-  const scored = baseMovieScores(person, accolades)
-    .filter(releasedFilm);
-
-  const franchise = detectSignatureFranchise(scored);
-
-  const excluded = new Set(
-    franchise
-      ? franchise.movies.map(movie => normalizeTitle(movie.title))
-      : []
-  );
-
-  const remaining = scored
-    .filter(movie => !excluded.has(normalizeTitle(movie.title)));
-
-  /*
-    Person 56 guardrail:
-    Do not fill the biography with leftover titles just to reach
-    a fixed count. Keep only films close enough to the strongest
-    remaining career signal to deserve narrative space.
-  */
-  const strongest = Number(remaining[0]?.reelwise_score || 0);
-  const significanceFloor = strongest
-    ? Math.max(105, strongest * 0.72)
-    : 105;
-
-  const movies = remaining
-    .filter(movie => Number(movie.reelwise_score || 0) >= significanceFloor)
-    .slice(0, franchise ? 3 : 4);
-
-  return { movies, franchise };
-}
-
-/*
-  ============================================================
-  PERSON 56 — CAREER PHASE GUARDRAILS
-  ============================================================
-
-  A biography must not invent a career phase merely because
-  unused credits remain. A film is eligible for narrative prose
-  only when its date fits the phase being described and its
-  significance clears the phase threshold.
-*/
-
-function movieReleaseYear(movie) {
-  const year = Number(String(movie?.release_date || "").slice(0, 4));
-  return Number.isFinite(year) ? year : 0;
-}
-
-function releasedFilm(movie) {
-  const year = movieReleaseYear(movie);
-  const currentYear = new Date().getFullYear();
-  return year >= 1900 && year <= currentYear;
-}
-
-function careerPhaseWindows(person) {
-  const years = getCareerYears(person);
-  if (!years || years.last <= years.first) return null;
-
-  const span = years.last - years.first;
-  return {
-    earlyEnd: years.first + Math.max(8, Math.round(span * 0.30)),
-    middleEnd: years.first + Math.max(16, Math.round(span * 0.68)),
-    last: years.last
-  };
-}
-
-function phaseEligible(movie, phase, windows) {
-  if (!releasedFilm(movie)) return false;
-  if (!windows) return true;
-
-  const year = movieReleaseYear(movie);
-
-  if (phase === "early") return year <= windows.earlyEnd;
-  if (phase === "middle") {
-    return year > windows.earlyEnd && year <= windows.middleEnd;
-  }
-  if (phase === "later") return year > windows.middleEnd;
-
-  return true;
-}
-
-function meaningfulPhaseMovies(movies, phase, windows, minimumScore = 0) {
-  return (Array.isArray(movies) ? movies : [])
-    .filter(movie => phaseEligible(movie, phase, windows))
-    .filter(movie => Number(movie?.reelwise_score || minimumScore) >= minimumScore);
-}
-
-function formatFilmList(movies) {
-  const titles = movies
-    .map(movie => String(movie?.title || "").trim())
-    .filter(Boolean);
-
-  if (!titles.length) return "";
-  if (titles.length === 1) return titles[0];
-  if (titles.length === 2) {
-    return `${titles[0]} and ${titles[1]}`;
-  }
-
-  return `${titles.slice(0, -1).join(", ")} and ${titles[titles.length - 1]}`;
-}
-
-function automaticCollaboration(person) {
-  const sentences = splitSentences(person?.biography);
-
-  const candidate = sentences
-    .filter(sentence =>
-      /\bcollaborat|\bworked with|\bfilms? with\b/i.test(sentence) &&
-      !/\bacademy award|\boscar|\bnomination|\bnominated/i.test(sentence) &&
-      sentence.length <= 220 &&
-      (sentence.match(/,/g) || []).length <= 2
-    )
-    .sort((a, b) => a.length - b.length)[0];
-
-  if (!candidate) return "";
-
-  const first = candidate.match(
-    /^(.+?)'?s first collaboration with (.+?) was with /i
-  );
-
-  if (first) {
-    const subject = first[1].trim();
-    const collaborator = first[2].trim();
-
-    return `${subject}'s celebrated collaboration with ${collaborator} became a defining part of the career.`;
-  }
-
-  return candidate;
-}
-
-function academyRecognition(accolades) {
-  const wins = Number(accolades?.wins || 0);
-  const nominations = Number(accolades?.nominations || 0);
-
-  if (wins > 0) {
-    return `The work has earned ${wins} Academy Award ${wins === 1 ? "win" : "wins"} from ${nominations} ${nominations === 1 ? "nomination" : "nominations"}.`;
-  }
-
-  if (nominations > 0) {
-    return `The work has earned ${nominations} Academy Award ${nominations === 1 ? "nomination" : "nominations"}.`;
-  }
-
-  return "";
-}
-
-function automaticRoles(person) {
-  const bio = cleanBiography(person?.biography);
-  const department =
-    String(person?.known_for_department || "Acting").toLowerCase();
-
-  const roles = [];
-
-  if (department === "directing") roles.push("filmmaker");
-  else if (department === "writing") roles.push("screenwriter");
-  else roles.push("actor");
-
-  if (
-    /\bscreenwriter\b|\bwrote\b|\bco-wrote\b/i.test(bio) &&
-    !roles.includes("screenwriter")
-  ) {
-    roles.push("screenwriter");
-  }
-
-  if (
-    /\bproducer\b|\bproduced\b/i.test(bio) &&
-    roles.length < 3
-  ) {
-    roles.push("producer");
-  }
-
-  if (
-    /\bdirector\b|\bdirected\b/i.test(bio) &&
-    !roles.includes("filmmaker") &&
-    roles.length < 3
-  ) {
-    roles.push("filmmaker");
-  }
-
-  return roles;
-}
-
-function rolePhrase(roles) {
-  if (!roles.length) return "movie star";
-  if (roles.length === 1) return roles[0];
-  if (roles.length === 2) {
-    return `${roles[0]} and ${roles[1]}`;
-  }
-
-  return `${roles.slice(0, -1).join(", ")} and ${roles[roles.length - 1]}`;
-}
-
-/*
-  ============================================================
-  REELWISE BIO ENGINE 6.2.5 — PERSON 56
-  ============================================================
-
-  Career-phase guardrails + multi-franchise Career Intelligence:
-
-  Films already explained in a franchise/character sentence are
-  removed from the follow-up defining-film list.
-
-  A) CAREER INTELLIGENCE
-     Editorial facts for major stars where signature-career
-     knowledge matters.
-
-  B) AUTOMATIC ENGINE
-     Scalable fallback for every person in TMDB.
-
-  The intelligence layer supplies facts, NOT finished prose.
-  The same composer writes the final Reelwise biography.
-*/
-
-function buildReelwiseBio(person, accolades) {
-  const name = String(person?.name || "").trim();
-  if (!name) return "";
-
-  const intelligence = getCareerIntelligence(person);
-  const years = getCareerYears(person);
-
-  const roles =
-    intelligence?.roles?.length
-      ? intelligence.roles
-      : automaticRoles(person);
-
-  let identity =
-    `${name} is an acclaimed ${rolePhrase(roles)}`;
-
-  if (years && years.last > years.first) {
-    const decades = Math.max(
-      1,
-      Math.floor((years.last - years.first) / 10)
-    );
-
-    identity +=
-      ` whose film career spans more than ${decades} ${decades === 1 ? "decade" : "decades"}.`;
-  } else {
-    identity += " with an extensive career in movies.";
-  }
-
-  const parts = [identity];
-
-  /*
-    Career Intelligence path
-  */
-  if (intelligence) {
-    if (intelligence.collaborationText) {
-      parts.push(intelligence.collaborationText);
-    }
-
-    /*
-      6.2 supports more than one signature franchise/character.
-      Each narrative item declares the films it already represents,
-      and those titles are automatically suppressed below.
-    */
-    const franchiseTexts =
-      Array.isArray(intelligence.franchiseTexts)
-        ? intelligence.franchiseTexts
-        : intelligence.franchiseText
-          ? [{
-              text: intelligence.franchiseText,
-              films: intelligence.narrativeFilms || []
-            }]
-          : [];
-
-    const narrativeTitles = new Set(
-      (intelligence.narrativeFilms || [])
-        .map(title => normalizeTitle(title))
-        .filter(Boolean)
-    );
-
-    for (const item of franchiseTexts) {
-      if (item?.text) {
-        parts.push(String(item.text).trim());
+      if (!cleaned) {
+        return [];
       }
 
-      for (const title of (item?.films || [])) {
-        const normalized = normalizeTitle(title);
-        if (normalized) narrativeTitles.add(normalized);
-      }
+      return (
+        cleaned.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) || []
+      )
+        .map(sentence => cleanText(sentence))
+        .filter(Boolean);
     }
 
-    const intelligentFilms =
-      validatedIntelligenceFilms(person, intelligence)
-        .filter(movie => releasedFilm(movie))
-        .filter(movie =>
-          !narrativeTitles.has(normalizeTitle(movie?.title))
+    function ensurePeriod(text = "") {
+      const value = cleanText(text);
+
+      if (!value) {
+        return "";
+      }
+
+      return /[.!?]["')\]]?$/.test(value)
+        ? value
+        : `${value}.`;
+    }
+
+    function yearFromDate(value = "") {
+      const match = String(value).match(/^(\d{4})/);
+      return match ? Number(match[1]) : null;
+    }
+
+    function decadeLabel(year) {
+      if (!year) return "";
+      const start = Math.floor(year / 10) * 10;
+      return `${start}s`;
+    }
+
+
+    /* ============================================================
+       WIKIPEDIA PAGE LOOKUP
+       ============================================================ */
+
+    async function getWikipediaPage(name) {
+      try {
+        const searchUrl =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "query",
+            list: "search",
+            srsearch: name,
+            format: "json",
+            origin: "*"
+          });
+
+        const searchData = await fetchJSON(searchUrl);
+        const results = searchData?.query?.search || [];
+
+        if (!results.length) {
+          return {
+            title: "",
+            wikidataId: ""
+          };
+        }
+
+        const exactMatch = results.find(
+          item =>
+            item.title &&
+            item.title.toLowerCase() ===
+              String(name).toLowerCase()
         );
 
-    const films = formatFilmList(intelligentFilms);
+        const pageTitle =
+          exactMatch?.title ||
+          results[0]?.title ||
+          "";
 
-    if (films) {
-      parts.push(
-        `${franchiseTexts.length ? "Other defining films" : "Defining films"} include ${films}.`
-      );
+        if (!pageTitle) {
+          return {
+            title: "",
+            wikidataId: ""
+          };
+        }
+
+        const pageUrl =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "query",
+            titles: pageTitle,
+            prop: "pageprops",
+            ppprop: "wikibase_item",
+            redirects: "1",
+            format: "json",
+            origin: "*"
+          });
+
+        const pageData = await fetchJSON(pageUrl);
+        const pages = pageData?.query?.pages || {};
+        const page = Object.values(pages)[0];
+
+        return {
+          title: pageTitle,
+          wikidataId:
+            page?.pageprops?.wikibase_item || ""
+        };
+      } catch (error) {
+        console.error(
+          "Wikipedia page lookup error:",
+          error
+        );
+
+        return {
+          title: "",
+          wikidataId: ""
+        };
+      }
     }
-  }
 
-  /*
-    Fully automatic path
-  */
-  else {
-    const career = automaticCareer(person, accolades);
 
-    const collaboration =
-      automaticCollaboration(person);
+    /* ============================================================
+       WIKIPEDIA BIOGRAPHY / CAREER SOURCE
+       ============================================================ */
 
-    if (collaboration) {
-      parts.push(collaboration);
+    async function getWikipediaExtract(pageTitle) {
+      if (!pageTitle) {
+        return "";
+      }
+
+      try {
+        const url =
+          "https://en.wikipedia.org/w/api.php?" +
+          new URLSearchParams({
+            action: "query",
+            prop: "extracts",
+            titles: pageTitle,
+            exintro: "0",
+            explaintext: "1",
+            redirects: "1",
+            format: "json",
+            origin: "*"
+          });
+
+        const data = await fetchJSON(url);
+        const pages = data?.query?.pages || {};
+        const page = Object.values(pages)[0];
+
+        return removeWikipediaEnding(
+          cleanText(page?.extract || "")
+        );
+      } catch (error) {
+        console.error(
+          "Wikipedia extract error:",
+          error
+        );
+
+        return "";
+      }
     }
 
-    if (career.franchise) {
-      parts.push(
-        `The ${career.franchise.label} films became a signature part of the career.`
-      );
+    async function getWikipediaSummary(pageTitle) {
+      if (!pageTitle) {
+        return "";
+      }
+
+      try {
+        const summaryUrl =
+          "https://en.wikipedia.org/api/rest_v1/page/summary/" +
+          encodeURIComponent(pageTitle);
+
+        const summaryData =
+          await fetchJSON(summaryUrl);
+
+        let bio =
+          removeWikipediaEnding(
+            cleanText(summaryData?.extract || "")
+          );
+
+        if (
+          summaryData?.type === "disambiguation" ||
+          bio.length < 80
+        ) {
+          return "";
+        }
+
+        return bio;
+      } catch (error) {
+        console.error(
+          "Wikipedia summary error:",
+          error
+        );
+
+        return "";
+      }
     }
 
-    const films = formatFilmList(career.movies);
 
-    if (films) {
-      parts.push(`Defining films include ${films}.`);
-    }
-  }
+    /* ============================================================
+       TMDB PERSON DETAILS
+       ============================================================ */
 
-  /*
-    Awards remain intentionally brief because the dedicated
-    Awards & Accolades screen carries the full record.
-  */
-  const recognition = academyRecognition(accolades);
+    async function getPersonDetails(personId) {
+      const url =
+        `https://api.themoviedb.org/3/person/${personId}` +
+        "?language=en-US";
 
-  if (recognition) {
-    parts.push(recognition);
-  }
-
-  let bio =
-    parts.join(" ").replace(/\s+/g, " ").trim();
-
-  /*
-    6.2.2 SMART LENGTH HANDLING
-
-    Never sacrifice a meaningful career section merely to hit
-    an arbitrary character ceiling.
-
-    Priority:
-      1. career identity
-      2. signature characters / franchises / collaborations
-      3. defining films
-      4. brief Academy Awards summary
-
-    Awards are the only section removed for length because the
-    dedicated Awards & Accolades page already carries that detail.
-  */
-  if (bio.length > 650 && recognition) {
-    bio = parts
-      .filter(part => part !== recognition)
-      .join(" ")
-      .replace(/\s+/g, " ")
-      .trim();
-  }
-
-  /*
-    Career Intelligence bios may legitimately run longer when
-    multiple franchises need context. Preserve complete sentences
-    rather than chopping off the final defining-film section.
-  */
-  const hardCeiling = intelligence ? 900 : 720;
-
-  if (bio.length > hardCeiling) {
-    bio =
-      bio.slice(0, hardCeiling - 3)
-        .replace(/\s+\S*$/, "") +
-      "...";
-  }
-
-  return bio;
-}
-
-export default async function handler(req, res) {
-  const id = req.query.id;
-
-  if (!id) {
-    return res.status(400).json({ error: "Missing person id" });
-  }
-
-  const mode = String(req.query?.mode || "person").toLowerCase();
-
-  if (mode === "accolades") {
-    try {
-      const accolades = await getAccolades(id);
-
-      res.setHeader("Cache-Control", "no-store, max-age=0");
-
-      return res.status(200).json(accolades);
-    } catch (error) {
-      console.error("Reelwise accolades lookup error:", error);
-
-      return res.status(200).json({
-        found: false,
-        tmdb_person_id: Number(id),
-        nominations: 0,
-        wins: 0,
-        history: [],
-        unavailable: true
+      return fetchJSON(url, {
+        headers: {
+          Authorization: `Bearer ${TOKEN}`,
+          accept: "application/json"
+        }
       });
     }
-  }
 
-  try {
-    const data = await tmdbPerson(id);
 
-    let accolades = {
-      found: false,
-      nominations: 0,
-      wins: 0,
-      history: []
-    };
+    /* ============================================================
+       TMDB MOVIE CREDITS
+       ============================================================ */
 
-    try {
-      accolades = await getAccolades(id);
-    } catch (awardError) {
-      console.warn("Reelwise bio awards unavailable:", awardError);
+    async function getMovieCredits(personId) {
+      const url =
+        `https://api.themoviedb.org/3/person/${personId}/movie_credits` +
+        "?language=en-US";
+
+      const data =
+        await fetchJSON(url, {
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            accept: "application/json"
+          }
+        });
+
+      return data?.cast || [];
     }
+
+
+    /* ============================================================
+       FILMOGRAPHY HELPERS
+       ============================================================ */
+
+    function validMovieCredits(credits = []) {
+      const seen = new Set();
+
+      return credits.filter(movie => {
+        if (
+          !movie?.id ||
+          !movie?.title ||
+          !movie?.release_date
+        ) {
+          return false;
+        }
+
+        if (seen.has(movie.id)) {
+          return false;
+        }
+
+        seen.add(movie.id);
+        return true;
+      });
+    }
+
+    function movieRecognitionScore(movie) {
+      const popularity =
+        Number(movie?.popularity) || 0;
+
+      const votes =
+        Number(movie?.vote_count) || 0;
+
+      const rating =
+        Number(movie?.vote_average) || 0;
+
+      return (
+        popularity +
+        Math.log10(votes + 1) * 12 +
+        rating * 2
+      );
+    }
+
+    function buildKnownFor(credits = []) {
+      return validMovieCredits(credits)
+        .sort(
+          (a, b) =>
+            movieRecognitionScore(b) -
+            movieRecognitionScore(a)
+        )
+        .slice(0, 12)
+        .map(movie => ({
+          id: movie.id,
+          title: movie.title,
+          character:
+            movie.character || "",
+          release_date:
+            movie.release_date || "",
+          poster_path:
+            movie.poster_path || null,
+          backdrop_path:
+            movie.backdrop_path || null,
+          popularity:
+            movie.popularity || 0,
+          vote_average:
+            movie.vote_average || 0,
+          vote_count:
+            movie.vote_count || 0
+        }));
+    }
+
+    function buildCareerTimeline(credits = []) {
+      const movies =
+        validMovieCredits(credits)
+          .map(movie => ({
+            ...movie,
+            year:
+              yearFromDate(
+                movie.release_date
+              )
+          }))
+          .filter(movie => movie.year)
+          .sort((a, b) => a.year - b.year);
+
+      if (!movies.length) {
+        return {
+          firstYear: null,
+          latestYear: null,
+          firstMovie: null,
+          notable: [],
+          byDecade: {}
+        };
+      }
+
+      const byDecade = {};
+
+      for (const movie of movies) {
+        const decade =
+          decadeLabel(movie.year);
+
+        if (!byDecade[decade]) {
+          byDecade[decade] = [];
+        }
+
+        byDecade[decade].push(movie);
+      }
+
+      for (const decade of Object.keys(byDecade)) {
+        byDecade[decade] =
+          byDecade[decade]
+            .sort(
+              (a, b) =>
+                movieRecognitionScore(b) -
+                movieRecognitionScore(a)
+            )
+            .slice(0, 5);
+      }
+
+      const notable =
+        [...movies]
+          .sort(
+            (a, b) =>
+              movieRecognitionScore(b) -
+              movieRecognitionScore(a)
+          )
+          .slice(0, 18);
+
+      return {
+        firstYear: movies[0]?.year || null,
+        latestYear:
+          movies[movies.length - 1]?.year ||
+          null,
+        firstMovie: movies[0] || null,
+        notable,
+        byDecade
+      };
+    }
+
+
+    /* ============================================================
+       REELWISE CAREER STORY ENGINE
+       ============================================================ */
 
     /*
-      REELWISE BIO ENGINE 6.2.5 — PERSON 56
-      The star page expects the exact property `reelwise_bio`.
-
-      Bio generation is isolated from the profile request so an editorial-engine
-      error can never make /api/person fail and silently send index.html back to
-      the raw TMDB biography.
+      We do NOT automatically call an actor's first popular movie
+      a "breakthrough." Instead, breakthrough language is taken
+      from the factual Wikipedia career material when available.
     */
-    let reelwiseBio = "";
 
-    try {
-      reelwiseBio = buildReelwiseBio(data, accolades);
-    } catch (bioError) {
-      console.error("Reelwise bio generation error:", bioError);
+    function findBreakthroughSentence(
+      wikipediaText = "",
+      name = ""
+    ) {
+      const sentences =
+        sentenceSplit(wikipediaText);
 
-      const rawBio = String(data?.biography || "")
-        .replace(/\s+/g, " ")
-        .trim();
+      const strongPatterns = [
+        /\bbreakthrough\b/i,
+        /\bbreakout\b/i,
+        /\bbreakthrough role\b/i,
+        /\bbreakout role\b/i,
+        /\bbreakthrough performance\b/i,
+        /\bbreakout performance\b/i,
+        /\brose to prominence\b/i,
+        /\bgained (?:wider |wide |international )?recognition\b/i,
+        /\bgained (?:wider |wide )?attention\b/i,
+        /\bcame to prominence\b/i,
+        /\bbecame widely known\b/i,
+        /\bestablished (?:himself|herself|themself) as\b/i,
+        /\bcareer took off\b/i
+      ];
 
-      const fallbackSentences =
-        rawBio.match(/[^.!?]+[.!?]+(?:["'’”)]*)/g) || [];
+      const match =
+        sentences.find(sentence =>
+          strongPatterns.some(pattern =>
+            pattern.test(sentence)
+          )
+        );
 
-      reelwiseBio =
-        fallbackSentences.slice(0, 3).join(" ").trim() ||
-        rawBio.slice(0, 650).trim() ||
-        "Biography information is not available.";
+      if (!match) {
+        return "";
+      }
+
+      let result =
+        cleanText(match);
+
+      /*
+        Keep the source wording but avoid a paragraph beginning
+        with an unclear pronoun when possible.
+      */
+
+      if (name) {
+        result = result
+          .replace(
+            /^He\b/,
+            name
+          )
+          .replace(
+            /^She\b/,
+            name
+          )
+          .replace(
+            /^They\b/,
+            name
+          );
+      }
+
+      return ensurePeriod(result);
     }
 
-    data.reelwise_bio = String(reelwiseBio || "").trim();
-    data.reelwise_academy_awards = {
-      wins: Number(accolades?.wins || 0),
-      nominations: Number(accolades?.nominations || 0)
-    };
+    function usefulCareerSentences(
+      wikipediaText = "",
+      name = ""
+    ) {
+      const sentences =
+        sentenceSplit(wikipediaText);
 
-    res.setHeader("Cache-Control", "no-store, max-age=0");
+      const careerWords =
+        /\b(starred|appeared|portrayed|played|film|films|role|roles|performance|career|directed|director|producer|produced|screen|cinema|movie|movies|recognition|acclaim|award|nominated|nomination|won|success|successful|franchise|leading|lead role|supporting role)\b/i;
 
-    return res.status(200).json({
-      ...data,
-      reelwise_bio: data.reelwise_bio
-    });
-  } catch (error) {
-    console.error("Reelwise person API error:", error);
+      const rejectWords =
+        /\b(early life|personal life|political|politics|religion|lawsuit|controversy|relationship|married|divorced|children|resides|residence)\b/i;
 
-    return res.status(500).json({
-      error: error.message || "Person lookup failed"
-    });
-  }
-}
+      return sentences
+        .filter(sentence =>
+          sentence.length >= 45 &&
+          sentence.length <= 430 &&
+          careerWords.test(sentence) &&
+          !rejectWords.test(sentence)
+        )
+        .map(sentence => {
+          let value =
+            cleanText(sentence);
+
+          if (name) {
+            value = value
+              .replace(/^He\b/, name)
+              .replace(/^She\b/, name)
+              .replace(/^They\b/, name);
+          }
+
+          return ensurePeriod(value);
+        });
+    }
+
+    function sentenceMentionsTitle(
+      sentence,
+      title
+    ) {
+      const cleanSentence =
+        cleanText(sentence)
+          .toLowerCase();
+
+      const cleanTitle =
+        cleanText(title)
+          .toLowerCase();
+
+      if (!cleanTitle) {
+        return false;
+      }
+
+      return cleanSentence.includes(
+        cleanTitle
+      );
+    }
+
+    function chooseDecadeCareerSentence(
+      sentences,
+      movies,
+      alreadyUsed
+    ) {
+      if (!movies?.length) {
+        return "";
+      }
+
+      const titles =
+        movies
+          .map(movie => movie.title)
+          .filter(Boolean);
+
+      const matching =
+        sentences.find(sentence => {
+          if (alreadyUsed.has(sentence)) {
+            return false;
+          }
+
+          return titles.some(title =>
+            sentenceMentionsTitle(
+              sentence,
+              title
+            )
+          );
+        });
+
+      return matching || "";
+    }
+
+    function buildFilmographySentence(
+      name,
+      decade,
+      movies = []
+    ) {
+      const selected =
+        movies
+          .slice(0, 3)
+          .map(movie => movie.title)
+          .filter(Boolean);
+
+      if (!selected.length) {
+        return "";
+      }
+
+      let titles = "";
+
+      if (selected.length === 1) {
+        titles = selected[0];
+      } else if (selected.length === 2) {
+        titles =
+          `${selected[0]} and ${selected[1]}`;
+      } else {
+        titles =
+          `${selected[0]}, ${selected[1]}, and ${selected[2]}`;
+      }
+
+      return ensurePeriod(
+        `During the ${decade}, ${name}'s film work included ${titles}`
+      );
+    }
+
+    function buildReelwiseBiography({
+      person,
+      credits,
+      wikipediaSummary,
+      wikipediaExtract
+    }) {
+      const name = person?.name || "This performer";
+      const timeline = buildCareerTimeline(credits);
+      const source = cleanText(
+        wikipediaExtract || wikipediaSummary || person?.biography || ""
+      );
+      const sourceSentences = sentenceSplit(source).filter(Boolean);
+      const summarySentences = sentenceSplit(
+        wikipediaSummary || person?.biography || ""
+      ).filter(Boolean);
+
+      /*
+        PERSON 57 — REELWISE BIOGRAPHY EDITOR
+
+        The source biography is research material, not finished copy.
+        We extract career facts, select the strongest milestones, then
+        rebuild a compact career story.
+
+        Target arc:
+          identity -> breakthrough -> defining period -> major/critical
+          milestone -> later-career chapter
+
+        Target length: 120–170 words. We never chop a sentence merely
+        to hit the limit.
+      */
+
+      const norm = value => cleanText(value)
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
+      const words = value =>
+        cleanText(value).split(/\s+/).filter(Boolean).length;
+
+      const yearsIn = value =>
+        [...String(value || "").matchAll(/\b(19\d{2}|20\d{2})\b/g)]
+          .map(m => Number(m[1]));
+
+      const careerWords = /\b(film|films|movie|movies|role|roles|performance|portrayed|played|starred|starring|career|breakthrough|fame|success|acclaim|acclaimed|recognition|franchise|comedy|comedies|drama|dramas|action|box.office|award|oscar|academy award|golden globe|bafta|emmy|nominated|nomination|won|directed|wrote|writer|producer|filmmaker)\b/i;
+      const noiseWords = /\b(personal life|relationship|married|divorce|children|political|religion|controversy|lawsuit|net worth|salary)\b/i;
+
+      const allNotable = (timeline.notable || []).filter(m => m?.title);
+      const titleHits = sentence => allNotable.filter(m =>
+        sentenceMentionsTitle(sentence, m.title)
+      );
+
+      function usable(sentence) {
+        const text = cleanText(sentence);
+        const wc = words(text);
+        if (!text || wc < 7 || wc > 58) return false;
+        if (noiseWords.test(text)) return false;
+        return careerWords.test(text) || titleHits(text).length > 0;
+      }
+
+      function identitySentence() {
+        const pool = [...summarySentences, ...sourceSentences];
+        const found = pool.find(sentence => {
+          const text = cleanText(sentence);
+          return text.length >= 25 && text.length <= 260 &&
+            /\b(is an?|was an?)\b/i.test(text) &&
+            /\b(actor|actress|comedian|filmmaker|director|producer|writer|performer)\b/i.test(text);
+        });
+        if (found) return ensurePeriod(cleanText(found));
+        return ensurePeriod(`${name} is a film actor and filmmaker`);
+      }
+
+      const intro = identitySentence();
+      const introYears = yearsIn(intro);
+      const birthYear = person?.birthday ? Number(String(person.birthday).slice(0, 4)) : null;
+
+      /* Prefer explicit source language for the breakthrough. */
+      const breakthrough = sourceSentences.find(sentence =>
+        usable(sentence) &&
+        /\b(breakthrough|rose to fame|achieved.*fame|worldwide fame|became.*star|star status|established.*career|critical and commercial success|gained.*recognition)\b/i.test(sentence)
+      ) || findBreakthroughSentence(source, name) || "";
+
+      const careerPool = sourceSentences
+        .filter(usable)
+        .filter(s => norm(s) !== norm(intro))
+        .filter(s => !breakthrough || norm(s) !== norm(breakthrough));
+
+      /*
+        Give source sentences a story score. A focused sentence with
+        one or two meaningful films beats an awards-only sentence or a
+        long title dump. Source chronology remains evidence; TMDB is
+        used only as a notability signal, never to invent a fact.
+      */
+      function scoreSentence(sentence) {
+        const hits = titleHits(sentence);
+        let score = 0;
+        if (hits.length === 1) score += 8;
+        else if (hits.length === 2) score += 7;
+        else if (hits.length === 3) score += 3;
+        else if (hits.length >= 4) score -= 5;
+
+        score += Math.min(8, hits.reduce((sum, movie) =>
+          sum + Math.max(0, movieRecognitionScore(movie)) / 40, 0));
+
+        if (/\b(iconic|defining|major|successful|success|acclaim|acclaimed|praised|signature|highest.paid|box.office)\b/i.test(sentence)) score += 4;
+        if (/\b(role|portrayed|played|performance|starred|starring|wrote|directed|created)\b/i.test(sentence)) score += 3;
+        if (/\b(academy award|oscar|golden globe|bafta|emmy|award|nominated|nomination|won)\b/i.test(sentence)) score += 2;
+        if (words(sentence) > 44) score -= 3;
+        return score;
+      }
+
+      const dated = careerPool.map((sentence, index) => {
+        const ys = yearsIn(sentence);
+        return {
+          sentence: ensurePeriod(cleanText(sentence)),
+          index,
+          years: ys,
+          year: ys.length ? Math.min(...ys) : null,
+          score: scoreSentence(sentence)
+        };
+      });
+
+      const knownYears = dated.map(x => x.year).filter(Boolean);
+      const firstCareerYear = timeline.firstYear || (birthYear ? birthYear + 18 : 1970);
+      const latestCareerYear = timeline.latestYear || Math.max(...knownYears, firstCareerYear + 20);
+      const span = Math.max(12, latestCareerYear - firstCareerYear);
+      const earlyEnd = firstCareerYear + Math.round(span * 0.38);
+      const midEnd = firstCareerYear + Math.round(span * 0.72);
+
+      function bestForRange(min, max, exclude = new Set()) {
+        return dated
+          .filter(x => x.year && x.year >= min && x.year <= max)
+          .filter(x => !exclude.has(norm(x.sentence)))
+          .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.sentence || "";
+      }
+
+      function bestUndated(exclude = new Set()) {
+        return dated
+          .filter(x => !x.year)
+          .filter(x => !exclude.has(norm(x.sentence)))
+          .sort((a, b) => b.score - a.score || a.index - b.index)[0]?.sentence || "";
+      }
+
+      const selected = [];
+      const used = new Set();
+      function add(sentence) {
+        const text = ensurePeriod(cleanText(sentence));
+        const key = norm(text);
+        if (!text || !key || used.has(key)) return;
+        used.add(key);
+        selected.push(text);
+      }
+
+      add(intro);
+      add(breakthrough);
+
+      const early = bestForRange(firstCareerYear, earlyEnd, used);
+      add(early);
+
+      const mid = bestForRange(earlyEnd + 1, midEnd, used);
+      add(mid);
+
+      const late = bestForRange(midEnd + 1, latestCareerYear + 2, used);
+      add(late);
+
+      /* Fill gaps with the best source-supported career facts. */
+      const ranked = [...dated].sort((a, b) => b.score - a.score || a.index - b.index);
+      for (const item of ranked) {
+        if (words(selected.join(" ")) >= 120) break;
+        add(item.sentence);
+      }
+      if (words(selected.join(" ")) < 120) add(bestUndated(used));
+
+      /*
+        Edit to the 120–170 word window by removing the weakest
+        nonessential sentences, while preserving identity and the
+        breakthrough whenever one was supported.
+      */
+      const protectedKeys = new Set([norm(intro), norm(breakthrough)].filter(Boolean));
+      while (words(selected.join(" ")) > 170 && selected.length > 3) {
+        let weakestIndex = -1;
+        let weakestScore = Infinity;
+        for (let i = 1; i < selected.length; i++) {
+          if (protectedKeys.has(norm(selected[i]))) continue;
+          const score = scoreSentence(selected[i]);
+          if (score < weakestScore) {
+            weakestScore = score;
+            weakestIndex = i;
+          }
+        }
+        if (weakestIndex < 0) break;
+        selected.splice(weakestIndex, 1);
+      }
+
+      /* Keep the narrative chronological after the opening. */
+      const opening = selected[0];
+      const rest = selected.slice(1).map((sentence, index) => ({
+        sentence,
+        index,
+        years: yearsIn(sentence)
+      }));
+      rest.sort((a, b) => {
+        const ay = a.years.length ? Math.min(...a.years) : 9999;
+        const by = b.years.length ? Math.min(...b.years) : 9999;
+        return ay - by || a.index - b.index;
+      });
+
+      let story = [opening, ...rest.map(x => x.sentence)].filter(Boolean).join(" ");
+
+      /* Never return an unbounded encyclopedia dump. */
+      if (words(story) > 185) {
+        story = selected.slice(0, 4).join(" ");
+      }
+
+      if (words(story) >= 70) return story;
+
+      const fallback = summarySentences
+        .filter(Boolean)
+        .slice(0, 4)
+        .map(ensurePeriod)
+        .join(" ");
+
+      return fallback || story || `${name} is a film actor and filmmaker.`;
+    }
+
+    /* ============================================================
+       WIKIDATA HELPERS
+       ============================================================ */
+
+    async function getWikidataEntity(
+      wikidataId
+    ) {
+      if (!wikidataId) {
+        return null;
+      }
+
+      try {
+        const url =
+          "https://www.wikidata.org/w/api.php?" +
+          new URLSearchParams({
+            action: "wbgetentities",
+            ids: wikidataId,
+            props: "claims|labels",
+            languages: "en",
+            format: "json",
+            origin: "*"
+          });
+
+        const data =
+          await fetchJSON(url);
+
+        return (
+          data?.entities?.[wikidataId] ||
+          null
+        );
+      } catch (error) {
+        console.error(
+          "Wikidata entity error:",
+          error
+        );
+
+        return null;
+      }
+    }
+
+    async function getWikidataLabels(
+      ids = []
+    ) {
+      const uniqueIds =
+        [
+          ...new Set(
+            ids.filter(Boolean)
+          )
+        ];
+
+      if (!uniqueIds.length) {
+        return {};
+      }
+
+      const all = {};
+
+      for (
+        let i = 0;
+        i < uniqueIds.length;
+        i += 40
+      ) {
+        const chunk =
+          uniqueIds.slice(i, i + 40);
+
+        try {
+          const url =
+            "https://www.wikidata.org/w/api.php?" +
+            new URLSearchParams({
+              action: "wbgetentities",
+              ids: chunk.join("|"),
+              props: "labels",
+              languages: "en",
+              format: "json",
+              origin: "*"
+            });
+
+          const data =
+            await fetchJSON(url);
+
+          Object.assign(
+            all,
+            data?.entities || {}
+          );
+        } catch (error) {
+          console.error(
+            "Wikidata labels error:",
+            error
+          );
+        }
+      }
+
+      return all;
+    }
+
+    function claimEntityId(claim) {
+      return (
+        claim
+          ?.mainsnak
+          ?.datavalue
+          ?.value
+          ?.id || ""
+      );
+    }
+
+    function qualifierEntityIds(
+      claim,
+      property
+    ) {
+      const values =
+        claim
+          ?.qualifiers
+          ?.[property] || [];
+
+      return values
+        .map(
+          item =>
+            item
+              ?.datavalue
+              ?.value
+              ?.id || ""
+        )
+        .filter(Boolean);
+    }
+
+    function qualifierYear(claim) {
+      const possibleProperties = [
+        "P585",
+        "P580",
+        "P582"
+      ];
+
+      for (
+        const property
+        of possibleProperties
+      ) {
+        const raw =
+          claim
+            ?.qualifiers
+            ?.[property]
+            ?.[0]
+            ?.datavalue
+            ?.value
+            ?.time || "";
+
+        const match =
+          raw.match(
+            /[+-](\d{4})-/
+          );
+
+        if (match) {
+          return Number(match[1]);
+        }
+      }
+
+      return null;
+    }
+
+
+    /* ============================================================
+       ACADEMY AWARD HELPERS
+       ============================================================ */
+
+    function isAcademyAwardText(
+      text = ""
+    ) {
+      const value =
+        String(text).toLowerCase();
+
+      return (
+        value.includes(
+          "academy award"
+        ) ||
+        value.includes("oscar")
+      );
+    }
+
+    function normalizeOscarCategory(
+      award = ""
+    ) {
+      let value =
+        cleanText(award);
+
+      value = value
+        .replace(
+          /^academy award for\s+/i,
+          "Best "
+        )
+        .replace(
+          /^academy awards? for\s+/i,
+          "Best "
+        );
+
+      value =
+        value.replace(
+          /^Best Best /i,
+          "Best "
+        );
+
+      return value;
+    }
+
+    function dedupeAwardHistory(
+      history = []
+    ) {
+      const seen = new Set();
+
+      return history.filter(item => {
+        const key = [
+          item.year || "",
+          item.movie || "",
+          item.category || "",
+          item.winner
+            ? "winner"
+            : "nominee"
+        ]
+          .join("|")
+          .toLowerCase();
+
+        if (seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+        return true;
+      });
+    }
+
+
+    /* ============================================================
+       ACADEMY AWARDS / ACCOLADES
+       ============================================================ */
+
+    async function getAwardsAndAccolades(
+      name,
+      knownWikidataId = ""
+    ) {
+      try {
+        let wikidataId =
+          knownWikidataId;
+
+        if (!wikidataId) {
+          const page =
+            await getWikipediaPage(name);
+
+          wikidataId =
+            page.wikidataId;
+        }
+
+        if (!wikidataId) {
+          return {
+            found: false,
+            wins: 0,
+            nominations: 0,
+            history: [],
+            academy_awards: [],
+            academyAwards: [],
+            accolades: []
+          };
+        }
+
+        const entity =
+          await getWikidataEntity(
+            wikidataId
+          );
+
+        const claims =
+          entity?.claims || {};
+
+        const winningClaims =
+          (claims.P166 || [])
+            .map(claim => ({
+              winner: true,
+
+              awardId:
+                claimEntityId(claim),
+
+              workIds:
+                qualifierEntityIds(
+                  claim,
+                  "P1686"
+                ),
+
+              ceremonyIds:
+                qualifierEntityIds(
+                  claim,
+                  "P805"
+                ),
+
+              year:
+                qualifierYear(claim)
+            }));
+
+        const nominationClaims =
+          (claims.P1411 || [])
+            .map(claim => ({
+              winner: false,
+
+              awardId:
+                claimEntityId(claim),
+
+              workIds:
+                qualifierEntityIds(
+                  claim,
+                  "P1686"
+                ),
+
+              ceremonyIds:
+                qualifierEntityIds(
+                  claim,
+                  "P805"
+                ),
+
+              year:
+                qualifierYear(claim)
+            }));
+
+        const rawClaims = [
+          ...winningClaims,
+          ...nominationClaims
+        ].filter(
+          item => item.awardId
+        );
+
+        if (!rawClaims.length) {
+          return {
+            found: false,
+            wins: 0,
+            nominations: 0,
+            history: [],
+            academy_awards: [],
+            academyAwards: [],
+            accolades: []
+          };
+        }
+
+        const idsToResolve =
+          rawClaims.flatMap(item => [
+            item.awardId,
+            ...item.workIds,
+            ...item.ceremonyIds
+          ]);
+
+        const labels =
+          await getWikidataLabels(
+            idsToResolve
+          );
+
+        const labelFor = id =>
+          labels
+            ?.[id]
+            ?.labels
+            ?.en
+            ?.value || "";
+
+        const formatted =
+          rawClaims.map(item => {
+            const award =
+              labelFor(
+                item.awardId
+              );
+
+            const work =
+              item.workIds
+                .map(labelFor)
+                .find(Boolean) || "";
+
+            const ceremony =
+              item.ceremonyIds
+                .map(labelFor)
+                .find(Boolean) || "";
+
+            return {
+              award,
+              work,
+              ceremony,
+              year: item.year,
+              winner: item.winner
+            };
+          });
+
+        const academy =
+          formatted.filter(item =>
+            isAcademyAwardText(
+              `${item.award} ${item.ceremony}`
+            )
+          );
+
+        let history =
+          academy.map(item => ({
+            year:
+              item.year
+                ? String(item.year)
+                : "",
+
+            movie:
+              item.work || "",
+
+            category:
+              normalizeOscarCategory(
+                item.award
+              ) ||
+              "Academy Award",
+
+            winner:
+              Boolean(item.winner)
+          }));
+
+        history =
+          dedupeAwardHistory(
+            history
+          );
+
+        /*
+          If the same nomination appears once as a nomination and
+          once as a win, keep the winning version.
+        */
+
+        history =
+          history.filter(
+            item => {
+              if (item.winner) {
+                return true;
+              }
+
+              const matchingWinner =
+                history.some(other =>
+                  other.winner &&
+                  other.year === item.year &&
+                  other.movie === item.movie &&
+                  other.category ===
+                    item.category
+                );
+
+              return !matchingWinner;
+            }
+          );
+
+        history.sort((a, b) => {
+          const yearA =
+            Number(a.year) || 0;
+
+          const yearB =
+            Number(b.year) || 0;
+
+          return yearB - yearA;
+        });
+
+        const wins =
+          history.filter(
+            item => item.winner
+          ).length;
+
+        const nominations =
+          history.length;
+
+        const academyAwards =
+          history.map(item => ({
+            award: item.category,
+
+            result:
+              item.winner
+                ? "Winner"
+                : "Nominee",
+
+            year: item.year,
+            work: item.movie,
+            ceremony: ""
+          }));
+
+        return {
+          found:
+            history.length > 0,
+
+          wins,
+
+          nominations,
+
+          history,
+
+          academy_awards:
+            academyAwards,
+
+          academyAwards,
+
+          accolades:
+            academyAwards
+        };
+
+      } catch (error) {
+        console.error(
+          "Awards/accolades error:",
+          error
+        );
+
+        return {
+          found: false,
+          wins: 0,
+          nominations: 0,
+          history: [],
+          academy_awards: [],
+          academyAwards: [],
+          accolades: []
+        };
+      }
+    }
+
+
+    /* ============================================================
+       API HANDLER
+       ============================================================ */
+
+    export default async function handler(
+      req,
+      res
+    ) {
+      try {
+
+        if (!TOKEN) {
+          return res.status(500).json({
+            error:
+              "TMDB_READ_ACCESS_TOKEN is missing."
+          });
+        }
+
+        const personId =
+          req.query.id ||
+          req.query.personId ||
+          req.query.person_id;
+
+        if (!personId) {
+          return res.status(400).json({
+            error:
+              "Person ID is required."
+          });
+        }
+
+        const mode =
+          String(
+            req.query.mode || ""
+          ).toLowerCase();
+
+        /*
+          Get the TMDB person first. We need the verified person
+          name before resolving Wikipedia/Wikidata.
+        */
+
+        const person =
+          await getPersonDetails(
+            personId
+          );
+
+        const wikipediaPage =
+          await getWikipediaPage(
+            person.name
+          );
+
+
+        /* ========================================================
+           ACCOLADES MODE
+
+           IMPORTANT:
+           This preserves the working response format expected by
+           the current Reelwise index.html.
+           ======================================================== */
+
+        if (mode === "accolades") {
+
+          const awardsData =
+            await getAwardsAndAccolades(
+              person.name,
+              wikipediaPage.wikidataId
+            );
+
+          return res
+            .status(200)
+            .json({
+              id: person.id,
+
+              name:
+                person.name || "",
+
+              found:
+                awardsData.found,
+
+              wins:
+                awardsData.wins,
+
+              nominations:
+                awardsData.nominations,
+
+              history:
+                awardsData.history,
+
+              academy_awards:
+                awardsData.academy_awards,
+
+              academyAwards:
+                awardsData.academyAwards,
+
+              accolades:
+                awardsData.accolades
+            });
+        }
+
+
+        /* ========================================================
+           NORMAL STAR PROFILE MODE
+           ======================================================== */
+
+        const [
+          credits,
+          wikipediaSummary,
+          wikipediaExtract
+        ] =
+          await Promise.all([
+            getMovieCredits(personId),
+            getWikipediaSummary(
+              wikipediaPage.title
+            ),
+            getWikipediaExtract(
+              wikipediaPage.title
+            )
+          ]);
+
+        /*
+          Build the Reelwise story-driven career biography.
+
+          This uses factual Wikipedia career material plus TMDB
+          filmography chronology. It does not automatically invent
+          a breakthrough role.
+        */
+
+        const biography =
+          buildReelwiseBiography({
+            person,
+            credits,
+            wikipediaSummary,
+            wikipediaExtract
+          });
+
+        const knownFor =
+          buildKnownFor(
+            credits
+          );
+
+        /*
+          Keep awards in the normal response for compatibility.
+        */
+
+        const awardsData =
+          await getAwardsAndAccolades(
+            person.name,
+            wikipediaPage.wikidataId
+          );
+
+        return res
+          .status(200)
+          .json({
+
+            id:
+              person.id,
+
+            name:
+              person.name || "",
+
+            birthday:
+              person.birthday || null,
+
+            deathday:
+              person.deathday || null,
+
+            place_of_birth:
+              person.place_of_birth || "",
+
+            biography,
+
+            profile_path:
+              person.profile_path || null,
+
+            homepage:
+              person.homepage || null,
+
+            imdb_id:
+              person.imdb_id || null,
+
+            known_for_department:
+              person.known_for_department || "",
+
+            popularity:
+              person.popularity || 0,
+
+            known_for:
+              knownFor,
+
+            academy_awards:
+              awardsData.academy_awards,
+
+            academyAwards:
+              awardsData.academyAwards,
+
+            accolades:
+              awardsData.accolades,
+
+            /*
+              Compatibility aliases used by older Reelwise code.
+            */
+
+            knownFor,
+
+            movies:
+              knownFor
+          });
+
+      } catch (error) {
+
+        console.error(
+          "Reelwise person API error:",
+          error
+        );
+
+        return res
+          .status(500)
+          .json({
+            error:
+              "Unable to load star profile.",
+
+            details:
+              error.message
+          });
+      }
+    }
