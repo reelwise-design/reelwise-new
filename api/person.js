@@ -466,19 +466,21 @@
 
                     function chooseCareerSentences(articleText, person) {
                       /*
-                        PERSON 52 — FACT-FIRST BIOGRAPHY ENGINE
+                        PERSON 53 — UNIFIED CAREER-SIGNIFICANCE ENGINE
 
-                        Source prose is evidence, not finished Reelwise prose.
-                        We extract:
-                          • identity / nationality / profession
-                          • breakthrough
-                          • essential career films
-                          • awards/acclaim
-                          • later-career work
-                        Then Reelwise writes a new concise biography from those facts.
+                        Goals:
+                        1. Every actor goes through the same biography builder.
+                        2. Source text is evidence, never the finished biography.
+                        3. Career significance outranks simple chronology.
+                        4. Breakthrough, signature roles/franchises, acclaimed work,
+                           major starring vehicles and later-career landmarks receive
+                           independent signals.
+                        5. Avoid weak cameos, producer/director-only credits, repeated
+                           sequels and incidental title mentions.
 
                         No actor or movie title is hard-coded.
                       */
+
                       const cleanedArticleText = cleanBiographySource(
                         articleText,
                         person?.name || ""
@@ -498,6 +500,7 @@
 
                       const movies = getMovieCredits(person);
                       const name = cleanText(person?.name || "This performer");
+                      const lastName = name.split(/\s+/).slice(-1)[0] || name;
 
                       if (!sentences.length) return "";
 
@@ -510,8 +513,7 @@
                           .trim();
 
                       const yearOf = movie => {
-                        const value = String(movie?.release_date || "").slice(0, 4);
-                        const year = Number(value);
+                        const year = Number(String(movie?.release_date || "").slice(0, 4));
                         return Number.isFinite(year) ? year : 0;
                       };
 
@@ -522,19 +524,11 @@
                         return new RegExp(`\\b${escaped}\\b`, "i");
                       };
 
-                      const movieEvidence = movie => {
-                        const title = cleanText(movie?.title || "");
-                        if (!title) return [];
-
-                        const pattern = titlePattern(title);
-
+                      const evidenceFor = movie => {
+                        if (!movie?.title) return [];
+                        const pattern = titlePattern(movie.title);
                         return sentences.filter(sentence => pattern.test(sentence));
                       };
-
-                      const allEvidence = movies.map(movie => ({
-                        movie,
-                        evidence: movieEvidence(movie)
-                      }));
 
                       const personalTerms =
                         /\b(married|marriage|wife|husband|spouse|children|daughter|son|personal life|resides|politic|religion|charity|philanthrop)\b/i;
@@ -543,353 +537,408 @@
                         /\b(plot|story follows|centers on|centres on|character who|film follows|portrays a .* who)\b/i;
 
                       const publicityTerms =
-                        /\b(trailer|premiere|festival premiere|announced|upcoming|set to star|attached to|casting was announced)\b/i;
+                        /\b(trailer|premiere|festival premiere|announced|upcoming|set to star|attached to|casting was announced|will star|will appear)\b/i;
 
                       const breakthroughTerms =
-                        /\b(breakthrough|breakout|rose to prominence|rose to fame|gained prominence|achieved fame|worldwide fame|star-making|made .* famous|became a star|launched .* career)\b/i;
+                        /\b(breakthrough|breakout|rose to prominence|rose to fame|gained prominence|achieved fame|worldwide fame|star-making|made .* famous|became a star|launched .* career|first major role)\b/i;
 
                       const signatureTerms =
-                        /\b(best known|known for|iconic|signature|defining|major success|commercial success|critical success|acclaim|acclaimed|career-defining|famous role|most famous|successful franchise|franchise)\b/i;
+                        /\b(best known|known for|iconic|signature|defining|career-defining|most famous|famous role|identified with|closely associated|successful franchise|franchise)\b/i;
+
+                      const successTerms =
+                        /\b(box office|box-office|commercial success|commercially successful|major success|hit film|blockbuster|highest-grossing|grossed|successful film)\b/i;
+
+                      const acclaimTerms =
+                        /\b(critical acclaim|critically acclaimed|acclaimed|praised|career-best|dramatic range|breakthrough performance)\b/i;
 
                       const awardTerms =
-                        /\b(academy award|oscar|golden globe|bafta|screen actors guild|sag award|emmy|cannes|venice|award|awards|nominated|nomination|won|winner)\b/i;
+                        /\b(academy award|oscar|golden globe|bafta|screen actors guild|sag award|emmy|cannes|venice|independent spirit|award|awards|nominated|nomination|won|winner)\b/i;
 
-                      const professionWords = [
+                      const leadTerms =
+                        /\b(starred|starring|lead role|leading role|protagonist|portrayed|played the role|title role)\b/i;
+
+                      const weakCreditTerms =
+                        /\b(cameo|uncredited|voice cameo|archive footage|special appearance|producer only|executive producer)\b/i;
+
+                      /*
+                        Identity sentence: derive nationality and primary professions from
+                        the source opening, but rewrite it in Reelwise voice.
+                      */
+                      const identitySource = sentences.slice(0, 6).find(sentence =>
+                        new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(sentence) &&
+                        /\b(actor|actress|filmmaker|comedian|producer|writer|director|screenwriter|singer)\b/i.test(sentence)
+                      ) || sentences.slice(0, 6).find(sentence =>
+                        /\b(actor|actress|filmmaker|comedian|producer|writer|director|screenwriter|singer)\b/i.test(sentence)
+                      ) || "";
+
+                      const nationalityMatch = identitySource.match(
+                        /\b(?:is|was)\s+(?:an?\s+)?([A-Z][A-Za-z-]+(?:\s+[A-Z][A-Za-z-]+)?)\s+(?:actor|actress|filmmaker|comedian|producer|writer|director|screenwriter|singer)\b/
+                      );
+
+                      const nationality = nationalityMatch
+                        ? cleanText(nationalityMatch[1])
+                        : "";
+
+                      const professionPriority = [
+                        "comedian",
                         "actor",
                         "actress",
                         "filmmaker",
-                        "comedian",
+                        "director",
                         "producer",
                         "writer",
-                        "director",
                         "screenwriter",
                         "singer"
                       ];
 
-                      const nationalityMatch = sentences
-                        .slice(0, 6)
-                        .map(sentence =>
-                          sentence.match(
-                            /\b(is|was)\s+(?:an?\s+)?([A-Z][A-Za-z-]+(?:\s+[A-Z][A-Za-z-]+)?)\s+(actor|actress|filmmaker|comedian|producer|writer|director|screenwriter|singer)\b/
-                          )
-                        )
-                        .find(Boolean);
-
-                      const nationality = nationalityMatch
-                        ? cleanText(nationalityMatch[2])
-                        : "";
-
-                      const professionSet = new Set();
-
-                      for (const sentence of sentences.slice(0, 5)) {
-                        const lower = sentence.toLowerCase();
-                        for (const word of professionWords) {
-                          if (new RegExp(`\\b${word}\\b`, "i").test(lower)) {
-                            professionSet.add(word);
-                          }
-                        }
-                      }
-
-                      let professions = [...professionSet];
+                      let professions = professionPriority.filter(word =>
+                        new RegExp(`\\b${word}\\b`, "i").test(identitySource)
+                      );
 
                       /*
-                        Keep the opening readable. Actor/actress first, then at most one
-                        additional primary profession.
+                        Actor/actress should remain visible when present.
+                        Preserve up to three primary roles when the source explicitly
+                        identifies them.
                       */
-                      const actingWord = professions.includes("actress")
+                      const acting = professions.includes("actress")
                         ? "actress"
                         : professions.includes("actor")
                           ? "actor"
                           : "";
 
-                      if (actingWord) {
+                      if (acting) {
                         professions = [
-                          actingWord,
+                          acting,
                           ...professions.filter(word =>
                             word !== "actor" && word !== "actress"
                           )
                         ];
                       }
 
-                      professions = professions.slice(0, 2);
-
-                      if (!professions.length) {
-                        professions = ["performer"];
-                      }
+                      professions = [...new Set(professions)].slice(0, 3);
+                      if (!professions.length) professions = ["performer"];
 
                       const professionPhrase =
                         professions.length === 1
                           ? professions[0]
-                          : `${professions[0]} and ${professions[1]}`;
+                          : professions.length === 2
+                            ? `${professions[0]} and ${professions[1]}`
+                            : `${professions[0]}, ${professions[1]} and ${professions[2]}`;
 
-                      const article =
-                        /^[aeiou]/i.test(nationality || professionPhrase)
-                          ? "an"
-                          : "a";
+                      const article = /^[aeiou]/i.test(nationality || professionPhrase)
+                        ? "an"
+                        : "a";
 
                       const opening = nationality
                         ? `${name} is ${article} ${nationality} ${professionPhrase}.`
                         : `${name} is ${article} ${professionPhrase}.`;
 
                       /*
-                        Build a significance score from multiple independent signals.
-                        Crucially, a source sentence does not become the bio sentence.
+                        A film must have real career evidence. We distinguish incidental
+                        mentions from evidence about the performer's role/career.
                       */
-                      const creditScore = movie => {
-                        const evidence = movieEvidence(movie);
+                      const meaningfulEvidence = movie =>
+                        evidenceFor(movie).filter(sentence =>
+                          !personalTerms.test(sentence) &&
+                          !plotTerms.test(sentence) &&
+                          !publicityTerms.test(sentence) &&
+                          !weakCreditTerms.test(sentence)
+                        );
+
+                      const significance = movie => {
+                        const evidence = meaningfulEvidence(movie);
                         const order = Number.isFinite(Number(movie?.order))
                           ? Number(movie.order)
                           : 99;
                         const votes = Number(movie?.vote_count || 0);
                         const rating = Number(movie?.vote_average || 0);
 
-                        const billing =
-                          order === 0 ? 42 :
-                          order === 1 ? 34 :
-                          order === 2 ? 27 :
-                          order === 3 ? 19 :
-                          order <= 5 ? 10 : 0;
+                        let score = 0;
 
-                        const recognition =
-                          Math.log10(Math.max(votes, 1)) * 11;
+                        /* Audience recognition — useful, but never dominant. */
+                        score += Math.min(Math.log10(Math.max(votes, 1)) * 10, 52);
+                        score += Math.max(rating - 5.5, 0) * 2;
 
-                        const quality =
-                          Math.max(rating - 5, 0) * 3;
+                        /* Billing / prominence in the film. */
+                        if (order === 0) score += 52;
+                        else if (order === 1) score += 44;
+                        else if (order === 2) score += 35;
+                        else if (order === 3) score += 25;
+                        else if (order <= 5) score += 12;
 
-                        const sourceMentions =
-                          Math.min(evidence.length, 4) * 24;
+                        /* Repeated career-source attention. */
+                        score += Math.min(evidence.length, 4) * 18;
 
-                        const sourceImportance = evidence.reduce((score, sentence) => {
-                          let boost = 0;
-                          if (breakthroughTerms.test(sentence)) boost += 105;
-                          if (signatureTerms.test(sentence)) boost += 80;
-                          if (awardTerms.test(sentence)) boost += 58;
-                          return Math.max(score, boost);
-                        }, 0);
+                        for (const sentence of evidence) {
+                          if (breakthroughTerms.test(sentence)) score += 170;
+                          if (signatureTerms.test(sentence)) score += 120;
+                          if (awardTerms.test(sentence)) score += 105;
+                          if (acclaimTerms.test(sentence)) score += 80;
+                          if (successTerms.test(sentence)) score += 68;
+                          if (leadTerms.test(sentence)) score += 32;
+                        }
 
-                        return billing + recognition + quality +
-                          sourceMentions + sourceImportance;
+                        return score;
                       };
 
                       const validMovies = movies
                         .filter(movie =>
+                          movie?.id &&
                           movie?.title &&
                           yearOf(movie) &&
-                          movieEvidence(movie).length
+                          meaningfulEvidence(movie).length
                         );
 
                       /*
-                        Breakthrough fact: source language wins.
+                        Breakthrough: explicit source evidence first. If unavailable,
+                        choose an early, high-significance starring film rather than the
+                        globally highest-scoring title.
                       */
-                      const breakthroughCandidates = validMovies
+                      const explicitBreakthrough = validMovies
                         .filter(movie =>
-                          movieEvidence(movie).some(sentence =>
+                          meaningfulEvidence(movie).some(sentence =>
                             breakthroughTerms.test(sentence)
                           )
                         )
                         .sort((a, b) =>
                           yearOf(a) - yearOf(b) ||
-                          creditScore(b) - creditScore(a)
-                        );
+                          significance(b) - significance(a)
+                        )[0] || null;
 
-                      const breakthroughMovie =
-                        breakthroughCandidates[0] ||
-                        [...validMovies].sort((a, b) =>
-                          creditScore(b) - creditScore(a) ||
-                          yearOf(a) - yearOf(b)
-                        )[0] ||
-                        null;
-
-                      const breakthroughYear =
-                        breakthroughMovie ? yearOf(breakthroughMovie) : 0;
-
-                      /*
-                        Essential films are chosen by career-era coverage, not one global
-                        winner. Require source evidence, then choose strong representatives
-                        from early, middle, and later phases.
-                      */
                       const careerYears = validMovies.map(yearOf).filter(Boolean);
                       const firstYear = careerYears.length ? Math.min(...careerYears) : 0;
                       const lastYear = careerYears.length ? Math.max(...careerYears) : 0;
-                      const anchorYear = breakthroughYear || firstYear;
-                      const span = anchorYear && lastYear ? lastYear - anchorYear : 0;
 
-                      const earlyEnd = anchorYear ? anchorYear + Math.max(8, Math.round(span * 0.30)) : 0;
-                      const midEnd = anchorYear ? anchorYear + Math.max(16, Math.round(span * 0.68)) : 0;
-
-                      const usable = validMovies.filter(movie => {
-                        const evidence = movieEvidence(movie);
-                        return evidence.some(sentence =>
-                          !personalTerms.test(sentence) &&
-                          !plotTerms.test(sentence) &&
-                          !publicityTerms.test(sentence)
-                        );
-                      });
-
-                      const pickDistinct = (pool, limit, excluded = []) => {
-                        const picks = [];
-                        const excludedIds = new Set(excluded.filter(Boolean).map(movie => movie.id));
-
-                        for (const movie of [...pool].sort((a, b) =>
-                          creditScore(b) - creditScore(a) ||
+                      const earlyFallback = [...validMovies]
+                        .filter(movie =>
+                          !firstYear || yearOf(movie) <= firstYear + 12
+                        )
+                        .sort((a, b) =>
+                          significance(b) - significance(a) ||
                           yearOf(a) - yearOf(b)
-                        )) {
-                          if (excludedIds.has(movie.id)) continue;
-                          if (picks.some(existing => existing.id === movie.id)) continue;
+                        )[0] || null;
 
-                          /*
-                            Do not fill a chapter with sequels from the same obvious title
-                            family when another major film is available.
-                          */
-                          const baseWords = normalize(movie.title)
-                            .split(" ")
-                            .filter(word => word.length >= 4);
+                      const breakthroughMovie = explicitBreakthrough || earlyFallback;
+                      const breakthroughYear = breakthroughMovie
+                        ? yearOf(breakthroughMovie)
+                        : firstYear;
 
-                          const sameSeries = picks.some(existing => {
-                            const other = normalize(existing.title);
-                            return baseWords.length &&
-                              baseWords.some(word => other.includes(word));
-                          });
+                      /*
+                        Group obvious franchise relatives. This prevents a biography from
+                        spending multiple slots on sequels while omitting another defining
+                        part of the career.
+                      */
+                      const titleTokens = title =>
+                        normalize(title)
+                          .split(" ")
+                          .filter(word =>
+                            word.length >= 4 &&
+                            !/^(part|chapter|movie|film|returns|return|forever|again)$/.test(word) &&
+                            !/^\d+$/.test(word)
+                          );
 
-                          if (sameSeries) continue;
+                      const sameFamily = (a, b) => {
+                        const aa = titleTokens(a?.title || "");
+                        const bb = titleTokens(b?.title || "");
+                        if (!aa.length || !bb.length) return false;
+
+                        const overlap = aa.filter(word => bb.includes(word));
+                        return overlap.length >= Math.min(2, aa.length, bb.length) ||
+                          (overlap.length >= 1 &&
+                           Math.min(aa.length, bb.length) === 1);
+                      };
+
+                      const selected = [];
+                      const addMovie = movie => {
+                        if (!movie) return false;
+                        if (selected.some(item => item.id === movie.id)) return false;
+                        if (selected.some(item => sameFamily(item, movie))) return false;
+                        selected.push(movie);
+                        return true;
+                      };
+
+                      if (breakthroughMovie) addMovie(breakthroughMovie);
+
+                      /*
+                        Career chapters. A title must clear a significance floor.
+                        This is the key Person 53 change: chronology only decides WHERE
+                        a film belongs after significance decides WHETHER it belongs.
+                      */
+                      const span = breakthroughYear && lastYear
+                        ? Math.max(lastYear - breakthroughYear, 1)
+                        : 1;
+
+                      const earlyEnd = breakthroughYear + Math.max(9, Math.round(span * 0.30));
+                      const middleEnd = breakthroughYear + Math.max(18, Math.round(span * 0.68));
+
+                      const strongMovies = validMovies
+                        .filter(movie => significance(movie) >= 92)
+                        .sort((a, b) =>
+                          significance(b) - significance(a) ||
+                          yearOf(a) - yearOf(b)
+                        );
+
+                      const pickChapter = (minYear, maxYear, limit) => {
+                        const picks = [];
+
+                        for (const movie of strongMovies) {
+                          const year = yearOf(movie);
+                          if (minYear && year < minYear) continue;
+                          if (maxYear && year > maxYear) continue;
+                          if (selected.some(item => item.id === movie.id)) continue;
+                          if ([...selected, ...picks].some(item => sameFamily(item, movie))) continue;
 
                           picks.push(movie);
                           if (picks.length >= limit) break;
                         }
 
+                        picks.forEach(addMovie);
                         return picks;
                       };
 
-                      const earlyPool = usable.filter(movie =>
-                        (!earlyEnd || yearOf(movie) <= earlyEnd)
+                      const earlyPicks = pickChapter(
+                        breakthroughYear || firstYear,
+                        earlyEnd,
+                        3
                       );
 
-                      const midPool = usable.filter(movie =>
-                        earlyEnd &&
-                        yearOf(movie) > earlyEnd &&
-                        (!midEnd || yearOf(movie) <= midEnd)
+                      const midPicks = pickChapter(
+                        earlyEnd + 1,
+                        middleEnd,
+                        2
                       );
 
-                      const latePool = usable.filter(movie =>
-                        midEnd && yearOf(movie) > midEnd
+                      const latePicks = pickChapter(
+                        middleEnd + 1,
+                        lastYear || 9999,
+                        2
                       );
 
-                      const earlyPicks = pickDistinct(
-                        earlyPool,
-                        3,
-                        [breakthroughMovie]
-                      );
+                      /*
+                        If a chapter is sparse, fill only with truly high-significance
+                        titles from the whole career. Never lower the quality bar just to
+                        fill a sentence.
+                      */
+                      const fillPicks = [];
+                      for (const movie of strongMovies) {
+                        if (selected.some(item => item.id === movie.id)) continue;
+                        if ([...selected, ...fillPicks].some(item => sameFamily(item, movie))) continue;
+                        if (significance(movie) < 125) continue;
 
-                      const midPicks = pickDistinct(
-                        midPool,
-                        2,
-                        [breakthroughMovie, ...earlyPicks]
-                      );
+                        fillPicks.push(movie);
+                        if (fillPicks.length >= 2) break;
+                      }
 
-                      const latePicks = pickDistinct(
-                        latePool,
-                        2,
-                        [breakthroughMovie, ...earlyPicks, ...midPicks]
-                      );
+                      fillPicks.forEach(addMovie);
 
-                      const fmt = movie =>
-                        `${movie.title} (${yearOf(movie)})`;
+                      const fmt = movie => `${movie.title} (${yearOf(movie)})`;
 
                       const list = items => {
                         const values = items.map(fmt);
-                        if (values.length === 0) return "";
+                        if (!values.length) return "";
                         if (values.length === 1) return values[0];
                         if (values.length === 2) return `${values[0]} and ${values[1]}`;
                         return `${values.slice(0, -1).join(", ")}, and ${values[values.length - 1]}`;
                       };
 
-                      const output = [opening];
-
-                      if (breakthroughMovie) {
-                        output.push(
-                          `${name.split(" ").slice(-1)[0]} broke through with ${fmt(breakthroughMovie)}.`
-                        );
-                      }
-
-                      if (earlyPicks.length) {
-                        output.push(
-                          `Other important early work included ${list(earlyPicks)}.`
-                        );
-                      }
-
-                      if (midPicks.length) {
-                        output.push(
-                          `Major work in the next phase of ${/actress/i.test(professionPhrase) ? "her" : "his"} career included ${list(midPicks)}.`
-                        );
-                      }
-
                       /*
-                        Award/acclaim fact: retain one concise source-backed sentence.
-                        Unlike Person 52, it is not allowed to choose the career films.
+                        Awards: prefer a sentence tied to a selected/significant movie,
+                        and prefer actual wins/nominations over box-office trivia.
                       */
-                      const awardSentence = sentences
+                      const awardCandidates = sentences
                         .filter(sentence =>
                           awardTerms.test(sentence) &&
                           !personalTerms.test(sentence) &&
                           !plotTerms.test(sentence) &&
                           !publicityTerms.test(sentence)
                         )
-                        .sort((a, b) => {
-                          const aMovies = validMovies.filter(movie =>
-                            titlePattern(movie.title).test(a)
-                          );
-                          const bMovies = validMovies.filter(movie =>
-                            titlePattern(movie.title).test(b)
+                        .map(sentence => {
+                          const linked = validMovies.filter(movie =>
+                            titlePattern(movie.title).test(sentence)
                           );
 
-                          const aScore = aMovies.reduce(
-                            (best, movie) => Math.max(best, creditScore(movie)),
-                            0
-                          );
-                          const bScore = bMovies.reduce(
-                            (best, movie) => Math.max(best, creditScore(movie)),
+                          let score = linked.reduce(
+                            (best, movie) => Math.max(best, significance(movie)),
                             0
                           );
 
-                          return bScore - aScore || a.length - b.length;
-                        })[0] || "";
+                          if (/\b(won|winner|academy award|oscar)\b/i.test(sentence)) score += 90;
+                          if (/\b(nominated|nomination)\b/i.test(sentence)) score += 45;
+                          if (/\b(grossed|box office|box-office)\b/i.test(sentence)) score -= 35;
 
-                      if (awardSentence) {
-                        /*
-                          Keep award wording only when it is already concise. Otherwise,
-                          synthesize a neutral recognition line from the award-linked film.
-                        */
-                        if (awardSentence.length <= 270) {
-                          output.push(awardSentence);
-                        } else {
-                          const awardMovies = validMovies
-                            .filter(movie => titlePattern(movie.title).test(awardSentence))
-                            .sort((a, b) => creditScore(b) - creditScore(a));
+                          return { sentence, linked, score };
+                        })
+                        .sort((a, b) =>
+                          b.score - a.score ||
+                          a.sentence.length - b.sentence.length
+                        );
 
-                          if (awardMovies.length) {
-                            output.push(
-                              `${fmt(awardMovies[0])} brought major awards recognition.`
-                            );
-                          }
+                      const bestAward = awardCandidates[0] || null;
+
+                      const output = [opening];
+
+                      if (breakthroughMovie) {
+                        output.push(
+                          `${lastName} broke through with ${fmt(breakthroughMovie)}.`
+                        );
+                      }
+
+                      if (earlyPicks.length) {
+                        output.push(
+                          `Other defining early work included ${list(earlyPicks)}.`
+                        );
+                      }
+
+                      if (midPicks.length) {
+                        output.push(
+                          `Major work in the next phase of ${acting === "actress" ? "her" : "his"} career included ${list(midPicks)}.`
+                        );
+                      }
+
+                      if (bestAward && bestAward.score >= 100) {
+                        if (bestAward.sentence.length <= 250) {
+                          output.push(bestAward.sentence);
+                        } else if (bestAward.linked.length) {
+                          const awardMovie = [...bestAward.linked]
+                            .sort((a, b) => significance(b) - significance(a))[0];
+
+                          output.push(
+                            `${fmt(awardMovie)} brought major awards recognition.`
+                          );
                         }
                       }
 
-                      if (latePicks.length) {
+                      const later = [...latePicks, ...fillPicks]
+                        .filter((movie, index, arr) =>
+                          arr.findIndex(item => item.id === movie.id) === index
+                        )
+                        .filter(movie =>
+                          !earlyPicks.some(item => item.id === movie.id) &&
+                          !midPicks.some(item => item.id === movie.id) &&
+                          movie?.id !== breakthroughMovie?.id
+                        )
+                        .slice(0, 2);
+
+                      if (later.length) {
                         output.push(
-                          `Later career highlights included ${list(latePicks)}.`
+                          `Later career highlights included ${list(later)}.`
                         );
                       }
 
                       /*
-                        De-duplicate repeated meanings/titles and keep the card concise.
+                        Final cleanup: no repeated sentences, no duplicate title clauses,
+                        and no bloated card.
                       */
                       const final = [];
                       const seen = new Set();
 
                       for (const sentence of output) {
-                        const clean = cleanText(sentence);
-                        const key = normalize(clean);
+                        const clean = cleanText(sentence)
+                          .replace(/\s+([,.;:!?])/g, "$1")
+                          .replace(/\(\s+/g, "(")
+                          .replace(/\s+\)/g, ")");
 
+                        const key = normalize(clean);
                         if (!clean || !key || seen.has(key)) continue;
 
                         final.push(clean);
@@ -898,16 +947,11 @@
                         if (final.length >= 6) break;
                       }
 
-                      let biography = final.join(" ");
-
-                      if (biography.length > 900) {
-                        while (final.length > 3 && final.join(" ").length > 900) {
-                          final.splice(final.length - 2, 1);
-                        }
-                        biography = final.join(" ");
+                      while (final.length > 3 && final.join(" ").length > 900) {
+                        final.splice(final.length - 2, 1);
                       }
 
-                      return biography;
+                      return final.join(" ");
                     }
 
                     function calculatePersonAge(birthday, deathday = null) {
