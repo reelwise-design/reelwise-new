@@ -1148,6 +1148,32 @@
                         return false;
                       };
 
+                      /*
+                        PERSON 50 — SIGNATURE WORK SCORE
+
+                        The old scorer could mistake a currently popular or heavily voted
+                        movie for the film that actually defines a star's career. Reelwise
+                        now treats the source article as evidence: breakthrough language,
+                        awards/acclaim, franchise/recurring-character evidence, and repeated
+                        discussion all outrank raw TMDB popularity. No actor or title is
+                        hard-coded.
+                      */
+                      const sourceEvidenceForMovie = movie => {
+                        const title = String(movie?.title || "").trim();
+                        if (!title) return { mentions: 0, breakthrough: false, signature: false, award: false };
+
+                        const items = careerCandidates.filter(item =>
+                          item.matches.some(match => match.id === movie.id)
+                        );
+
+                        return {
+                          mentions: items.length,
+                          breakthrough: items.some(item => breakthroughTerms.test(item.sentence)),
+                          signature: items.some(item => signatureCareerTerms.test(item.sentence)),
+                          award: items.some(item => awardTerms.test(item.sentence))
+                        };
+                      };
+
                       const nonFranchiseSignatureScore = movie => {
                         const votes = Number(movie?.vote_count || 0);
                         const rating = Number(movie?.vote_average || 0);
@@ -1155,27 +1181,31 @@
                         const order = Number.isFinite(Number(movie?.order))
                           ? Number(movie.order)
                           : 99;
+                        const evidence = sourceEvidenceForMovie(movie);
+                        const recurringCount = recurringCharacterCounts.get(characterKey(movie)) || 0;
 
-                        /*
-                          The defining-film slot is independent of Wikipedia prose.
-                          Top billing and durable audience recognition carry the most
-                          weight. Current popularity is deliberately capped and minor.
-
-                          Keep this scorer self-contained: it runs before some later
-                          biography helpers are initialized.
-                        */
                         const billing =
-                          order === 0 ? 78 :
-                          order === 1 ? 62 :
-                          order === 2 ? 46 :
-                          order === 3 ? 28 :
-                          order <= 5 ? 12 : 0;
+                          order === 0 ? 70 :
+                          order === 1 ? 54 :
+                          order === 2 ? 38 :
+                          order === 3 ? 22 :
+                          order <= 5 ? 10 : 0;
 
-                        const recognition = Math.log10(Math.max(votes, 1)) * 30;
-                        const quality = Math.max(rating - 5, 0) * 5;
-                        const popularityScore = Math.min(popularity, 60) * 0.08;
+                        // Durable audience recognition matters, but it is no longer dominant.
+                        const recognition = Math.log10(Math.max(votes, 1)) * 18;
+                        const quality = Math.max(rating - 5, 0) * 4;
+                        const popularityScore = Math.min(popularity, 50) * 0.04;
 
-                        return billing + recognition + quality + popularityScore;
+                        // Career-story evidence is the strongest signal.
+                        const breakthroughBonus = evidence.breakthrough ? 105 : 0;
+                        const signatureBonus = evidence.signature ? 90 : 0;
+                        const awardBonus = evidence.award ? 65 : 0;
+                        const recurringRoleBonus = recurringCount >= 2 ? 75 : 0;
+                        const sourceMentionBonus = Math.min(evidence.mentions, 4) * 18;
+
+                        return billing + recognition + quality + popularityScore +
+                          breakthroughBonus + signatureBonus + awardBonus +
+                          recurringRoleBonus + sourceMentionBonus;
                       };
 
                       /*
@@ -1205,7 +1235,14 @@
                         majorCentralCredits.find(movie => !alreadyNamed(movie)) ||
                         null;
 
+                      const sourceBackedSignature = definingFilmPool.find(movie => {
+                        if (alreadyNamed(movie) || repeatsRepresentedFranchise(movie)) return false;
+                        const evidence = sourceEvidenceForMovie(movie);
+                        return evidence.breakthrough || evidence.signature || evidence.award;
+                      });
+
                       const signatureFilm =
+                        sourceBackedSignature ||
                         recurringRoleCredits.find(movie =>
                           !alreadyNamed(movie) &&
                           !repeatsRepresentedFranchise(movie)
