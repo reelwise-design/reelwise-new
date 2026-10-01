@@ -1149,18 +1149,29 @@
                       };
 
                       /*
-                        PERSON 50 — SIGNATURE WORK SCORE
+                        PERSON 51 — CAREER CHAPTER ENGINE
 
-                        The old scorer could mistake a currently popular or heavily voted
-                        movie for the film that actually defines a star's career. Reelwise
-                        now treats the source article as evidence: breakthrough language,
-                        awards/acclaim, franchise/recurring-character evidence, and repeated
-                        discussion all outrank raw TMDB popularity. No actor or title is
-                        hard-coded.
+                        Do not ask one global score to choose "the defining movie."
+                        That approach can promote a popular but unrepresentative title.
+
+                        Instead:
+                          1. preserve the source-backed breakthrough chapter;
+                          2. find a distinct source-backed early/mid-career chapter;
+                          3. keep awards/acclaim as a separate chapter;
+                          4. use filmography scoring only as a fallback.
+
+                        No actor or movie title is hard-coded.
                       */
                       const sourceEvidenceForMovie = movie => {
                         const title = String(movie?.title || "").trim();
-                        if (!title) return { mentions: 0, breakthrough: false, signature: false, award: false };
+                        if (!title) {
+                          return {
+                            mentions: 0,
+                            breakthrough: false,
+                            signature: false,
+                            award: false
+                          };
+                        }
 
                         const items = careerCandidates.filter(item =>
                           item.matches.some(match => match.id === movie.id)
@@ -1168,106 +1179,245 @@
 
                         return {
                           mentions: items.length,
-                          breakthrough: items.some(item => breakthroughTerms.test(item.sentence)),
-                          signature: items.some(item => signatureCareerTerms.test(item.sentence)),
-                          award: items.some(item => awardTerms.test(item.sentence))
+                          breakthrough: items.some(item =>
+                            breakthroughTerms.test(item.sentence)
+                          ),
+                          signature: items.some(item =>
+                            signatureCareerTerms.test(item.sentence)
+                          ),
+                          award: items.some(item =>
+                            awardTerms.test(item.sentence)
+                          )
                         };
                       };
 
+                      /*
+                        This score is now only a FALLBACK inside a career chapter.
+                        It is not allowed to overwrite a stronger source-backed chapter.
+                      */
                       const nonFranchiseSignatureScore = movie => {
                         const votes = Number(movie?.vote_count || 0);
                         const rating = Number(movie?.vote_average || 0);
-                        const popularity = Number(movie?.popularity || 0);
                         const order = Number.isFinite(Number(movie?.order))
                           ? Number(movie.order)
                           : 99;
                         const evidence = sourceEvidenceForMovie(movie);
-                        const recurringCount = recurringCharacterCounts.get(characterKey(movie)) || 0;
+                        const recurringCount =
+                          recurringCharacterCounts.get(characterKey(movie)) || 0;
 
                         const billing =
-                          order === 0 ? 70 :
-                          order === 1 ? 54 :
-                          order === 2 ? 38 :
-                          order === 3 ? 22 :
-                          order <= 5 ? 10 : 0;
+                          order === 0 ? 52 :
+                          order === 1 ? 40 :
+                          order === 2 ? 28 :
+                          order === 3 ? 16 :
+                          order <= 5 ? 8 : 0;
 
-                        // Durable audience recognition matters, but it is no longer dominant.
-                        const recognition = Math.log10(Math.max(votes, 1)) * 18;
-                        const quality = Math.max(rating - 5, 0) * 4;
-                        const popularityScore = Math.min(popularity, 50) * 0.04;
+                        const recognition =
+                          Math.log10(Math.max(votes, 1)) * 12;
 
-                        // Career-story evidence is the strongest signal.
-                        const breakthroughBonus = evidence.breakthrough ? 105 : 0;
-                        const signatureBonus = evidence.signature ? 90 : 0;
-                        const awardBonus = evidence.award ? 65 : 0;
-                        const recurringRoleBonus = recurringCount >= 2 ? 75 : 0;
-                        const sourceMentionBonus = Math.min(evidence.mentions, 4) * 18;
+                        const quality =
+                          Math.max(rating - 5, 0) * 3;
 
-                        return billing + recognition + quality + popularityScore +
-                          breakthroughBonus + signatureBonus + awardBonus +
-                          recurringRoleBonus + sourceMentionBonus;
+                        const sourceBonus =
+                          Math.min(evidence.mentions, 4) * 28;
+
+                        const signatureBonus =
+                          evidence.signature ? 70 : 0;
+
+                        const recurringBonus =
+                          recurringCount >= 2 ? 55 : 0;
+
+                        return billing + recognition + quality +
+                          sourceBonus + signatureBonus + recurringBonus;
                       };
 
-                      /*
-                        Reserve a defining-film candidate directly from TMDB filmography.
-                        Wikipedia does not have to mention the movie for it to qualify.
-                      */
-                      const definingFilmPool = [...movies]
-                        .filter(movie => {
-                          const title = String(movie?.title || "").trim();
-                          const votes = Number(movie?.vote_count || 0);
-                          const order = Number.isFinite(Number(movie?.order))
-                            ? Number(movie.order)
-                            : 99;
+                      const breakthroughMovieIds = new Set(
+                        breakthrough
+                          ? sentenceMovieMatches(breakthrough, movies)
+                              .map(movie => movie.id)
+                          : []
+                      );
 
-                          return releasedDuringLifetime(movie) &&
-                            title &&
-                            order <= 5 &&
-                            votes >= 500;
+                      const breakthroughMovieYears = movies
+                        .filter(movie => breakthroughMovieIds.has(movie.id))
+                        .map(movieYear)
+                        .filter(Boolean);
+
+                      const firstBreakthroughMovieYear =
+                        breakthroughMovieYears.length
+                          ? Math.min(...breakthroughMovieYears)
+                          : breakthroughYear || 0;
+
+                      /*
+                        A career chapter should normally move forward from the
+                        breakthrough, but it should not jump straight to the newest
+                        streaming/project title merely because it is current.
+                      */
+                      const chapterCandidates = careerCandidates
+                        .filter(item => {
+                          if (!item.matches.length) return false;
+                          if (awardTerms.test(item.sentence)) return false;
+                          if (personalTerms.test(item.sentence)) return false;
+                          if (publicityTerms.test(item.sentence)) return false;
+                          if (contractDetailTerms.test(item.sentence)) return false;
+                          if (headlineArtifactTerms.test(item.sentence)) return false;
+                          if (releaseHistoryTerms.test(item.sentence)) return false;
+                          if (weakCareerTerms.test(item.sentence)) return false;
+                          if (plotSummaryTerms.test(item.sentence)) return false;
+
+                          const ids = item.matches.map(movie => movie.id);
+                          const onlyBreakthroughMovies =
+                            ids.length &&
+                            ids.every(id => breakthroughMovieIds.has(id));
+
+                          if (onlyBreakthroughMovies) return false;
+
+                          if (
+                            breakthrough &&
+                            cleanText(item.sentence) === cleanText(breakthrough)
+                          ) {
+                            return false;
+                          }
+
+                          return true;
+                        })
+                        .map(item => {
+                          const years = item.matches.map(movieYear).filter(Boolean);
+                          const earliest = years.length ? Math.min(...years) : 0;
+                          const latest = years.length ? Math.max(...years) : 0;
+
+                          const sourceSignal =
+                            (signatureCareerTerms.test(item.sentence) ? 85 : 0) +
+                            (strongCareerTerms.test(item.sentence) ? 38 : 0) +
+                            (breakthroughTerms.test(item.sentence) ? 24 : 0) +
+                            Math.min(item.matches.length, 3) * 18;
+
+                          const movieSignal = item.matches.reduce(
+                            (best, movie) =>
+                              Math.max(best, nonFranchiseSignatureScore(movie)),
+                            0
+                          );
+
+                          /*
+                            Prefer the next meaningful chapter after breakthrough.
+                            This deliberately gives less weight to very recent work
+                            when an actor has decades of established career history.
+                          */
+                          let eraSignal = 0;
+
+                          if (firstBreakthroughMovieYear && earliest) {
+                            const gap = earliest - firstBreakthroughMovieYear;
+
+                            if (gap >= 1 && gap <= 12) eraSignal += 42;
+                            else if (gap > 12 && gap <= 22) eraSignal += 26;
+                            else if (gap > 22) eraSignal -= 18;
+                          }
+
+                          return {
+                            ...item,
+                            earliest,
+                            latest,
+                            chapterScore:
+                              sourceSignal +
+                              movieSignal * 0.42 +
+                              eraSignal
+                          };
                         })
                         .sort((a, b) =>
-                          nonFranchiseSignatureScore(b) - nonFranchiseSignatureScore(a) ||
-                          movieYear(a) - movieYear(b)
+                          b.chapterScore - a.chapterScore ||
+                          a.earliest - b.earliest
                         );
 
-                      const nonFranchiseSignature =
-                        definingFilmPool.find(movie => !alreadyNamed(movie)) ||
-                        majorCentralCredits.find(movie => !alreadyNamed(movie)) ||
-                        null;
-
-                      const sourceBackedSignature = definingFilmPool.find(movie => {
-                        if (alreadyNamed(movie) || repeatsRepresentedFranchise(movie)) return false;
-                        const evidence = sourceEvidenceForMovie(movie);
-                        return evidence.breakthrough || evidence.signature || evidence.award;
-                      });
-
-                      const signatureFilm =
-                        sourceBackedSignature ||
-                        recurringRoleCredits.find(movie =>
-                          !alreadyNamed(movie) &&
-                          !repeatsRepresentedFranchise(movie)
-                        ) ||
-                        definingFilmPool.find(movie =>
-                          !alreadyNamed(movie) &&
-                          !repeatsRepresentedFranchise(movie)
-                        ) ||
-                        nonFranchiseSignature ||
-                        null;
-
-                      const definingMatchesSignature =
-                        defining &&
-                        signatureFilm &&
-                        sentenceMovieMatches(defining, [signatureFilm]).length > 0 &&
-                        signatureCareerTerms.test(defining);
-
                       /*
-                        The defining-film beat is reserved independently from Wikipedia.
-                        A clean Wikipedia sentence may keep the slot only when it actually
-                        describes the same defining film; otherwise TMDB supplies the film.
+                        Prefer an actual source sentence for the second career chapter.
+                        This avoids invented claims such as "especially identified with"
+                        when the source never characterizes the film that way.
                       */
-                      if (signatureFilm && !definingMatchesSignature) {
-                        defining =
-                          `${name} became especially identified with ${formatFilmList([signatureFilm])}.`;
+                      const sourceBackedChapter =
+                        chapterCandidates.find(item =>
+                          item.matches.some(movie =>
+                            !breakthroughMovieIds.has(movie.id) &&
+                            releasedDuringLifetime(movie)
+                          )
+                        ) || null;
+
+                      let signatureFilm = null;
+
+                      if (sourceBackedChapter) {
+                        defining = sourceBackedChapter.sentence;
+
+                        signatureFilm =
+                          [...sourceBackedChapter.matches]
+                            .filter(movie =>
+                              !breakthroughMovieIds.has(movie.id) &&
+                              releasedDuringLifetime(movie)
+                            )
+                            .sort((a, b) =>
+                              nonFranchiseSignatureScore(b) -
+                                nonFranchiseSignatureScore(a) ||
+                              movieYear(a) - movieYear(b)
+                            )[0] || null;
+                      } else {
+                        /*
+                          Fallback only: choose a strong centrally billed film from the
+                          next broad career era. Use up to two films so a career chapter
+                          is not reduced to one arbitrary title.
+                        */
+                        const fallbackPool = [...majorCentralCredits]
+                          .filter(movie => {
+                            const year = movieYear(movie);
+
+                            if (!releasedDuringLifetime(movie)) return false;
+                            if (breakthroughMovieIds.has(movie.id)) return false;
+                            if (alreadyNamed(movie)) return false;
+
+                            if (
+                              firstBreakthroughMovieYear &&
+                              year &&
+                              year < firstBreakthroughMovieYear
+                            ) {
+                              return false;
+                            }
+
+                            return true;
+                          })
+                          .sort((a, b) => {
+                            const aYear = movieYear(a) || 9999;
+                            const bYear = movieYear(b) || 9999;
+
+                            const aGap = firstBreakthroughMovieYear
+                              ? Math.abs(aYear - (firstBreakthroughMovieYear + 8))
+                              : 0;
+                            const bGap = firstBreakthroughMovieYear
+                              ? Math.abs(bYear - (firstBreakthroughMovieYear + 8))
+                              : 0;
+
+                            return aGap - bGap ||
+                              nonFranchiseSignatureScore(b) -
+                                nonFranchiseSignatureScore(a);
+                          });
+
+                        const chapterMovies = [];
+
+                        for (const movie of fallbackPool) {
+                          if (chapterMovies.length >= 2) break;
+
+                          if (
+                            chapterMovies.some(existing =>
+                              sameLikelyFranchise(existing, movie)
+                            )
+                          ) {
+                            continue;
+                          }
+
+                          chapterMovies.push(movie);
+                        }
+
+                        if (chapterMovies.length) {
+                          signatureFilm = chapterMovies[0];
+                          defining =
+                            `Other defining work included ${formatFilmList(chapterMovies)}.`;
+                        }
                       }
 
                       /*
