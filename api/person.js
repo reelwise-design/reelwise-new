@@ -708,7 +708,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 59 — CAREER NARRATIVE ENGINE
+        PERSON 61 — CAREER-DEFINING RUN ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -903,6 +903,80 @@
         }
       }
 
+      /*
+        PERSON 61 — GENERIC CAREER-DEFINING RUN
+
+        Person 60 could preserve a technically valid source biography while
+        still skipping the cluster of films that made an actor a movie star.
+        Sandler is the clearest example: a later-career/awards sentence could
+        survive while Billy Madison, Happy Gilmore, The Wedding Singer,
+        The Waterboy and Big Daddy disappeared.
+
+        This is deliberately generic — no actor names or title overrides.
+        We only add the safety-net sentence when the source itself mentions
+        fewer than two notable early films. The sentence uses neutral factual
+        wording so TMDB credits are never turned into invented claims about a
+        "breakthrough," acclaim or importance. Existing strong source arcs
+        (such as Anne Hathaway and Sylvester Stallone) remain untouched.
+      */
+      let careerRun = null;
+
+      const earlySourceTitleKeys = new Set();
+      for (const sentence of sourceSentences) {
+        const sentenceYears = yearsIn(sentence);
+        const clearlyEarly =
+          sentenceYears.some(year => year <= earlyEnd) ||
+          /\b(early|began|debut|breakthrough|breakout|rose to|fame|prominence|established)\b/i.test(sentence);
+
+        if (!clearlyEarly) continue;
+
+        for (const movie of allNotable) {
+          if (movie?.year && movie.year <= earlyEnd && sentenceMentionsTitle(sentence, movie.title)) {
+            earlySourceTitleKeys.add(norm(movie.title));
+          }
+        }
+      }
+
+      if (earlySourceTitleKeys.size < 2) {
+        const earlyDecades = Object.entries(timeline.byDecade || {})
+          .map(([decade, movies]) => ({
+            decade,
+            movies: (movies || [])
+              .filter(movie => movie?.year && movie.year <= earlyEnd)
+              .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a))
+          }))
+          .filter(group => group.movies.length >= 3)
+          .sort((a, b) =>
+            (a.movies[0]?.year || 9999) - (b.movies[0]?.year || 9999)
+          );
+
+        const runGroup = earlyDecades[0];
+
+        if (runGroup) {
+          /* Keep up to five films so a genuine concentrated star-making run
+             can read as a run, rather than collapsing to two random credits. */
+          const runMovies = runGroup.movies.slice(0, 5);
+          const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
+          let joined = "";
+
+          if (titles.length === 1) {
+            joined = titles[0];
+          } else if (titles.length === 2) {
+            joined = `${titles[0]} and ${titles[1]}`;
+          } else {
+            joined = `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+          }
+
+          careerRun = {
+            sentence: `${name}'s early film work included ${joined}.`,
+            index: -1,
+            years: runMovies.map(movie => movie.year),
+            year: Math.min(...runMovies.map(movie => movie.year)),
+            hits: runMovies
+          };
+        }
+      }
+
       if (!late) {
         const laterMovies = allNotable
           .filter(movie => movie.year && movie.year >= lateStart)
@@ -921,7 +995,7 @@
         }
       }
 
-      const chosen = [resolvedRise, defining, recognition, late].filter(Boolean);
+      const chosen = [resolvedRise, careerRun, defining, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -975,6 +1049,7 @@
           const sentence = selected[i];
           const protectedSentence =
             (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
+            (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
