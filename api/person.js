@@ -762,7 +762,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 63 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
+        PERSON 66 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -823,6 +823,13 @@
         if (noiseWords.test(text)) return false;
         if (orphanStart.test(text)) return false;
         if (isCatalogDump(text, hits)) return false;
+
+        /* PERSON 66: reject visibly clipped source fragments such as
+           "the Cecil B.". A biography card should never expose a sentence
+           that ends on a lone initial or an unfinished connective phrase. */
+        if (/\b(?:the|a|an|and|or|of|for|with|by|from|to|in|at)\s+[A-Z]\.$/.test(text)) return false;
+        if (/\b[A-Z][a-z]+\s+[A-Z]\.$/.test(text)) return false;
+
         return careerWords.test(text) || hits.length > 0;
       }
 
@@ -907,7 +914,25 @@
         if (x.year && x.year <= earlyEnd + Math.round(span * 0.28)) return true;
         return /\b(defining|iconic|signature|starred|major success|commercial success|critical acclaim|franchise)\b/i.test(x.sentence);
       });
-      const defining = best(definingPool);
+      let defining = best(definingPool);
+
+      /* PERSON 66 — CAREER-ANCHOR PASS
+
+         A career-defining franchise or sustained star chapter can be more
+         important than a single highly scored film sentence. Prefer a source
+         sentence that explicitly describes a recurring role, franchise, or
+         multi-film run when it contains notable credits. This is generic and
+         is what allows careers such as a long-running superhero/franchise arc
+         to survive without hard-coding a performer or title. */
+      const anchorPool = candidates.filter(x => {
+        if (rise && x.index === rise.index) return false;
+        if (!x.hits.length) return false;
+        return /\b(franchise|series of films|film series|recurring role|reprise|reprised|portrayed|played|starred as|superhero|cinematic universe|highest.grossing|leading role)\b/i.test(x.sentence);
+      });
+      const careerAnchor = best(anchorPool);
+      if (careerAnchor && (!defining || significance(careerAnchor) >= significance(defining) - 2)) {
+        defining = careerAnchor;
+      }
 
       /* Chapter 3: recognition must not disappear behind lesser credits. */
       const recognitionPool = candidates.filter(x =>
@@ -1068,6 +1093,24 @@
         }
       }
 
+      /* PERSON 66 — NO DUPLICATE EARLY-CAREER CHAPTERS
+
+         Person 65 could generate an early-film run and then immediately keep
+         a source sentence naming many of the same movies (Tom Hanks). If the
+         generated run overlaps a selected source chapter by two or more
+         titles, the source prose wins and the synthetic run is removed. */
+      if (careerRun) {
+        const sourceChapters = [resolvedRise, defining].filter(ch => ch && ch.index >= 0);
+        const duplicateRun = sourceChapters.some(ch => {
+          let overlap = 0;
+          for (const movie of careerRun.hits || []) {
+            if (sentenceMentionsTitle(ch.sentence || "", movie.title)) overlap++;
+          }
+          return overlap >= 2;
+        });
+        if (duplicateRun) careerRun = null;
+      }
+
       if (!late) {
         const laterMovies = allNotable
           .filter(movie => movie.year && movie.year >= lateStart)
@@ -1117,6 +1160,22 @@
       for (const item of chosen) {
         const key = norm(item.sentence);
         if (!key || used.has(key)) continue;
+
+        /* PERSON 66: avoid adjacent chapters that simply repeat two or more
+           of the same notable titles. Prefer source prose over a synthetic
+           sentence; otherwise keep the first career chapter. */
+        const itemTitles = allNotable.filter(movie =>
+          sentenceMentionsTitle(item.sentence, movie.title)
+        );
+        const repeatsExisting = selected.slice(1).some(existing => {
+          let overlap = 0;
+          for (const movie of itemTitles) {
+            if (sentenceMentionsTitle(existing, movie.title)) overlap++;
+          }
+          return overlap >= 2;
+        });
+        if (repeatsExisting) continue;
+
         selected.push(item.sentence);
         used.add(key);
       }
