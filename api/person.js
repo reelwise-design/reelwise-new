@@ -388,6 +388,30 @@
       });
     }
 
+    /* ============================================================
+       PERSON 63 — STRICT ACTING-CREDIT SAFETY
+
+       TMDB movie_credits.cast is the starting point, but Reelwise's
+       automatically generated career sentences should only use credits
+       that actually identify an acting role. This prevents a title tied
+       to a performer through production/related metadata from being
+       presented as part of that performer's acting filmography.
+
+       This helper is intentionally used only by automatic biography
+       insertions. Known For and the source-driven biography logic remain
+       unchanged from Person 62.
+       ============================================================ */
+
+    function isActingMovieCredit(movie) {
+      return Boolean(
+        movie?.id &&
+        movie?.title &&
+        movie?.release_date &&
+        typeof movie?.character === "string" &&
+        movie.character.trim()
+      );
+    }
+
     function movieRecognitionScore(movie) {
       const popularity =
         Number(movie?.popularity) || 0;
@@ -708,7 +732,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 62 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
+        PERSON 63 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -883,7 +907,11 @@
 
       if (!resolvedRise) {
         const earlyMovies = allNotable
-          .filter(movie => movie.year && movie.year <= earlyEnd)
+          .filter(movie =>
+            isActingMovieCredit(movie) &&
+            movie.year &&
+            movie.year <= earlyEnd
+          )
           .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
           .slice(0, 4);
 
@@ -902,6 +930,16 @@
           };
         }
       }
+
+      /*
+        PERSON 63 — ACTING-ONLY AUTO INSERTIONS
+
+        Person 62 restored missing early career runs, but a related title
+        could still enter an automatically generated sentence even when it
+        was not a genuine acting role. Person 63 keeps the Person 62 chapter
+        architecture intact and requires a real character-bearing cast
+        credit for both automatic early-film safety nets.
+      */
 
       /*
         PERSON 62 — REQUIRED GENERIC CAREER-DEFINING RUN
@@ -959,7 +997,11 @@
           .map(([decade, movies]) => ({
             decade,
             movies: (movies || [])
-              .filter(movie => movie?.year && movie.year <= earlyEnd)
+              .filter(movie =>
+                isActingMovieCredit(movie) &&
+                movie?.year &&
+                movie.year <= earlyEnd
+              )
               .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a))
           }))
           .filter(group => group.movies.length >= 3)
