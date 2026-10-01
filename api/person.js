@@ -762,7 +762,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 66 — REQUIRED DEFINING-CAREER CHAPTER ENGINE
+        PERSON 67 — DEFINING-CHAPTER PRESERVATION + CLEAN EARLY-CAREER ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -829,6 +829,12 @@
            that ends on a lone initial or an unfinished connective phrase. */
         if (/\b(?:the|a|an|and|or|of|for|with|by|from|to|in|at)\s+[A-Z]\.$/.test(text)) return false;
         if (/\b[A-Z][a-z]+\s+[A-Z]\.$/.test(text)) return false;
+
+        /* PERSON 67 — reject the second half of a sentence that Wikipedia
+           split at an abbreviated proper name (for example "Cecil B." /
+           "DeMille Award ..."). A sentence beginning with an award surname
+           plus "Award" is context-dependent and should never stand alone. */
+        if (/^[A-Z][A-Za-z'’.-]+\s+(?:Award|Awards|Prize|Honor|Honour)\b/.test(text)) return false;
 
         return careerWords.test(text) || hits.length > 0;
       }
@@ -930,7 +936,7 @@
         return /\b(franchise|series of films|film series|recurring role|reprise|reprised|portrayed|played|starred as|superhero|cinematic universe|highest.grossing|leading role)\b/i.test(x.sentence);
       });
       const careerAnchor = best(anchorPool);
-      if (careerAnchor && (!defining || significance(careerAnchor) >= significance(defining) - 2)) {
+      if (careerAnchor && (!defining || significance(careerAnchor) >= significance(defining) - 6)) {
         defining = careerAnchor;
       }
 
@@ -960,10 +966,30 @@
       */
       let resolvedRise = rise;
 
+      /* PERSON 67 — RELATIVE CAREER-SIGNIFICANCE FLOOR
+
+         Do not manufacture an "early film work" paragraph merely because
+         credits are chronologically early. Compare those credits with the
+         performer's own filmography. This keeps genuinely star-making early
+         runs while suppressing obscure first-decade credits for long careers. */
+      const biographyCreditScores = allNotable
+        .filter(isBiographyActingCredit)
+        .map(movieRecognitionScore)
+        .filter(Number.isFinite)
+        .sort((a, b) => a - b);
+
+      const significanceFloor = biographyCreditScores.length
+        ? biographyCreditScores[Math.floor((biographyCreditScores.length - 1) * 0.55)]
+        : 0;
+
+      const isCareerSignificantCredit = movie =>
+        isBiographyActingCredit(movie) &&
+        movieRecognitionScore(movie) >= significanceFloor;
+
       if (!resolvedRise) {
         const earlyMovies = allNotable
           .filter(movie =>
-            isBiographyActingCredit(movie) &&
+            isCareerSignificantCredit(movie) &&
             movie.year &&
             movie.year <= earlyEnd
           )
@@ -1053,7 +1079,7 @@
             decade,
             movies: (movies || [])
               .filter(movie =>
-                isBiographyActingCredit(movie) &&
+                isCareerSignificantCredit(movie) &&
                 movie?.year &&
                 movie.year <= earlyEnd
               )
@@ -1200,6 +1226,10 @@
           const protectedSentence =
             (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
             (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
+            /* PERSON 67: the defining chapter is the spine of the profile.
+               Person 66 could correctly select a sustained franchise/major
+               role and then discard it during length trimming. */
+            (defining && norm(sentence) === norm(defining.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
