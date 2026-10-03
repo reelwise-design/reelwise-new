@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 60 - DEPLOYMENT TEST
+      REELWISE PERSON API — PERSON 60
       ============================================================
 
       STAR PROFILE
@@ -940,6 +940,49 @@
         defining = careerAnchor;
       }
 
+      /* PERSON 61 — SIGNATURE MID-CAREER CHAPTER
+
+         A strong rise and a strong later-career sentence can still leave a
+         large hole in the middle of a film career. Preserve one meaningful
+         middle chapter when it contains recognizable acting credits. This is
+         generic: no performer names or title overrides are hard-coded. */
+      const middlePool = candidates.filter(x => {
+        if (rise && x.index === rise.index) return false;
+        if (defining && x.index === defining.index) return false;
+        if (!x.year || x.year <= earlyEnd || x.year >= lateStart) return false;
+        return x.hits.length > 0 && significance(x) >= 8;
+      });
+      let middle = best(middlePool);
+
+      /* When the source has no useful middle-career sentence, use only
+         substantive TMDB acting credits and neutral wording. */
+      if (!middle || middle.hits.length < 2) {
+        const middleMovies = allNotable
+          .filter(movie =>
+            isBiographyActingCredit(movie) &&
+            movie.year &&
+            movie.year > earlyEnd &&
+            movie.year < lateStart
+          )
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .slice(0, 3)
+          .sort((a, b) => a.year - b.year);
+
+        if (middleMovies.length >= 2) {
+          const titles = middleMovies.map(movie => `${movie.title} (${movie.year})`);
+          const joined = titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+          middle = {
+            sentence: `Major mid-career film work included ${joined}.`,
+            index: 9996,
+            years: middleMovies.map(movie => movie.year),
+            year: Math.min(...middleMovies.map(movie => movie.year)),
+            hits: middleMovies
+          };
+        }
+      }
+
       /* Chapter 3: recognition must not disappear behind lesser credits. */
       const recognitionPool = candidates.filter(x =>
         /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence) &&
@@ -1095,7 +1138,17 @@
         if (runGroup) {
           /* Keep up to five films so a genuine concentrated star-making run
              can read as a run, rather than collapsing to two random credits. */
+          /* PERSON 61: never repeat a title that is already named by a
+             selected source chapter. This fixes single-title repetition too
+             (for example an award sentence followed by a synthetic film run). */
+          const alreadyNamed = [resolvedRise, defining, recognition, middle]
+            .filter(Boolean)
+            .map(ch => ch.sentence || "");
+
           const runMovies = runGroup.movies
+            .filter(movie =>
+              !alreadyNamed.some(text => sentenceMentionsTitle(text, movie.title))
+            )
             .slice(0, 5)
             .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
           const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
@@ -1109,13 +1162,15 @@
             joined = `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
           }
 
-          careerRun = {
-            sentence: `${name}'s early film work included ${joined}.`,
-            index: -1,
-            years: runMovies.map(movie => movie.year),
-            year: Math.min(...runMovies.map(movie => movie.year)),
-            hits: runMovies
-          };
+          if (runMovies.length >= 2) {
+            careerRun = {
+              sentence: `${name}'s early film work included ${joined}.`,
+              index: -1,
+              years: runMovies.map(movie => movie.year),
+              year: Math.min(...runMovies.map(movie => movie.year)),
+              hits: runMovies
+            };
+          }
         }
       }
 
@@ -1155,7 +1210,7 @@
         }
       }
 
-      const chosen = [resolvedRise, careerRun, defining, recognition, late].filter(Boolean);
+      const chosen = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1230,6 +1285,7 @@
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
             (defining && norm(sentence) === norm(defining.sentence)) ||
+            (middle && norm(sentence) === norm(middle.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
