@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 69
+      REELWISE PERSON API — PERSON 70
       ============================================================
 
       STAR PROFILE
@@ -1314,16 +1314,40 @@
         story = selected.slice(0, 4).join(" ");
       }
 
-      if (words(story) >= 70) return story;
+      /* PERSON 70 — NEVER FALL BACK TO THE RAW ENCYCLOPEDIA LEAD.
 
-      const fallback = summarySentences
+         Person 68/69 could build a perfectly usable Reelwise story that was
+         shorter than the old 70-word threshold. The function then discarded
+         that story and returned the Wikipedia summary instead. That is why
+         the live card suddenly showed the repeated birth date, long catalog
+         prose and the CC-BY-SA attribution.
+
+         A coherent Reelwise story now wins whenever it contains a meaningful
+         career narrative. The fallback itself is also sanitized as a final
+         defense, so source boilerplate can never reach the card. */
+      if (words(story) >= 45) {
+        return removeWikipediaEnding(story);
+      }
+
+      const fallbackSentences = sentenceSplit(
+        removeWikipediaEnding(wikipediaSummary || person?.biography || "")
+      )
         .filter(sentence => !orphanStart.test(cleanText(sentence)))
         .filter(sentence => !isCatalogDump(cleanText(sentence), titleHits(sentence)))
-        .slice(0, 4)
-        .map(sentence => ensurePeriod(cleanText(sentence)))
-        .join(" ");
+        .filter(sentence => !/\b(?:description above from|wikipedia article|licensed under|creative commons|full list of contributors)\b/i.test(sentence))
+        .slice(0, 3)
+        .map(sentence => ensurePeriod(cleanText(sentence)));
 
-      return fallback || story || `${name} is a film actor and filmmaker.`;
+      if (fallbackSentences.length) {
+        /* The birthday belongs in the gold metadata line, not the prose. */
+        fallbackSentences[0] = fallbackSentences[0]
+          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
+          .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
+          .replace(/\s*\(born\s+\d{4}\)/i, "");
+      }
+
+      const fallback = removeWikipediaEnding(fallbackSentences.join(" "));
+      return story || fallback || `${name} is a film actor and filmmaker.`;
     }
 
     /* ============================================================
@@ -2006,6 +2030,17 @@
                 : calculatePersonAge(person.birthday),
 
             age_at_death:
+              person.deathday
+                ? calculatePersonAge(person.birthday, person.deathday)
+                : null,
+
+            /* PERSON 70: compatibility aliases for older/newer front ends. */
+            current_age:
+              person.deathday
+                ? null
+                : calculatePersonAge(person.birthday),
+
+            ageAtDeath:
               person.deathday
                 ? calculatePersonAge(person.birthday, person.deathday)
                 : null,
