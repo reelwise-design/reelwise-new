@@ -1213,32 +1213,23 @@
         }
       }
 
-      if (!late) {
-        const laterMovies = allNotable
-          .filter(movie => movie.year && movie.year >= lateStart)
-          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
-          .slice(0, 2);
+      /* PERSON 76 — NO GENERIC "LATER FILM WORK" BUCKET
 
-        if (laterMovies.length) {
-          const titles = laterMovies.map(movie => `${movie.title} (${movie.year})`);
-          late = {
-            sentence: `Later film work included ${titles.join(" and ")}.`,
-            index: 9998,
-            years: laterMovies.map(movie => movie.year),
-            year: Math.min(...laterMovies.map(movie => movie.year)),
-            hits: laterMovies
-          };
-        }
-      }
+         Person 75 could jump straight to the newest/highest-scoring credits
+         and produce a weak late-career sentence while skipping entire decades.
+         Later career is now handled only by the independent decade spine below.
+         A genuine source-derived late-career sentence may still be retained.
+      */
 
-      /* PERSON 75 — COMPLETE VERIFIED CAREER-ERA COVERAGE
+
+      /* PERSON 76 — INDEPENDENT VERIFIED CAREER-ERA COVERAGE
 
          Person 73 treated a whole decade as covered when any selected source
          sentence mentioned one title from that decade. That allowed a single
          Forrest Gump sentence to erase the rest of the 1990s and a single
          Robert Langdon / Polar Express sentence to erase the 2000s.
 
-         Person 75 measures coverage title-by-title and carries every meaningful uncovered later-career decade forward instead of stopping after the first restored era. Source prose keeps
+         Person 76 measures coverage title-by-title and builds every meaningful uncovered later-career decade independently. It never substitutes a generic newest-credit bucket for missing 2000s or 2010s coverage. Source prose keeps
          its factual context and achievements; verified acting credits fill
          only genuinely uncovered career eras. Synthetic chapters make no
          claims about acclaim, importance or breakthrough -- they state only
@@ -1289,7 +1280,7 @@
         });
       }
 
-      /* PERSON 75: keep every meaningful uncovered later-career era.
+      /* PERSON 76: keep every meaningful uncovered later-career era.
          Person 74 could restore the 1990s but later decades could disappear.
          The era spine now continues chronologically through the performer\'s
          remaining career. These are verified acting-credit chapters and are
@@ -1391,9 +1382,13 @@
 
       let story = selected.filter(Boolean).join(" ");
 
-      /* Absolute guard against encyclopedia dumps. */
-      if (words(story) > 210) {
-        story = selected.slice(0, 6).join(" ");
+      /* PERSON 76 — the verified decade spine is the biography architecture.
+         Do not cut it back to the first six sentences: that was silently
+         deleting the 2000s/2010s after they had been built correctly.
+         The earlier catalog filters and chapter limits already keep the card
+         concise, so this is only a generous emergency ceiling. */
+      if (words(story) > 285) {
+        story = selected.slice(0, 9).join(" ");
       }
 
       /* PERSON 70 — NEVER FALL BACK TO THE RAW ENCYCLOPEDIA LEAD.
