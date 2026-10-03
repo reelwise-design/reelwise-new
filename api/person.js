@@ -1247,18 +1247,19 @@
         }
       }
 
-      /* PERSON 63 — CHRONOLOGICAL BIOGRAPHY ASSEMBLY
+      /* PERSON 64 — BROAD-SPAN CHRONOLOGY ANCHOR
 
-         Person 62 fixed inaccurate early/mid-career labels, but a source
-         sentence that spans many years could still be sorted by its oldest
-         date. That allowed a broad franchise/later-career sentence to appear
-         before a focused 1990s or 2000s chapter.
+         Person 63 fixed the major backward jumps, but sorting every broad
+         source sentence by its latest year can push an established franchise
+         chapter behind a later, focused milestone. Example: a sentence about
+         Toy Story (1995-present), The Polar Express (2004) and Robert Langdon
+         (2006-2016) belongs before a focused 2013 Broadway milestone.
 
          Synthetic decade chapters stay anchored to their first film year.
-         For source sentences spanning 10+ years, sort by the latest dated
-         milestone instead. This preserves the source facts while making the
-         finished card read forward through the career rather than jumping
-         backward and forward in time. */
+         Broad source sentences now use the midpoint of their dated span. This
+         keeps them after earlier focused chapters while preventing an open-ended
+         franchise date from artificially forcing the whole sentence to the end
+         of the biography. */
       function biographyChronologyYear(item) {
         const ys = (item?.years || []).filter(Number.isFinite);
         if (!ys.length) return item?.year || 9999;
@@ -1268,7 +1269,7 @@
         const isSynthetic = item?.index < 0 || item?.index >= 9990;
 
         if (!isSynthetic && latest - earliest >= 10) {
-          return latest;
+          return Math.round((earliest + latest) / 2);
         }
 
         return earliest;
