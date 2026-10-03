@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 66
+      REELWISE PERSON API — PERSON 60
       ============================================================
 
       STAR PROFILE
@@ -164,25 +164,6 @@
       if (!year) return "";
       const start = Math.floor(year / 10) * 10;
       return `${start}s`;
-    }
-
-    /* PERSON 62 — DATE-BASED GENERATED CHAPTER LABELS
-
-       Synthetic credit chapters should not call a period "early" or
-       "mid-career" merely because of its relative position in a long
-       filmography. Use objective decade wording instead. This preserves
-       Person 61's title-selection logic while preventing cases such as
-       Tom Hanks's 1998–1999 films being labeled "early film work." */
-    function generatedFilmPeriodLabel(movies = []) {
-      const decades = [...new Set(
-        movies
-          .map(movie => decadeLabel(movie?.year))
-          .filter(Boolean)
-      )];
-
-      if (!decades.length) return "Film work";
-      if (decades.length === 1) return `During the ${decades[0]}`;
-      return `From the ${decades[0]} through the ${decades[decades.length - 1]}`;
     }
 
 
@@ -781,7 +762,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 63 — CHRONOLOGICAL BIOGRAPHY ASSEMBLY
+        PERSON 67 — DEFINING-CHAPTER PRESERVATION + CLEAN EARLY-CAREER ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -959,49 +940,6 @@
         defining = careerAnchor;
       }
 
-      /* PERSON 61 — SIGNATURE MID-CAREER CHAPTER
-
-         A strong rise and a strong later-career sentence can still leave a
-         large hole in the middle of a film career. Preserve one meaningful
-         middle chapter when it contains recognizable acting credits. This is
-         generic: no performer names or title overrides are hard-coded. */
-      const middlePool = candidates.filter(x => {
-        if (rise && x.index === rise.index) return false;
-        if (defining && x.index === defining.index) return false;
-        if (!x.year || x.year <= earlyEnd || x.year >= lateStart) return false;
-        return x.hits.length > 0 && significance(x) >= 8;
-      });
-      let middle = best(middlePool);
-
-      /* When the source has no useful middle-career sentence, use only
-         substantive TMDB acting credits and neutral wording. */
-      if (!middle || middle.hits.length < 2) {
-        const middleMovies = allNotable
-          .filter(movie =>
-            isBiographyActingCredit(movie) &&
-            movie.year &&
-            movie.year > earlyEnd &&
-            movie.year < lateStart
-          )
-          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
-          .slice(0, 3)
-          .sort((a, b) => a.year - b.year);
-
-        if (middleMovies.length >= 2) {
-          const titles = middleMovies.map(movie => `${movie.title} (${movie.year})`);
-          const joined = titles.length === 2
-            ? `${titles[0]} and ${titles[1]}`
-            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
-          middle = {
-            sentence: `${generatedFilmPeriodLabel(middleMovies)}, ${name} appeared in ${joined}.`,
-            index: 9996,
-            years: middleMovies.map(movie => movie.year),
-            year: Math.min(...middleMovies.map(movie => movie.year)),
-            hits: middleMovies
-          };
-        }
-      }
-
       /* Chapter 3: recognition must not disappear behind lesser credits. */
       const recognitionPool = candidates.filter(x =>
         /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence) &&
@@ -1065,7 +1003,7 @@
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 
           resolvedRise = {
-            sentence: `${generatedFilmPeriodLabel(earlyMovies)}, ${name} appeared in ${joined}.`,
+            sentence: `Important early film work included ${joined}.`,
             index: -2,
             years: earlyMovies.map(movie => movie.year),
             year: Math.min(...earlyMovies.map(movie => movie.year)),
@@ -1157,65 +1095,7 @@
         if (runGroup) {
           /* Keep up to five films so a genuine concentrated star-making run
              can read as a run, rather than collapsing to two random credits. */
-          /* PERSON 61: never repeat a title that is already named by a
-             selected source chapter. This fixes single-title repetition too
-             (for example an award sentence followed by a synthetic film run). */
-          const alreadyNamed = [resolvedRise, defining, recognition, middle, late]
-            .filter(Boolean)
-            .map(ch => ch.sentence || "");
-
-          /* PERSON 66 — COMPLETE FRANCHISE REDUNDANCY GUARD
-
-             Person 65 only checked a subset of selected chapters, which could
-             leave a sequel such as Toy Story 3 in a generated decade sentence
-             when the stronger franchise sentence lived in the later-career
-             chapter. Person 66 includes that later chapter and also scans
-             eligible source prose for explicit franchise/series statements.
-
-             The guard remains conservative: it suppresses only numbered
-             installments whose multi-word stem is explicitly described as a
-             franchise or series in factual source prose. */
-          const explicitFranchiseSource = candidates
-            .filter(x => /\b(franchise|film series|series of films)\b/i.test(x.sentence || ""))
-            .map(x => x.sentence || "");
-
-          /* PERSON 65 — FRANCHISE REDUNDANCY GUARD
-
-             If selected source prose already describes a film series/franchise,
-             do not use numbered installments from that same series merely to
-             pad a generated decade sentence. This keeps the broader career
-             statement (for example, voicing Woody in the Toy Story franchise)
-             without immediately repeating Toy Story 2 / Toy Story 3 elsewhere.
-
-             This is intentionally conservative: it only activates when the
-             source explicitly uses franchise/series wording and the movie title
-             clearly begins with the same multi-word title stem. */
-          const franchiseSourceText = [...alreadyNamed, ...explicitFranchiseSource].join(" ");
-
-          function franchiseStem(title = "") {
-            const cleaned = cleanText(title)
-              .replace(/\s*[0-9]+\s*$/g, "")
-              .replace(/\s*[:\-–—]\s*.*$/g, "")
-              .trim();
-            return cleaned;
-          }
-
-          function coveredBySourceFranchise(movie) {
-            const stem = franchiseStem(movie?.title || "");
-            if (!stem || stem.split(/\s+/).length < 2) return false;
-            const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            const pattern = new RegExp(
-              `\\b${escaped}\\b[^.]{0,45}\\b(franchise|series)\\b`,
-              "i"
-            );
-            return pattern.test(franchiseSourceText);
-          }
-
           const runMovies = runGroup.movies
-            .filter(movie =>
-              !alreadyNamed.some(text => sentenceMentionsTitle(text, movie.title)) &&
-              !coveredBySourceFranchise(movie)
-            )
             .slice(0, 5)
             .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
           const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
@@ -1229,15 +1109,13 @@
             joined = `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
           }
 
-          if (runMovies.length >= 2) {
-            careerRun = {
-              sentence: `${generatedFilmPeriodLabel(runMovies)}, ${name} appeared in ${joined}.`,
-              index: -1,
-              years: runMovies.map(movie => movie.year),
-              year: Math.min(...runMovies.map(movie => movie.year)),
-              hits: runMovies
-            };
-          }
+          careerRun = {
+            sentence: `${name}'s early film work included ${joined}.`,
+            index: -1,
+            years: runMovies.map(movie => movie.year),
+            year: Math.min(...runMovies.map(movie => movie.year)),
+            hits: runMovies
+          };
         }
       }
 
@@ -1277,7 +1155,7 @@
         }
       }
 
-      const chosen = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
+      const chosen = [resolvedRise, careerRun, defining, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1295,37 +1173,11 @@
         }
       }
 
-      /* PERSON 64 — BROAD-SPAN CHRONOLOGY ANCHOR
-
-         Person 63 fixed the major backward jumps, but sorting every broad
-         source sentence by its latest year can push an established franchise
-         chapter behind a later, focused milestone. Example: a sentence about
-         Toy Story (1995-present), The Polar Express (2004) and Robert Langdon
-         (2006-2016) belongs before a focused 2013 Broadway milestone.
-
-         Synthetic decade chapters stay anchored to their first film year.
-         Broad source sentences now use the midpoint of their dated span. This
-         keeps them after earlier focused chapters while preventing an open-ended
-         franchise date from artificially forcing the whole sentence to the end
-         of the biography. */
-      function biographyChronologyYear(item) {
-        const ys = (item?.years || []).filter(Number.isFinite);
-        if (!ys.length) return item?.year || 9999;
-
-        const earliest = Math.min(...ys);
-        const latest = Math.max(...ys);
-        const isSynthetic = item?.index < 0 || item?.index >= 9990;
-
-        if (!isSynthetic && latest - earliest >= 10) {
-          return Math.round((earliest + latest) / 2);
-        }
-
-        return earliest;
-      }
-
+      /* The biography reads in career/source chronology. Recognition is
+         allowed to stay beside the career event it describes. */
       chosen.sort((a, b) => {
-        const ay = biographyChronologyYear(a);
-        const by = biographyChronologyYear(b);
+        const ay = a.year || 9999;
+        const by = b.year || 9999;
         return ay - by || a.index - b.index;
       });
 
@@ -1378,7 +1230,6 @@
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
             (defining && norm(sentence) === norm(defining.sentence)) ||
-            (middle && norm(sentence) === norm(middle.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
