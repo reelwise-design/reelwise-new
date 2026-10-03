@@ -1231,14 +1231,14 @@
         }
       }
 
-      /* PERSON 74 — VERIFIED CAREER-ERA COVERAGE
+      /* PERSON 75 — COMPLETE VERIFIED CAREER-ERA COVERAGE
 
          Person 73 treated a whole decade as covered when any selected source
          sentence mentioned one title from that decade. That allowed a single
          Forrest Gump sentence to erase the rest of the 1990s and a single
          Robert Langdon / Polar Express sentence to erase the 2000s.
 
-         Person 74 measures coverage title-by-title instead. Source prose keeps
+         Person 75 measures coverage title-by-title and carries every meaningful uncovered later-career decade forward instead of stopping after the first restored era. Source prose keeps
          its factual context and achievements; verified acting credits fill
          only genuinely uncovered career eras. Synthetic chapters make no
          claims about acclaim, importance or breakthrough -- they state only
@@ -1289,11 +1289,13 @@
         });
       }
 
-      /* Keep up to three uncovered eras. This is the chronological spine, not
-         emergency filler, so these chapters are protected from later trimming. */
+      /* PERSON 75: keep every meaningful uncovered later-career era.
+         Person 74 could restore the 1990s but later decades could disappear.
+         The era spine now continues chronologically through the performer\'s
+         remaining career. These are verified acting-credit chapters and are
+         protected from later trimming. */
       const eraSpine = eraChapters
-        .sort((a, b) => a.year - b.year)
-        .slice(0, 3);
+        .sort((a, b) => a.year - b.year);
 
       const chosen = [resolvedRise, careerRun, defining, ...eraSpine, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
