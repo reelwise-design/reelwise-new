@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 60
+      REELWISE PERSON API — PERSON 60 - DEPLOYMENT TEST
       ============================================================
 
       STAR PROFILE
