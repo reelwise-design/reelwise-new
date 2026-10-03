@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 70
+      REELWISE PERSON API — PERSON 71
       ============================================================
 
       STAR PROFILE
@@ -42,6 +42,8 @@
         .replace(/\s*Text is available under the Creative Commons[\s\S]*$/i, "")
         .replace(/\s*licensed under CC[-–]BY[-–]SA[\s\S]*$/i, "")
         .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i, "")
+        .replace(/\s*(?:Description above from|This article uses material from)[\s\S]*?Wikipedia[\s\S]*$/i, "")
+        .replace(/\s*(?:licensed|available) under\s+(?:the\s+)?(?:CC[-– ]?BY[-– ]?SA|Creative Commons)[\s\S]*$/i, "")
         .replace(/\s*References\s*$/i, "")
         .replace(/\s*External links\s*$/i, "")
         .trim();
@@ -761,6 +763,10 @@
     }) {
       const name = person?.name || "This performer";
       const timeline = buildCareerTimeline(credits);
+
+      /* PERSON 71: keep the biography builder self-contained. Person 70's
+         redundancy pass referenced an old `middle` chapter variable that no
+         longer exists. That could abort the curated story path. */
       const source = removeWikipediaEnding(
         wikipediaExtract || wikipediaSummary || person?.biography || ""
       );
@@ -770,7 +776,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 69 — CLEAN SOURCE BIOGRAPHY + REELWISE CAREER STORY
+        PERSON 71 — CLEAN SOURCE BIOGRAPHY + REELWISE CAREER STORY
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -1162,7 +1168,7 @@
          chapter completely. This prevents repeated Forrest Gump / Toy Story
          material without actor-specific title overrides. */
       if (careerRun) {
-        const sourceTexts = [intro, resolvedRise, defining, recognition, middle, late]
+        const sourceTexts = [intro, resolvedRise, defining, recognition, late]
           .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
           .filter(Boolean);
 
@@ -2034,7 +2040,7 @@
                 ? calculatePersonAge(person.birthday, person.deathday)
                 : null,
 
-            /* PERSON 70: compatibility aliases for older/newer front ends. */
+            /* PERSON 71: compatibility aliases for older/newer front ends. */
             current_age:
               person.deathday
                 ? null
