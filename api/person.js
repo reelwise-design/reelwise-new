@@ -762,7 +762,7 @@
       }
 
       return ensurePeriod(
-        `During the ${decade}, ${name}'s film work included ${titles}`
+        `In that period, ${name}'s film work included ${titles}`
       );
     }
 
@@ -1167,7 +1167,7 @@
           }
 
           careerRun = {
-            sentence: `During the ${runGroup.decade}, ${name}'s film work included ${joined}.`,
+            sentence: `${name}'s early momentum continued with ${joined}.`,
             index: -1,
             years: runMovies.map(movie => movie.year),
             year: Math.min(...runMovies.map(movie => movie.year)),
@@ -1216,7 +1216,7 @@
 
           careerRun = {
             ...careerRun,
-            sentence: `During the ${Math.floor(Math.min(...remaining.map(movie => movie.year)) / 10) * 10}s, ${name}'s film work included ${joined}.`,
+            sentence: `${name}'s early momentum continued with ${joined}.`,
             years: remaining.map(movie => movie.year),
             year: Math.min(...remaining.map(movie => movie.year)),
             hits: remaining
@@ -1347,8 +1347,17 @@
             ? `${titles[0]} and ${titles[1]}`
             : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
+        const eraPosition = eraChapters.length;
+        const eraLead = eraPosition === 0
+          ? `His career continued with ${joined}.`
+          : eraPosition === 1
+            ? `In the years that followed, ${name} starred in ${joined}.`
+            : group.decade >= 2020
+              ? `More recently, ${name} appeared in ${joined}.`
+              : `Later, ${name} appeared in ${joined}.`;
+
         eraChapters.push({
-          sentence: `During the ${group.decade}s, ${name} appeared in ${joined}.`,
+          sentence: eraLead,
           index: 9000 + group.decade,
           years: movies.map(movie => movie.year),
           year: Math.min(...movies.map(movie => movie.year)),
