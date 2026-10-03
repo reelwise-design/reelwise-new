@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 80
+      REELWISE PERSON API — PERSON 82
       ============================================================
 
       STAR PROFILE
@@ -1394,9 +1394,31 @@
 
       /* The biography reads in career/source chronology. Recognition is
          allowed to stay beside the career event it describes. */
+      /* PERSON 82 — CHRONOLOGY FOR CAREER-SPANNING SOURCE CHAPTERS.
+
+         A source sentence describing a franchise or recurring film series can
+         span many years. Sorting that sentence by its FIRST year makes it jump
+         ahead of later 1990s/2000s/2010s chapters even though it summarizes a
+         much broader stretch of the career. For ordering only, place genuine
+         multi-year franchise/series summaries at their latest stated year.
+         The source sentence itself is unchanged. */
+      function biographySortYear(item) {
+        if (!item) return 9999;
+        const sentence = String(item.sentence || "");
+        const years = Array.isArray(item.years)
+          ? item.years.filter(Number.isFinite)
+          : [];
+        const spansCareer =
+          years.length >= 2 &&
+          /\b(franchise|film series|series of films|recurring role|voiced|reprise|reprised)\b/i.test(sentence);
+
+        if (spansCareer) return Math.max(...years);
+        return item.year || (years.length ? Math.min(...years) : 9999);
+      }
+
       chosen.sort((a, b) => {
-        const ay = a.year || 9999;
-        const by = b.year || 9999;
+        const ay = biographySortYear(a);
+        const by = biographySortYear(b);
         return ay - by || a.index - b.index;
       });
 
