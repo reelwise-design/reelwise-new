@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 65
+      REELWISE PERSON API — PERSON 66
       ============================================================
 
       STAR PROFILE
@@ -1160,9 +1160,24 @@
           /* PERSON 61: never repeat a title that is already named by a
              selected source chapter. This fixes single-title repetition too
              (for example an award sentence followed by a synthetic film run). */
-          const alreadyNamed = [resolvedRise, defining, recognition, middle]
+          const alreadyNamed = [resolvedRise, defining, recognition, middle, late]
             .filter(Boolean)
             .map(ch => ch.sentence || "");
+
+          /* PERSON 66 — COMPLETE FRANCHISE REDUNDANCY GUARD
+
+             Person 65 only checked a subset of selected chapters, which could
+             leave a sequel such as Toy Story 3 in a generated decade sentence
+             when the stronger franchise sentence lived in the later-career
+             chapter. Person 66 includes that later chapter and also scans
+             eligible source prose for explicit franchise/series statements.
+
+             The guard remains conservative: it suppresses only numbered
+             installments whose multi-word stem is explicitly described as a
+             franchise or series in factual source prose. */
+          const explicitFranchiseSource = candidates
+            .filter(x => /\b(franchise|film series|series of films)\b/i.test(x.sentence || ""))
+            .map(x => x.sentence || "");
 
           /* PERSON 65 — FRANCHISE REDUNDANCY GUARD
 
@@ -1175,7 +1190,7 @@
              This is intentionally conservative: it only activates when the
              source explicitly uses franchise/series wording and the movie title
              clearly begins with the same multi-word title stem. */
-          const franchiseSourceText = alreadyNamed.join(" ");
+          const franchiseSourceText = [...alreadyNamed, ...explicitFranchiseSource].join(" ");
 
           function franchiseStem(title = "") {
             const cleaned = cleanText(title)
