@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 72
+      REELWISE PERSON API — PERSON 73
       ============================================================
 
       STAR PROFILE
@@ -1231,7 +1231,65 @@
         }
       }
 
-      const chosen = [resolvedRise, careerRun, defining, recognition, late].filter(Boolean);
+      /* PERSON 73 — CHRONOLOGICAL CAREER ERA SPINE
+
+         Person 72 could remove a bad synthetic early-career label but then
+         leave large middle portions of a long career uncovered. Build neutral
+         decade chapters from genuinely significant acting credits whenever
+         those eras are not already represented by source prose. This is fully
+         generic: TMDB credits supply titles/years only; no acclaim,
+         breakthrough, or importance claim is invented.
+      */
+      const eraChapters = [];
+      const sourceChapterTexts = [intro, resolvedRise, defining, recognition, late]
+        .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
+        .filter(Boolean);
+
+      const representedDecades = new Set();
+      for (const text of sourceChapterTexts) {
+        for (const y of yearsIn(text)) representedDecades.add(Math.floor(y / 10) * 10);
+        for (const movie of allNotable) {
+          if (movie?.year && sentenceMentionsTitle(text, movie.title)) {
+            representedDecades.add(Math.floor(movie.year / 10) * 10);
+          }
+        }
+      }
+
+      const decadeGroups = Object.entries(timeline.byDecade || {})
+        .map(([label, movies]) => ({
+          label,
+          decade: Number(String(label).match(/\d{4}/)?.[0]),
+          movies: (movies || [])
+            .filter(isCareerSignificantCredit)
+            .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+        }))
+        .filter(group => Number.isFinite(group.decade) && group.movies.length);
+
+      for (const group of decadeGroups) {
+        /* The intro/rise already owns the beginning of the career. Person 73
+           focuses its safety net on missing middle/later eras. */
+        if (group.decade < Math.floor((earlyEnd + 1) / 10) * 10) continue;
+        if (representedDecades.has(group.decade)) continue;
+
+        const movies = group.movies.slice(0, 3).sort((a, b) => a.year - b.year);
+        if (movies.length < 2) continue;
+        const titles = movies.map(movie => `${movie.title} (${movie.year})`);
+        const joined = titles.length === 2
+          ? `${titles[0]} and ${titles[1]}`
+          : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
+
+        eraChapters.push({
+          sentence: `During the ${group.decade}s, ${name}'s film work included ${joined}.`,
+          index: 9000 + group.decade,
+          years: movies.map(movie => movie.year),
+          year: Math.min(...movies.map(movie => movie.year)),
+          hits: movies
+        });
+      }
+
+      /* Limit the safety net to two missing eras so the card remains a
+         biography rather than a filmography dump. Prefer the earliest gaps. */
+      const chosen = [resolvedRise, careerRun, defining, ...eraChapters.slice(0, 2), recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1294,7 +1352,7 @@
 
       /* Remove the weakest optional chapter until the card stays readable.
          Identity, rise, recognition and late milestone are favored. */
-      while (words(selected.join(" ")) > 175 && selected.length > 4) {
+      while (words(selected.join(" ")) > 190 && selected.length > 4) {
         let weakestIndex = -1;
         let weakestScore = Infinity;
         for (let i = 1; i < selected.length; i++) {
@@ -1325,8 +1383,8 @@
       let story = selected.filter(Boolean).join(" ");
 
       /* Absolute guard against encyclopedia dumps. */
-      if (words(story) > 190) {
-        story = selected.slice(0, 4).join(" ");
+      if (words(story) > 210) {
+        story = selected.slice(0, 6).join(" ");
       }
 
       /* PERSON 70 — NEVER FALL BACK TO THE RAW ENCYCLOPEDIA LEAD.
