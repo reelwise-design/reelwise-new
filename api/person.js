@@ -1222,7 +1222,16 @@
       */
 
 
-      /* PERSON 76 — INDEPENDENT VERIFIED CAREER-ERA COVERAGE
+      /* PERSON 77 — FORCED CHRONOLOGICAL DECADE SPINE
+
+         Person 76 could mistakenly mark a decade as covered because a candidate
+         source sentence mentioned its films, even when that sentence was later
+         discarded from the final card. Person 77 only lets source chapters that
+         are guaranteed to be part of the core story suppress a generated decade.
+         A decade with even one still-uncovered significant acting credit now gets
+         a chapter, preventing the 2000s/2010s from silently disappearing.
+
+         PERSON 76 — INDEPENDENT VERIFIED CAREER-ERA COVERAGE
 
          Person 73 treated a whole decade as covered when any selected source
          sentence mentioned one title from that decade. That allowed a single
@@ -1236,7 +1245,7 @@
          that the performer appeared in those films.
       */
       const eraChapters = [];
-      const sourceChapterTexts = [intro, resolvedRise, careerRun, defining, recognition, late]
+      const sourceChapterTexts = [intro, resolvedRise, careerRun, defining]
         .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
         .filter(Boolean);
 
@@ -1263,12 +1272,14 @@
         if (group.decade < Math.floor((earlyEnd + 1) / 10) * 10) continue;
 
         const movies = group.movies.slice(0, 3).sort((a, b) => a.year - b.year);
-        if (movies.length < 2) continue;
+        if (movies.length < 1) continue;
 
         const titles = movies.map(movie => `${movie.title} (${movie.year})`);
-        const joined = titles.length === 2
-          ? `${titles[0]} and ${titles[1]}`
-          : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
+        const joined = titles.length === 1
+          ? titles[0]
+          : titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
         eraChapters.push({
           sentence: `During the ${group.decade}s, ${name} appeared in ${joined}.`,
