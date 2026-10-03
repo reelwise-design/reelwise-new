@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 73
+      REELWISE PERSON API — PERSON 74
       ============================================================
 
       STAR PROFILE
@@ -1231,29 +1231,27 @@
         }
       }
 
-      /* PERSON 73 — CHRONOLOGICAL CAREER ERA SPINE
+      /* PERSON 74 — VERIFIED CAREER-ERA COVERAGE
 
-         Person 72 could remove a bad synthetic early-career label but then
-         leave large middle portions of a long career uncovered. Build neutral
-         decade chapters from genuinely significant acting credits whenever
-         those eras are not already represented by source prose. This is fully
-         generic: TMDB credits supply titles/years only; no acclaim,
-         breakthrough, or importance claim is invented.
+         Person 73 treated a whole decade as covered when any selected source
+         sentence mentioned one title from that decade. That allowed a single
+         Forrest Gump sentence to erase the rest of the 1990s and a single
+         Robert Langdon / Polar Express sentence to erase the 2000s.
+
+         Person 74 measures coverage title-by-title instead. Source prose keeps
+         its factual context and achievements; verified acting credits fill
+         only genuinely uncovered career eras. Synthetic chapters make no
+         claims about acclaim, importance or breakthrough -- they state only
+         that the performer appeared in those films.
       */
       const eraChapters = [];
-      const sourceChapterTexts = [intro, resolvedRise, defining, recognition, late]
+      const sourceChapterTexts = [intro, resolvedRise, careerRun, defining, recognition, late]
         .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
         .filter(Boolean);
 
-      const representedDecades = new Set();
-      for (const text of sourceChapterTexts) {
-        for (const y of yearsIn(text)) representedDecades.add(Math.floor(y / 10) * 10);
-        for (const movie of allNotable) {
-          if (movie?.year && sentenceMentionsTitle(text, movie.title)) {
-            representedDecades.add(Math.floor(movie.year / 10) * 10);
-          }
-        }
-      }
+      const titleAlreadyCovered = movie => sourceChapterTexts.some(text =>
+        sentenceMentionsTitle(text, movie.title)
+      );
 
       const decadeGroups = Object.entries(timeline.byDecade || {})
         .map(([label, movies]) => ({
@@ -1261,35 +1259,43 @@
           decade: Number(String(label).match(/\d{4}/)?.[0]),
           movies: (movies || [])
             .filter(isCareerSignificantCredit)
-            .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+            .filter(movie => !titleAlreadyCovered(movie))
+            .sort((a, b) =>
+              movieRecognitionScore(b) - movieRecognitionScore(a) ||
+              (a.year || 9999) - (b.year || 9999)
+            )
         }))
         .filter(group => Number.isFinite(group.decade) && group.movies.length);
 
       for (const group of decadeGroups) {
-        /* The intro/rise already owns the beginning of the career. Person 73
-           focuses its safety net on missing middle/later eras. */
+        /* Opening/rise prose owns the true beginning of the career. */
         if (group.decade < Math.floor((earlyEnd + 1) / 10) * 10) continue;
-        if (representedDecades.has(group.decade)) continue;
 
         const movies = group.movies.slice(0, 3).sort((a, b) => a.year - b.year);
         if (movies.length < 2) continue;
+
         const titles = movies.map(movie => `${movie.title} (${movie.year})`);
         const joined = titles.length === 2
           ? `${titles[0]} and ${titles[1]}`
           : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
         eraChapters.push({
-          sentence: `During the ${group.decade}s, ${name}'s film work included ${joined}.`,
+          sentence: `During the ${group.decade}s, ${name} appeared in ${joined}.`,
           index: 9000 + group.decade,
           years: movies.map(movie => movie.year),
           year: Math.min(...movies.map(movie => movie.year)),
-          hits: movies
+          hits: movies,
+          syntheticEra: true
         });
       }
 
-      /* Limit the safety net to two missing eras so the card remains a
-         biography rather than a filmography dump. Prefer the earliest gaps. */
-      const chosen = [resolvedRise, careerRun, defining, ...eraChapters.slice(0, 2), recognition, late].filter(Boolean);
+      /* Keep up to three uncovered eras. This is the chronological spine, not
+         emergency filler, so these chapters are protected from later trimming. */
+      const eraSpine = eraChapters
+        .sort((a, b) => a.year - b.year)
+        .slice(0, 3);
+
+      const chosen = [resolvedRise, careerRun, defining, ...eraSpine, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1366,6 +1372,7 @@
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
             (defining && norm(sentence) === norm(defining.sentence)) ||
+            eraSpine.some(chapter => norm(sentence) === norm(chapter.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
