@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 79
+      REELWISE PERSON API — PERSON 80
       ============================================================
 
       STAR PROFILE
@@ -1246,8 +1246,11 @@
          released credits, while still requiring a meaningful audience signal.
       */
       const eraChapters = [];
-      /* PERSON 79 — compare against every source chapter that can survive
-         into the final biography, not only the early-career chapters. */
+      /* PERSON 80 — DUPLICATE-PROOF AGAINST EVERY SOURCE CHAPTER.
+         Person 78 only checked the intro/rise/run/defining chapters here.
+         A title named in the awards/recognition or later source chapter could
+         therefore be selected again by the decade spine. Include those source
+         chapters in the coverage test before any synthetic era is built. */
       const sourceChapterTexts = [
         intro, resolvedRise, careerRun, defining, recognition, late
       ]
@@ -1262,48 +1265,55 @@
         .map(([label, movies]) => {
           const decade = Number(String(label).match(/\d{4}/)?.[0]);
 
-          const now = new Date();
-          now.setHours(23, 59, 59, 999);
-
-          /* PERSON 79 — final-gate release safety. Even if an upstream TMDB
-             collection changes, no future credit can enter an era sentence. */
-          const isReleasedAtFinalGate = movie => {
-            if (!movie?.release_date) return false;
-            const date = new Date(`${movie.release_date}T00:00:00`);
-            return !Number.isNaN(date.getTime()) && date <= now;
-          };
-
-          /* Lead/supporting billing matters to a career narrative. This keeps
-             generic popularity from routinely preferring a franchise entry
-             over a substantial starring performance. */
-          const narrativeScore = movie => {
-            const order = Number(movie?.order);
-            const billingBonus = Number.isFinite(order)
-              ? Math.max(0, 36 - order * 4)
-              : 0;
-            const sourceBonus = titleAlreadyCovered(movie) ? 0 :
-              (wikipediaText && sentenceMentionsTitle(wikipediaText, movie.title) ? 18 : 0);
-            return movieRecognitionScore(movie) + billingBonus + sourceBonus;
-          };
-
           const eligible = (movies || [])
             .filter(isBiographyActingCredit)
-            .filter(isReleasedAtFinalGate)
             .filter(movie => !titleAlreadyCovered(movie))
             .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
-              narrativeScore(b) - narrativeScore(a) ||
+              movieRecognitionScore(b) - movieRecognitionScore(a) ||
               (a.year || 9999) - (b.year || 9999)
             );
 
           /* Prefer globally significant credits, but do not let the global
              threshold collapse an otherwise substantial decade to one film. */
-          const significant = eligible
-            .filter(isCareerSignificantCredit)
-            .sort((a, b) => narrativeScore(b) - narrativeScore(a));
+          const significant = eligible.filter(isCareerSignificantCredit);
           const targetCount = eligible.length >= 3 ? 3 : eligible.length;
-          const selected = [...significant];
 
+          /* PERSON 80 — DECADE DIVERSITY.
+             A sequel-heavy franchise can otherwise occupy two or three slots
+             in one decade and hide substantial non-franchise starring work.
+             Use a conservative title-family key only for obvious numbered
+             sequels, then allow at most one such family entry per decade. */
+          const sequelFamily = movie => {
+            const title = norm(movie?.title || "");
+            if (!title) return "";
+            const family = title
+              .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
+              .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+            return family && family !== title ? family : "";
+          };
+
+          const selected = [];
+          const usedFamilies = new Set();
+          const ranked = [...significant, ...eligible.filter(movie =>
+            !significant.some(item => item.id === movie.id)
+          )];
+
+          for (const movie of ranked) {
+            if (selected.length >= targetCount) break;
+            if (selected.some(item => item.id === movie.id)) continue;
+
+            const family = sequelFamily(movie);
+            if (family && usedFamilies.has(family)) continue;
+
+            selected.push(movie);
+            if (family) usedFamilies.add(family);
+          }
+
+          /* If diversity filtering leaves an unusually sparse decade, fill the
+             remaining slot(s) with the strongest unused released credits. */
           for (const movie of eligible) {
             if (selected.length >= targetCount) break;
             if (!selected.some(item => item.id === movie.id)) selected.push(movie);
@@ -1321,18 +1331,6 @@
 
         const movies = group.movies
           .filter(movie => {
-            /* PERSON 79 — enforce release status again at emission time. */
-            const releaseDate = movie?.release_date
-              ? new Date(`${movie.release_date}T00:00:00`)
-              : null;
-            const today = new Date();
-            today.setHours(23, 59, 59, 999);
-            if (!releaseDate || Number.isNaN(releaseDate.getTime()) || releaseDate > today) {
-              return false;
-            }
-
-            if (titleAlreadyCovered(movie)) return false;
-
             const key = norm(movie.title);
             if (!key || emittedTitles.has(key)) return false;
             emittedTitles.add(key);
@@ -1482,7 +1480,13 @@
          career narrative. The fallback itself is also sanitized as a final
          defense, so source boilerplate can never reach the card. */
       if (words(story) >= 45) {
-        return removeWikipediaEnding(story);
+        /* PERSON 80 — final display firewall. Never allow source licensing or
+           attribution boilerplate to survive even if an upstream source
+           changes its wording slightly. */
+        return removeWikipediaEnding(story)
+          .replace(/\s*(?:Description above from|This article uses material from)[\s\S]*$/i, "")
+          .replace(/\s*(?:licensed under|available under)[\s\S]*$/i, "")
+          .trim();
       }
 
       const fallbackSentences = sentenceSplit(
