@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 78
+      REELWISE PERSON API — PERSON 79
       ============================================================
 
       STAR PROFILE
@@ -1246,7 +1246,11 @@
          released credits, while still requiring a meaningful audience signal.
       */
       const eraChapters = [];
-      const sourceChapterTexts = [intro, resolvedRise, careerRun, defining]
+      /* PERSON 79 — compare against every source chapter that can survive
+         into the final biography, not only the early-career chapters. */
+      const sourceChapterTexts = [
+        intro, resolvedRise, careerRun, defining, recognition, late
+      ]
         .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
         .filter(Boolean);
 
@@ -1258,18 +1262,45 @@
         .map(([label, movies]) => {
           const decade = Number(String(label).match(/\d{4}/)?.[0]);
 
+          const now = new Date();
+          now.setHours(23, 59, 59, 999);
+
+          /* PERSON 79 — final-gate release safety. Even if an upstream TMDB
+             collection changes, no future credit can enter an era sentence. */
+          const isReleasedAtFinalGate = movie => {
+            if (!movie?.release_date) return false;
+            const date = new Date(`${movie.release_date}T00:00:00`);
+            return !Number.isNaN(date.getTime()) && date <= now;
+          };
+
+          /* Lead/supporting billing matters to a career narrative. This keeps
+             generic popularity from routinely preferring a franchise entry
+             over a substantial starring performance. */
+          const narrativeScore = movie => {
+            const order = Number(movie?.order);
+            const billingBonus = Number.isFinite(order)
+              ? Math.max(0, 36 - order * 4)
+              : 0;
+            const sourceBonus = titleAlreadyCovered(movie) ? 0 :
+              (wikipediaText && sentenceMentionsTitle(wikipediaText, movie.title) ? 18 : 0);
+            return movieRecognitionScore(movie) + billingBonus + sourceBonus;
+          };
+
           const eligible = (movies || [])
             .filter(isBiographyActingCredit)
+            .filter(isReleasedAtFinalGate)
             .filter(movie => !titleAlreadyCovered(movie))
             .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
-              movieRecognitionScore(b) - movieRecognitionScore(a) ||
+              narrativeScore(b) - narrativeScore(a) ||
               (a.year || 9999) - (b.year || 9999)
             );
 
           /* Prefer globally significant credits, but do not let the global
              threshold collapse an otherwise substantial decade to one film. */
-          const significant = eligible.filter(isCareerSignificantCredit);
+          const significant = eligible
+            .filter(isCareerSignificantCredit)
+            .sort((a, b) => narrativeScore(b) - narrativeScore(a));
           const targetCount = eligible.length >= 3 ? 3 : eligible.length;
           const selected = [...significant];
 
@@ -1290,6 +1321,18 @@
 
         const movies = group.movies
           .filter(movie => {
+            /* PERSON 79 — enforce release status again at emission time. */
+            const releaseDate = movie?.release_date
+              ? new Date(`${movie.release_date}T00:00:00`)
+              : null;
+            const today = new Date();
+            today.setHours(23, 59, 59, 999);
+            if (!releaseDate || Number.isNaN(releaseDate.getTime()) || releaseDate > today) {
+              return false;
+            }
+
+            if (titleAlreadyCovered(movie)) return false;
+
             const key = norm(movie.title);
             if (!key || emittedTitles.has(key)) return false;
             emittedTitles.add(key);
