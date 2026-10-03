@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 71
+      REELWISE PERSON API — PERSON 72
       ============================================================
 
       STAR PROFILE
@@ -883,7 +883,16 @@
       const firstCareerYear = timeline.firstYear || (birthYear ? birthYear + 18 : 1970);
       const latestCareerYear = timeline.latestYear || firstCareerYear + 30;
       const span = Math.max(12, latestCareerYear - firstCareerYear);
-      const earlyEnd = firstCareerYear + Math.round(span * 0.40);
+      /* PERSON 72 — CAREER-STAGE BOUNDARIES
+
+         "Early career" must be relative to when the performer actually began,
+         not 40% of an unusually long career. For a performer with a 45+ year
+         career, the old formula could classify films nearly twenty years after
+         the debut as early work. Cap the early chapter at roughly the first
+         12 years, while still allowing a shorter proportional window for
+         shorter careers. */
+      const earlyCareerYears = Math.min(12, Math.max(7, Math.round(span * 0.28)));
+      const earlyEnd = firstCareerYear + earlyCareerYears;
       const lateStart = firstCareerYear + Math.round(span * 0.68);
 
       const candidates = sourceSentences
@@ -1027,7 +1036,7 @@
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 
           resolvedRise = {
-            sentence: `Important early film work included ${joined}.`,
+            sentence: `Early in ${name}'s film career, credits included ${joined}.`,
             index: -2,
             years: earlyMovies.map(movie => movie.year),
             year: Math.min(...earlyMovies.map(movie => movie.year)),
@@ -1147,7 +1156,7 @@
           }
 
           careerRun = {
-            sentence: `${name}'s early film work included ${joined}.`,
+            sentence: `During the ${runGroup.decade}, ${name}'s film work included ${joined}.`,
             index: -1,
             years: runMovies.map(movie => movie.year),
             year: Math.min(...runMovies.map(movie => movie.year)),
@@ -1196,7 +1205,7 @@
 
           careerRun = {
             ...careerRun,
-            sentence: `${name}'s early film work included ${joined}.`,
+            sentence: `During the ${Math.floor(Math.min(...remaining.map(movie => movie.year)) / 10) * 10}s, ${name}'s film work included ${joined}.`,
             years: remaining.map(movie => movie.year),
             year: Math.min(...remaining.map(movie => movie.year)),
             hits: remaining
