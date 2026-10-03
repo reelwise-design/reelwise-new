@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 74
+      REELWISE PERSON API — PERSON 78
       ============================================================
 
       STAR PROFILE
@@ -379,6 +379,8 @@
 
     function validMovieCredits(credits = []) {
       const seen = new Set();
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
 
       return credits.filter(movie => {
         if (
@@ -386,6 +388,15 @@
           !movie?.title ||
           !movie?.release_date
         ) {
+          return false;
+        }
+
+        /* PERSON 78 — CAREER HISTORY MEANS RELEASED WORK.
+           TMDB often lists announced/future credits in movie_credits.cast.
+           Compare the complete release date, not merely the year, so a film
+           opening later in the current year cannot be written as history. */
+        const releaseDate = new Date(`${movie.release_date}T00:00:00`);
+        if (Number.isNaN(releaseDate.getTime()) || releaseDate > today) {
           return false;
         }
 
@@ -1222,27 +1233,17 @@
       */
 
 
-      /* PERSON 77 — FORCED CHRONOLOGICAL DECADE SPINE
+      /* PERSON 78 — RELEASED, NON-REPEATING, DECADE-BALANCED SPINE
 
-         Person 76 could mistakenly mark a decade as covered because a candidate
-         source sentence mentioned its films, even when that sentence was later
-         discarded from the final card. Person 77 only lets source chapters that
-         are guaranteed to be part of the core story suppress a generated decade.
-         A decade with even one still-uncovered significant acting credit now gets
-         a chapter, preventing the 2000s/2010s from silently disappearing.
+         Keep Person 77's chronological architecture, but improve the material
+         placed inside it. A decade is built from released substantive acting
+         credits only. Titles already stated in the guaranteed source chapters
+         are removed before selection, preventing Forrest Gump-style repetition.
 
-         PERSON 76 — INDEPENDENT VERIFIED CAREER-ERA COVERAGE
-
-         Person 73 treated a whole decade as covered when any selected source
-         sentence mentioned one title from that decade. That allowed a single
-         Forrest Gump sentence to erase the rest of the 1990s and a single
-         Robert Langdon / Polar Express sentence to erase the 2000s.
-
-         Person 76 measures coverage title-by-title and builds every meaningful uncovered later-career decade independently. It never substitutes a generic newest-credit bucket for missing 2000s or 2010s coverage. Source prose keeps
-         its factual context and achievements; verified acting credits fill
-         only genuinely uncovered career eras. Synthetic chapters make no
-         claims about acclaim, importance or breakthrough -- they state only
-         that the performer appeared in those films.
+         Long careers also need representative coverage. The old global 55th
+         percentile could leave a rich decade with one surviving title. Person 78
+         therefore ranks each decade locally and may use up to three strong
+         released credits, while still requiring a meaningful audience signal.
       */
       const eraChapters = [];
       const sourceChapterTexts = [intro, resolvedRise, careerRun, defining]
@@ -1254,25 +1255,49 @@
       );
 
       const decadeGroups = Object.entries(timeline.byDecade || {})
-        .map(([label, movies]) => ({
-          label,
-          decade: Number(String(label).match(/\d{4}/)?.[0]),
-          movies: (movies || [])
-            .filter(isCareerSignificantCredit)
+        .map(([label, movies]) => {
+          const decade = Number(String(label).match(/\d{4}/)?.[0]);
+
+          const eligible = (movies || [])
+            .filter(isBiographyActingCredit)
             .filter(movie => !titleAlreadyCovered(movie))
+            .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
               movieRecognitionScore(b) - movieRecognitionScore(a) ||
               (a.year || 9999) - (b.year || 9999)
-            )
-        }))
+            );
+
+          /* Prefer globally significant credits, but do not let the global
+             threshold collapse an otherwise substantial decade to one film. */
+          const significant = eligible.filter(isCareerSignificantCredit);
+          const targetCount = eligible.length >= 3 ? 3 : eligible.length;
+          const selected = [...significant];
+
+          for (const movie of eligible) {
+            if (selected.length >= targetCount) break;
+            if (!selected.some(item => item.id === movie.id)) selected.push(movie);
+          }
+
+          return { label, decade, movies: selected.slice(0, 3) };
+        })
         .filter(group => Number.isFinite(group.decade) && group.movies.length);
+
+      const emittedTitles = new Set();
 
       for (const group of decadeGroups) {
         /* Opening/rise prose owns the true beginning of the career. */
         if (group.decade < Math.floor((earlyEnd + 1) / 10) * 10) continue;
 
-        const movies = group.movies.slice(0, 3).sort((a, b) => a.year - b.year);
-        if (movies.length < 1) continue;
+        const movies = group.movies
+          .filter(movie => {
+            const key = norm(movie.title);
+            if (!key || emittedTitles.has(key)) return false;
+            emittedTitles.add(key);
+            return true;
+          })
+          .sort((a, b) => a.year - b.year);
+
+        if (!movies.length) continue;
 
         const titles = movies.map(movie => `${movie.title} (${movie.year})`);
         const joined = titles.length === 1
