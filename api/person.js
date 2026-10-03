@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 60
+      REELWISE PERSON API — PERSON 62
       ============================================================
 
       STAR PROFILE
@@ -164,6 +164,25 @@
       if (!year) return "";
       const start = Math.floor(year / 10) * 10;
       return `${start}s`;
+    }
+
+    /* PERSON 62 — DATE-BASED GENERATED CHAPTER LABELS
+
+       Synthetic credit chapters should not call a period "early" or
+       "mid-career" merely because of its relative position in a long
+       filmography. Use objective decade wording instead. This preserves
+       Person 61's title-selection logic while preventing cases such as
+       Tom Hanks's 1998–1999 films being labeled "early film work." */
+    function generatedFilmPeriodLabel(movies = []) {
+      const decades = [...new Set(
+        movies
+          .map(movie => decadeLabel(movie?.year))
+          .filter(Boolean)
+      )];
+
+      if (!decades.length) return "Film work";
+      if (decades.length === 1) return `During the ${decades[0]}`;
+      return `From the ${decades[0]} through the ${decades[decades.length - 1]}`;
     }
 
 
@@ -974,7 +993,7 @@
             ? `${titles[0]} and ${titles[1]}`
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
           middle = {
-            sentence: `Major mid-career film work included ${joined}.`,
+            sentence: `${generatedFilmPeriodLabel(middleMovies)}, ${name} appeared in ${joined}.`,
             index: 9996,
             years: middleMovies.map(movie => movie.year),
             year: Math.min(...middleMovies.map(movie => movie.year)),
@@ -1046,7 +1065,7 @@
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 
           resolvedRise = {
-            sentence: `Important early film work included ${joined}.`,
+            sentence: `${generatedFilmPeriodLabel(earlyMovies)}, ${name} appeared in ${joined}.`,
             index: -2,
             years: earlyMovies.map(movie => movie.year),
             year: Math.min(...earlyMovies.map(movie => movie.year)),
@@ -1164,7 +1183,7 @@
 
           if (runMovies.length >= 2) {
             careerRun = {
-              sentence: `${name}'s early film work included ${joined}.`,
+              sentence: `${generatedFilmPeriodLabel(runMovies)}, ${name} appeared in ${joined}.`,
               index: -1,
               years: runMovies.map(movie => movie.year),
               year: Math.min(...runMovies.map(movie => movie.year)),
