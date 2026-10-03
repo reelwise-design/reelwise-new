@@ -781,7 +781,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 67 — DEFINING-CHAPTER PRESERVATION + CLEAN EARLY-CAREER ENGINE
+        PERSON 63 — CHRONOLOGICAL BIOGRAPHY ASSEMBLY
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -1247,11 +1247,36 @@
         }
       }
 
-      /* The biography reads in career/source chronology. Recognition is
-         allowed to stay beside the career event it describes. */
+      /* PERSON 63 — CHRONOLOGICAL BIOGRAPHY ASSEMBLY
+
+         Person 62 fixed inaccurate early/mid-career labels, but a source
+         sentence that spans many years could still be sorted by its oldest
+         date. That allowed a broad franchise/later-career sentence to appear
+         before a focused 1990s or 2000s chapter.
+
+         Synthetic decade chapters stay anchored to their first film year.
+         For source sentences spanning 10+ years, sort by the latest dated
+         milestone instead. This preserves the source facts while making the
+         finished card read forward through the career rather than jumping
+         backward and forward in time. */
+      function biographyChronologyYear(item) {
+        const ys = (item?.years || []).filter(Number.isFinite);
+        if (!ys.length) return item?.year || 9999;
+
+        const earliest = Math.min(...ys);
+        const latest = Math.max(...ys);
+        const isSynthetic = item?.index < 0 || item?.index >= 9990;
+
+        if (!isSynthetic && latest - earliest >= 10) {
+          return latest;
+        }
+
+        return earliest;
+      }
+
       chosen.sort((a, b) => {
-        const ay = a.year || 9999;
-        const by = b.year || 9999;
+        const ay = biographyChronologyYear(a);
+        const by = biographyChronologyYear(b);
         return ay - by || a.index - b.index;
       });
 
