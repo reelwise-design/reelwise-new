@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 68
+      REELWISE PERSON API — PERSON 69
       ============================================================
 
       STAR PROFILE
@@ -33,7 +33,15 @@
     }
 
     function removeWikipediaEnding(text = "") {
-      return text
+      return cleanText(text)
+        /* PERSON 69: strip attribution/license boilerplate that can be
+           embedded in third-party Wikipedia extracts before biography
+           selection ever sees it. */
+        .replace(/\s*Description above from the Wikipedia article[\s\S]*$/i, "")
+        .replace(/\s*This article uses material from the Wikipedia article[\s\S]*$/i, "")
+        .replace(/\s*Text is available under the Creative Commons[\s\S]*$/i, "")
+        .replace(/\s*licensed under CC[-–]BY[-–]SA[\s\S]*$/i, "")
+        .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i, "")
         .replace(/\s*References\s*$/i, "")
         .replace(/\s*External links\s*$/i, "")
         .trim();
@@ -753,16 +761,16 @@
     }) {
       const name = person?.name || "This performer";
       const timeline = buildCareerTimeline(credits);
-      const source = cleanText(
+      const source = removeWikipediaEnding(
         wikipediaExtract || wikipediaSummary || person?.biography || ""
       );
       const sourceSentences = sentenceSplit(source).filter(Boolean);
       const summarySentences = sentenceSplit(
-        wikipediaSummary || person?.biography || ""
+        removeWikipediaEnding(wikipediaSummary || person?.biography || "")
       ).filter(Boolean);
 
       /*
-        PERSON 68 — DEFINING-CHAPTER PRESERVATION + NONREDUNDANT CAREER-RUN ENGINE
+        PERSON 69 — CLEAN SOURCE BIOGRAPHY + REELWISE CAREER STORY
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -821,6 +829,7 @@
         const hits = titleHits(text);
         if (!text || wc < 7 || wc > 62) return false;
         if (noiseWords.test(text)) return false;
+        if (/\b(?:description above from|wikipedia article|licensed under|creative commons|full list of contributors)\b/i.test(text)) return false;
         if (orphanStart.test(text)) return false;
         if (isCatalogDump(text, hits)) return false;
 
@@ -847,9 +856,18 @@
             /\b(is an?|was an?)\b/i.test(text) &&
             /\b(actor|actress|comedian|filmmaker|director|producer|writer|performer)\b/i.test(text);
         });
-        return found
-          ? ensurePeriod(cleanText(found))
-          : ensurePeriod(`${name} is a film actor and filmmaker`);
+        if (!found) {
+          return ensurePeriod(`${name} is a film actor and filmmaker`);
+        }
+
+        /* PERSON 69: birthday/age already has a dedicated header line.
+           Do not repeat a parenthetical birth date in the biography intro. */
+        const cleanedIntro = cleanText(found)
+          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
+          .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
+          .replace(/\s*\(born\s+\d{4}\)/i, "");
+
+        return ensurePeriod(cleanedIntro);
       }
 
       const intro = identitySentence();
