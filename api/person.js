@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 60
+      REELWISE PERSON API — PERSON 68
       ============================================================
 
       STAR PROFILE
@@ -762,7 +762,7 @@
       ).filter(Boolean);
 
       /*
-        PERSON 67 — DEFINING-CHAPTER PRESERVATION + CLEAN EARLY-CAREER ENGINE
+        PERSON 68 — DEFINING-CHAPTER PRESERVATION + NONREDUNDANT CAREER-RUN ENGINE
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -1058,7 +1058,20 @@
         overrides, and no invented claim that a film was a breakthrough.
       */
       const selectedEarlyTitleKeys = new Set();
-      const plannedEarlyChapters = [resolvedRise, defining].filter(Boolean);
+
+      /* PERSON 68 — count the introduction too.
+
+         Person 67 only inspected resolvedRise + defining before deciding that
+         an automatic early-film run was necessary. That could create a list
+         even when the introduction already told the performer's early-career
+         story (Tom Hanks is the clearest example). The actual biography card
+         is the authority: if intro/rise/defining already name enough notable
+         early films, do not manufacture another chapter. */
+      const plannedEarlyChapters = [
+        { sentence: intro, index: -2 },
+        resolvedRise,
+        defining
+      ].filter(Boolean);
 
       for (const chapter of plannedEarlyChapters) {
         const text = chapter?.sentence || "";
@@ -1119,22 +1132,52 @@
         }
       }
 
-      /* PERSON 66 — NO DUPLICATE EARLY-CAREER CHAPTERS
+      /* PERSON 68 — FINAL SYNTHETIC-RUN REDUNDANCY FILTER
 
-         Person 65 could generate an early-film run and then immediately keep
-         a source sentence naming many of the same movies (Tom Hanks). If the
-         generated run overlaps a selected source chapter by two or more
-         titles, the source prose wins and the synthetic run is removed. */
+         A generated film list is only a safety net. Source prose always wins.
+         Before allowing the run into the card, remove every title already
+         named anywhere in the chapters we intend to use. Also treat an
+         explicit franchise sentence as covering numbered/sequel titles whose
+         normalized title begins with the named franchise title.
+
+         If fewer than two genuinely new titles remain, discard the synthetic
+         chapter completely. This prevents repeated Forrest Gump / Toy Story
+         material without actor-specific title overrides. */
       if (careerRun) {
-        const sourceChapters = [resolvedRise, defining].filter(ch => ch && ch.index >= 0);
-        const duplicateRun = sourceChapters.some(ch => {
-          let overlap = 0;
-          for (const movie of careerRun.hits || []) {
-            if (sentenceMentionsTitle(ch.sentence || "", movie.title)) overlap++;
-          }
-          return overlap >= 2;
+        const sourceTexts = [intro, resolvedRise, defining, recognition, middle, late]
+          .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
+          .filter(Boolean);
+
+        const coveredBySource = movie => sourceTexts.some(text => {
+          if (sentenceMentionsTitle(text, movie.title)) return true;
+          if (!/\bfranchise\b/i.test(text)) return false;
+
+          return allNotable.some(baseMovie => {
+            if (!baseMovie?.title || !sentenceMentionsTitle(text, baseMovie.title)) return false;
+            const base = norm(baseMovie.title);
+            const candidate = norm(movie.title);
+            return base && candidate !== base && candidate.startsWith(`${base} `);
+          });
         });
-        if (duplicateRun) careerRun = null;
+
+        const remaining = (careerRun.hits || []).filter(movie => !coveredBySource(movie));
+
+        if (remaining.length < 2) {
+          careerRun = null;
+        } else {
+          const titles = remaining.map(movie => `${movie.title} (${movie.year})`);
+          const joined = titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+
+          careerRun = {
+            ...careerRun,
+            sentence: `${name}'s early film work included ${joined}.`,
+            years: remaining.map(movie => movie.year),
+            year: Math.min(...remaining.map(movie => movie.year)),
+            hits: remaining
+          };
+        }
       }
 
       if (!late) {
@@ -1225,7 +1268,9 @@
           const sentence = selected[i];
           const protectedSentence =
             (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
-            (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
+            /* PERSON 68: synthetic careerRun is intentionally NOT protected.
+               It is a safety net, not the spine of the profile. Source-driven
+               defining material should win whenever the card needs trimming. */
             /* PERSON 67: the defining chapter is the spine of the profile.
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
