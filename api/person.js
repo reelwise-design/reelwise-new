@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 62
+      REELWISE PERSON API — PERSON 65
       ============================================================
 
       STAR PROFILE
@@ -1164,9 +1164,42 @@
             .filter(Boolean)
             .map(ch => ch.sentence || "");
 
+          /* PERSON 65 — FRANCHISE REDUNDANCY GUARD
+
+             If selected source prose already describes a film series/franchise,
+             do not use numbered installments from that same series merely to
+             pad a generated decade sentence. This keeps the broader career
+             statement (for example, voicing Woody in the Toy Story franchise)
+             without immediately repeating Toy Story 2 / Toy Story 3 elsewhere.
+
+             This is intentionally conservative: it only activates when the
+             source explicitly uses franchise/series wording and the movie title
+             clearly begins with the same multi-word title stem. */
+          const franchiseSourceText = alreadyNamed.join(" ");
+
+          function franchiseStem(title = "") {
+            const cleaned = cleanText(title)
+              .replace(/\s*[0-9]+\s*$/g, "")
+              .replace(/\s*[:\-–—]\s*.*$/g, "")
+              .trim();
+            return cleaned;
+          }
+
+          function coveredBySourceFranchise(movie) {
+            const stem = franchiseStem(movie?.title || "");
+            if (!stem || stem.split(/\s+/).length < 2) return false;
+            const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const pattern = new RegExp(
+              `\\b${escaped}\\b[^.]{0,45}\\b(franchise|series)\\b`,
+              "i"
+            );
+            return pattern.test(franchiseSourceText);
+          }
+
           const runMovies = runGroup.movies
             .filter(movie =>
-              !alreadyNamed.some(text => sentenceMentionsTitle(text, movie.title))
+              !alreadyNamed.some(text => sentenceMentionsTitle(text, movie.title)) &&
+              !coveredBySourceFranchise(movie)
             )
             .slice(0, 5)
             .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
