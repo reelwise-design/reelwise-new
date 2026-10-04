@@ -100,7 +100,8 @@
       */
       const protectedDots = [
         "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Sr.", "Jr.",
-        "St.", "Mt.", "No.", "U.S.", "U.K.", "e.g.", "i.e."
+        "St.", "Mt.", "No.", "Det.", "Sgt.", "Lt.", "Col.", "Capt.", "Gen.",
+        "U.S.", "U.K.", "e.g.", "i.e."
       ];
 
       const token = "__RW_DOT__";
@@ -1340,7 +1341,27 @@
         if (runGroup) {
           /* Keep up to five films so a genuine concentrated star-making run
              can read as a run, rather than collapsing to two random credits. */
-          const runMovies = runGroup.movies
+          /* PERSON 94 — FIRST-MAJOR-FILM PROTECTION.
+             Score-only slicing can accidentally drop the film that actually
+             established an actor when several later sequels/credits from the
+             same era score slightly higher. Protect the earliest substantial
+             credit, then fill the remaining slots with the strongest ranked
+             films. This is generic and contains no actor/title overrides. */
+          const chronologicalMajor = [...runGroup.movies]
+            .filter(movie =>
+              Number(movie?.vote_count || 0) >= 750 ||
+              careerAnchorStrength(movie) >= 2
+            )
+            .sort((a, b) =>
+              (a.year || 9999) - (b.year || 9999) ||
+              careerAnchorScore(b) - careerAnchorScore(a)
+            );
+
+          const firstMajor = chronologicalMajor[0] || null;
+          const runMovies = [
+            ...(firstMajor ? [firstMajor] : []),
+            ...runGroup.movies.filter(movie => !firstMajor || movie.id !== firstMajor.id)
+          ]
             .slice(0, 5)
             .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
           const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
@@ -1508,7 +1529,7 @@
         sentenceMentionsTitle(text, movie.title)
       );
 
-      /* PERSON 93 — CAREER-ERA SELECTION SCORE.
+      /* PERSON 94 — CAREER-ERA SELECTION SCORE.
          Person 91 fixed candidate availability. Person 92 leaves that structure
          untouched and refines only which three films win inside each era.
 
@@ -1662,7 +1683,36 @@
           /* Prefer globally significant credits, but do not let the global
              threshold collapse an otherwise substantial decade to one film. */
           const significant = eligible.filter(isCareerSignificantCredit);
-          const targetCount = eligible.length >= 3 ? 3 : eligible.length;
+
+          /* PERSON 94 — NO OBLIGATORY WEAK DECADES.
+             A smaller filmography should not produce a standalone decade
+             sentence merely because one marginal credit exists. A movie is
+             display-worthy when it has a meaningful audience footprint,
+             strong source-career evidence, or a genuinely central role with
+             solid reception. */
+          const displayWorthy = eligible.filter(movie => {
+            const votes = Number(movie?.vote_count || 0);
+            const rating = Number(movie?.vote_average || 0);
+            const order = Number(movie?.order);
+            const anchor = careerAnchorStrength(movie);
+
+            return (
+              votes >= 900 ||
+              anchor >= 2 ||
+              (
+                Number.isFinite(order) &&
+                order <= 2 &&
+                votes >= 300 &&
+                rating >= 6.5
+              )
+            );
+          });
+
+          const rankedPool = displayWorthy.length
+            ? displayWorthy
+            : (significant.length >= 2 ? significant : []);
+
+          const targetCount = rankedPool.length >= 3 ? 3 : rankedPool.length;
 
           /* PERSON 80 — DECADE DIVERSITY.
              A sequel-heavy franchise can otherwise occupy two or three slots
@@ -1685,7 +1735,7 @@
 
           const selected = [];
           const usedFamilies = new Set();
-          const ranked = [...eligible].sort((a, b) =>
+          const ranked = [...rankedPool].sort((a, b) =>
             eraSelectionScore(b) - eraSelectionScore(a) ||
             careerAnchorScore(b) - careerAnchorScore(a) ||
             movieRecognitionScore(b) - movieRecognitionScore(a) ||
@@ -1705,7 +1755,7 @@
 
           /* If diversity filtering leaves an unusually sparse decade, fill the
              remaining slot(s) with the strongest unused released credits. */
-          for (const movie of eligible) {
+          for (const movie of rankedPool) {
             if (selected.length >= targetCount) break;
             if (!selected.some(item => item.id === movie.id)) selected.push(movie);
           }
