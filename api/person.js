@@ -1036,7 +1036,7 @@
         isBiographyActingCredit(movie) &&
         movieRecognitionScore(movie) >= significanceFloor;
 
-      /* PERSON 87 — CAREER-STAGE + ANCHOR MOVIE RANKING
+      /* PERSON 88 — PERSON 86 CAREER-STAGE RANKING + EVIDENCE-ONLY ANCHORS
 
          Person 85 established a stable chronological biography. Person 86 keeps that
          structure, but treats credits as career stages rather than a flat set of
@@ -1123,6 +1123,50 @@
         return score;
       }
 
+      /* PERSON 88 — EVIDENCE-ONLY CAREER ANCHORS
+
+         Person 87 proved that source-biography evidence can identify genuinely
+         defining films, but it also let that evidence alter the biography
+         chapter pipeline. Person 88 deliberately does NOT do that.
+
+         These helpers only add a ranking bonus to verified TMDB acting credits.
+         Person 86's source cleanup, pronunciation removal, age output, chapter
+         selection, prose limits and rendering path remain untouched.
+      */
+      const careerAnchorCue =
+        /\b(breakthrough|breakout|rose to fame|rise to fame|rose to prominence|came to prominence|stardom|star-making|gained (?:wider |wide |international )?recognition|academy award|oscar|golden globe|bafta|acclaim|acclaimed|signature|iconic|best known|franchise|comeback|resurgence|career revival|leading role|lead role)\b/i;
+
+      const strongCareerAnchorCue =
+        /\b(breakthrough|breakout|rose to fame|rise to fame|rose to prominence|came to prominence|stardom|star-making|academy award|oscar|signature|iconic|best known|comeback|resurgence|career revival)\b/i;
+
+      function careerAnchorStrength(movie) {
+        if (!movie?.title) return 0;
+
+        let strength = 0;
+        for (const sentence of sourceSentences) {
+          if (!sentenceMentionsTitle(sentence, movie.title)) continue;
+
+          strength = Math.max(strength, 1);
+          if (careerAnchorCue.test(sentence)) strength = Math.max(strength, 2);
+          if (strongCareerAnchorCue.test(sentence)) strength = Math.max(strength, 3);
+
+          if (/\b(award|won|nominat|performance|portray|played|starred|leading role|lead role)\b/i.test(sentence)) {
+            strength = Math.max(strength, 2);
+          }
+        }
+        return strength;
+      }
+
+      function careerAnchorScore(movie) {
+        const strength = careerAnchorStrength(movie);
+        const bonus =
+          strength >= 3 ? 70 :
+          strength === 2 ? 42 :
+          strength === 1 ? 14 : 0;
+
+        return careerDefiningMovieScore(movie) + bonus;
+      }
+
       if (!resolvedRise) {
         const earlyMovies = allNotable
           .filter(movie =>
@@ -1130,7 +1174,11 @@
             movie.year &&
             movie.year <= earlyEnd
           )
-          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .sort((a, b) =>
+            careerAnchorScore(b) - careerAnchorScore(a) ||
+            movieRecognitionScore(b) - movieRecognitionScore(a) ||
+            (a.year || 9999) - (b.year || 9999)
+          )
           .slice(0, 4);
 
         if (earlyMovies.length >= 2) {
@@ -1317,78 +1365,6 @@
         }
       }
 
-
-      /* PERSON 87 — BIOGRAPHY-EVIDENCE CAREER ANCHORS
-
-         A pure numeric ranking can still miss the films that actually define a
-         performer's career. Person 87 treats titles explicitly named by the
-         source biography as evidence, then strengthens that evidence when the
-         surrounding sentence describes a breakthrough, rise to fame, stardom,
-         major award, acclaimed performance, signature role, franchise, comeback
-         or career resurgence.
-
-         The system remains generic: no performer names and no title-specific
-         overrides. TMDB credits are matched back to source-biography sentences,
-         and those matches become protected anchors before ordinary scoring fills
-         the remaining slots.
-      */
-      const sourceBiographyText = String(bio || "");
-      const sourceBiographySentences = splitSentences(sourceBiographyText);
-
-      const anchorCue = /\b(breakthrough|breakout|rose to fame|rise to fame|stardom|star-making|prominence|prominent|acclaim|acclaimed|academy award|oscar|golden globe|bafta|nominated|nomination|won|winning|signature|iconic|best known|known for|franchise|comeback|resurgence|career revival|leading role|lead role)\b/i;
-      const strongAnchorCue = /\b(breakthrough|breakout|rose to fame|rise to fame|stardom|academy award|oscar|signature|iconic|best known|comeback|resurgence|career revival)\b/i;
-
-      function biographyAnchorStrength(movie) {
-        if (!movie?.title) return 0;
-
-        let strength = 0;
-        for (const sentence of sourceBiographySentences) {
-          if (!sentenceMentionsTitle(sentence, movie.title)) continue;
-
-          strength = Math.max(strength, 1);
-          if (anchorCue.test(sentence)) strength = Math.max(strength, 2);
-          if (strongAnchorCue.test(sentence)) strength = Math.max(strength, 3);
-
-          /* Award/performance language close to a named title is especially
-             strong evidence that the title belongs in a career summary. */
-          if (/\b(academy award|oscar|golden globe|bafta|award|nominat|performance|portray|played|role)\b/i.test(sentence)) {
-            strength = Math.max(strength, 2);
-          }
-        }
-        return strength;
-      }
-
-      const biographyAnchors = allNotable
-        .filter(isBiographyActingCredit)
-        .map(movie => ({ movie, strength: biographyAnchorStrength(movie) }))
-        .filter(item => item.strength > 0)
-        .sort((a, b) =>
-          b.strength - a.strength ||
-          careerDefiningMovieScore(b.movie) - careerDefiningMovieScore(a.movie) ||
-          (a.movie.year || 9999) - (b.movie.year || 9999)
-        );
-
-      function anchorAdjustedScore(movie) {
-        const strength = biographyAnchorStrength(movie);
-        let bonus = 0;
-        if (strength >= 3) bonus = 115;
-        else if (strength === 2) bonus = 72;
-        else if (strength === 1) bonus = 28;
-        return careerDefiningMovieScore(movie) + bonus;
-      }
-
-      function protectedAnchorsForRange(startYear, endYear, limit = 3) {
-        const result = [];
-        for (const item of biographyAnchors) {
-          const year = Number(item.movie?.year || 0);
-          if (!year || year < startYear || year > endYear) continue;
-          if (result.some(existing => existing.id === item.movie.id)) continue;
-          result.push(item.movie);
-          if (result.length >= limit) break;
-        }
-        return result;
-      }
-
       /* PERSON 86 — REQUIRED BREAKTHROUGH / EARLY-STARDOM STAGE
 
          Decade ranking alone can begin too late when Wikipedia does not supply
@@ -1418,7 +1394,7 @@
             Number(movie?.vote_count || 0) >= 250
           )
           .sort((a, b) =>
-            anchorAdjustedScore(b) - anchorAdjustedScore(a) ||
+            careerAnchorScore(b) - careerAnchorScore(a) ||
             movieRecognitionScore(b) - movieRecognitionScore(a) ||
             (a.year || 9999) - (b.year || 9999)
           );
@@ -1494,7 +1470,7 @@
             .filter(movie => !titleAlreadyCovered(movie))
             .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
-              anchorAdjustedScore(b) - anchorAdjustedScore(a) ||
+              careerAnchorScore(b) - careerAnchorScore(a) ||
               movieRecognitionScore(b) - movieRecognitionScore(a) ||
               (a.year || 9999) - (b.year || 9999)
             );
@@ -1522,26 +1498,9 @@
 
           const selected = [];
           const usedFamilies = new Set();
-
-          /* PERSON 87: source-supported career anchors get first claim on a
-             decade slot. Numeric ranking then fills the rest. This is what keeps
-             a genuine breakthrough/signature film from being displaced by a
-             merely popular credit from the same period. */
-          const decadeStart = decade;
-          const decadeEnd = decade + 9;
-          const protectedInDecade = protectedAnchorsForRange(decadeStart, decadeEnd, 3)
-            .filter(movie => eligible.some(item => item.id === movie.id));
-
-          const ranked = [
-            ...protectedInDecade,
-            ...significant.filter(movie =>
-              !protectedInDecade.some(item => item.id === movie.id)
-            ),
-            ...eligible.filter(movie =>
-              !protectedInDecade.some(item => item.id === movie.id) &&
-              !significant.some(item => item.id === movie.id)
-            )
-          ];
+          const ranked = [...significant, ...eligible.filter(movie =>
+            !significant.some(item => item.id === movie.id)
+          )];
 
           for (const movie of ranked) {
             if (selected.length >= targetCount) break;
