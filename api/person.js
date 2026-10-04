@@ -2025,6 +2025,24 @@
 
       let story = selected.filter(Boolean).join(" ");
 
+      /* PERSON 96 — GENERIC HEADER/PROSE DEDUPLICATION.
+         Born/Died dates belong in the profile metadata. If a source lead repeats
+         a lifespan parenthetical immediately after the person's name, remove it
+         from the biography for every person — no actor-specific rules. */
+      const escapedPersonName = String(name)
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+      story = story
+        .replace(
+          new RegExp(
+            `^(${escapedPersonName})\\s*\\((?:born\\s+)?[^()]{0,60}?[–—-]\\s*[^()]{0,60}?\\)\\s*`,
+            "i"
+          ),
+          "$1 "
+        )
+        .replace(/\s{2,}/g, " ")
+        .trim();
+
       /* PERSON 76 — the verified decade spine is the biography architecture.
          Do not cut it back to the first six sentences: that was silently
          deleting the 2000s/2010s after they had been built correctly.
@@ -2069,7 +2087,8 @@
         fallbackSentences[0] = fallbackSentences[0]
           .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
           .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
-          .replace(/\s*\(born\s+\d{4}\)/i, "");
+          .replace(/\s*\(born\s+\d{4}\)/i, "")
+          .replace(/\s*\([^()]{0,60}?[–—-]\s*[^()]{0,60}?\)/, "");
       }
 
       const fallback = removeWikipediaEnding(fallbackSentences.join(" "));
@@ -2750,9 +2769,14 @@
             deceased:
               Boolean(person.deathday),
 
+            /* PERSON 96 — GENERIC AGE CONTRACT.
+               Keep `age` populated for every person. For living people it is
+               current age; for deceased people it is age at death. This keeps
+               older Reelwise front ends working while the explicit death-age
+               aliases remain available. */
             age:
               person.deathday
-                ? null
+                ? calculatePersonAge(person.birthday, person.deathday)
                 : calculatePersonAge(person.birthday),
 
             age_at_death:
@@ -2760,7 +2784,7 @@
                 ? calculatePersonAge(person.birthday, person.deathday)
                 : null,
 
-            /* PERSON 71: compatibility aliases for older/newer front ends. */
+            /* Compatibility aliases for older/newer front ends. */
             current_age:
               person.deathday
                 ? null
