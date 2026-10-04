@@ -1030,19 +1030,18 @@
         isBiographyActingCredit(movie) &&
         movieRecognitionScore(movie) >= significanceFloor;
 
-      /* PERSON 84 — CAREER-DEFINING MOVIE RANKING
+      /* PERSON 85 — STAR-CENTRIC CAREER-DEFINING MOVIE RANKING
 
-         Person 83 had the right biography structure, but decade selection still
-         leaned too heavily on TMDB popularity. Person 84 keeps that structure
-         frozen and changes only how eligible movies are ranked inside an era.
+         Person 84 proved that era ranking works. Person 85 keeps the biography
+         structure frozen and calibrates only the ranking weights so Reelwise
+         favors movies that are especially important to THIS performer's career.
 
          Generic signals:
-           - substantive billing / role importance
+           - top billing / central-role importance is the strongest signal
            - durable audience recognition (votes + rating)
-           - source-biography mentions
-           - extra weight when the source connects the film to awards, acclaim,
-             breakthrough, or another explicit career milestone
-           - a modest popularity signal rather than letting popularity dominate
+           - source-biography mentions and career-milestone language
+           - broad cultural reach as a secondary tie-breaker
+           - popularity remains deliberately modest
 
          No performer names or title-specific overrides are used.
       */
@@ -1059,18 +1058,26 @@
 
         /* Durable recognition: logarithmic so huge franchises do not win by
            raw vote totals alone. */
-        score += Math.log10(votes + 1) * 16;
+        score += Math.log10(votes + 1) * 18;
         score += rating * 3;
-        score += Math.log10(popularity + 1) * 7;
+        score += Math.log10(popularity + 1) * 5;
+
+        /* A very large long-term vote footprint is useful evidence that a film
+           has remained culturally visible. Keep this modest and logarithmic so
+           it cannot overpower the performer's actual role importance. */
+        if (votes >= 20000) score += 10;
+        else if (votes >= 10000) score += 7;
+        else if (votes >= 5000) score += 4;
 
         /* Billing is the strongest generic role-importance signal TMDB gives
            us on a person's movie-credit record. */
         if (Number.isFinite(order)) {
-          if (order === 0) score += 30;
-          else if (order === 1) score += 24;
-          else if (order <= 3) score += 17;
+          if (order === 0) score += 48;
+          else if (order === 1) score += 38;
+          else if (order === 2) score += 27;
+          else if (order <= 3) score += 21;
           else if (order <= 6) score += 9;
-          else if (order <= 12) score += 3;
+          else if (order <= 12) score += 2;
         }
 
         if (character && !/\b(self|uncredited|cameo|archive footage)\b/i.test(character)) {
@@ -1085,15 +1092,15 @@
         );
 
         if (sourceMentions.length) {
-          score += 22 + Math.min(8, (sourceMentions.length - 1) * 4);
+          score += 28 + Math.min(10, (sourceMentions.length - 1) * 5);
 
           if (sourceMentions.some(sentence =>
             /\b(academy award|oscar|golden globe|bafta|screen actors guild|award|nominated|nomination|won|acclaim|acclaimed|breakthrough|breakout|defining|signature)\b/i.test(sentence)
-          )) score += 24;
+          )) score += 30;
 
           if (sourceMentions.some(sentence =>
             /\b(starred|starring|leading role|lead role|portrayed|played the title|performance)\b/i.test(sentence)
-          )) score += 10;
+          )) score += 18;
         }
 
         return score;
