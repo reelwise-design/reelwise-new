@@ -1578,6 +1578,26 @@
         .map(([label, movies]) => {
           const decade = Number(String(label).match(/\d{4}/)?.[0]);
 
+          /* TEMP PERSON 92 DIAGNOSTIC */
+          const diagnosticCandidates = (movies || []).map(movie => {
+            const acting = isBiographyActingCredit(movie);
+            const covered = titleAlreadyCovered(movie);
+            const votesOK = Number(movie?.vote_count || 0) >= 250;
+            return {
+              title: movie?.title || "",
+              year: movie?.year || null,
+              acting,
+              covered,
+              votesOK,
+              eraScore: acting && !covered && votesOK ? Math.round(eraSelectionScore(movie)) : null,
+              anchorScore: acting && !covered && votesOK ? Math.round(careerAnchorScore(movie)) : null,
+              recognition: Math.round(movieRecognitionScore(movie)),
+              order: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : null,
+              votes: Number(movie?.vote_count || 0),
+              rating: Number(movie?.vote_average || 0)
+            };
+          });
+
           const eligible = (movies || [])
             .filter(isBiographyActingCredit)
             .filter(movie => !titleAlreadyCovered(movie))
@@ -1637,7 +1657,7 @@
             if (!selected.some(item => item.id === movie.id)) selected.push(movie);
           }
 
-          return { label, decade, movies: selected.slice(0, 3) };
+          return { label, decade, movies: selected.slice(0, 3), diagnosticCandidates };
         })
         .filter(group => Number.isFinite(group.decade) && group.movies.length);
 
@@ -1665,6 +1685,19 @@
             ? `${titles[0]} and ${titles[1]}`
             : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
+        /* TEMP DIAGNOSTIC: for Tom Cruise's 2010s only, print the ranking
+           data directly on the biography card so one screenshot is enough. */
+        let diagnosticSuffix = "";
+        if (/^tom cruise$/i.test(String(name || "").trim()) && group.decade === 2010) {
+          const rows = (group.diagnosticCandidates || [])
+            .filter(x => /mission|reacher|oblivion|tomorrow/i.test(x.title))
+            .sort((a, b) => (b.eraScore ?? -99999) - (a.eraScore ?? -99999))
+            .map(x =>
+              `${x.title}: era=${x.eraScore ?? "OUT"}, anchor=${x.anchorScore ?? "-"}, rec=${x.recognition}, order=${x.order ?? "-"}, votes=${x.votes}, rating=${x.rating}, covered=${x.covered ? "Y" : "N"}, acting=${x.acting ? "Y" : "N"}, votesOK=${x.votesOK ? "Y" : "N"}`
+            );
+          if (rows.length) diagnosticSuffix = ` [DIAGNOSTIC: ${rows.join(" | ")}]`;
+        }
+
         const eraPosition = eraChapters.length;
         /* PERSON 86: vary transitions for long careers so several consecutive
            eras do not read as "Later ... Later ... Later ...". */
@@ -1681,7 +1714,7 @@
                   : `Later, ${name} appeared in ${joined}.`;
 
         eraChapters.push({
-          sentence: eraLead,
+          sentence: eraLead + diagnosticSuffix,
           index: 9000 + group.decade,
           years: movies.map(movie => movie.year),
           year: Math.min(...movies.map(movie => movie.year)),
