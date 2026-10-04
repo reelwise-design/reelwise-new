@@ -1125,7 +1125,7 @@
         return score;
       }
 
-      /* PERSON 89 — EVIDENCE-ONLY CAREER ANCHORS
+      /* PERSON 90 — EVIDENCE-ONLY CAREER ANCHORS
 
          Person 87 proved that source-biography evidence can identify genuinely
          defining films, but it also let that evidence alter the biography
@@ -1164,11 +1164,20 @@
          installment. Give individual verified credits modest evidence when their
          title belongs to a franchise explicitly discussed by the source. */
       function titleFamilyKey(title = "") {
-        return norm(title)
+        let raw = cleanText(title).toLowerCase().trim();
+        if (!raw) return "";
+
+        /* PERSON 90 — subtitle-aware franchise family.
+           "Mission: Impossible - Fallout" must resolve to "mission impossible",
+           while ordinary standalone titles remain unchanged. */
+        const colonBase = raw.split(/\s*[:–—-]\s*/)[0].trim();
+        let family = norm(colonBase || raw)
           .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
           .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
           .replace(/\s+/g, " ")
           .trim();
+
+        return family;
       }
 
       function franchiseEvidenceStrength(movie) {
@@ -1191,8 +1200,36 @@
           strength === 2 ? 42 :
           strength === 1 ? 14 : 0;
 
-        const franchiseBonus = franchiseEvidenceStrength(movie) * 18;
-        return careerDefiningMovieScore(movie) + bonus + franchiseBonus;
+        const franchiseBonus = franchiseEvidenceStrength(movie) * 24;
+
+        /* PERSON 90 — DIRECT SOURCE TITLE PRIORITY.
+           A title the source biography explicitly chooses to name is stronger
+           evidence than a related sequel that merely scores well numerically.
+           This is intentionally modest unless the source also attaches a
+           career/award cue, which is already reflected in `bonus`. */
+        const directMentionBonus = sourceSentences.some(sentence =>
+          sentenceMentionsTitle(sentence, movie.title)
+        ) ? 18 : 0;
+
+        /* PERSON 90 — WEAK LATE-CREDIT BRAKE.
+           For established long-career performers, a comparatively weak later
+           credit should not displace a source-supported major film from the
+           same era simply because it is newer. This uses only generic signals:
+           source evidence, billing, votes and rating. */
+        let weakLatePenalty = 0;
+        const order = Number(movie?.order);
+        const votes = Number(movie?.vote_count || 0);
+        const rating = Number(movie?.vote_average || 0);
+        const isLateCareer = movie?.year && movie.year >= lateStart;
+        const noSourceSupport = !directMentionBonus && !franchiseBonus && strength === 0;
+
+        if (isLateCareer && noSourceSupport) {
+          if ((Number.isFinite(order) && order > 2) || votes < 1500 || (rating > 0 && rating < 6.2)) {
+            weakLatePenalty = 24;
+          }
+        }
+
+        return careerDefiningMovieScore(movie) + bonus + franchiseBonus + directMentionBonus - weakLatePenalty;
       }
 
       if (!resolvedRise) {
@@ -1516,12 +1553,15 @@
           const sequelFamily = movie => {
             const title = norm(movie?.title || "");
             if (!title) return "";
-            const family = title
-              .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
-              .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-            return family && family !== title ? family : "";
+            const family = titleFamilyKey(movie?.title || "");
+            if (!family) return "";
+
+            const relatedCount = allNotable.filter(other => {
+              if (!other?.title || other.id === movie.id) return false;
+              return titleFamilyKey(other.title) === family;
+            }).length;
+
+            return relatedCount > 0 && family !== title ? family : "";
           };
 
           const selected = [];
