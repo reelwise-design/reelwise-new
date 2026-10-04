@@ -798,6 +798,20 @@
         wikipediaExtract || wikipediaSummary || person?.biography || ""
       );
       const sourceSentences = sentenceSplit(source).filter(Boolean);
+
+      /* PERSON 95 — MIXED-MEDIUM PROSE GUARD.
+         Long source sentences dominated by television/series credits are still
+         available as evidence, but should not be injected wholesale into the
+         movie-career narrative. */
+      const sourceSentenceIsMovieNarrativeFriendly = sentence => {
+        const s = String(sentence || "");
+        const tvSignals = (s.match(/\b(television|TV|series|sitcom|episode|episodes|season|seasons)\b/gi) || []).length;
+        const filmSignals = (s.match(/\b(film|films|movie|movies|starred|role|roles|portrayed|played)\b/gi) || []).length;
+
+        if (tvSignals >= 2 && s.length > 180) return false;
+        if (tvSignals >= 1 && filmSignals <= 1 && s.length > 150) return false;
+        return true;
+      };
       const summarySentences = sentenceSplit(
         removeWikipediaEnding(wikipediaSummary || person?.biography || "")
       ).filter(Boolean);
@@ -1157,10 +1171,35 @@
       const strongCareerAnchorCue =
         /\b(breakthrough|breakout|rose to fame|rise to fame|rose to prominence|came to prominence|stardom|star-making|academy award|oscar|signature|iconic|best known|comeback|resurgence|career revival)\b/i;
 
+      /* PERSON 95 — FRANCHISE-ORIGIN SOURCE EVIDENCE.
+         Source prose may say "the first four X films (1976–1985)" without
+         separately spelling out the original film. Recognize the verified
+         base movie when its title and release year match that franchise range. */
+      function sourceSupportsFranchiseOrigin(movie) {
+        const rawTitle = String(movie?.title || "").trim();
+        const year = Number(movie?.year || 0);
+        if (!rawTitle || !year) return false;
+
+        const title = normalizeTitle(rawTitle);
+        const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+        return sourceSentences.some(sentence => {
+          const normalized = normalizeTitle(sentence);
+          if (!normalized.includes(title)) return false;
+
+          const franchisePattern = new RegExp(
+            `(?:first|original|initial)\\s+(?:\\w+\\s+){0,3}${escaped}\\s+(?:films?|movies?)`
+          );
+          const rangePattern = new RegExp(`\\(${year}\\s*[–—-]\\s*\\d{4}\\)`);
+
+          return franchisePattern.test(normalized) && rangePattern.test(sentence);
+        });
+      }
+
       function careerAnchorStrength(movie) {
         if (!movie?.title) return 0;
 
-        let strength = 0;
+        let strength = sourceSupportsFranchiseOrigin(movie) ? 3 : 0;
         for (const sentence of sourceSentences) {
           if (!sentenceMentionsTitle(sentence, movie.title)) continue;
 
@@ -1357,7 +1396,17 @@
               careerAnchorScore(b) - careerAnchorScore(a)
             );
 
-          const firstMajor = chronologicalMajor[0] || null;
+          const sourceBackedOrigins = chronologicalMajor
+            .filter(movie => sourceSupportsFranchiseOrigin(movie))
+            .sort((a, b) =>
+              (a.year || 9999) - (b.year || 9999) ||
+              careerAnchorScore(b) - careerAnchorScore(a)
+            );
+
+          const firstMajor =
+            sourceBackedOrigins[0] ||
+            chronologicalMajor[0] ||
+            null;
           const runMovies = [
             ...(firstMajor ? [firstMajor] : []),
             ...runGroup.movies.filter(movie => !firstMajor || movie.id !== firstMajor.id)
@@ -1708,9 +1757,19 @@
             );
           });
 
-          const rankedPool = displayWorthy.length
-            ? displayWorthy
-            : (significant.length >= 2 ? significant : []);
+          const strongAnchors = displayWorthy.filter(movie =>
+            careerAnchorStrength(movie) >= 2 ||
+            Number(movie?.vote_count || 0) >= 2500
+          );
+
+          const rankedPool =
+            displayWorthy.length >= 2
+              ? displayWorthy
+              : (
+                  strongAnchors.length
+                    ? strongAnchors
+                    : (significant.length >= 2 ? significant : [])
+                );
 
           const targetCount = rankedPool.length >= 3 ? 3 : rankedPool.length;
 
