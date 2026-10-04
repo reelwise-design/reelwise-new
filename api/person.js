@@ -1030,6 +1030,75 @@
         isBiographyActingCredit(movie) &&
         movieRecognitionScore(movie) >= significanceFloor;
 
+      /* PERSON 84 — CAREER-DEFINING MOVIE RANKING
+
+         Person 83 had the right biography structure, but decade selection still
+         leaned too heavily on TMDB popularity. Person 84 keeps that structure
+         frozen and changes only how eligible movies are ranked inside an era.
+
+         Generic signals:
+           - substantive billing / role importance
+           - durable audience recognition (votes + rating)
+           - source-biography mentions
+           - extra weight when the source connects the film to awards, acclaim,
+             breakthrough, or another explicit career milestone
+           - a modest popularity signal rather than letting popularity dominate
+
+         No performer names or title-specific overrides are used.
+      */
+      function careerDefiningMovieScore(movie) {
+        if (!movie) return -Infinity;
+
+        const popularity = Math.max(0, Number(movie.popularity) || 0);
+        const votes = Math.max(0, Number(movie.vote_count) || 0);
+        const rating = Math.max(0, Number(movie.vote_average) || 0);
+        const order = Number(movie.order);
+        const character = String(movie.character || "").trim();
+
+        let score = 0;
+
+        /* Durable recognition: logarithmic so huge franchises do not win by
+           raw vote totals alone. */
+        score += Math.log10(votes + 1) * 16;
+        score += rating * 3;
+        score += Math.log10(popularity + 1) * 7;
+
+        /* Billing is the strongest generic role-importance signal TMDB gives
+           us on a person's movie-credit record. */
+        if (Number.isFinite(order)) {
+          if (order === 0) score += 30;
+          else if (order === 1) score += 24;
+          else if (order <= 3) score += 17;
+          else if (order <= 6) score += 9;
+          else if (order <= 12) score += 3;
+        }
+
+        if (character && !/\b(self|uncredited|cameo|archive footage)\b/i.test(character)) {
+          score += 4;
+        }
+
+        /* Wikipedia is used only as evidence of career significance. A title
+           that the source biography itself chooses to discuss deserves to beat
+           an otherwise more popular but less defining credit. */
+        const sourceMentions = sourceSentences.filter(sentence =>
+          sentenceMentionsTitle(sentence, movie.title)
+        );
+
+        if (sourceMentions.length) {
+          score += 22 + Math.min(8, (sourceMentions.length - 1) * 4);
+
+          if (sourceMentions.some(sentence =>
+            /\b(academy award|oscar|golden globe|bafta|screen actors guild|award|nominated|nomination|won|acclaim|acclaimed|breakthrough|breakout|defining|signature)\b/i.test(sentence)
+          )) score += 24;
+
+          if (sourceMentions.some(sentence =>
+            /\b(starred|starring|leading role|lead role|portrayed|played the title|performance)\b/i.test(sentence)
+          )) score += 10;
+        }
+
+        return score;
+      }
+
       if (!resolvedRise) {
         const earlyMovies = allNotable
           .filter(movie =>
@@ -1270,6 +1339,7 @@
             .filter(movie => !titleAlreadyCovered(movie))
             .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
+              careerDefiningMovieScore(b) - careerDefiningMovieScore(a) ||
               movieRecognitionScore(b) - movieRecognitionScore(a) ||
               (a.year || 9999) - (b.year || 9999)
             );
