@@ -1,8 +1,28 @@
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 const API_KEY = process.env.TMDB_API_KEY;
 
+/*
+  ============================================================
+  REELWISE SIX DEGREES — MOVIES ONLY
+  ============================================================
+
+  Goal:
+  Actor → recognizable feature movie → actor.
+
+  Excludes / strongly rejects:
+  - TV (this endpoint already uses movie_credits only)
+  - documentaries and actor-biography films
+  - self / archive-footage / uncredited-self appearances
+  - shorts, specials, concert films and similar non-feature material
+  - extremely obscure credits that create technically valid but poor paths
+
+  Search architecture remains the working bidirectional search.
+  ============================================================
+*/
+
 const movieCreditsCache = new Map();
 const castCache = new Map();
+const movieDetailsCache = new Map();
 
 async function tmdb(path) {
   let url = `https://api.themoviedb.org/3${path}`;
@@ -27,6 +47,154 @@ async function tmdb(path) {
   }
 
   return response.json();
+}
+
+function text(value) {
+  return String(value || "").trim();
+}
+
+function lower(value) {
+  return text(value).toLowerCase();
+}
+
+function isSelfLikeCharacter(character) {
+  const value = lower(character);
+
+  if (!value) return false;
+
+  return (
+    value === "self" ||
+    value === "himself" ||
+    value === "herself" ||
+    value.includes("self (archive") ||
+    value.includes("himself (archive") ||
+    value.includes("herself (archive") ||
+    value.includes("archive footage") ||
+    value.includes("archive sound") ||
+    value.includes("uncredited self") ||
+    value.includes("as self")
+  );
+}
+
+function looksNonNarrativeFromTitle(movie) {
+  const title = lower(
+    movie?.title ||
+    movie?.original_title
+  );
+
+  if (!title) return false;
+
+  /*
+    Conservative title-level safety net.
+    Genre/runtime checks below do most of the work.
+  */
+  return (
+    /\b(documentary|making of|behind the scenes|behind-the-scenes)\b/.test(title) ||
+    /\b(a tribute to|tribute to)\b/.test(title) ||
+    /\b(live in concert|in concert|concert film)\b/.test(title)
+  );
+}
+
+function basicCreditEligible(movie) {
+  if (!movie?.id) return false;
+
+  if (isSelfLikeCharacter(movie.character)) {
+    return false;
+  }
+
+  if (looksNonNarrativeFromTitle(movie)) {
+    return false;
+  }
+
+  /*
+    A connection with almost no audience footprint is exactly what caused
+    obscure Six Degrees answers. Keep the initial threshold high enough to
+    remove noise while still allowing older / less-commercial legitimate films.
+  */
+  const votes = Number(movie.vote_count || 0);
+  const popularity = Number(movie.popularity || 0);
+
+  return votes >= 75 || (votes >= 40 && popularity >= 8);
+}
+
+function movieQualityScore(movie) {
+  const votes = Number(movie?.vote_count || 0);
+  const popularity = Number(movie?.popularity || 0);
+  const rating = Number(movie?.vote_average || 0);
+  const order = Number(movie?.order);
+
+  let score =
+    Math.log10(Math.max(10, votes)) * 42 +
+    Math.min(80, popularity) * 1.2 +
+    Math.max(0, rating - 5) * 6;
+
+  /*
+    Prefer meaningful billed performances. Do not require top billing because
+    ensemble casts are essential to Six Degrees.
+  */
+  if (Number.isFinite(order)) {
+    if (order <= 2) score += 18;
+    else if (order <= 5) score += 12;
+    else if (order <= 10) score += 6;
+    else if (order >= 25) score -= 8;
+  }
+
+  return score;
+}
+
+async function movieDetails(movieId) {
+  if (movieDetailsCache.has(movieId)) {
+    return movieDetailsCache.get(movieId);
+  }
+
+  const data = await tmdb(`/movie/${movieId}`);
+  movieDetailsCache.set(movieId, data);
+  return data;
+}
+
+async function isNarrativeFeature(movie) {
+  if (!basicCreditEligible(movie)) {
+    return false;
+  }
+
+  let details;
+
+  try {
+    details = await movieDetails(movie.id);
+  } catch {
+    /*
+      If TMDB details temporarily fail, keep only credits with a substantial
+      audience footprint instead of letting an obscure unknown through.
+    */
+    return Number(movie.vote_count || 0) >= 500;
+  }
+
+  const genres = Array.isArray(details?.genres)
+    ? details.genres.map(g => lower(g?.name))
+    : [];
+
+  if (genres.includes("documentary")) {
+    return false;
+  }
+
+  const runtime = Number(details?.runtime || 0);
+
+  /*
+    Reject shorts/special-length material when runtime is known.
+    Older legitimate features occasionally run under 70 minutes, so 55 is a
+    deliberately conservative floor.
+  */
+  if (runtime > 0 && runtime < 55) {
+    return false;
+  }
+
+  const status = lower(details?.status);
+
+  if (status && status !== "released") {
+    return false;
+  }
+
+  return true;
 }
 
 async function findActor(name) {
@@ -79,28 +247,33 @@ async function actorMovies(actorId) {
     `/person/${actorId}/movie_credits`
   );
 
-  let movies = Array.isArray(data.cast)
-    ? data.cast
+  const rawMovies = Array.isArray(data.cast)
+    ? data.cast.filter(basicCreditEligible)
     : [];
 
-  movies = movies
-    .filter(movie => {
-      if (!movie.id) return false;
+  /*
+    First rank cheaply using credit data. Then inspect only the strongest
+    candidates with /movie/{id}, keeping API work reasonable for Vercel.
+  */
+  const preselected = rawMovies
+    .sort((a, b) =>
+      movieQualityScore(b) - movieQualityScore(a)
+    )
+    .slice(0, 45);
 
-      return Number(movie.vote_count || 0) >= 10;
+  const checks = await Promise.all(
+    preselected.map(async movie => {
+      const eligible = await isNarrativeFeature(movie);
+      return eligible ? movie : null;
     })
-    .sort((a, b) => {
-      const aScore =
-        Number(a.vote_count || 0) +
-        Number(a.popularity || 0) * 20;
+  );
 
-      const bScore =
-        Number(b.vote_count || 0) +
-        Number(b.popularity || 0) * 20;
-
-      return bScore - aScore;
-    })
-    .slice(0, 35);
+  const movies = checks
+    .filter(Boolean)
+    .sort((a, b) =>
+      movieQualityScore(b) - movieQualityScore(a)
+    )
+    .slice(0, 32);
 
   movieCreditsCache.set(actorId, movies);
 
@@ -121,8 +294,23 @@ async function movieCast(movieId) {
     : [];
 
   cast = cast
-    .filter(person => person.id)
-    .slice(0, 30);
+    .filter(person => {
+      if (!person?.id) return false;
+      if (isSelfLikeCharacter(person.character)) return false;
+
+      const order = Number(person.order);
+
+      /*
+        Keep meaningful cast while allowing large ensemble films.
+        A named/real character can survive somewhat deeper in the billing.
+      */
+      if (Number.isFinite(order) && order >= 35) {
+        return false;
+      }
+
+      return true;
+    })
+    .slice(0, 32);
 
   castCache.set(movieId, cast);
 
@@ -170,6 +358,10 @@ async function directConnection(actorA, actorB) {
     ])
   );
 
+  /*
+    Shared films are already ranked by movie quality, so the direct connection
+    prefers a recognizable feature rather than an obscure technical match.
+  */
   for (const movie of moviesA) {
     if (moviesBMap.has(movie.id)) {
       return [
@@ -195,7 +387,7 @@ async function getNeighbors(
     await actorMovies(actorId);
 
   const selectedMovies =
-    movies.slice(0, 24);
+    movies.slice(0, 22);
 
   const castResults =
     await Promise.all(
@@ -243,11 +435,17 @@ async function getNeighbors(
       const existing =
         neighbors.get(actor.id);
 
+      /*
+        Prefer a recognizable movie connection first, then a recognizable actor.
+        This is intentionally movie-led: Six Degrees should not choose an
+        obscure film merely because one cast member has high popularity.
+      */
       const score =
-        Number(actor.popularity || 0) +
-        Number(
-          result.movie.vote_count || 0
-        ) / 500;
+        movieQualityScore(result.movie) +
+        Math.min(
+          45,
+          Number(actor.popularity || 0)
+        );
 
       if (
         !existing ||
@@ -272,7 +470,7 @@ async function getNeighbors(
       (a, b) =>
         b.score - a.score
     )
-    .slice(0, 160);
+    .slice(0, 140);
 }
 
 function buildChain(
@@ -284,10 +482,6 @@ function buildChain(
   startActor,
   targetActor
 ) {
-  /*
-    Build the START → MEETING half.
-  */
-
   const leftSteps = [];
 
   let current =
@@ -334,20 +528,6 @@ function buildChain(
       personNode(step.actor)
     );
   }
-
-  /*
-    Build the MEETING → TARGET half.
-
-    This is the important correction.
-
-    backwardParents[current].parentId
-    represents the actor one step CLOSER
-    to the target actor.
-
-    So after the connecting movie we add
-    THAT parent actor, rather than adding
-    the current actor again.
-  */
 
   current =
     meetingId;
@@ -422,12 +602,6 @@ async function bidirectionalSearch(
         0
       ]
     ]);
-
-  /*
-    Keep the actual actor information
-    for every actor discovered on each
-    side of the search.
-  */
 
   const forwardActors =
     new Map([
@@ -578,11 +752,6 @@ async function bidirectionalSearch(
           if (
             totalDepth <= 6
           ) {
-            /*
-              Make sure the meeting actor
-              exists in both actor maps.
-            */
-
             if (
               expandForward &&
               !backwardActors.has(
@@ -623,7 +792,7 @@ async function bidirectionalSearch(
       if (
         forwardVisited.size +
           backwardVisited.size >
-        1100
+        1000
       ) {
         break;
       }
@@ -644,7 +813,7 @@ async function bidirectionalSearch(
     if (
       forwardVisited.size +
         backwardVisited.size >
-      1100
+      1000
     ) {
       break;
     }
@@ -738,11 +907,6 @@ export default async function handler(
         });
     }
 
-    /*
-      First check whether they actually
-      appeared in the same movie.
-    */
-
     const direct =
       await directConnection(
         startActor,
@@ -764,12 +928,11 @@ export default async function handler(
     }
 
     /*
-      Leave a little time at the end
-      for Vercel to return the response.
+      Movie-detail validation adds API work, so allow a little more search time
+      than the previous version while preserving response headroom for Vercel.
     */
-
     const deadline =
-      Date.now() + 8500;
+      Date.now() + 9500;
 
     const chain =
       await bidirectionalSearch(
@@ -793,7 +956,7 @@ export default async function handler(
           chain: [],
 
           message:
-            "Reelwise searched the available movie network but could not confirm a connection within six degrees. Try again or choose another pair."
+            "Reelwise searched the feature-film network but could not confirm a movie-only connection within six degrees. Try again or choose another pair."
         });
     }
 
