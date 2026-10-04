@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 82
+      REELWISE PERSON API — PERSON 83
       ============================================================
 
       STAR PROFILE
@@ -1408,6 +1408,19 @@
         const years = Array.isArray(item.years)
           ? item.years.filter(Number.isFinite)
           : [];
+
+        /* PERSON 83 — KEEP THE MOVIE STORY TOGETHER.
+
+           Stage/Broadway/theater milestones are worthwhile context, but on a
+           Reelwise movie-star profile they should not interrupt the film-career
+           chronology. Keep the source sentence unchanged and simply order a
+           clearly non-film stage chapter after the movie/franchise chapters. */
+        const isStageChapter =
+          /\b(Broadway|stage|theatre|theater|Tony Award|Tony Awards)\b/i.test(sentence) &&
+          !allNotable.some(movie => sentenceMentionsTitle(sentence, movie.title));
+
+        if (isStageChapter) return 9998;
+
         const spansCareer =
           years.length >= 2 &&
           /\b(franchise|film series|series of films|recurring role|voiced|reprise|reprised)\b/i.test(sentence);
