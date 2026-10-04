@@ -1140,7 +1140,7 @@
         return score;
       }
 
-      /* PERSON 91 — EVIDENCE-ONLY CAREER ANCHORS
+      /* PERSON 92 — EVIDENCE-ONLY CAREER ANCHORS
 
          Person 87 proved that source-biography evidence can identify genuinely
          defining films, but it also let that evidence alter the biography
@@ -1508,6 +1508,72 @@
         sentenceMentionsTitle(text, movie.title)
       );
 
+      /* PERSON 92 — CAREER-ERA SELECTION SCORE.
+         Person 91 fixed candidate availability. Person 92 leaves that structure
+         untouched and refines only which three films win inside each era.
+
+         Priority:
+         1. explicit source/career evidence,
+         2. central/top-billed role,
+         3. awards/acclaim language tied to the title,
+         4. sustained franchise significance,
+         5. broad recognition as a tie-breaker.
+
+         Popularity alone is deliberately not enough to win a scarce biography
+         slot. No actor or movie titles are hard-coded here. */
+      function eraSelectionScore(movie) {
+        let score = careerAnchorScore(movie);
+        const order = Number(movie?.order);
+        const votes = Number(movie?.vote_count || 0);
+        const rating = Number(movie?.vote_average || 0);
+
+        if (Number.isFinite(order)) {
+          if (order === 0) score += 34;
+          else if (order === 1) score += 26;
+          else if (order === 2) score += 16;
+          else if (order <= 4) score += 6;
+          else score -= 8;
+        }
+
+        const mentions = sourceSentences.filter(sentence =>
+          sentenceMentionsTitle(sentence, movie.title)
+        );
+
+        if (mentions.length) {
+          score += 22;
+          if (mentions.some(sentence =>
+            /\b(academy award|oscar|golden globe|bafta|award|won|nominat|acclaim|acclaimed|breakthrough|signature|iconic|best known)\b/i.test(sentence)
+          )) score += 34;
+        }
+
+        /* Franchise evidence is useful only when the source actually frames the
+           recurring films as a franchise/series. This lets an important series
+           installment compete without allowing sequels to dominate every era. */
+        const normalizedTitle = norm(movie?.title || "");
+        const franchiseSource = sourceSentences.some(sentence => {
+          if (!/\b(franchise|film series|series of films|series)\b/i.test(sentence)) return false;
+          const cleanSentence = norm(sentence);
+          const base = normalizedTitle
+            .split(/\s+(?:part|chapter|episode)\s+/i)[0]
+            .split(/\s+-\s+|\s+:\s+/)[0]
+            .trim();
+          return base.length >= 5 && cleanSentence.includes(base);
+        });
+        if (franchiseSource) score += 28;
+
+        /* Keep quality/recognition secondary. These prevent obscure credits
+           from beating a major central performance solely on recency. */
+        if (votes >= 10000) score += 12;
+        else if (votes >= 4000) score += 8;
+        else if (votes >= 1500) score += 4;
+
+        if (rating >= 7.5) score += 10;
+        else if (rating >= 7.0) score += 6;
+        else if (rating > 0 && rating < 6.0) score -= 10;
+
+        return score;
+      }
+
       const decadeGroups = Object.entries(timeline.byDecade || {})
         .map(([label, movies]) => {
           const decade = Number(String(label).match(/\d{4}/)?.[0]);
@@ -1517,6 +1583,7 @@
             .filter(movie => !titleAlreadyCovered(movie))
             .filter(movie => Number(movie?.vote_count || 0) >= 250)
             .sort((a, b) =>
+              eraSelectionScore(b) - eraSelectionScore(a) ||
               careerAnchorScore(b) - careerAnchorScore(a) ||
               movieRecognitionScore(b) - movieRecognitionScore(a) ||
               (a.year || 9999) - (b.year || 9999)
@@ -1546,6 +1613,7 @@
           const selected = [];
           const usedFamilies = new Set();
           const ranked = [...eligible].sort((a, b) =>
+            eraSelectionScore(b) - eraSelectionScore(a) ||
             careerAnchorScore(b) - careerAnchorScore(a) ||
             movieRecognitionScore(b) - movieRecognitionScore(a) ||
             (a.year || 9999) - (b.year || 9999)
