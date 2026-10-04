@@ -555,7 +555,12 @@
             );
       }
 
-      const notable =
+      /* PERSON 91 — BALANCED CANDIDATE UNIVERSE.
+         A global top-18 list can erase an actor's breakthrough decade or hide
+         a signature film from a crowded long career. Keep the global leaders,
+         then union them with the strongest credits from every active decade.
+         This changes candidate availability, not the biography prose itself. */
+      const globalNotable =
         [...movies]
           .sort(
             (a, b) =>
@@ -563,6 +568,16 @@
               movieRecognitionScore(a)
           )
           .slice(0, 18);
+
+      const decadeNotable = Object.values(byDecade)
+        .flatMap(decadeMovies => (decadeMovies || []).slice(0, 4));
+
+      const notableMap = new Map();
+      for (const movie of [...globalNotable, ...decadeNotable]) {
+        const key = movie?.id || `${norm(movie?.title || "")}-${movie?.year || ""}`;
+        if (key && !notableMap.has(key)) notableMap.set(key, movie);
+      }
+      const notable = [...notableMap.values()];
 
       return {
         firstYear: movies[0]?.year || null,
@@ -1125,7 +1140,7 @@
         return score;
       }
 
-      /* PERSON 90 — EVIDENCE-ONLY CAREER ANCHORS
+      /* PERSON 91 — EVIDENCE-ONLY CAREER ANCHORS
 
          Person 87 proved that source-biography evidence can identify genuinely
          defining films, but it also let that evidence alter the biography
@@ -1164,20 +1179,11 @@
          installment. Give individual verified credits modest evidence when their
          title belongs to a franchise explicitly discussed by the source. */
       function titleFamilyKey(title = "") {
-        let raw = cleanText(title).toLowerCase().trim();
-        if (!raw) return "";
-
-        /* PERSON 90 — subtitle-aware franchise family.
-           "Mission: Impossible - Fallout" must resolve to "mission impossible",
-           while ordinary standalone titles remain unchanged. */
-        const colonBase = raw.split(/\s*[:–—-]\s*/)[0].trim();
-        let family = norm(colonBase || raw)
+        return norm(title)
           .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
           .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
           .replace(/\s+/g, " ")
           .trim();
-
-        return family;
       }
 
       function franchiseEvidenceStrength(movie) {
@@ -1200,36 +1206,8 @@
           strength === 2 ? 42 :
           strength === 1 ? 14 : 0;
 
-        const franchiseBonus = franchiseEvidenceStrength(movie) * 24;
-
-        /* PERSON 90 — DIRECT SOURCE TITLE PRIORITY.
-           A title the source biography explicitly chooses to name is stronger
-           evidence than a related sequel that merely scores well numerically.
-           This is intentionally modest unless the source also attaches a
-           career/award cue, which is already reflected in `bonus`. */
-        const directMentionBonus = sourceSentences.some(sentence =>
-          sentenceMentionsTitle(sentence, movie.title)
-        ) ? 18 : 0;
-
-        /* PERSON 90 — WEAK LATE-CREDIT BRAKE.
-           For established long-career performers, a comparatively weak later
-           credit should not displace a source-supported major film from the
-           same era simply because it is newer. This uses only generic signals:
-           source evidence, billing, votes and rating. */
-        let weakLatePenalty = 0;
-        const order = Number(movie?.order);
-        const votes = Number(movie?.vote_count || 0);
-        const rating = Number(movie?.vote_average || 0);
-        const isLateCareer = movie?.year && movie.year >= lateStart;
-        const noSourceSupport = !directMentionBonus && !franchiseBonus && strength === 0;
-
-        if (isLateCareer && noSourceSupport) {
-          if ((Number.isFinite(order) && order > 2) || votes < 1500 || (rating > 0 && rating < 6.2)) {
-            weakLatePenalty = 24;
-          }
-        }
-
-        return careerDefiningMovieScore(movie) + bonus + franchiseBonus + directMentionBonus - weakLatePenalty;
+        const franchiseBonus = franchiseEvidenceStrength(movie) * 18;
+        return careerDefiningMovieScore(movie) + bonus + franchiseBonus;
       }
 
       if (!resolvedRise) {
@@ -1346,7 +1324,11 @@
                 movie?.year &&
                 movie.year <= earlyEnd
               )
-              .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+              .sort((a, b) =>
+                careerAnchorScore(b) - careerAnchorScore(a) ||
+                movieRecognitionScore(b) - movieRecognitionScore(a) ||
+                (a.year || 9999) - (b.year || 9999)
+              )
           }))
           .filter(group => group.movies.length >= 3)
           .sort((a, b) =>
@@ -1553,15 +1535,12 @@
           const sequelFamily = movie => {
             const title = norm(movie?.title || "");
             if (!title) return "";
-            const family = titleFamilyKey(movie?.title || "");
-            if (!family) return "";
-
-            const relatedCount = allNotable.filter(other => {
-              if (!other?.title || other.id === movie.id) return false;
-              return titleFamilyKey(other.title) === family;
-            }).length;
-
-            return relatedCount > 0 && family !== title ? family : "";
+            const family = title
+              .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
+              .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
+              .replace(/\s+/g, " ")
+              .trim();
+            return family && family !== title ? family : "";
           };
 
           const selected = [];
@@ -1770,9 +1749,11 @@
           const sentence = selected[i];
           const protectedSentence =
             (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
-            /* PERSON 68: synthetic careerRun is intentionally NOT protected.
-               It is a safety net, not the spine of the profile. Source-driven
-               defining material should win whenever the card needs trimming. */
+            /* PERSON 91 — PROTECT THE VERIFIED EARLY-CAREER SPINE.
+               Once the engine has had to synthesize a verified early-star
+               chapter, do not let the word-limit trimmer erase it and make a
+               long-established performer appear to begin a decade too late. */
+            (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
             /* PERSON 67: the defining chapter is the spine of the profile.
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
