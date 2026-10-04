@@ -1508,7 +1508,7 @@
         sentenceMentionsTitle(text, movie.title)
       );
 
-      /* PERSON 92 — CAREER-ERA SELECTION SCORE.
+      /* PERSON 93 — CAREER-ERA SELECTION SCORE.
          Person 91 fixed candidate availability. Person 92 leaves that structure
          untouched and refines only which three films win inside each era.
 
@@ -1521,8 +1521,78 @@
 
          Popularity alone is deliberately not enough to win a scarce biography
          slot. No actor or movie titles are hard-coded here. */
+      /* PERSON 93 — SUSTAINED FRANCHISE SIGNIFICANCE.
+         The Person 92 diagnostic proved that major recurring franchise films
+         were reaching the final era ranking but starting with an artificial
+         anchor deficit when the biography named the series rather than each
+         installment. Detect that pattern generically from verified acting
+         credits + source language. No actor or franchise names are hard-coded. */
+      const franchiseStopWords = new Set([
+        "the", "a", "an", "and", "of", "in", "on", "for", "to", "with"
+      ]);
+
+      function recurringFranchiseKey(movie) {
+        const tokens = norm(movie?.title || "")
+          .split(/\s+/)
+          .filter(Boolean);
+        if (tokens.length < 2) return "";
+
+        /* Try compact leading title stems. Two words is important for subtitle
+           franchises such as X: Y, while stop-word-only stems are rejected. */
+        for (const size of [4, 3, 2]) {
+          if (tokens.length < size) continue;
+          const stemTokens = tokens.slice(0, size);
+          const meaningful = stemTokens.filter(token => !franchiseStopWords.has(token));
+          if (meaningful.length < 2) continue;
+          const stem = stemTokens.join(" ");
+
+          const sourceFramesSeries = sourceSentences.some(sentence => {
+            if (!/\b(franchise|film series|series of films|film franchise)\b/i.test(sentence)) return false;
+            return norm(sentence).includes(stem);
+          });
+          if (!sourceFramesSeries) continue;
+
+          const matching = allNotable.filter(other => {
+            if (!isBiographyActingCredit(other)) return false;
+            const otherTitle = norm(other?.title || "");
+            return otherTitle === stem || otherTitle.startsWith(`${stem} `);
+          });
+
+          if (matching.length >= 3) return stem;
+        }
+        return "";
+      }
+
+      function sustainedFranchiseBonus(movie) {
+        const key = recurringFranchiseKey(movie);
+        if (!key) return 0;
+
+        const order = Number(movie?.order);
+        if (Number.isFinite(order) && order > 2) return 0;
+
+        const family = allNotable.filter(other => {
+          if (!isBiographyActingCredit(other)) return false;
+          const title = norm(other?.title || "");
+          return title === key || title.startsWith(`${key} `);
+        });
+
+        /* A sustained top-billed series is career evidence in its own right. */
+        let bonus = 72;
+
+        /* Within that franchise, modestly favor the best-reviewed installment
+           so the representative film is not chosen merely by raw popularity. */
+        const ratings = family
+          .map(item => Number(item?.vote_average || 0))
+          .filter(value => value > 0);
+        const bestRating = ratings.length ? Math.max(...ratings) : 0;
+        const rating = Number(movie?.vote_average || 0);
+        if (bestRating && rating >= bestRating - 0.08) bonus += 16;
+
+        return bonus;
+      }
+
       function eraSelectionScore(movie) {
-        let score = careerAnchorScore(movie);
+        let score = careerAnchorScore(movie) + sustainedFranchiseBonus(movie);
         const order = Number(movie?.order);
         const votes = Number(movie?.vote_count || 0);
         const rating = Number(movie?.vote_average || 0);
@@ -1578,26 +1648,6 @@
         .map(([label, movies]) => {
           const decade = Number(String(label).match(/\d{4}/)?.[0]);
 
-          /* TEMP PERSON 92 DIAGNOSTIC */
-          const diagnosticCandidates = (movies || []).map(movie => {
-            const acting = isBiographyActingCredit(movie);
-            const covered = titleAlreadyCovered(movie);
-            const votesOK = Number(movie?.vote_count || 0) >= 250;
-            return {
-              title: movie?.title || "",
-              year: movie?.year || null,
-              acting,
-              covered,
-              votesOK,
-              eraScore: acting && !covered && votesOK ? Math.round(eraSelectionScore(movie)) : null,
-              anchorScore: acting && !covered && votesOK ? Math.round(careerAnchorScore(movie)) : null,
-              recognition: Math.round(movieRecognitionScore(movie)),
-              order: Number.isFinite(Number(movie?.order)) ? Number(movie.order) : null,
-              votes: Number(movie?.vote_count || 0),
-              rating: Number(movie?.vote_average || 0)
-            };
-          });
-
           const eligible = (movies || [])
             .filter(isBiographyActingCredit)
             .filter(movie => !titleAlreadyCovered(movie))
@@ -1620,6 +1670,9 @@
              Use a conservative title-family key only for obvious numbered
              sequels, then allow at most one such family entry per decade. */
           const sequelFamily = movie => {
+            const sustained = recurringFranchiseKey(movie);
+            if (sustained) return sustained;
+
             const title = norm(movie?.title || "");
             if (!title) return "";
             const family = title
@@ -1657,7 +1710,7 @@
             if (!selected.some(item => item.id === movie.id)) selected.push(movie);
           }
 
-          return { label, decade, movies: selected.slice(0, 3), diagnosticCandidates };
+          return { label, decade, movies: selected.slice(0, 3) };
         })
         .filter(group => Number.isFinite(group.decade) && group.movies.length);
 
@@ -1685,19 +1738,6 @@
             ? `${titles[0]} and ${titles[1]}`
             : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
-        /* TEMP DIAGNOSTIC: for Tom Cruise's 2010s only, print the ranking
-           data directly on the biography card so one screenshot is enough. */
-        let diagnosticSuffix = "";
-        if (/^tom cruise$/i.test(String(name || "").trim()) && group.decade === 2010) {
-          const rows = (group.diagnosticCandidates || [])
-            .filter(x => /mission|reacher|oblivion|tomorrow/i.test(x.title))
-            .sort((a, b) => (b.eraScore ?? -99999) - (a.eraScore ?? -99999))
-            .map(x =>
-              `${x.title}: era=${x.eraScore ?? "OUT"}, anchor=${x.anchorScore ?? "-"}, rec=${x.recognition}, order=${x.order ?? "-"}, votes=${x.votes}, rating=${x.rating}, covered=${x.covered ? "Y" : "N"}, acting=${x.acting ? "Y" : "N"}, votesOK=${x.votesOK ? "Y" : "N"}`
-            );
-          if (rows.length) diagnosticSuffix = ` [DIAGNOSTIC: ${rows.join(" | ")}]`;
-        }
-
         const eraPosition = eraChapters.length;
         /* PERSON 86: vary transitions for long careers so several consecutive
            eras do not read as "Later ... Later ... Later ...". */
@@ -1714,7 +1754,7 @@
                   : `Later, ${name} appeared in ${joined}.`;
 
         eraChapters.push({
-          sentence: eraLead + diagnosticSuffix,
+          sentence: eraLead,
           index: 9000 + group.decade,
           years: movies.map(movie => movie.year),
           year: Math.min(...movies.map(movie => movie.year)),
