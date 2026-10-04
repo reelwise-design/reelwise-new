@@ -908,7 +908,9 @@
          the debut as early work. Cap the early chapter at roughly the first
          12 years, while still allowing a shorter proportional window for
          shorter careers. */
-      const earlyCareerYears = Math.min(12, Math.max(7, Math.round(span * 0.28)));
+      /* PERSON 89 — tighter rise window. Keep "early career" close to the
+         actual star-making period so later sequels cannot drift backward into it. */
+      const earlyCareerYears = Math.min(9, Math.max(6, Math.round(span * 0.22)));
       const earlyEnd = firstCareerYear + earlyCareerYears;
       const lateStart = firstCareerYear + Math.round(span * 0.68);
 
@@ -1123,7 +1125,7 @@
         return score;
       }
 
-      /* PERSON 88 — EVIDENCE-ONLY CAREER ANCHORS
+      /* PERSON 89 — EVIDENCE-ONLY CAREER ANCHORS
 
          Person 87 proved that source-biography evidence can identify genuinely
          defining films, but it also let that evidence alter the biography
@@ -1157,6 +1159,31 @@
         return strength;
       }
 
+      /* PERSON 89 — FRANCHISE EVIDENCE PROPAGATION
+         Source biographies often name a franchise once rather than listing every
+         installment. Give individual verified credits modest evidence when their
+         title belongs to a franchise explicitly discussed by the source. */
+      function titleFamilyKey(title = "") {
+        return norm(title)
+          .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
+          .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+
+      function franchiseEvidenceStrength(movie) {
+        const family = titleFamilyKey(movie?.title || "");
+        if (!family || family.length < 4) return 0;
+
+        let strength = 0;
+        for (const sentence of sourceSentences) {
+          const clean = norm(sentence);
+          if (!/\b(franchise|film series|series)\b/i.test(sentence)) continue;
+          if (clean.includes(family)) strength = Math.max(strength, 2);
+        }
+        return strength;
+      }
+
       function careerAnchorScore(movie) {
         const strength = careerAnchorStrength(movie);
         const bonus =
@@ -1164,7 +1191,8 @@
           strength === 2 ? 42 :
           strength === 1 ? 14 : 0;
 
-        return careerDefiningMovieScore(movie) + bonus;
+        const franchiseBonus = franchiseEvidenceStrength(movie) * 18;
+        return careerDefiningMovieScore(movie) + bonus + franchiseBonus;
       }
 
       if (!resolvedRise) {
@@ -1498,9 +1526,11 @@
 
           const selected = [];
           const usedFamilies = new Set();
-          const ranked = [...significant, ...eligible.filter(movie =>
-            !significant.some(item => item.id === movie.id)
-          )];
+          const ranked = [...eligible].sort((a, b) =>
+            careerAnchorScore(b) - careerAnchorScore(a) ||
+            movieRecognitionScore(b) - movieRecognitionScore(a) ||
+            (a.year || 9999) - (b.year || 9999)
+          );
 
           for (const movie of ranked) {
             if (selected.length >= targetCount) break;
@@ -1662,6 +1692,20 @@
           return overlap >= 2;
         });
         if (repeatsExisting) continue;
+
+        /* PERSON 89 — DUPLICATE IDENTITY GUARD
+           Some source extracts repeat the lead identity sentence with a birth
+           parenthetical or a slightly different profession list. The intro is
+           already rendered separately, so reject a second identity sentence
+           when it begins with the same person name and carries no film title. */
+        const introLead = norm(intro).split(" ").slice(0, 4).join(" ");
+        const itemLead = norm(item.sentence).split(" ").slice(0, 4).join(" ");
+        const duplicateIdentity =
+          introLead &&
+          itemLead === introLead &&
+          itemTitles.length === 0 &&
+          /\b(is an?|was an?|actor|actress|comedian|producer|director|singer|filmmaker)\b/i.test(item.sentence);
+        if (duplicateIdentity) continue;
 
         selected.push(item.sentence);
         used.add(key);
