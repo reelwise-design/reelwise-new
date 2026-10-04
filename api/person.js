@@ -880,6 +880,12 @@
         /* PERSON 69: birthday/age already has a dedicated header line.
            Do not repeat a parenthetical birth date in the biography intro. */
         const cleanedIntro = cleanText(found)
+          /* PERSON 86: Wikipedia leads sometimes place IPA/pronunciation text
+             and the birth date in one parenthetical after the name. Reelwise
+             already owns birth data in the gold metadata line, and pronunciation
+             markup is not useful in a compact movie-star biography. */
+          .replace(/\s*\([^)]*\bborn\b[^)]*\)/i, "")
+          .replace(/\s*\((?:\/[^)]*\/|[^)]*\b(?:pronounced|pronunciation)\b)[^)]*\)/i, "")
           .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
           .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
           .replace(/\s*\(born\s+\d{4}\)/i, "");
@@ -1030,11 +1036,14 @@
         isBiographyActingCredit(movie) &&
         movieRecognitionScore(movie) >= significanceFloor;
 
-      /* PERSON 85 — STAR-CENTRIC CAREER-DEFINING MOVIE RANKING
+      /* PERSON 86 — CAREER-STAGE MOVIE RANKING
 
-         Person 84 proved that era ranking works. Person 85 keeps the biography
-         structure frozen and calibrates only the ranking weights so Reelwise
-         favors movies that are especially important to THIS performer's career.
+         Person 85 established a stable chronological biography. Person 86 keeps that
+         structure, but treats credits as career stages rather than a flat set of
+         decade winners. Breakthrough/early-stardom work is protected first;
+         peak, mid-career, later-career and recent work then compete inside their
+         own part of the timeline. This prevents a later popular sequel or weak
+         high-vote credit from erasing the films that actually established a star.
 
          Generic signals:
            - top billing / central-role importance is the strongest signal
@@ -1082,6 +1091,14 @@
 
         if (character && !/\b(self|uncredited|cameo|archive footage)\b/i.test(character)) {
           score += 4;
+        }
+
+        /* PERSON 86 — career-stage context. Early top-billed work gets a small
+           protection bonus because those credits often establish stardom; this
+           is intentionally smaller than billing/source evidence and contains no
+           actor- or title-specific rules. */
+        if (movie.year && movie.year <= earlyEnd && Number.isFinite(order) && order <= 2) {
+          score += 12;
         }
 
         /* Wikipedia is used only as evidence of career significance. A title
@@ -1300,6 +1317,65 @@
         }
       }
 
+      /* PERSON 86 — REQUIRED BREAKTHROUGH / EARLY-STARDOM STAGE
+
+         Decade ranking alone can begin too late when Wikipedia does not supply
+         a clean rise sentence. That is how a long-established star can appear
+         to begin in the 1990s even though the films that created the star were
+         in the 1980s. Protect the first meaningful career stage generically.
+
+         We do not call any movie a "breakthrough" unless the source does. The
+         generated sentence simply states that these were early starring-film
+         credits. Selection uses the same actor-centric score as later eras,
+         with top billing and source significance doing most of the work. */
+      const earlyStageAlreadyCovered = new Set();
+      for (const text of [intro, resolvedRise?.sentence, defining?.sentence].filter(Boolean)) {
+        for (const movie of allNotable) {
+          if (movie?.year && movie.year <= earlyEnd && sentenceMentionsTitle(text, movie.title)) {
+            earlyStageAlreadyCovered.add(norm(movie.title));
+          }
+        }
+      }
+
+      if (earlyStageAlreadyCovered.size < 2 && !careerRun) {
+        const earlyStagePool = allNotable
+          .filter(movie =>
+            isBiographyActingCredit(movie) &&
+            movie?.year &&
+            movie.year <= earlyEnd &&
+            Number(movie?.vote_count || 0) >= 250
+          )
+          .sort((a, b) =>
+            careerDefiningMovieScore(b) - careerDefiningMovieScore(a) ||
+            movieRecognitionScore(b) - movieRecognitionScore(a) ||
+            (a.year || 9999) - (b.year || 9999)
+          );
+
+        const earlyStageMovies = [];
+        for (const movie of earlyStagePool) {
+          if (earlyStageMovies.length >= 4) break;
+          if (earlyStageAlreadyCovered.has(norm(movie.title))) continue;
+          earlyStageMovies.push(movie);
+        }
+
+        if (earlyStageMovies.length >= 2) {
+          earlyStageMovies.sort((a, b) => a.year - b.year);
+          const titles = earlyStageMovies.map(movie => `${movie.title} (${movie.year})`);
+          const joined = titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+
+          careerRun = {
+            sentence: `${name}'s early film career included ${joined}.`,
+            index: -1,
+            years: earlyStageMovies.map(movie => movie.year),
+            year: Math.min(...earlyStageMovies.map(movie => movie.year)),
+            hits: earlyStageMovies,
+            syntheticCareerStage: "early"
+          };
+        }
+      }
+
       /* PERSON 76 — NO GENERIC "LATER FILM WORK" BUCKET
 
          Person 75 could jump straight to the newest/highest-scoring credits
@@ -1425,13 +1501,19 @@
             : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
 
         const eraPosition = eraChapters.length;
+        /* PERSON 86: vary transitions for long careers so several consecutive
+           eras do not read as "Later ... Later ... Later ...". */
         const eraLead = eraPosition === 0
           ? `His career continued with ${joined}.`
           : eraPosition === 1
             ? `In the years that followed, ${name} starred in ${joined}.`
             : group.decade >= 2020
               ? `More recently, ${name} appeared in ${joined}.`
-              : `Later, ${name} appeared in ${joined}.`;
+              : eraPosition % 3 === 2
+                ? `${name}'s next phase included ${joined}.`
+                : eraPosition % 3 === 0
+                  ? `Another major stretch of ${name}'s film career included ${joined}.`
+                  : `Later, ${name} appeared in ${joined}.`;
 
         eraChapters.push({
           sentence: eraLead,
