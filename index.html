@@ -3058,7 +3058,31 @@ async function showPerson(id){homeContent.style.display="none";revealResults();r
    Render the actor profile as soon as the core person requests finish.
    Do NOT show the short/default biography. The biography area gets a quiet
    loading state, then the final Reelwise biography is inserted once. */
-const fallbackBiography=String(person.biography||"").replace(/\s+/g," ").trim();
+/* INDEX 30 — GENERIC PROFILE DISPLAY NORMALIZATION */
+function reelwiseAgeAtDate(born,ended){
+  if(!born||!ended)return null;
+  const b=new Date(String(born).slice(0,10)+"T00:00:00Z");
+  const d=new Date(String(ended).slice(0,10)+"T00:00:00Z");
+  if(!Number.isFinite(b.getTime())||!Number.isFinite(d.getTime())||d<b)return null;
+  let years=d.getUTCFullYear()-b.getUTCFullYear();
+  if(d.getUTCMonth()<b.getUTCMonth()||(d.getUTCMonth()===b.getUTCMonth()&&d.getUTCDate()<b.getUTCDate()))years--;
+  return years>=0?years:null;
+}
+function reelwiseCleanProfileBio(raw,name){
+  let bio=String(raw||"").replace(/\s+/g," ").trim();
+  const escaped=String(name||"").replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
+  if(escaped){
+    const pattern=new RegExp("^("+escaped+")\\s*\\((?:born\\s+)?[^()]{0,95}\\)\\s*","i");
+    bio=bio.replace(pattern,(match,n)=>{
+      const inside=match.slice(match.indexOf("(")+1,match.lastIndexOf(")"));
+      return /\b(?:born|\d{4})\b/i.test(inside)?n+" ":match;
+    });
+  }
+  return bio.replace(/\s+/g," ").trim();
+}
+const deceasedAge=reelwiseAgeAtDate(person.birthday,person.deathday);
+if(person.deathday&&deceasedAge!==null)person.age_at_death=deceasedAge;
+const fallbackBiography=reelwiseCleanProfileBio(person.biography,person.name);
 
 const photo=person.profile_path?"https://image.tmdb.org/t/p/w500"+person.profile_path:"",credits=person.combined_credits&&Array.isArray(person.combined_credits.cast)?person.combined_credits.cast:[],today=new Date().toISOString().slice(0,10),movies=credits.filter(item=>item.media_type==="movie"&&item.title).filter(movie=>movie.release_date&&movie.release_date<=today).filter(movie=>{const role=String(movie.character||"").toLowerCase();return !(role.includes("self")||role.includes("himself")||role.includes("herself")||role.includes("archive footage"))}).filter((movie,index,array)=>array.findIndex(x=>x.id===movie.id)===index);const known=[...movies].filter(movie=>movie.poster_path).map(movie=>{const popularity=Number(movie.popularity||0),votes=Number(movie.vote_count||0),billing=Number.isFinite(Number(movie.order))?Number(movie.order):25;let billingScore=0;if(billing===0)billingScore=150;else if(billing===1)billingScore=135;else if(billing===2)billingScore=120;else if(billing<=4)billingScore=95;else if(billing<=7)billingScore=65;else if(billing<=12)billingScore=30;const audienceScore=Math.log10(votes+1)*24,popularityScore=Math.min(popularity,100)*.18,ratingScore=Number(movie.vote_average||0)*2;return {...movie,reelwiseScore:billingScore+audienceScore+popularityScore+ratingScore}}).sort((a,b)=>b.reelwiseScore-a.reelwiseScore).slice(0,8),filmography=[...movies].sort((a,b)=>(b.release_date||"").localeCompare(a.release_date||""));
 
@@ -3154,7 +3178,7 @@ if(needsBiographyEnhancement){
     );
     if(biographyResponse.ok){
       const biographyData=await biographyResponse.json();
-      const enhancedBiography=String(biographyData&&biographyData.biography||"").replace(/\s+/g," ").trim();
+      const enhancedBiography=reelwiseCleanProfileBio(biographyData&&biographyData.biography,person.name);
       const enhancedHasBusinessNoise=/\b(?:net worth|estimated net worth|salary|paycheck|earnings|wealth|richest|deal with netflix|deal worth|contract worth)\b/i.test(enhancedBiography);
       const bioBox=document.getElementById("starBio");
       const enhancedIsUsable=enhancedBiography.length>=220&&!enhancedHasBusinessNoise;
