@@ -2063,7 +2063,15 @@
          A coherent Reelwise story now wins whenever it contains a meaningful
          career narrative. The fallback itself is also sanitized as a final
          defense, so source boilerplate can never reach the card. */
-      if (words(story) >= 45) {
+      /* PERSON 98 — CAREER-FIRST SELECTION.
+         A concise, sourced career narrative must not be replaced by a generic
+         encyclopedia summary merely because it has fewer than 45 words.
+         Require an actual verified movie title before favoring the shorter
+         story; this avoids treating an identity-only introduction as a bio. */
+      const storyHasVerifiedMovie = allNotable.some(movie =>
+        sentenceMentionsTitle(story, movie.title)
+      );
+      if (words(story) >= 25 && storyHasVerifiedMovie) {
         /* PERSON 80 — final display firewall. Never allow source licensing or
            attribution boilerplate to survive even if an upstream source
            changes its wording slightly. */
@@ -2091,8 +2099,52 @@
           .replace(/\s*\([^()]{0,60}?[–—-]\s*[^()]{0,60}?\)/, "");
       }
 
+      /* PERSON 98 — VERIFIED FILM-CAREER RESCUE.
+         When source prose cannot form a complete Reelwise narrative, add
+         genuinely credited, recognizable movie milestones from TMDB. These
+         are described as credits, never invented breakthroughs or awards.
+         Prefer important billed roles across separate decades, and reject
+         uncredited, self, archival, or marginal appearances. */
+      const credited = (timeline.notable || [])
+        .filter(movie => movie?.title && movie?.year)
+        .filter(movie => {
+          const role = String(movie.character || "");
+          const order = Number(movie.order);
+          return !/\b(uncredited|archive footage|self|cameo)\b/i.test(role) &&
+            Number.isFinite(order) && order <= 5 &&
+            Number(movie.vote_count || 0) >= 100;
+        });
+      const milestoneGroups = new Map();
+      for (const movie of credited) {
+        const decade = Math.floor(movie.year / 10) * 10;
+        if (!milestoneGroups.has(decade)) milestoneGroups.set(decade, []);
+        milestoneGroups.get(decade).push(movie);
+      }
+      const milestoneSentences = [];
+      const usedTitles = new Set();
+      for (const [decade, movies] of [...milestoneGroups.entries()].sort((a,b) => a[0]-b[0])) {
+        const picks = movies
+          .sort((a,b) => careerDefiningMovieScore(b)-careerDefiningMovieScore(a))
+          .filter(movie => !usedTitles.has(norm(movie.title)))
+          .slice(0, 2);
+        if (!picks.length) continue;
+        picks.forEach(movie => usedTitles.add(norm(movie.title)));
+        const titles = picks.map(movie => `${movie.title} (${movie.year})`);
+        milestoneSentences.push(
+          `His film credits in the ${decade}s included ${titles.join(" and ")}.`
+        );
+        if (milestoneSentences.length >= 3) break;
+      }
+      const careerAdditions = milestoneSentences;
       const fallback = removeWikipediaEnding(fallbackSentences.join(" "));
-      return story || fallback || `${name} is a film actor and filmmaker.`;
+      const base = story || fallback || `${name} is a film actor and filmmaker.`;
+      const missingMilestones = careerAdditions.filter(sentence =>
+        !credited.some(movie =>
+          sentenceMentionsTitle(sentence, movie.title) &&
+          sentenceMentionsTitle(base, movie.title)
+        )
+      );
+      return cleanText([base, ...missingMilestones].join(" "));
     }
 
     /* ============================================================
