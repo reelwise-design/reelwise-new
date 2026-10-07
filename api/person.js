@@ -2735,6 +2735,63 @@
             wikipediaExtract
           });
 
+        /*
+          PERSON 97 — FINAL RESPONSE NORMALIZATION
+
+          Do this AFTER the biography engine has completely finished.
+          This is intentionally generic and actor-independent.
+
+          1. Calculate the final display age once from TMDB birthday/deathday.
+          2. Remove a duplicated lifespan parenthetical from the opening of the
+             final biography, because Born/Died already appear in the header.
+        */
+        const finalDisplayAge =
+          person.deathday
+            ? calculatePersonAge(person.birthday, person.deathday)
+            : calculatePersonAge(person.birthday);
+
+        const finalAgeAtDeath =
+          person.deathday
+            ? calculatePersonAge(person.birthday, person.deathday)
+            : null;
+
+        function normalizeFinalBiography(text, personName) {
+          let value = cleanText(text || "");
+          if (!value) return value;
+
+          const escapedName = String(personName || "")
+            .trim()
+            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+          if (!escapedName) return value;
+
+          /*
+            Match:
+              Name (January 1, 1900 – February 2, 2000) was...
+              Name (1900–2000) was...
+              Name (born January 1, 1900) is...
+
+            Only an opening parenthetical immediately following the person's
+            name is removed. Other useful parentheticals remain untouched.
+          */
+          const openingDates = new RegExp(
+            `^(${escapedName})\\s*\\((?:born\\s+)?` +
+            `(?:(?:[A-Z][a-z]+\\s+\\d{1,2},\\s+)?\\d{4})` +
+            `(?:\\s*[–—-]\\s*(?:(?:[A-Z][a-z]+\\s+\\d{1,2},\\s+)?\\d{4}))?` +
+            `\\)\\s*`,
+            "i"
+          );
+
+          value = value.replace(openingDates, "$1 ");
+          return cleanText(value);
+        }
+
+        const finalBiography =
+          normalizeFinalBiography(
+            biography,
+            person.name
+          );
+
         const knownFor =
           buildKnownFor(
             credits
@@ -2775,14 +2832,10 @@
                older Reelwise front ends working while the explicit death-age
                aliases remain available. */
             age:
-              person.deathday
-                ? calculatePersonAge(person.birthday, person.deathday)
-                : calculatePersonAge(person.birthday),
+              finalDisplayAge,
 
             age_at_death:
-              person.deathday
-                ? calculatePersonAge(person.birthday, person.deathday)
-                : null,
+              finalAgeAtDeath,
 
             /* Compatibility aliases for older/newer front ends. */
             current_age:
@@ -2791,14 +2844,17 @@
                 : calculatePersonAge(person.birthday),
 
             ageAtDeath:
-              person.deathday
-                ? calculatePersonAge(person.birthday, person.deathday)
-                : null,
+              finalAgeAtDeath,
+
+            /* PERSON 97: extra compatibility alias for UI renderers. */
+            display_age:
+              finalDisplayAge,
 
             place_of_birth:
               person.place_of_birth || "",
 
-            biography,
+            biography:
+              finalBiography,
 
             profile_path:
               person.profile_path || null,
