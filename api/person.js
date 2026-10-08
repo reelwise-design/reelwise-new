@@ -1180,11 +1180,11 @@
         const year = Number(movie?.year || 0);
         if (!rawTitle || !year) return false;
 
-        const title = normalizeTitle(rawTitle);
+        const title = norm(rawTitle);
         const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
         return sourceSentences.some(sentence => {
-          const normalized = normalizeTitle(sentence);
+          const normalized = norm(sentence);
           if (!normalized.includes(title)) return false;
 
           const franchisePattern = new RegExp(
