@@ -2094,6 +2094,69 @@
         }
       }
 
+
+      /* PERSON 103 — SOURCE-GROUNDED SIGNATURE-ROLE OPENING.
+         A Wikipedia "best known for playing X in the Y series" statement
+         sometimes has no standalone year. Resolve its franchise origin only
+         against a real, released TMDB acting credit. Lead with the actual
+         character and original film, rather than a list of sequels. Never
+         invent the role or a breakthrough claim. Keep unrelated career and
+         recognition chapters. */
+      const signatureSource = sourceSentences.find(sentence =>
+        /\bbest known for (?:playing|portraying)\b/i.test(sentence) &&
+        /\b(?:films?|movies?|series|franchise)\b/i.test(sentence)
+      );
+      if (signatureSource) {
+        const match = signatureSource.match(
+          /\bbest known for (?:playing|portraying)\s+(.{3,85}?)\s+in\s+(?:the\s+)?(.{2,75}?)\s+(?:series of films|film series|films|movies|series|franchise)\b/i
+        );
+        if (match) {
+          const character = match[1].trim();
+          const family = norm(match[2]).replace(/^(?:the|first|original)\s+/, "");
+          const origins = allNotable
+            .filter(movie =>
+              isBiographyActingCredit(movie) &&
+              movie?.title && movie?.year &&
+              (norm(movie.title) === family ||
+               titleFamilyKey(movie.title) === family)
+            )
+            .sort((a,b) => a.year - b.year);
+          const origin = origins[0];
+          if (origin && character && character.length < 85) {
+            const signatureOpening =
+              `${name} was best known for playing ${character} in ${origin.title} (${origin.year}).`;
+            /* Remove the synthetic catalog and source sentences that would
+               repeat the same signature-role claim. Keep other substantive
+               chapters (including awards and later-career work). */
+            for (let i = selected.length - 1; i >= 1; i--) {
+              const sentence = selected[i];
+              if (isSyntheticEarlyCatalog(sentence) ||
+                  (/\bbest known for (?:playing|portraying)\b/i.test(sentence) &&
+                   norm(sentence).includes(norm(character)))) {
+                selected.splice(i, 1);
+              }
+            }
+            selected.splice(1, 0, signatureOpening);
+          }
+        }
+      }
+
+      /* Suppress an early catalog when it repeats two or more film titles
+         already covered in a sourced, role-led chapter. */
+      const coveredBeforeCatalog = new Set();
+      for (let i = 1; i < selected.length; i++) {
+        const sentence = selected[i];
+        const hits = allNotable.filter(movie =>
+          sentenceMentionsTitle(sentence, movie.title)
+        );
+        if (isSyntheticEarlyCatalog(sentence) &&
+            hits.filter(movie => coveredBeforeCatalog.has(norm(movie.title))).length >= 2) {
+          selected.splice(i--, 1);
+          continue;
+        }
+        hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
+      }
+
       let story = selected.filter(Boolean).join(" ");
 
       /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
