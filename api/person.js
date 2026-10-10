@@ -2023,62 +2023,6 @@
         selected.splice(weakestIndex, 1);
       }
 
-      /* PERSON 106 — structured editorial assembly.
-         Prefer verified source prose over synthetic catalogs. Organize distinct
-         chapters by evidence and time; preserve recognition independently.
-         If evidence is insufficient, retain the existing Person 103 path. */
-      {
-        const evidence = [...new Set([...sourceSentences, ...selected.slice(1)]
-          .map(x => cleanText(x)).filter(Boolean))];
-        const signature = evidence.find(x =>
-          /\b(?:prominent roles? included|best known for playing|best known for portraying)\b/i.test(x) &&
-          /\b(?:first four|first three|first two|film series|series of films|films)\b/i.test(x));
-        const roleMatch = signature && (
-          signature.match(/\b(?:prominent roles? included)\s+(?:boxer|detective|officer|agent|captain|colonel|coach)?\s*(.{3,65}?)\s+in\s+the\s+first\s+(\w+)\s+(.{2,55}?)\s+films\s*\((\d{4})[–—-](\d{4})\)/i) ||
-          signature.match(/\bbest known for (?:playing|portraying)\s+(.{3,65}?)\s+in\s+(?:the\s+)?(.{2,55}?)\s+(?:series of films|film series|films)\b/i)
-        );
-        if (roleMatch) {
-          const character=roleMatch[1].trim();
-          const family=norm(roleMatch.length===6 ? roleMatch[3] : roleMatch[2]);
-          const origin=allNotable.filter(m=>isBiographyActingCredit(m) && m.year &&
-            (norm(m.title)===family || titleFamilyKey(m.title)===family))
-            .sort((a,b)=>a.year-b.year)[0];
-          if (origin && character.length<65) {
-            const chapters=[intro.replace(/\s{2,}/g," ").trim()];
-            chapters.push(`${name} became widely known for playing ${character} in ${origin.title} (${origin.year}).`);
-            if(roleMatch.length===6) chapters.push(
-              `${name} reprised the role across the first ${roleMatch[2]} ${roleMatch[3].trim()} films, through ${roleMatch[5]}.`
-            );
-            const awards=evidence.filter(x=>/\b(?:nominated|nomination|won|winner|award|emmy|oscar)\b/i.test(x))
-              .filter(x=>!/\b(?:list of|filmography|awards and nominations)\b/i.test(x))
-              .sort((a,b)=>b.length-a.length)[0];
-            const career=evidence.filter(x=>x!==signature && x!==awards)
-              .filter(x=>!isSyntheticEarlyCatalog(x))
-              .filter(x=>!/\b(?:early film career|early film credits|his career continued with|in the years that followed)\b/i.test(x))
-              .filter(x=>!/\b(?:best known for playing|best known for portraying)\b/i.test(x))
-              .filter(x=>!/\b(?:was an?|is an?)\s+(?:American|English|British|Canadian)\b/i.test(x))
-              .filter(x=>sourceSentenceIsMovieNarrativeFriendly(x))
-              .map(x=>({text:x,years:yearsIn(x)}))
-              .filter(x=>x.years.length && x.text.length>35 && x.text.length<360)
-              .filter(x=>!norm(x.text).includes(norm(character)) || !sentenceMentionsTitle(x.text,origin.title))
-              .sort((a,b)=>Math.min(...a.years)-Math.min(...b.years));
-            const usedTitles=new Set([norm(origin.title)]);
-            for(const item of career){
-              const hits=allNotable.filter(m=>sentenceMentionsTitle(item.text,m.title));
-              if(hits.length && hits.every(m=>usedTitles.has(norm(m.title)))) continue;
-              if(chapters.length>=6) break;
-              chapters.push(ensurePeriod(item.text));
-              hits.forEach(m=>usedTitles.add(norm(m.title)));
-            }
-            if(awards && !chapters.some(x=>norm(x)===norm(awards))) chapters.push(ensurePeriod(awards));
-            const structured=chapters.join(" ").replace(/\s{2,}/g," ").trim();
-            if(words(structured)>=65 && allNotable.some(m=>sentenceMentionsTitle(structured,m.title))) {
-              return removeWikipediaEnding(structured);
-            }
-          }
-        }
-      }
-
       /* PERSON 100 — SOURCE-VERIFIED BREAKTHROUGH FIRST.
          A synthetic early-film list must not precede a source sentence that
          explicitly identifies the breakthrough. This is generic: the source
