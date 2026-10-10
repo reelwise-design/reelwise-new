@@ -2158,57 +2158,63 @@
       }
 
 
-      /* PERSON 104 — role-led, chronological narrative.
-         Recognize both "best known for playing X in the Y films" and
-         "prominent roles included [descriptor] X in the first N Y films".
-         Only resolve an origin when the actor's actual credits contain the
-         named first film. Never infer a character from TMDB popularity. */
-      const roleEvidence = sourceSentences.map(sentence => {
-        const patterns = [
-          /\bbest known for (?:playing|portraying)\s+(.{3,70}?)\s+in\s+(?:the\s+)?(.{2,55}?)\s+(?:series of films|film series|films|movies|franchise)\b/i,
-          /\b(?:prominent|notable|major|best.known) roles? included\s+(?:boxer|detective|officer|agent|captain|colonel|dr\.?|professor|coach|character)\s+(.{3,65}?)\s+in\s+the\s+(?:first|original)\s+(?:\w+\s+)?(.{2,55}?)\s+films\b/i
-        ];
-        for (const re of patterns) {
-          const match = sentence.match(re);
-          if (match) return {character:match[1].trim(), family:norm(match[2]), sentence};
+      /* PERSON 105 — editorial ordering, not another source replacement.
+         Preserve the selected source-rich chapters, but split a long
+         cross-decade "prominent roles" sentence into a first-role anchor and
+         later role clauses. Only use the role's film/year when it appears in
+         the source itself; otherwise retain the source wording. */
+      const roleIndex105 = selected.findIndex((line,i) =>
+        i > 0 && /\b(?:prominent|notable|major) roles? included\b/i.test(line) &&
+        /\b(?:Rocky|film|films|movie|movies)\b/i.test(line)
+      );
+      if (roleIndex105 > 0) {
+        const roleLine = selected[roleIndex105];
+        const m = roleLine.match(
+          /\b(?:prominent|notable|major) roles? included\s+(.+?)\s+in\s+(?:the\s+)?first\s+(\w+)\s+(.+?)\s+films\s*\((\d{4})[–—-](\d{4})\)/i
+        );
+        if (m) {
+          const character = m[1].trim(), franchise=m[3].trim(), year=Number(m[4]);
+          const original = allNotable.find(movie =>
+            movie.year === year && isBiographyActingCredit(movie) &&
+            (norm(movie.title) === norm(franchise) ||
+             titleFamilyKey(movie.title) === norm(franchise))
+          );
+          if (original) {
+            const signature = `${name} rose to prominence playing ${character} in ${original.title} (${year}), reprising the role in the first ${m[2]} ${franchise} films through ${m[5]}.`;
+            /* Remove only the original compound chapter and redundant
+               sequel/catalog text; do not remove other sourced career facts. */
+            selected.splice(roleIndex105,1);
+            for (let i=selected.length-1;i>0;i--) {
+              if (isSyntheticEarlyCatalog(selected[i]) ||
+                  (/^His career continued with\b/i.test(selected[i]) &&
+                   sentenceMentionsTitle(selected[i],franchise))) selected.splice(i,1);
+            }
+            const oldSignature = selected.findIndex((line,i)=>i>0 &&
+              /\bbest known for playing\b/i.test(line) &&
+              norm(line).includes(norm(character)));
+            if(oldSignature>0) selected.splice(oldSignature,1);
+            selected.splice(1,0,signature);
+            /* The remainder of the original sentence is useful evidence.
+               Keep it as a later role chapter without repeating the anchor. */
+            let rest=roleLine.slice(m.index+m[0].length)
+              .replace(/^[\s,;]*(?:and\s+)?/i,"")
+              .replace(/[. ]+$/,"");
+            if(rest && rest.length>25) {
+              rest=rest.replace(/,\s+and\s+/g,", and ");
+              const restLine=`Other notable roles included ${rest.charAt(0).toLowerCase()+rest.slice(1)}.`;
+              if(!selected.some(x=>norm(x)===norm(restLine))) selected.splice(2,0,restLine);
+            }
+          }
         }
-        return null;
-      }).filter(Boolean);
-      for (const evidence of roleEvidence) {
-        const origin = allNotable.filter(movie =>
-          isBiographyActingCredit(movie) && movie?.year &&
-          (norm(movie.title) === evidence.family ||
-           titleFamilyKey(movie.title) === evidence.family)
-        ).sort((a,b) => a.year - b.year)[0];
-        if (!origin) continue;
-        const roleLead = `${name} came to prominence playing ${evidence.character} in ${origin.title} (${origin.year}).`;
-        /* A later sequel or a source paragraph spanning several decades
-           cannot be placed before the original career-defining film. */
-        for (let i=selected.length-1; i>=1; i--) {
-          const sentence=selected[i];
-          if (isSyntheticEarlyCatalog(sentence) ||
-              /\bhis career continued with\b/i.test(sentence) &&
-              allNotable.some(movie => sentenceMentionsTitle(sentence,movie.title) &&
-                titleFamilyKey(movie.title) === evidence.family) ||
-              norm(sentence) === norm(evidence.sentence)) selected.splice(i,1);
-        }
-        selected.splice(1,0,roleLead);
-        /* Preserve the source's other achievements as distinct later chapters,
-           without repeating the original defining role. */
-        const remaining = evidence.sentence.match(/\b(?:Colonel|Det\.?|Chubbs|Combat|Magistrate)\b[\s\S]*/i);
-        if (remaining && remaining[0].length > 35 &&
-            !selected.some(x=>norm(x).includes(norm(remaining[0]).slice(0,45)))) {
-          const later = remaining[0].replace(/,\s*and\s+/g,", and ");
-          selected.splice(2,0,`Other prominent roles included ${later.replace(/[. ]+$/,"")}.`);
-        }
-        break;
       }
-      /* Eliminate exact repeated sentences without deleting later milestones. */
-      const seen104 = new Set();
-      for (let i=selected.length-1;i>=0;i--) {
-        const key=norm(selected[i]);
-        if (seen104.has(key)) selected.splice(i,1);
-        else seen104.add(key);
+      /* Do not place an isolated later synthetic era ahead of a sourced
+         chapter already spanning that same film. Preserve award chapters. */
+      for(let i=selected.length-1;i>1;i--){
+        const line=selected[i];
+        if(!/^(?:His career continued with|In the years that followed|Later,|More recently,)/i.test(line)) continue;
+        const hits=allNotable.filter(movie=>sentenceMentionsTitle(line,movie.title));
+        if(hits.length && hits.every(movie=>selected.some((other,j)=>j!==i &&
+          sentenceMentionsTitle(other,movie.title)))) selected.splice(i,1);
       }
 
       let story = selected.filter(Boolean).join(" ");
