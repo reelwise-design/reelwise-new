@@ -2157,6 +2157,27 @@
         hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
       }
 
+      /* PERSON 107 — narrow chronology cleanup only.
+         A standalone generated sequel chapter is redundant if an earlier
+         sourced role chapter already covers that franchise and year.
+         Never remove mixed-title chapters, awards, or other career facts. */
+      for (let i = selected.length - 1; i > 1; i--) {
+        const sentence = selected[i];
+        const sequel = sentence.match(/^His career continued with (.+?) \\((\\d{4})\\)\\.$/i);
+        if (!sequel) continue;
+        const sequelTitle = sequel[1].trim();
+        const sequelYear = Number(sequel[2]);
+        const family = titleFamilyKey(sequelTitle);
+        if (!family || !Number.isFinite(sequelYear)) continue;
+        const covered = selected.slice(1, i).some(prior => {
+          if (!/\\b(?:first|original)\\s+(?:two|three|four|five|six|\\d+)\\s+.+?films\\b/i.test(prior)) return false;
+          const range = prior.match(/\\((\\d{4})\\s*[–—-]\\s*(\\d{4})\\)/);
+          if (!range || sequelYear < Number(range[1]) || sequelYear > Number(range[2])) return false;
+          return norm(prior).includes(norm(family));
+        });
+        if (covered) selected.splice(i, 1);
+      }
+
       let story = selected.filter(Boolean).join(" ");
 
       /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
