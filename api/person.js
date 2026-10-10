@@ -2157,6 +2157,60 @@
         hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
       }
 
+
+      /* PERSON 104 — role-led, chronological narrative.
+         Recognize both "best known for playing X in the Y films" and
+         "prominent roles included [descriptor] X in the first N Y films".
+         Only resolve an origin when the actor's actual credits contain the
+         named first film. Never infer a character from TMDB popularity. */
+      const roleEvidence = sourceSentences.map(sentence => {
+        const patterns = [
+          /\bbest known for (?:playing|portraying)\s+(.{3,70}?)\s+in\s+(?:the\s+)?(.{2,55}?)\s+(?:series of films|film series|films|movies|franchise)\b/i,
+          /\b(?:prominent|notable|major|best.known) roles? included\s+(?:boxer|detective|officer|agent|captain|colonel|dr\.?|professor|coach|character)\s+(.{3,65}?)\s+in\s+the\s+(?:first|original)\s+(?:\w+\s+)?(.{2,55}?)\s+films\b/i
+        ];
+        for (const re of patterns) {
+          const match = sentence.match(re);
+          if (match) return {character:match[1].trim(), family:norm(match[2]), sentence};
+        }
+        return null;
+      }).filter(Boolean);
+      for (const evidence of roleEvidence) {
+        const origin = allNotable.filter(movie =>
+          isBiographyActingCredit(movie) && movie?.year &&
+          (norm(movie.title) === evidence.family ||
+           titleFamilyKey(movie.title) === evidence.family)
+        ).sort((a,b) => a.year - b.year)[0];
+        if (!origin) continue;
+        const roleLead = `${name} came to prominence playing ${evidence.character} in ${origin.title} (${origin.year}).`;
+        /* A later sequel or a source paragraph spanning several decades
+           cannot be placed before the original career-defining film. */
+        for (let i=selected.length-1; i>=1; i--) {
+          const sentence=selected[i];
+          if (isSyntheticEarlyCatalog(sentence) ||
+              /\bhis career continued with\b/i.test(sentence) &&
+              allNotable.some(movie => sentenceMentionsTitle(sentence,movie.title) &&
+                titleFamilyKey(movie.title) === evidence.family) ||
+              norm(sentence) === norm(evidence.sentence)) selected.splice(i,1);
+        }
+        selected.splice(1,0,roleLead);
+        /* Preserve the source's other achievements as distinct later chapters,
+           without repeating the original defining role. */
+        const remaining = evidence.sentence.match(/\b(?:Colonel|Det\.?|Chubbs|Combat|Magistrate)\b[\s\S]*/i);
+        if (remaining && remaining[0].length > 35 &&
+            !selected.some(x=>norm(x).includes(norm(remaining[0]).slice(0,45)))) {
+          const later = remaining[0].replace(/,\s*and\s+/g,", and ");
+          selected.splice(2,0,`Other prominent roles included ${later.replace(/[. ]+$/,"")}.`);
+        }
+        break;
+      }
+      /* Eliminate exact repeated sentences without deleting later milestones. */
+      const seen104 = new Set();
+      for (let i=selected.length-1;i>=0;i--) {
+        const key=norm(selected[i]);
+        if (seen104.has(key)) selected.splice(i,1);
+        else seen104.add(key);
+      }
+
       let story = selected.filter(Boolean).join(" ");
 
       /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
