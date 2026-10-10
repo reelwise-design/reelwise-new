@@ -2053,41 +2053,44 @@
         }
       }
 
-      /* PERSON 101 — SOURCE-GROUNDED SIGNATURE ROLE BEFORE SYNTHETIC CATALOG.
-         A source may describe an actor's defining franchise without literally
-         saying "breakthrough" (e.g. "prominent roles included ... first four
-         films (1976–1985)"). The Person 100 breakthrough detector then misses
-         it, allowing a later synthetic early-film list to lead the story.
-         Promote an existing source sentence only when its earliest verified
-         credited film predates the synthetic list. Never invent a breakthrough
-         label, a role, or a movie; preserve the source's actual wording. */
+      /* PERSON 102 — ESTABLISH THE CAREER ANCHOR BEFORE THE EARLY-CREDIT LIST.
+         Source-supported role/franchise prose can contain a date range (1976–1985)
+         without the literal word "breakthrough". The old filter only recognized
+         "early film career included", not the actual generated wording "Early film
+         credits included". It also required title-hit metadata that can miss a
+         source's franchise description. Compare explicit source years instead.
+         Do not manufacture a breakthrough claim or add an unverified credit. */
+      const isSyntheticEarlyCatalog = sentence =>
+        /\b(?:early film credits included|early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence);
       const syntheticEarlyIndex = selected.findIndex((sentence, index) =>
-        index > 0 && /\b(?:early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence)
-      );
+        index > 0 && isSyntheticEarlyCatalog(sentence));
       if (syntheticEarlyIndex > 0) {
-        const syntheticYears = yearsIn(selected[syntheticEarlyIndex]);
-        const syntheticFirstYear = syntheticYears.length ? Math.min(...syntheticYears) : Infinity;
-        const signatureOptions = candidates.filter(item => {
-          if (!item?.sentence || !sourceSentenceIsMovieNarrativeFriendly(item.sentence)) return false;
-          if (!/\b(?:best known|prominent roles|notable roles|signature role|iconic role|career.defining|breakthrough|breakout)\b/i.test(item.sentence)) return false;
-          const credited = (item.hits || []).filter(movie => isBiographyActingCredit(movie) && Number.isFinite(movie.year));
-          if (!credited.length) return false;
-          return Math.min(...credited.map(movie => movie.year)) < syntheticFirstYear;
-        }).sort((a,b) => {
-          const earliest = item => Math.min(...item.hits.filter(movie => isBiographyActingCredit(movie) && Number.isFinite(movie.year)).map(movie => movie.year));
-          return earliest(a) - earliest(b) || significance(b) - significance(a);
+        const catalogYears = yearsIn(selected[syntheticEarlyIndex]);
+        const catalogStart = catalogYears.length ? Math.min(...catalogYears) : Infinity;
+        const sourceAnchors = candidates.filter(item => {
+          const sentence = String(item?.sentence || "");
+          if (!sentence || isSyntheticEarlyCatalog(sentence) ||
+              !sourceSentenceIsMovieNarrativeFriendly(sentence)) return false;
+          if (!/\b(?:best known|prominent roles|notable roles|signature role|iconic role|career.defining|breakthrough|breakout|rose to prominence|first .* films|film series|franchise)\b/i.test(sentence)) return false;
+          const explicitYears = yearsIn(sentence);
+          return explicitYears.length && Math.min(...explicitYears) < catalogStart &&
+            (/\b(?:film|films|movie|movies|played|portrayed|role|roles|starred)\b/i.test(sentence));
+        }).sort((a, b) => {
+          const ay = Math.min(...yearsIn(a.sentence));
+          const by = Math.min(...yearsIn(b.sentence));
+          return ay - by || significance(b) - significance(a);
         });
-        const signature = signatureOptions[0];
-        if (signature) {
-          const signatureKey = norm(signature.sentence);
-          const existingSignatureIndex = selected.findIndex(sentence => norm(sentence) === signatureKey);
-          if (existingSignatureIndex >= 0) selected.splice(existingSignatureIndex, 1);
-          selected.splice(1, 0, signature.sentence);
-          /* The generated list was a fallback, not a claim of career importance.
-             It must not compete with an earlier source-supported signature role. */
-          const fallbackIndex = selected.findIndex((sentence, index) => index > 1 &&
-            /\b(?:early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence));
-          if (fallbackIndex >= 0) selected.splice(fallbackIndex, 1);
+        const anchor = sourceAnchors[0];
+        if (anchor) {
+          const anchorKey = norm(anchor.sentence);
+          const oldIndex = selected.findIndex(sentence => norm(sentence) === anchorKey);
+          if (oldIndex >= 0) selected.splice(oldIndex, 1);
+          selected.splice(1, 0, anchor.sentence);
+          /* A later synthetic list is only filler. Do not let it suggest the
+             career started after the earlier source-documented signature work. */
+          for (let i = selected.length - 1; i > 1; i--) {
+            if (isSyntheticEarlyCatalog(selected[i])) selected.splice(i, 1);
+          }
         }
       }
 
