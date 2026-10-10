@@ -2977,26 +2977,30 @@
 
           value = value.replace(openingDates, "$1 ");
 
-          /* PERSON 108: final-output redundancy guard. Only remove an
-             isolated "His career continued with TITLE (YEAR)." sentence
-             when an earlier sentence already covers that franchise through
-             an explicit year range containing YEAR. Never remove a mixed
-             sentence, a new role, or recognition information. */
+          /* PERSON 109: final-response-only redundancy cleanup.
+             Remove a standalone generated sequel sentence if a PRECEDING
+             source sentence explicitly covers that franchise and its year.
+             Do not alter source paragraphs, mixed-film sentences, or awards.
+             Run here so no later biography assembler can reinsert it. */
           value = value.replace(
-            /His career continued with ([^.!?()]+?) \\((\\d{4})\\)\\./g,
-            (whole, title, yearText, offset, fullText) => {
+            /\bHis career continued with ([^.!?()]+?) \((\d{4})\)\./g,
+            (sentence, filmTitle, yearText, offset, fullText) => {
               const year = Number(yearText);
-              const base = norm(titleFamilyKey(title));
-              if (!base || !Number.isFinite(year)) return whole;
-              const earlier = fullText.slice(0, offset);
-              const sentences = earlier.match(/[^.!?]+[.!?]/g) || [];
-              const alreadyCovered = sentences.some(sentence => {
-                const range = sentence.match(/\\((\\d{4})\\s*[–—-]\\s*(\\d{4})\\)/);
-                if (!range || year < Number(range[1]) || year > Number(range[2])) return false;
-                return norm(sentence).includes(base) &&
-                  /\\b(?:first|original)\\s+(?:two|three|four|five|six|\\d+)\\s+[^.!?]*?films\\b/i.test(sentence);
+              const filmFamily = titleFamilyKey(filmTitle);
+              if (!filmFamily || !Number.isFinite(year)) return sentence;
+              const preceding = fullText.slice(0, offset);
+              const priorSentences = preceding.match(/[^.!?]+[.!?]/g) || [];
+              const covered = priorSentences.some(prior => {
+                const span = prior.match(/\((\d{4})\s*[–—-]\s*(\d{4})\)/);
+                if (!span || year < Number(span[1]) || year > Number(span[2])) return false;
+                const franchiseMention = new RegExp(
+                  `\\b${filmFamily.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
+                  "i"
+                );
+                return franchiseMention.test(prior) &&
+                  /\bfirst\s+(?:two|three|four|five|six|\d+)\s+[^.!?]*?\bfilms\b/i.test(prior);
               });
-              return alreadyCovered ? "" : whole;
+              return covered ? "" : sentence;
             }
           );
           return cleanText(value);
