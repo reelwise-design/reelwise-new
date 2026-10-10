@@ -2976,33 +2976,6 @@
           );
 
           value = value.replace(openingDates, "$1 ");
-
-          /* PERSON 109: final-response-only redundancy cleanup.
-             Remove a standalone generated sequel sentence if a PRECEDING
-             source sentence explicitly covers that franchise and its year.
-             Do not alter source paragraphs, mixed-film sentences, or awards.
-             Run here so no later biography assembler can reinsert it. */
-          value = value.replace(
-            /\bHis career continued with ([^.!?()]+?) \((\d{4})\)\./g,
-            (sentence, filmTitle, yearText, offset, fullText) => {
-              const year = Number(yearText);
-              const filmFamily = titleFamilyKey(filmTitle);
-              if (!filmFamily || !Number.isFinite(year)) return sentence;
-              const preceding = fullText.slice(0, offset);
-              const priorSentences = preceding.match(/[^.!?]+[.!?]/g) || [];
-              const covered = priorSentences.some(prior => {
-                const span = prior.match(/\((\d{4})\s*[–—-]\s*(\d{4})\)/);
-                if (!span || year < Number(span[1]) || year > Number(span[2])) return false;
-                const franchiseMention = new RegExp(
-                  `\\b${filmFamily.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`,
-                  "i"
-                );
-                return franchiseMention.test(prior) &&
-                  /\bfirst\s+(?:two|three|four|five|six|\d+)\s+[^.!?]*?\bfilms\b/i.test(prior);
-              });
-              return covered ? "" : sentence;
-            }
-          );
           return cleanText(value);
         }
 
