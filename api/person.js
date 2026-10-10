@@ -1531,7 +1531,7 @@
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 
           careerRun = {
-            sentence: `${name}'s early film career included ${joined}.`,
+            sentence: `Early film credits included ${joined}.`,
             index: -1,
             years: earlyStageMovies.map(movie => movie.year),
             year: Math.min(...earlyStageMovies.map(movie => movie.year)),
@@ -2050,6 +2050,44 @@
           const listedYears = yearsIn(sentence);
           if (listedYears.length && Number.isFinite(breakthroughYear) &&
               Math.min(...listedYears) > breakthroughYear) selected.splice(i, 1);
+        }
+      }
+
+      /* PERSON 101 — SOURCE-GROUNDED SIGNATURE ROLE BEFORE SYNTHETIC CATALOG.
+         A source may describe an actor's defining franchise without literally
+         saying "breakthrough" (e.g. "prominent roles included ... first four
+         films (1976–1985)"). The Person 100 breakthrough detector then misses
+         it, allowing a later synthetic early-film list to lead the story.
+         Promote an existing source sentence only when its earliest verified
+         credited film predates the synthetic list. Never invent a breakthrough
+         label, a role, or a movie; preserve the source's actual wording. */
+      const syntheticEarlyIndex = selected.findIndex((sentence, index) =>
+        index > 0 && /\b(?:early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence)
+      );
+      if (syntheticEarlyIndex > 0) {
+        const syntheticYears = yearsIn(selected[syntheticEarlyIndex]);
+        const syntheticFirstYear = syntheticYears.length ? Math.min(...syntheticYears) : Infinity;
+        const signatureOptions = candidates.filter(item => {
+          if (!item?.sentence || !sourceSentenceIsMovieNarrativeFriendly(item.sentence)) return false;
+          if (!/\b(?:best known|prominent roles|notable roles|signature role|iconic role|career.defining|breakthrough|breakout)\b/i.test(item.sentence)) return false;
+          const credited = (item.hits || []).filter(movie => isBiographyActingCredit(movie) && Number.isFinite(movie.year));
+          if (!credited.length) return false;
+          return Math.min(...credited.map(movie => movie.year)) < syntheticFirstYear;
+        }).sort((a,b) => {
+          const earliest = item => Math.min(...item.hits.filter(movie => isBiographyActingCredit(movie) && Number.isFinite(movie.year)).map(movie => movie.year));
+          return earliest(a) - earliest(b) || significance(b) - significance(a);
+        });
+        const signature = signatureOptions[0];
+        if (signature) {
+          const signatureKey = norm(signature.sentence);
+          const existingSignatureIndex = selected.findIndex(sentence => norm(sentence) === signatureKey);
+          if (existingSignatureIndex >= 0) selected.splice(existingSignatureIndex, 1);
+          selected.splice(1, 0, signature.sentence);
+          /* The generated list was a fallback, not a claim of career importance.
+             It must not compete with an earlier source-supported signature role. */
+          const fallbackIndex = selected.findIndex((sentence, index) => index > 1 &&
+            /\b(?:early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence));
+          if (fallbackIndex >= 0) selected.splice(fallbackIndex, 1);
         }
       }
 
