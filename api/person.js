@@ -1851,7 +1851,7 @@
         /* PERSON 86: vary transitions for long careers so several consecutive
            eras do not read as "Later ... Later ... Later ...". */
         const eraLead = eraPosition === 0
-          ? `His career continued with ${joined}.`
+          ? `${name}’s career continued with ${joined}.`
           : eraPosition === 1
             ? `In the years that followed, ${name} starred in ${joined}.`
             : group.decade >= 2020
@@ -2976,6 +2976,26 @@
           );
 
           value = value.replace(openingDates, "$1 ");
+
+          /* PERSON 110 — remove only a demonstrably redundant synthetic
+             sequel sentence when the preceding prose already explicitly
+             covers that sequel's year within a numbered film-series span.
+             Do not touch other chapters, titles, or recognition. */
+          value = value.replace(
+            /(?:His|Her|Their|[A-Z][^.!?]{1,55}?[’']s) career continued with ([A-Z][^.!?()]{1,65}?) \((\d{4})\)\./g,
+            (sentence, filmTitle, yearText, offset, fullText) => {
+              const year = Number(yearText);
+              const family = String(filmTitle).replace(/\s+(?:[IVX]+|\d+)$/i, "").trim();
+              if (!family || family === filmTitle.trim()) return sentence;
+              const escapedFamily = family.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+              const preceding = fullText.slice(0, offset);
+              const series = new RegExp(
+                `\\bfirst\\s+(?:two|three|four|five|six|\\d+)\\s+${escapedFamily}\\s+films\\s*\\((\\d{4})\\s*[–—-]\\s*(\\d{4})\\)`,
+                "i"
+              ).exec(preceding);
+              return series && year >= Number(series[1]) && year <= Number(series[2]) ? "" : sentence;
+            }
+          );
           return cleanText(value);
         }
 
