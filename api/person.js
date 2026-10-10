@@ -2023,6 +2023,62 @@
         selected.splice(weakestIndex, 1);
       }
 
+      /* PERSON 106 — structured editorial assembly.
+         Prefer verified source prose over synthetic catalogs. Organize distinct
+         chapters by evidence and time; preserve recognition independently.
+         If evidence is insufficient, retain the existing Person 103 path. */
+      {
+        const evidence = [...new Set([...sourceSentences, ...selected.slice(1)]
+          .map(x => cleanText(x)).filter(Boolean))];
+        const signature = evidence.find(x =>
+          /\b(?:prominent roles? included|best known for playing|best known for portraying)\b/i.test(x) &&
+          /\b(?:first four|first three|first two|film series|series of films|films)\b/i.test(x));
+        const roleMatch = signature && (
+          signature.match(/\b(?:prominent roles? included)\s+(?:boxer|detective|officer|agent|captain|colonel|coach)?\s*(.{3,65}?)\s+in\s+the\s+first\s+(\w+)\s+(.{2,55}?)\s+films\s*\((\d{4})[–—-](\d{4})\)/i) ||
+          signature.match(/\bbest known for (?:playing|portraying)\s+(.{3,65}?)\s+in\s+(?:the\s+)?(.{2,55}?)\s+(?:series of films|film series|films)\b/i)
+        );
+        if (roleMatch) {
+          const character=roleMatch[1].trim();
+          const family=norm(roleMatch.length===6 ? roleMatch[3] : roleMatch[2]);
+          const origin=allNotable.filter(m=>isBiographyActingCredit(m) && m.year &&
+            (norm(m.title)===family || titleFamilyKey(m.title)===family))
+            .sort((a,b)=>a.year-b.year)[0];
+          if (origin && character.length<65) {
+            const chapters=[intro.replace(/\s{2,}/g," ").trim()];
+            chapters.push(`${name} became widely known for playing ${character} in ${origin.title} (${origin.year}).`);
+            if(roleMatch.length===6) chapters.push(
+              `${name} reprised the role across the first ${roleMatch[2]} ${roleMatch[3].trim()} films, through ${roleMatch[5]}.`
+            );
+            const awards=evidence.filter(x=>/\b(?:nominated|nomination|won|winner|award|emmy|oscar)\b/i.test(x))
+              .filter(x=>!/\b(?:list of|filmography|awards and nominations)\b/i.test(x))
+              .sort((a,b)=>b.length-a.length)[0];
+            const career=evidence.filter(x=>x!==signature && x!==awards)
+              .filter(x=>!isSyntheticEarlyCatalog(x))
+              .filter(x=>!/\b(?:early film career|early film credits|his career continued with|in the years that followed)\b/i.test(x))
+              .filter(x=>!/\b(?:best known for playing|best known for portraying)\b/i.test(x))
+              .filter(x=>!/\b(?:was an?|is an?)\s+(?:American|English|British|Canadian)\b/i.test(x))
+              .filter(x=>sourceSentenceIsMovieNarrativeFriendly(x))
+              .map(x=>({text:x,years:yearsIn(x)}))
+              .filter(x=>x.years.length && x.text.length>35 && x.text.length<360)
+              .filter(x=>!norm(x.text).includes(norm(character)) || !sentenceMentionsTitle(x.text,origin.title))
+              .sort((a,b)=>Math.min(...a.years)-Math.min(...b.years));
+            const usedTitles=new Set([norm(origin.title)]);
+            for(const item of career){
+              const hits=allNotable.filter(m=>sentenceMentionsTitle(item.text,m.title));
+              if(hits.length && hits.every(m=>usedTitles.has(norm(m.title)))) continue;
+              if(chapters.length>=6) break;
+              chapters.push(ensurePeriod(item.text));
+              hits.forEach(m=>usedTitles.add(norm(m.title)));
+            }
+            if(awards && !chapters.some(x=>norm(x)===norm(awards))) chapters.push(ensurePeriod(awards));
+            const structured=chapters.join(" ").replace(/\s{2,}/g," ").trim();
+            if(words(structured)>=65 && allNotable.some(m=>sentenceMentionsTitle(structured,m.title))) {
+              return removeWikipediaEnding(structured);
+            }
+          }
+        }
+      }
+
       /* PERSON 100 — SOURCE-VERIFIED BREAKTHROUGH FIRST.
          A synthetic early-film list must not precede a source sentence that
          explicitly identifies the breakthrough. This is generic: the source
@@ -2155,66 +2211,6 @@
           continue;
         }
         hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
-      }
-
-
-      /* PERSON 105 — editorial ordering, not another source replacement.
-         Preserve the selected source-rich chapters, but split a long
-         cross-decade "prominent roles" sentence into a first-role anchor and
-         later role clauses. Only use the role's film/year when it appears in
-         the source itself; otherwise retain the source wording. */
-      const roleIndex105 = selected.findIndex((line,i) =>
-        i > 0 && /\b(?:prominent|notable|major) roles? included\b/i.test(line) &&
-        /\b(?:Rocky|film|films|movie|movies)\b/i.test(line)
-      );
-      if (roleIndex105 > 0) {
-        const roleLine = selected[roleIndex105];
-        const m = roleLine.match(
-          /\b(?:prominent|notable|major) roles? included\s+(.+?)\s+in\s+(?:the\s+)?first\s+(\w+)\s+(.+?)\s+films\s*\((\d{4})[–—-](\d{4})\)/i
-        );
-        if (m) {
-          const character = m[1].trim(), franchise=m[3].trim(), year=Number(m[4]);
-          const original = allNotable.find(movie =>
-            movie.year === year && isBiographyActingCredit(movie) &&
-            (norm(movie.title) === norm(franchise) ||
-             titleFamilyKey(movie.title) === norm(franchise))
-          );
-          if (original) {
-            const signature = `${name} rose to prominence playing ${character} in ${original.title} (${year}), reprising the role in the first ${m[2]} ${franchise} films through ${m[5]}.`;
-            /* Remove only the original compound chapter and redundant
-               sequel/catalog text; do not remove other sourced career facts. */
-            selected.splice(roleIndex105,1);
-            for (let i=selected.length-1;i>0;i--) {
-              if (isSyntheticEarlyCatalog(selected[i]) ||
-                  (/^His career continued with\b/i.test(selected[i]) &&
-                   sentenceMentionsTitle(selected[i],franchise))) selected.splice(i,1);
-            }
-            const oldSignature = selected.findIndex((line,i)=>i>0 &&
-              /\bbest known for playing\b/i.test(line) &&
-              norm(line).includes(norm(character)));
-            if(oldSignature>0) selected.splice(oldSignature,1);
-            selected.splice(1,0,signature);
-            /* The remainder of the original sentence is useful evidence.
-               Keep it as a later role chapter without repeating the anchor. */
-            let rest=roleLine.slice(m.index+m[0].length)
-              .replace(/^[\s,;]*(?:and\s+)?/i,"")
-              .replace(/[. ]+$/,"");
-            if(rest && rest.length>25) {
-              rest=rest.replace(/,\s+and\s+/g,", and ");
-              const restLine=`Other notable roles included ${rest.charAt(0).toLowerCase()+rest.slice(1)}.`;
-              if(!selected.some(x=>norm(x)===norm(restLine))) selected.splice(2,0,restLine);
-            }
-          }
-        }
-      }
-      /* Do not place an isolated later synthetic era ahead of a sourced
-         chapter already spanning that same film. Preserve award chapters. */
-      for(let i=selected.length-1;i>1;i--){
-        const line=selected[i];
-        if(!/^(?:His career continued with|In the years that followed|Later,|More recently,)/i.test(line)) continue;
-        const hits=allNotable.filter(movie=>sentenceMentionsTitle(line,movie.title));
-        if(hits.length && hits.every(movie=>selected.some((other,j)=>j!==i &&
-          sentenceMentionsTitle(other,movie.title)))) selected.splice(i,1);
       }
 
       let story = selected.filter(Boolean).join(" ");
