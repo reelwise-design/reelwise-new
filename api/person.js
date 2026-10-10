@@ -2023,7 +2023,44 @@
         selected.splice(weakestIndex, 1);
       }
 
+      /* PERSON 100 — SOURCE-VERIFIED BREAKTHROUGH FIRST.
+         A synthetic early-film list must not precede a source sentence that
+         explicitly identifies the breakthrough. This is generic: the source
+         must say so, and the sentence must refer to a verified acting credit.
+         Preserve the identity lead and all other chapters. */
+      const verifiedBreakthrough = candidates.find(item =>
+        /\b(breakthrough|breakout|big break|career.defining|rose to (?:fame|prominence)|came to prominence)\b/i.test(item.sentence) &&
+        item.hits.some(movie => isBiographyActingCredit(movie)) &&
+        sourceSentenceIsMovieNarrativeFriendly(item.sentence)
+      );
+      if (verifiedBreakthrough) {
+        const breakthroughKey = norm(verifiedBreakthrough.sentence);
+        const existingIndex = selected.findIndex(sentence => norm(sentence) === breakthroughKey);
+        if (existingIndex > 1) selected.splice(existingIndex, 1);
+        if (existingIndex !== 1) selected.splice(1, 0, verifiedBreakthrough.sentence);
+
+        /* An auto-generated early-career catalog can otherwise make the
+           career seem to begin after the documented breakthrough. Keep
+           meaningful source prose, but discard that conflicting catalog. */
+        const breakthroughYear = verifiedBreakthrough.year ||
+          Math.min(...verifiedBreakthrough.hits.map(movie => movie.year).filter(Number.isFinite));
+        for (let i = selected.length - 1; i > 1; i--) {
+          const sentence = selected[i];
+          if (!/\b(early film career included|early momentum continued with)\b/i.test(sentence)) continue;
+          const listedYears = yearsIn(sentence);
+          if (listedYears.length && Number.isFinite(breakthroughYear) &&
+              Math.min(...listedYears) > breakthroughYear) selected.splice(i, 1);
+        }
+      }
+
       let story = selected.filter(Boolean).join(" ");
+
+      /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
+         Wikipedia sentence splitting can cut a television title at 'vs.';
+         suppress that incomplete trailing clause instead of displaying
+         '... Star vs. He ...'. Do not invent a completion for a title. */
+      story = story.replace(/,?\s+and voiced\b[^.!?]*\bvs\.(?=\s|$)/gi, ".");
+      story = story.replace(/\.\s*\./g, ".").replace(/\s{2,}/g, " ").trim();
 
       /* PERSON 96 — GENERIC HEADER/PROSE DEDUPLICATION.
          Born/Died dates belong in the profile metadata. If a source lead repeats
