@@ -2157,42 +2157,6 @@
         hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
       }
 
-      /* PERSON 111 — protect an informative, source-written early film chapter.
-         A synthetic early-credit catalog must not displace a sourced account
-         of an actual early film milestone or award. All titles and years must
-         already occur in the fetched source and match verified acting credits.
-         This applies to any actor; it does not insert actor-specific facts. */
-      const earlyCatalogAt = selected.findIndex((sentence, i) =>
-        i > 0 && isSyntheticEarlyCatalog(sentence)
-      );
-      if (earlyCatalogAt > 0) {
-        const catalog = selected[earlyCatalogAt];
-        const catalogYears = yearsIn(catalog);
-        const catalogLast = catalogYears.length ? Math.max(...catalogYears) : 0;
-        const sourcedEarly = candidates
-          .filter(item => {
-            const sentence = item.sentence;
-            const yrs = yearsIn(sentence);
-            if (!yrs.length || Math.min(...yrs) > catalogLast) return false;
-            if (!sourceSentenceIsMovieNarrativeFriendly(sentence)) return false;
-            if (!/\b(?:film|films|movie|movies|role|roles|performance|performances|nomination|award|starred|debut)\b/i.test(sentence)) return false;
-            if (!/\b(?:first|debut|breakthrough|leading|academy award|oscar|nominated|nomination|won|critical acclaim)\b/i.test(sentence)) return false;
-            return item.hits.some(movie =>
-              isBiographyActingCredit(movie) && movie.year &&
-              movie.year <= catalogLast
-            );
-          })
-          .sort((a, b) => significance(b) - significance(a) || a.index - b.index)[0];
-        if (sourcedEarly && !selected.some(sentence => norm(sentence) === norm(sourcedEarly.sentence))) {
-          /* Only replace the generic catalog when the sourced account is
-             substantive; otherwise keep the existing early-career coverage. */
-          if (sourcedEarly.hits.length >= 2 ||
-              /\b(?:first academy award nomination|first oscar nomination|film debut|breakthrough)\b/i.test(sourcedEarly.sentence)) {
-            selected.splice(earlyCatalogAt, 1, sourcedEarly.sentence);
-          }
-        }
-      }
-
       let story = selected.filter(Boolean).join(" ");
 
       /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
@@ -3012,6 +2976,21 @@
           );
 
           value = value.replace(openingDates, "$1 ");
+
+          /* PERSON 112 — A source can open with a longer legal name than
+             TMDB's display name (e.g. Robin McLaurin Williams versus Robin
+             Williams). Remove only a full lifespan parenthetical directly
+             before the identity verb, without altering later dates. */
+          value = value.replace(
+            /^([^.!?()]{3,105}?)\s*\((?:[A-Z][a-z]+\s+\d{1,2},\s+)?\d{4}\s*[–—-]\s*(?:[A-Z][a-z]+\s+\d{1,2},\s+)?\d{4}\)\s+(?=(?:was|is)\s+an?\s+)/,
+            (whole, lead) => {
+              const displayParts = String(personName || "").toLowerCase().split(/\s+/).filter(Boolean);
+              const leadWords = lead.toLowerCase().replace(/[^a-z\s'-]/g, " ").split(/\s+/).filter(Boolean);
+              return displayParts.length && displayParts.every(part => leadWords.includes(part))
+                ? `${lead.trim()} ` : whole;
+            }
+          );
+
 
           /* PERSON 110 — remove only a demonstrably redundant synthetic
              sequel sentence when the preceding prose already explicitly
