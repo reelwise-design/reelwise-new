@@ -1278,177 +1278,104 @@
       }
 
       /*
-        PERSON 71 — SIGNIFICANCE-WEIGHTED CAREER COVERAGE
-        Select strong acting credits from otherwise unrepresented career eras.
-        Unlike the old fallback, this runs even when four source chapters exist.
-        The generated statements make only verifiable film-credit claims.
+        PERSON 73 — ASSEMBLY REBUILD
+        Preserve the rise chapter first, then assemble source-backed career
+        milestones. Only use a small number of credit-based gap fillers.
+        No generated title list can displace a source-backed milestone.
       */
-      const existingChapters = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
-      const represented = new Set();
-      for (const chapter of existingChapters) {
-        for (const movie of allNotable) {
-          if (sentenceMentionsTitle(chapter.sentence, movie.title)) represented.add(norm(movie.title));
-        }
+      const today73 = new Date().toISOString().slice(0,10);
+      const sourceChapters73 = [resolvedRise, careerRun, defining, middle, recognition, late]
+        .filter(Boolean);
+      const sourceKeys73 = new Set();
+      const milestones73 = [];
+      for (const chapter of sourceChapters73) {
+        const key = norm(chapter.sentence);
+        if (!key || sourceKeys73.has(key)) continue;
+        sourceKeys73.add(key);
+        milestones73.push(chapter);
       }
-      /*
-        PERSON 72 — THREE-STAGE CAREER EDITOR
-        1. Score durable acting credits using audience recognition, billing,
-           rating and career-source mentions, never raw trending popularity.
-        2. Select distinct significant titles across the career, giving
-           underrepresented eras room without forcing filler from every era.
-        3. Compose chronological, varied factual sentences.
-        No film-specific actor overrides or invented award claims.
-      */
-      const today = new Date().toISOString().slice(0, 10);
-      const franchiseKey = title => norm(String(title || "")
-        .replace(/(?:\s*[:–—-]\s*.*)$/u, "")
-        .replace(/\s+(?:part|chapter|episode|vol\.?|volume)\s+[ivx0-9]+$/i, "")
-        .replace(/\s+[ivx]+$/i, "")
-        .replace(/\s+\d+$/i, ""));
-      const sourceCorpus = sourceSentences.join(" ");
-      const supplementalScore = movie => {
-        const votes = Math.max(0, Number(movie.vote_count) || 0);
-        const rating = Math.max(0, Number(movie.vote_average) || 0);
-        const billing = Number(movie.order);
-        const mention = sentenceMentionsTitle(sourceCorpus, movie.title);
-        const leading = Number.isFinite(billing) && billing <= 2;
-        const supporting = Number.isFinite(billing) && billing <= 5;
-        return Math.log10(votes + 1) * 28 + rating * 3 +
-          (leading ? 32 : supporting ? 18 : 0) +
-          (mention ? 38 : 0);
+      // Retain the explicit breakthrough even if another chapter overlaps it.
+      if (rise && !sourceKeys73.has(norm(rise.sentence))) {
+        milestones73.unshift(rise);
+        sourceKeys73.add(norm(rise.sentence));
+      }
+      const mentioned73 = movie => [intro, ...milestones73.map(x=>x.sentence)]
+        .some(sentence=>sentenceMentionsTitle(sentence,movie.title));
+      const family73 = title => norm(String(title||"")
+        .replace(/\s*[:–—-]\s*.*$/u,"")
+        .replace(/\s+(?:part|chapter|vol\.?|volume)\s+[ivx0-9]+$/i,"")
+        .replace(/\s+[ivx]+$/i,"").replace(/\s+\d+$/,""));
+      const sourceText73 = sourceSentences.join(" ");
+      const score73 = movie => {
+        const votes = Math.max(0,Number(movie.vote_count)||0);
+        const rating = Math.max(0,Number(movie.vote_average)||0);
+        const order = Number(movie.order);
+        return Math.log10(votes+1)*30 + rating*3 +
+          (Number.isFinite(order) && order <= 2 ? 32 :
+           Number.isFinite(order) && order <= 5 ? 15 : 0) +
+          (sentenceMentionsTitle(sourceText73,movie.title) ? 45 : 0);
       };
-      const careerCredits = allNotable
-        .filter(movie => isBiographyActingCredit(movie) && movie.year &&
-          movie.year <= new Date().getUTCFullYear() &&
-          (!movie.release_date || movie.release_date <= today) &&
-          !represented.has(norm(movie.title)))
-        .sort((a,b) => supplementalScore(b) - supplementalScore(a));
-      const coverageChapters = [];
-      const eras = [
-        [firstCareerYear, firstCareerYear + Math.round(span * .25)],
-        [firstCareerYear + Math.round(span * .25) + 1, firstCareerYear + Math.round(span * .50)],
-        [firstCareerYear + Math.round(span * .50) + 1, firstCareerYear + Math.round(span * .75)],
-        [firstCareerYear + Math.round(span * .75) + 1, latestCareerYear]
+      const eligible73 = allNotable.filter(movie =>
+        isBiographyActingCredit(movie) && movie.year &&
+        movie.year <= new Date().getUTCFullYear() &&
+        (!movie.release_date || movie.release_date <= today73) &&
+        !mentioned73(movie)
+      );
+      const selectedMovies73 = [];
+      const usedFamilies73 = new Set();
+      const ranges73 = [
+        [firstCareerYear,firstCareerYear+Math.round(span*.35)],
+        [firstCareerYear+Math.round(span*.35)+1,firstCareerYear+Math.round(span*.70)],
+        [firstCareerYear+Math.round(span*.70)+1,latestCareerYear]
       ];
-      const usedFranchises = new Set();
-      const chosenCredits = new Set();
-      for (const [start,end] of eras) {
-        const sourceInEra = existingChapters.some(chapter =>
-          chapter.hits?.some(movie => movie.year >= start && movie.year <= end));
-        const pool = careerCredits.filter(movie => movie.year >= start && movie.year <= end);
-        const strong = [];
-        const maxScore = pool.length ? supplementalScore(pool[0]) : 0;
+      for (const [start,end] of ranges73) {
+        const pool = eligible73.filter(movie=>movie.year>=start && movie.year<=end)
+          .sort((a,b)=>score73(b)-score73(a));
+        const bestScore = pool.length ? score73(pool[0]) : 0;
+        let count = 0;
         for (const movie of pool) {
-          const family = franchiseKey(movie.title);
-          if (!family || usedFranchises.has(family) || chosenCredits.has(norm(movie.title))) continue;
-          if (strong.some(item => franchiseKey(item.title) === family)) continue;
-          /* Avoid weak peripheral credits added merely to fill an era. */
-          if (supplementalScore(movie) < Math.max(105, maxScore * .66)) continue;
-          strong.push(movie);
-          if (strong.length >= (sourceInEra ? 2 : 3)) break;
+          const family = family73(movie.title);
+          if (!family || usedFamilies73.has(family)) continue;
+          if (score73(movie)<Math.max(115,bestScore*.78)) continue;
+          selectedMovies73.push(movie);
+          usedFamilies73.add(family);
+          if (++count===2) break;
         }
-        if (!strong.length) continue;
-        strong.sort((a,b) => a.year-b.year);
-        const labels = strong.map(movie => `${movie.title} (${movie.year})`);
-        const titles = labels.length === 1 ? labels[0] :
-          labels.length === 2 ? `${labels[0]} and ${labels[1]}` :
-          `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
-        const opening = coverageChapters.length % 3;
-        const sentence = opening === 0
-          ? `Other notable screen credits include ${titles}.`
-          : opening === 1
-            ? `The filmography also includes ${titles}.`
-            : `Further film appearances include ${titles}.`;
-        coverageChapters.push({
-          sentence,
-          index: 9990 + coverageChapters.length,
-          years: strong.map(movie=>movie.year),
-          year: strong[0].year,
-          hits: strong,
-          coverage: true
+      }
+      selectedMovies73.sort((a,b)=>a.year-b.year);
+      const fillers73 = [];
+      for (let i=0;i<selectedMovies73.length;i+=2) {
+        const films=selectedMovies73.slice(i,i+2);
+        const labels=films.map(movie=>`${movie.title} (${movie.year})`);
+        fillers73.push({
+          sentence: films.length===1
+            ? `Other film work included ${labels[0]}.`
+            : `Other film work included ${labels[0]} and ${labels[1]}.`,
+          year:films[0].year,years:films.map(movie=>movie.year),
+          hits:films,index:9990+i,coverage:true
         });
-        for (const movie of strong) {
-          represented.add(norm(movie.title));
-          chosenCredits.add(norm(movie.title));
-          usedFranchises.add(franchiseKey(movie.title));
-        }
       }
-
-      const chosen = [...existingChapters, ...coverageChapters];
-      const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
-
-      /* If a chapter is missing, fill it with a strong source sentence,
-         but retain source order and never use a catalog dump. */
-      if (chosen.length < 4) {
-        for (const item of [...candidates].sort((a, b) =>
-          significance(b) - significance(a) || a.index - b.index
-        )) {
-          if (chosen.length >= 4) break;
-          const key = norm(item.sentence);
-          if (!chosenKeys.has(key)) {
-            chosen.push(item);
-            chosenKeys.add(key);
-          }
-        }
-      }
-
-      /* PERSON 64 — BROAD-SPAN CHRONOLOGY ANCHOR
-
-         Person 63 fixed the major backward jumps, but sorting every broad
-         source sentence by its latest year can push an established franchise
-         chapter behind a later, focused milestone. Example: a sentence about
-         Toy Story (1995-present), The Polar Express (2004) and Robert Langdon
-         (2006-2016) belongs before a focused 2013 Broadway milestone.
-
-         Synthetic decade chapters stay anchored to their first film year.
-         Broad source sentences now use the midpoint of their dated span. This
-         keeps them after earlier focused chapters while preventing an open-ended
-         franchise date from artificially forcing the whole sentence to the end
-         of the biography. */
-      function biographyChronologyYear(item) {
-        const ys = (item?.years || []).filter(Number.isFinite);
-        if (!ys.length) return item?.year || 9999;
-
-        const earliest = Math.min(...ys);
-        const latest = Math.max(...ys);
-        const isSynthetic = item?.index < 0 || item?.index >= 9990;
-
-        if (!isSynthetic && latest - earliest >= 10) {
-          return Math.round((earliest + latest) / 2);
-        }
-
-        return earliest;
-      }
-
-      chosen.sort((a, b) => {
-        const ay = biographyChronologyYear(a);
-        const by = biographyChronologyYear(b);
-        return ay - by || a.index - b.index;
+      const chosen73 = [...milestones73,...fillers73];
+      // Source breakthrough comes first; remaining chapters follow their earliest
+      // dated career milestone, not the last year in a broad franchise span.
+      chosen73.sort((a,b)=>{
+        const ay=(a.years||[]).filter(Number.isFinite);
+        const by=(b.years||[]).filter(Number.isFinite);
+        return (ay.length?Math.min(...ay):a.year||9999) -
+          (by.length?Math.min(...by):b.year||9999) || a.index-b.index;
       });
-
-      const selected = [intro];
-      const used = new Set([norm(intro)]);
-      for (const item of chosen) {
-        const key = norm(item.sentence);
-        if (!key || used.has(key)) continue;
-
-        /* PERSON 66: avoid adjacent chapters that simply repeat two or more
-           of the same notable titles. Prefer source prose over a synthetic
-           sentence; otherwise keep the first career chapter. */
-        const itemTitles = allNotable.filter(movie =>
-          sentenceMentionsTitle(item.sentence, movie.title)
-        );
-        const repeatsExisting = selected.slice(1).some(existing => {
-          let overlap = 0;
-          for (const movie of itemTitles) {
-            if (sentenceMentionsTitle(existing, movie.title)) overlap++;
-          }
-          return overlap >= 2;
-        });
-        if (repeatsExisting) continue;
-
-        selected.push(item.sentence);
-        used.add(key);
+      const selected=[intro];
+      const seen73=new Set([norm(intro)]);
+      for (const chapter of chosen73) {
+        const key=norm(chapter.sentence);
+        if (!key || seen73.has(key)) continue;
+        // Preserve every distinct source-backed milestone. Supplemental credits
+        // may not repeat films already mentioned in source chapters.
+        if (chapter.coverage && chapter.hits.some(movie=>
+          [intro,...milestones73.map(x=>x.sentence)].some(sentence=>
+            sentenceMentionsTitle(sentence,movie.title)))) continue;
+        selected.push(chapter.sentence);
+        seen73.add(key);
       }
 
       /*
