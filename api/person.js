@@ -2159,6 +2159,52 @@
 
       let story = selected.filter(Boolean).join(" ");
 
+      /* PERSON 114 — VERIFIED SIGNATURE-CREDIT SAFETY NET.
+         Keep the Person 113 source narrative unchanged. A small number of
+         omitted, highly recognizable, substantively billed TMDB acting credits
+         may be acknowledged in a neutral supplementary sentence. Never claim
+         a breakthrough, award or role that the data does not establish.
+         This is generic: no person names or film-title overrides. */
+      const signatureCandidates = allNotable
+        .filter(movie => movie?.title && Number.isFinite(Number(movie.year)))
+        .filter(isBiographyActingCredit)
+        .filter(movie => !sentenceMentionsTitle(story, movie.title))
+        .filter(movie => {
+          const order = Number(movie.order);
+          const votes = Number(movie.vote_count) || 0;
+          return Number.isFinite(order) && order <= 2 && votes >= 1500;
+        })
+        .map(movie => {
+          const votes = Number(movie.vote_count) || 0;
+          const order = Number(movie.order);
+          const sourceSupport = sourceSentences.some(sentence =>
+            sentenceMentionsTitle(sentence, movie.title)
+          );
+          const family = titleFamilyKey(movie.title);
+          const familySupport = family && allNotable.some(other =>
+            other !== movie && titleFamilyKey(other.title) === family &&
+            sentenceMentionsTitle(story, other.title)
+          );
+          return {
+            movie,
+            score: careerDefiningMovieScore(movie) +
+              (sourceSupport ? 32 : 0) + (familySupport ? 18 : 0)
+          };
+        })
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 2)
+        .map(item => item.movie)
+        .sort((a, b) => Number(a.year) - Number(b.year));
+
+      if (signatureCandidates.length && words(story) < 270) {
+        const additions = signatureCandidates
+          .map(movie => `${movie.title} (${movie.year})`);
+        const supplement = additions.length === 1
+          ? `Other notable film work included ${additions[0]}.`
+          : `Other notable film work included ${additions[0]} and ${additions[1]}.`;
+        story = `${story} ${supplement}`;
+      }
+
       /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
          Wikipedia sentence splitting can cut a television title at 'vs.';
          suppress that incomplete trailing clause instead of displaying
