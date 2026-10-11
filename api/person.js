@@ -1321,61 +1321,86 @@
         (!movie.release_date || movie.release_date <= today73) &&
         !mentioned73(movie)
       );
-      const selectedMovies73 = [];
-      const usedFamilies73 = new Set();
-      const ranges73 = [
+      /*
+        PERSON 74 — MILESTONE-FIRST CHRONOLOGICAL ASSEMBLY
+        Rank source-backed milestones ahead of generic credits. Group only
+        adjacent-year credits; never pair 1982 with 2013. Reserve an early
+        source milestone before considering later credits.
+      */
+      const sourcePriority74 = chapter => {
+        const t = chapter.sentence || "";
+        return (/\b(breakthrough|rose to fame|first major|first leading)\b/i.test(t) ? 65 : 0) +
+          (/\b(won|academy award|oscar|golden globe|nominated)\b/i.test(t) ? 40 : 0) +
+          (/\b(known for|iconic|defining|success|acclaim)\b/i.test(t) ? 20 : 0);
+      };
+      const milestoneYear74 = chapter => {
+        const dates = (chapter.years || []).filter(Number.isFinite);
+        return dates.length ? Math.min(...dates) : (chapter.year || 9999);
+      };
+      const sourceOrdered74 = milestones73
+        .map((chapter,i)=>({...chapter,_order74:i}))
+        .sort((a,b)=>milestoneYear74(a)-milestoneYear74(b) ||
+          sourcePriority74(b)-sourcePriority74(a) || a._order74-b._order74);
+      const coveredTitles74 = new Set();
+      for (const chapter of sourceOrdered74) {
+        for (const movie of allNotable) {
+          if (sentenceMentionsTitle(chapter.sentence,movie.title)) coveredTitles74.add(norm(movie.title));
+        }
+      }
+      for (const movie of allNotable) {
+        if (sentenceMentionsTitle(intro,movie.title)) coveredTitles74.add(norm(movie.title));
+      }
+      const family74 = title => norm(String(title||"")
+        .replace(/\s*[:–—-]\s*.*$/u,"")
+        .replace(/\s+(?:part|chapter|vol\.?|volume)\s+[ivx0-9]+$/i,"")
+        .replace(/\s+[ivx]+$/i,"").replace(/\s+\d+$/,""));
+      const usedFamilies74 = new Set();
+      const fillers74 = [];
+      const ranges74 = [
         [firstCareerYear,firstCareerYear+Math.round(span*.35)],
         [firstCareerYear+Math.round(span*.35)+1,firstCareerYear+Math.round(span*.70)],
         [firstCareerYear+Math.round(span*.70)+1,latestCareerYear]
       ];
-      for (const [start,end] of ranges73) {
-        const pool = eligible73.filter(movie=>movie.year>=start && movie.year<=end)
+      for (const [start,end] of ranges74) {
+        const pool=eligible73.filter(movie=>movie.year>=start && movie.year<=end &&
+          !coveredTitles74.has(norm(movie.title)))
           .sort((a,b)=>score73(b)-score73(a));
-        const bestScore = pool.length ? score73(pool[0]) : 0;
-        let count = 0;
+        const best=pool.length ? score73(pool[0]) : 0;
+        let added=0;
         for (const movie of pool) {
-          const family = family73(movie.title);
-          if (!family || usedFamilies73.has(family)) continue;
-          if (score73(movie)<Math.max(115,bestScore*.78)) continue;
-          selectedMovies73.push(movie);
-          usedFamilies73.add(family);
-          if (++count===2) break;
+          const family=family74(movie.title);
+          if (!family || usedFamilies74.has(family)) continue;
+          if (score73(movie)<Math.max(115,best*.78)) continue;
+          usedFamilies74.add(family);
+          coveredTitles74.add(norm(movie.title));
+          fillers74.push({
+            sentence:`Additional film work included ${movie.title} (${movie.year}).`,
+            year:movie.year,years:[movie.year],hits:[movie],coverage:true,
+            index:9990+fillers74.length
+          });
+          if (++added>=2) break;
         }
       }
-      selectedMovies73.sort((a,b)=>a.year-b.year);
-      const fillers73 = [];
-      for (let i=0;i<selectedMovies73.length;i+=2) {
-        const films=selectedMovies73.slice(i,i+2);
-        const labels=films.map(movie=>`${movie.title} (${movie.year})`);
-        fillers73.push({
-          sentence: films.length===1
-            ? `Other film work included ${labels[0]}.`
-            : `Other film work included ${labels[0]} and ${labels[1]}.`,
-          year:films[0].year,years:films.map(movie=>movie.year),
-          hits:films,index:9990+i,coverage:true
-        });
-      }
-      const chosen73 = [...milestones73,...fillers73];
-      // Source breakthrough comes first; remaining chapters follow their earliest
-      // dated career milestone, not the last year in a broad franchise span.
-      chosen73.sort((a,b)=>{
-        const ay=(a.years||[]).filter(Number.isFinite);
-        const by=(b.years||[]).filter(Number.isFinite);
-        return (ay.length?Math.min(...ay):a.year||9999) -
-          (by.length?Math.min(...by):b.year||9999) || a.index-b.index;
-      });
+      const chapters74=[...sourceOrdered74,...fillers74].sort((a,b)=>
+        milestoneYear74(a)-milestoneYear74(b) ||
+        Number(!!a.coverage)-Number(!!b.coverage) ||
+        (a.index||0)-(b.index||0));
       const selected=[intro];
-      const seen73=new Set([norm(intro)]);
-      for (const chapter of chosen73) {
-        const key=norm(chapter.sentence);
-        if (!key || seen73.has(key)) continue;
-        // Preserve every distinct source-backed milestone. Supplemental credits
-        // may not repeat films already mentioned in source chapters.
+      const seen74=new Set([norm(intro)]);
+      const publishedTitles74=new Set();
+      for (const chapter of chapters74) {
+        let sentence=chapter.sentence;
+        const key=norm(sentence);
+        if (!key || seen74.has(key)) continue;
         if (chapter.coverage && chapter.hits.some(movie=>
-          [intro,...milestones73.map(x=>x.sentence)].some(sentence=>
-            sentenceMentionsTitle(sentence,movie.title)))) continue;
-        selected.push(chapter.sentence);
-        seen73.add(key);
+          publishedTitles74.has(norm(movie.title)))) continue;
+        // Preserve substantive source milestones; never delete an award or
+        // breakthrough simply because it refers to an earlier film.
+        selected.push(sentence);
+        seen74.add(key);
+        for (const movie of allNotable) {
+          if (sentenceMentionsTitle(sentence,movie.title)) publishedTitles74.add(norm(movie.title));
+        }
       }
 
       /*
