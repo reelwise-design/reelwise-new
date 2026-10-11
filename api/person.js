@@ -3011,6 +3011,29 @@
               return series && year >= Number(series[1]) && year <= Number(series[2]) ? "" : sentence;
             }
           );
+          /* PERSON 113 — conservative narrative cleanup.
+             This operates on the final display copy only. It does not alter
+             source selection, the TMDB credit list, or the stable 112 story. */
+
+          // A synthetic chapter describing older credits is not a
+          // chronological continuation of a source paragraph ending later.
+          // Use a neutral transition instead of implying forward movement.
+          value = value.replace(
+            /([.!?]\s+)((?:[A-Z][^.!?]{1,55}?[’']s|His|Her|Their) career continued with )([^.!?]{1,190}\.)/g,
+            (whole, boundary, lead, titles, offset, full) => {
+              const years = [...titles.matchAll(/\((\d{4})\)/g)].map(m => Number(m[1]));
+              if (!years.length) return whole;
+              const before = full.slice(0, offset + boundary.length);
+              const earlier = [...before.matchAll(/\((\d{4})\)/g)].map(m => Number(m[1]));
+              // Only when the immediately preceding source paragraph clearly
+              // extends past *every* credit in this synthetic chapter.
+              if (!earlier.length || Math.max(...earlier) <= Math.max(...years)) return whole;
+              return boundary + "Other films from that period included " + titles;
+            }
+          );
+
+          // A source may contain a convoluted account of negotiating a
+          // starring role. Preserve the facts; remove no sourced material.
           return cleanText(value);
         }
 
