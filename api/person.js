@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 80
+      REELWISE PERSON API — PERSON 81
       ============================================================
 
       STAR PROFILE
@@ -1479,7 +1479,7 @@
         "tom holland": `Thomas Stanley Holland is a British actor who began his career on the London stage in Billy Elliot the Musical before making his feature-film debut in The Impossible (2012). He achieved international stardom as Peter Parker in Captain America: Civil War (2016), then headlined Spider-Man: Homecoming (2017), Far From Home (2019), and No Way Home (2021), alongside appearances in the Avengers films. Beyond Marvel, his work includes The Lost City of Z (2017), voice performances in Spies in Disguise (2019) and Onward (2020), darker dramatic roles in The Devil All the Time (2020) and Cherry (2021), and the adventure film Uncharted (2022). Holland received the BAFTA Rising Star Award in 2017 and has established himself as one of the most recognizable actors of his generation.`,
         "tom cruise": `Thomas Cruise Mapother IV is an American actor and producer. After gaining attention in Risky Business (1983), he became an international star playing naval aviator Pete “Maverick” Mitchell in Top Gun (1986). He built a parallel reputation as a dramatic actor with The Color of Money (1986), Rain Man (1988), Born on the Fourth of July (1989), A Few Good Men (1992), and Jerry Maguire (1996), earning Academy Award nominations for Born on the Fourth of July, Jerry Maguire, and Magnolia (1999). In 1996 he introduced Ethan Hunt in Mission: Impossible, the long-running action franchise for which he became known for performing elaborate stunts. His other major films include Minority Report (2002), The Last Samurai (2003), Collateral (2004), and Edge of Tomorrow (2014). He returned to one of his defining early roles in Top Gun: Maverick (2022), a major commercial success, while continuing the Mission: Impossible series through The Final Reckoning (2025).`
       };
-      /* PERSON 80 — GENERIC SOURCE-FIRST BIOGRAPHY POLISH.
+      /* PERSON 81 — GENERIC SOURCE-FIRST BIOGRAPHY POLISH.
          Preserve the curated biographies unchanged. For other performers,
          reject repetitive synthetic catalogs, prevent future credits from
          being narrated as completed work, and retain substantive milestones. */
@@ -1528,6 +1528,12 @@
           return !(futureOnly && completed79.test(sentence) &&
             !future79.test(sentence));
         })
+        // Person 81: the short-source fallback must meet the same editorial
+        // standard as the main story: no synthetic credit catalogs or repeats.
+        .filter(sentence => !genericCatalog79.test(sentence))
+        .filter((sentence, index, sentences) =>
+          sentences.findIndex(other => norm(cleanText(other)) === norm(cleanText(sentence))) === index
+        )
         .slice(0, 4)
         .map(sentence => ensurePeriod(cleanText(sentence)))
         .join(" ");
