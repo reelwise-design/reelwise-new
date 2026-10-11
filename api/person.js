@@ -1354,81 +1354,34 @@
         used.add(key);
       }
 
-      /* Add one more high-value source sentence only when the story is too
-         thin. This prevents the Sandler-style Netflix list from becoming
-         filler simply because the biography needs more words. */
-      if (words(selected.join(" ")) < 105) {
-        const filler = candidates
-          .filter(x => !used.has(norm(x.sentence)))
-          .sort((a, b) => significance(b) - significance(a) || a.index - b.index)[0];
-        if (filler) selected.push(filler.sentence);
-      }
-
-      /* Remove the weakest optional chapter until the card stays readable.
-         Identity, rise, recognition and late milestone are favored. */
-      while (words(selected.join(" ")) > 175 && selected.length > 4) {
-        let weakestIndex = -1;
-        let weakestScore = Infinity;
-        for (let i = 1; i < selected.length; i++) {
-          const sentence = selected[i];
-          const protectedSentence =
-            (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
-            (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
-            /* PERSON 67: the defining chapter is the spine of the profile.
-               Person 66 could correctly select a sustained franchise/major
-               role and then discard it during length trimming. */
-            (defining && norm(sentence) === norm(defining.sentence)) ||
-            (middle && norm(sentence) === norm(middle.sentence)) ||
-            (recognition && norm(sentence) === norm(recognition.sentence)) ||
-            (late && norm(sentence) === norm(late.sentence));
-          if (protectedSentence) continue;
-          const item = candidates.find(x => norm(x.sentence) === norm(sentence));
-          const score = item ? significance(item) : 0;
-          if (score < weakestScore) {
-            weakestScore = score;
-            weakestIndex = i;
-          }
-        }
-        if (weakestIndex < 0) break;
-        selected.splice(weakestIndex, 1);
-      }
-
       /*
-        PERSON 68 — EDITORIAL FLOW PASS
-        Preserve the existing career chapter selection and factual wording.
-        Remove adjacent boilerplate openings only when the remaining sentence
-        is grammatical; never invent awards, roles or significance.
+        PERSON 69 — CAREER PRESERVATION
+        Do not drop a complete career chapter to meet an arbitrary word limit.
+        Reject source fragments and pronunciation markup before publication.
       */
-      function polishCareerSentence(sentence, position) {
-        let s = String(sentence || "").trim();
-        if (position === 0) return s;
-        s = s.replace(
-          /^(?:In the years that followed|In subsequent years|As (?:his|her|their) career continued),\s*/i,
-          ""
-        );
-        s = s.replace(
-          /^((?:His|Her|Their|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+)?next phase included\s+/i,
-          "Later work included "
-        );
-        s = s.replace(
-          /^Another major stretch of .+? career included\s+/i,
-          "Other notable work included "
-        );
-        if (/^[a-z]/.test(s)) s = s.charAt(0).toUpperCase() + s.slice(1);
-        return s;
+      const fragment = /(?:\b(?:portrayed|played|as|including|and|with|for|det\.|dr\.)\s*)$/i;
+      function editorialClean(value) {
+        let t = String(value || "")
+          .replace(/\([^)]*(?:\/[^)]*|MAY-|IPA|pronounced)[^)]*\)/gi, "")
+          .replace(/\(born\s+[^)]*\)/gi, "")
+          .replace(/\s+/g, " ").trim();
+        if (fragment.test(t.replace(/[.,;:]$/, ""))) return "";
+        if (!/[.!?][”"']?$/.test(t)) return "";
+        return t;
       }
-
-      const polishedSelected = selected
-        .filter(Boolean)
-        .map((sentence, index) => polishCareerSentence(sentence, index));
-
-      let story = polishedSelected.join(" ");
-
-      /* Absolute guard against encyclopedia dumps. */
-      if (words(story) > 190) {
-        story = polishedSelected.slice(0, 4).join(" ");
+      const safeSelected = selected.map(editorialClean).filter(Boolean);
+      /* The source sometimes contains a damaged fragment immediately before
+         a synthetic decade chapter. Reject it rather than publishing it. */
+      const unique = [];
+      const seenSentences = new Set();
+      for (const sentence of safeSelected) {
+        const key = norm(sentence);
+        if (!key || seenSentences.has(key)) continue;
+        seenSentences.add(key);
+        unique.push(sentence);
       }
-
+      let story = unique.join(" ");
+      /* Long, complete biographies are preferable to missing signature work. */
       if (words(story) >= 70) return story;
 
       const fallback = summarySentences
