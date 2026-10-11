@@ -1290,21 +1290,32 @@
           if (sentenceMentionsTitle(chapter.sentence, movie.title)) represented.add(norm(movie.title));
         }
       }
-      /* PERSON 71: source chapters take precedence. Supplemental credits are
-         ranked for durable audience recognition, not current TMDB popularity.
-         One franchise cannot consume several slots in the same career era. */
+      /*
+        PERSON 72 — THREE-STAGE CAREER EDITOR
+        1. Score durable acting credits using audience recognition, billing,
+           rating and career-source mentions, never raw trending popularity.
+        2. Select distinct significant titles across the career, giving
+           underrepresented eras room without forcing filler from every era.
+        3. Compose chronological, varied factual sentences.
+        No film-specific actor overrides or invented award claims.
+      */
       const today = new Date().toISOString().slice(0, 10);
       const franchiseKey = title => norm(String(title || "")
         .replace(/(?:\s*[:–—-]\s*.*)$/u, "")
         .replace(/\s+(?:part|chapter|episode|vol\.?|volume)\s+[ivx0-9]+$/i, "")
         .replace(/\s+[ivx]+$/i, "")
         .replace(/\s+\d+$/i, ""));
+      const sourceCorpus = sourceSentences.join(" ");
       const supplementalScore = movie => {
         const votes = Math.max(0, Number(movie.vote_count) || 0);
         const rating = Math.max(0, Number(movie.vote_average) || 0);
         const billing = Number(movie.order);
+        const mention = sentenceMentionsTitle(sourceCorpus, movie.title);
+        const leading = Number.isFinite(billing) && billing <= 2;
+        const supporting = Number.isFinite(billing) && billing <= 5;
         return Math.log10(votes + 1) * 28 + rating * 3 +
-          (Number.isFinite(billing) ? Math.max(0, 12 - billing) * 1.5 : 0);
+          (leading ? 32 : supporting ? 18 : 0) +
+          (mention ? 38 : 0);
       };
       const careerCredits = allNotable
         .filter(movie => isBiographyActingCredit(movie) && movie.year &&
@@ -1320,15 +1331,19 @@
         [firstCareerYear + Math.round(span * .75) + 1, latestCareerYear]
       ];
       const usedFranchises = new Set();
+      const chosenCredits = new Set();
       for (const [start,end] of eras) {
         const sourceInEra = existingChapters.some(chapter =>
           chapter.hits?.some(movie => movie.year >= start && movie.year <= end));
         const pool = careerCredits.filter(movie => movie.year >= start && movie.year <= end);
         const strong = [];
+        const maxScore = pool.length ? supplementalScore(pool[0]) : 0;
         for (const movie of pool) {
           const family = franchiseKey(movie.title);
-          if (!family || usedFranchises.has(family)) continue;
+          if (!family || usedFranchises.has(family) || chosenCredits.has(norm(movie.title))) continue;
           if (strong.some(item => franchiseKey(item.title) === family)) continue;
+          /* Avoid weak peripheral credits added merely to fill an era. */
+          if (supplementalScore(movie) < Math.max(105, maxScore * .66)) continue;
           strong.push(movie);
           if (strong.length >= (sourceInEra ? 2 : 3)) break;
         }
@@ -1338,8 +1353,14 @@
         const titles = labels.length === 1 ? labels[0] :
           labels.length === 2 ? `${labels[0]} and ${labels[1]}` :
           `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
+        const opening = coverageChapters.length % 3;
+        const sentence = opening === 0
+          ? `Other notable screen credits include ${titles}.`
+          : opening === 1
+            ? `The filmography also includes ${titles}.`
+            : `Further film appearances include ${titles}.`;
         coverageChapters.push({
-          sentence: `${name} appeared in ${titles} during this period.`,
+          sentence,
           index: 9990 + coverageChapters.length,
           years: strong.map(movie=>movie.year),
           year: strong[0].year,
@@ -1348,6 +1369,7 @@
         });
         for (const movie of strong) {
           represented.add(norm(movie.title));
+          chosenCredits.add(norm(movie.title));
           usedFranchises.add(franchiseKey(movie.title));
         }
       }
