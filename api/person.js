@@ -1385,23 +1385,43 @@
         milestoneYear74(a)-milestoneYear74(b) ||
         Number(!!a.coverage)-Number(!!b.coverage) ||
         (a.index||0)-(b.index||0));
+      /* PERSON 75 — GROUP SUPPLEMENTAL CREDITS INTO EDITORIAL CHAPTERS.
+         Source milestones remain verbatim and in source order; generic credit
+         labels are emitted once per adjacent group rather than per movie. */
       const selected=[intro];
-      const seen74=new Set([norm(intro)]);
-      const publishedTitles74=new Set();
-      for (const chapter of chapters74) {
-        let sentence=chapter.sentence;
-        const key=norm(sentence);
-        if (!key || seen74.has(key)) continue;
-        if (chapter.coverage && chapter.hits.some(movie=>
-          publishedTitles74.has(norm(movie.title)))) continue;
-        // Preserve substantive source milestones; never delete an award or
-        // breakthrough simply because it refers to an earlier film.
-        selected.push(sentence);
-        seen74.add(key);
-        for (const movie of allNotable) {
-          if (sentenceMentionsTitle(sentence,movie.title)) publishedTitles74.add(norm(movie.title));
+      const seen75=new Set([norm(intro)]);
+      const published75=new Set();
+      const pending75=[];
+      const flush75=()=>{
+        if (!pending75.length) return;
+        const names=pending75.map(m=>`${m.title} (${m.year})`);
+        const joined=names.length===1?names[0]:names.length===2?
+          `${names[0]} and ${names[1]}`:
+          `${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}`;
+        const year=pending75[0].year;
+        const lead=year<1990?"His earlier screen credits also included":
+          year<2010?"His film work during this period also included":
+          "Other notable projects included";
+        selected.push(`${lead} ${joined}.`);
+        pending75.length=0;
+      };
+      for(const chapter of chapters74){
+        if(chapter.coverage){
+          const movie=chapter.hits?.[0];
+          if(!movie || published75.has(norm(movie.title))) continue;
+          if(pending75.length && Math.abs(movie.year-pending75[pending75.length-1].year)>5) flush75();
+          pending75.push(movie);published75.add(norm(movie.title));
+          continue;
+        }
+        flush75();
+        const sentence=chapter.sentence;
+        if(!sentence || seen75.has(norm(sentence))) continue;
+        selected.push(sentence);seen75.add(norm(sentence));
+        for(const movie of allNotable){
+          if(sentenceMentionsTitle(sentence,movie.title)) published75.add(norm(movie.title));
         }
       }
+      flush75();
 
       /*
         PERSON 69 — CAREER PRESERVATION
