@@ -1278,7 +1278,7 @@
       }
 
       /*
-        PERSON 70 — GUARANTEED CAREER COVERAGE
+        PERSON 71 — SIGNIFICANCE-WEIGHTED CAREER COVERAGE
         Select strong acting credits from otherwise unrepresented career eras.
         Unlike the old fallback, this runs even when four source chapters exist.
         The generated statements make only verifiable film-credit claims.
@@ -1290,11 +1290,28 @@
           if (sentenceMentionsTitle(chapter.sentence, movie.title)) represented.add(norm(movie.title));
         }
       }
+      /* PERSON 71: source chapters take precedence. Supplemental credits are
+         ranked for durable audience recognition, not current TMDB popularity.
+         One franchise cannot consume several slots in the same career era. */
+      const today = new Date().toISOString().slice(0, 10);
+      const franchiseKey = title => norm(String(title || "")
+        .replace(/(?:\s*[:–—-]\s*.*)$/u, "")
+        .replace(/\s+(?:part|chapter|episode|vol\.?|volume)\s+[ivx0-9]+$/i, "")
+        .replace(/\s+[ivx]+$/i, "")
+        .replace(/\s+\d+$/i, ""));
+      const supplementalScore = movie => {
+        const votes = Math.max(0, Number(movie.vote_count) || 0);
+        const rating = Math.max(0, Number(movie.vote_average) || 0);
+        const billing = Number(movie.order);
+        return Math.log10(votes + 1) * 28 + rating * 3 +
+          (Number.isFinite(billing) ? Math.max(0, 12 - billing) * 1.5 : 0);
+      };
       const careerCredits = allNotable
         .filter(movie => isBiographyActingCredit(movie) && movie.year &&
           movie.year <= new Date().getUTCFullYear() &&
+          (!movie.release_date || movie.release_date <= today) &&
           !represented.has(norm(movie.title)))
-        .sort((a,b) => movieRecognitionScore(b)-movieRecognitionScore(a));
+        .sort((a,b) => supplementalScore(b) - supplementalScore(a));
       const coverageChapters = [];
       const eras = [
         [firstCareerYear, firstCareerYear + Math.round(span * .25)],
@@ -1302,26 +1319,37 @@
         [firstCareerYear + Math.round(span * .50) + 1, firstCareerYear + Math.round(span * .75)],
         [firstCareerYear + Math.round(span * .75) + 1, latestCareerYear]
       ];
+      const usedFranchises = new Set();
       for (const [start,end] of eras) {
-        const pool = careerCredits.filter(movie => movie.year >= start && movie.year <= end);
-        const strong = pool.slice(0, 3).sort((a,b) => a.year-b.year);
-        if (!strong.length) continue;
-        const alreadyInEra = existingChapters.some(chapter =>
+        const sourceInEra = existingChapters.some(chapter =>
           chapter.hits?.some(movie => movie.year >= start && movie.year <= end));
-        if (alreadyInEra && strong.length < 2) continue;
+        const pool = careerCredits.filter(movie => movie.year >= start && movie.year <= end);
+        const strong = [];
+        for (const movie of pool) {
+          const family = franchiseKey(movie.title);
+          if (!family || usedFranchises.has(family)) continue;
+          if (strong.some(item => franchiseKey(item.title) === family)) continue;
+          strong.push(movie);
+          if (strong.length >= (sourceInEra ? 2 : 3)) break;
+        }
+        if (!strong.length) continue;
+        strong.sort((a,b) => a.year-b.year);
         const labels = strong.map(movie => `${movie.title} (${movie.year})`);
         const titles = labels.length === 1 ? labels[0] :
           labels.length === 2 ? `${labels[0]} and ${labels[1]}` :
           `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
         coverageChapters.push({
-          sentence: `${name} also appeared in ${titles}.`,
+          sentence: `${name} appeared in ${titles} during this period.`,
           index: 9990 + coverageChapters.length,
           years: strong.map(movie=>movie.year),
           year: strong[0].year,
           hits: strong,
           coverage: true
         });
-        for (const movie of strong) represented.add(norm(movie.title));
+        for (const movie of strong) {
+          represented.add(norm(movie.title));
+          usedFranchises.add(franchiseKey(movie.title));
+        }
       }
 
       const chosen = [...existingChapters, ...coverageChapters];
@@ -1395,7 +1423,7 @@
           }
           return overlap >= 2;
         });
-        if (repeatsExisting && !item.coverage) continue;
+        if (repeatsExisting) continue;
 
         selected.push(item.sentence);
         used.add(key);
