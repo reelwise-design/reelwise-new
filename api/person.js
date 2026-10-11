@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 70
+      REELWISE PERSON API — PERSON 76
       ============================================================
 
       STAR PROFILE
@@ -1385,43 +1385,62 @@
         milestoneYear74(a)-milestoneYear74(b) ||
         Number(!!a.coverage)-Number(!!b.coverage) ||
         (a.index||0)-(b.index||0));
-      /* PERSON 75 — GROUP SUPPLEMENTAL CREDITS INTO EDITORIAL CHAPTERS.
-         Source milestones remain verbatim and in source order; generic credit
-         labels are emitted once per adjacent group rather than per movie. */
-      const selected=[intro];
-      const seen75=new Set([norm(intro)]);
-      const published75=new Set();
-      const pending75=[];
-      const flush75=()=>{
-        if (!pending75.length) return;
-        const names=pending75.map(m=>`${m.title} (${m.year})`);
-        const joined=names.length===1?names[0]:names.length===2?
-          `${names[0]} and ${names[1]}`:
-          `${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}`;
-        const year=pending75[0].year;
-        const lead=year<1990?"His earlier screen credits also included":
-          year<2010?"His film work during this period also included":
-          "Other notable projects included";
-        selected.push(`${lead} ${joined}.`);
-        pending75.length=0;
+      /* PERSON 76 — SOURCE-FIRST EDITORIAL ASSEMBLY.
+         The source chapters carry the story. Credit-only additions must be
+         meaningful, nonduplicative and must not interrupt a source milestone.
+         Never emit a list of single-film filler sentences. */
+      const selected = [intro];
+      const seen76 = new Set([norm(intro)]);
+      const source76 = sourceOrdered74.filter(ch => ch.sentence && !seen76.has(norm(ch.sentence)));
+      const cited76 = new Set();
+      const mark76 = sentence => {
+        for (const movie of allNotable) if (sentenceMentionsTitle(sentence, movie.title)) cited76.add(norm(movie.title));
       };
-      for(const chapter of chapters74){
-        if(chapter.coverage){
-          const movie=chapter.hits?.[0];
-          if(!movie || published75.has(norm(movie.title))) continue;
-          if(pending75.length && Math.abs(movie.year-pending75[pending75.length-1].year)>5) flush75();
-          pending75.push(movie);published75.add(norm(movie.title));
-          continue;
+      mark76(intro);
+      for (const chapter of source76) mark76(chapter.sentence);
+      // Avoid adding film titles merely to fill length. Only include high-signal
+      // missing credits, and never add a film from an already represented series.
+      const sourceFamilies76 = new Set(allNotable.filter(m => cited76.has(norm(m.title)))
+        .map(m => family74(m.title)).filter(Boolean));
+      const supplemental76 = fillers74.filter(ch => {
+        const m = ch.hits?.[0];
+        if (!m || cited76.has(norm(m.title))) return false;
+        const family = family74(m.title);
+        if (!family || sourceFamilies76.has(family)) return false;
+        if (score73(m) < 150) return false;
+        sourceFamilies76.add(family);
+        return true;
+      }).slice(0, 3);
+      // Supplemental titles are grouped into at most one natural sentence per
+      // chronological gap, never interleaved between connected source passages.
+      const timeline76 = source76.map(ch => ({...ch, synthetic76:false}));
+      if (supplemental76.length) {
+        const groups=[];
+        for (const ch of supplemental76.sort((x,y)=>x.year-y.year)) {
+          const last=groups[groups.length-1];
+          if (last && ch.year-last[last.length-1].year<=5) last.push(ch);
+          else groups.push([ch]);
         }
-        flush75();
-        const sentence=chapter.sentence;
-        if(!sentence || seen75.has(norm(sentence))) continue;
-        selected.push(sentence);seen75.add(norm(sentence));
-        for(const movie of allNotable){
-          if(sentenceMentionsTitle(sentence,movie.title)) published75.add(norm(movie.title));
+        for (const group of groups) {
+          // A lone uncontextualized credit is not a career milestone.
+          if (group.length < 2) continue;
+          const titles=group.map(ch=>`${ch.hits[0].title} (${ch.year})`);
+          const joined=titles.length===2?titles.join(' and '):
+            `${titles.slice(0,-1).join(', ')}, and ${titles[titles.length-1]}`;
+          timeline76.push({sentence:`His other notable films from this period included ${joined}.`,
+            year:group[0].year,years:[group[0].year],synthetic76:true,index:9999});
         }
       }
-      flush75();
+      timeline76.sort((x,y)=>milestoneYear74(x)-milestoneYear74(y) ||
+        Number(x.synthetic76)-Number(y.synthetic76) || (x.index||0)-(y.index||0));
+      for (const chapter of timeline76) {
+        const sentence=chapter.sentence;
+        const key=norm(sentence);
+        if (!key || seen76.has(key)) continue;
+        // Skip source chapters that repeat an already stated passage verbatim.
+        selected.push(sentence);
+        seen76.add(key);
+      }
 
       /*
         PERSON 69 — CAREER PRESERVATION
