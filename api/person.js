@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 84
+      REELWISE PERSON API — PERSON 85
       ============================================================
 
       STAR PROFILE
@@ -1520,7 +1520,39 @@
       }
       const anchored77 = editorial77[norm(name)];
       if (anchored77) return anchored77;
-      let story = published79.join(" ");
+      /*
+        PERSON 85 — GENERIC BIOGRAPHY EDITORIAL PASS
+        Apply to all non-curated actors. Keep meaningful sourced career
+        milestones, but remove repeated sentences and near-identical
+        film-list paragraphs before publishing. Curated biographies above
+        remain untouched.
+      */
+      function polishGenericCareer(sentences) {
+        const result = [];
+        const seen = new Set();
+        let previousCatalog = false;
+        for (const raw of sentences) {
+          const sentence = cleanText(raw);
+          if (!sentence) continue;
+          const key = norm(sentence).replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+          if (!key || seen.has(key)) continue;
+          const isCatalog = genericCatalog79.test(sentence);
+          // Adjacent generic catalogs make the biography read like a resume.
+          // Retain the more informative one, without discarding sourced
+          // breakthrough, award, or career-context sentences.
+          if (isCatalog && previousCatalog) {
+            const old = result[result.length - 1];
+            if (old && sentence.length > old.length) result[result.length - 1] = sentence;
+            seen.add(key);
+            continue;
+          }
+          result.push(sentence);
+          seen.add(key);
+          previousCatalog = isCatalog;
+        }
+        return result.join(" ");
+      }
+      let story = polishGenericCareer(published79);
       /* Long, complete biographies are preferable to missing signature work. */
       if (words(story) >= 35) return story;
 
