@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 83
+      REELWISE PERSON API — PERSON 68
       ============================================================
 
       STAR PROFILE
@@ -33,17 +33,7 @@
     }
 
     function removeWikipediaEnding(text = "") {
-      return cleanText(text)
-        /* PERSON 69: strip attribution/license boilerplate that can be
-           embedded in third-party Wikipedia extracts before biography
-           selection ever sees it. */
-        .replace(/\s*Description above from the Wikipedia article[\s\S]*$/i, "")
-        .replace(/\s*This article uses material from the Wikipedia article[\s\S]*$/i, "")
-        .replace(/\s*Text is available under the Creative Commons[\s\S]*$/i, "")
-        .replace(/\s*licensed under CC[-–]BY[-–]SA[\s\S]*$/i, "")
-        .replace(/\s*full list of contributors on Wikipedia[\s\S]*$/i, "")
-        .replace(/\s*(?:Description above from|This article uses material from)[\s\S]*?Wikipedia[\s\S]*$/i, "")
-        .replace(/\s*(?:licensed|available) under\s+(?:the\s+)?(?:CC[-– ]?BY[-– ]?SA|Creative Commons)[\s\S]*$/i, "")
+      return text
         .replace(/\s*References\s*$/i, "")
         .replace(/\s*External links\s*$/i, "")
         .trim();
@@ -100,8 +90,7 @@
       */
       const protectedDots = [
         "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Sr.", "Jr.",
-        "St.", "Mt.", "No.", "Det.", "Sgt.", "Lt.", "Col.", "Capt.", "Gen.",
-        "U.S.", "U.K.", "e.g.", "i.e."
+        "St.", "Mt.", "No.", "U.S.", "U.K.", "e.g.", "i.e."
       ];
 
       const token = "__RW_DOT__";
@@ -175,6 +164,25 @@
       if (!year) return "";
       const start = Math.floor(year / 10) * 10;
       return `${start}s`;
+    }
+
+    /* PERSON 62 — DATE-BASED GENERATED CHAPTER LABELS
+
+       Synthetic credit chapters should not call a period "early" or
+       "mid-career" merely because of its relative position in a long
+       filmography. Use objective decade wording instead. This preserves
+       Person 61's title-selection logic while preventing cases such as
+       Tom Hanks's 1998–1999 films being labeled "early film work." */
+    function generatedFilmPeriodLabel(movies = []) {
+      const decades = [...new Set(
+        movies
+          .map(movie => decadeLabel(movie?.year))
+          .filter(Boolean)
+      )];
+
+      if (!decades.length) return "Film work";
+      if (decades.length === 1) return `During the ${decades[0]}`;
+      return `From the ${decades[0]} through the ${decades[decades.length - 1]}`;
     }
 
 
@@ -380,8 +388,6 @@
 
     function validMovieCredits(credits = []) {
       const seen = new Set();
-      const today = new Date();
-      today.setHours(23, 59, 59, 999);
 
       return credits.filter(movie => {
         if (
@@ -389,15 +395,6 @@
           !movie?.title ||
           !movie?.release_date
         ) {
-          return false;
-        }
-
-        /* PERSON 78 — CAREER HISTORY MEANS RELEASED WORK.
-           TMDB often lists announced/future credits in movie_credits.cast.
-           Compare the complete release date, not merely the year, so a film
-           opening later in the current year cannot be written as history. */
-        const releaseDate = new Date(`${movie.release_date}T00:00:00`);
-        if (Number.isNaN(releaseDate.getTime()) || releaseDate > today) {
           return false;
         }
 
@@ -556,12 +553,7 @@
             );
       }
 
-      /* PERSON 91 — BALANCED CANDIDATE UNIVERSE.
-         A global top-18 list can erase an actor's breakthrough decade or hide
-         a signature film from a crowded long career. Keep the global leaders,
-         then union them with the strongest credits from every active decade.
-         This changes candidate availability, not the biography prose itself. */
-      const globalNotable =
+      const notable =
         [...movies]
           .sort(
             (a, b) =>
@@ -569,16 +561,6 @@
               movieRecognitionScore(a)
           )
           .slice(0, 18);
-
-      const decadeNotable = Object.values(byDecade)
-        .flatMap(decadeMovies => (decadeMovies || []).slice(0, 4));
-
-      const notableMap = new Map();
-      for (const movie of [...globalNotable, ...decadeNotable]) {
-        const key = movie?.id || `${norm(movie?.title || "")}-${movie?.year || ""}`;
-        if (key && !notableMap.has(key)) notableMap.set(key, movie);
-      }
-      const notable = [...notableMap.values()];
 
       return {
         firstYear: movies[0]?.year || null,
@@ -778,7 +760,7 @@
       }
 
       return ensurePeriod(
-        `In that period, ${name}'s film work included ${titles}`
+        `During the ${decade}, ${name}'s film work included ${titles}`
       );
     }
 
@@ -790,34 +772,16 @@
     }) {
       const name = person?.name || "This performer";
       const timeline = buildCareerTimeline(credits);
-
-      /* PERSON 71: keep the biography builder self-contained. Person 70's
-         redundancy pass referenced an old `middle` chapter variable that no
-         longer exists. That could abort the curated story path. */
-      const source = removeWikipediaEnding(
+      const source = cleanText(
         wikipediaExtract || wikipediaSummary || person?.biography || ""
       );
       const sourceSentences = sentenceSplit(source).filter(Boolean);
-
-      /* PERSON 95 — MIXED-MEDIUM PROSE GUARD.
-         Long source sentences dominated by television/series credits are still
-         available as evidence, but should not be injected wholesale into the
-         movie-career narrative. */
-      const sourceSentenceIsMovieNarrativeFriendly = sentence => {
-        const s = String(sentence || "");
-        const tvSignals = (s.match(/\b(television|TV|series|sitcom|episode|episodes|season|seasons)\b/gi) || []).length;
-        const filmSignals = (s.match(/\b(film|films|movie|movies|starred|role|roles|portrayed|played)\b/gi) || []).length;
-
-        if (tvSignals >= 2 && s.length > 180) return false;
-        if (tvSignals >= 1 && filmSignals <= 1 && s.length > 150) return false;
-        return true;
-      };
       const summarySentences = sentenceSplit(
-        removeWikipediaEnding(wikipediaSummary || person?.biography || "")
+        wikipediaSummary || person?.biography || ""
       ).filter(Boolean);
 
       /*
-        PERSON 71 — CLEAN SOURCE BIOGRAPHY + REELWISE CAREER STORY
+        PERSON 63 — CHRONOLOGICAL BIOGRAPHY ASSEMBLY
 
         Person 58 could still choose individually strong sentences that
         produced a weak career story. Person 59 selects career chapters.
@@ -876,7 +840,6 @@
         const hits = titleHits(text);
         if (!text || wc < 7 || wc > 62) return false;
         if (noiseWords.test(text)) return false;
-        if (/\b(?:description above from|wikipedia article|licensed under|creative commons|full list of contributors)\b/i.test(text)) return false;
         if (orphanStart.test(text)) return false;
         if (isCatalogDump(text, hits)) return false;
 
@@ -903,24 +866,9 @@
             /\b(is an?|was an?)\b/i.test(text) &&
             /\b(actor|actress|comedian|filmmaker|director|producer|writer|performer)\b/i.test(text);
         });
-        if (!found) {
-          return ensurePeriod(`${name} is a film actor and filmmaker`);
-        }
-
-        /* PERSON 69: birthday/age already has a dedicated header line.
-           Do not repeat a parenthetical birth date in the biography intro. */
-        const cleanedIntro = cleanText(found)
-          /* PERSON 86: Wikipedia leads sometimes place IPA/pronunciation text
-             and the birth date in one parenthetical after the name. Reelwise
-             already owns birth data in the gold metadata line, and pronunciation
-             markup is not useful in a compact movie-star biography. */
-          .replace(/\s*\([^)]*\bborn\b[^)]*\)/i, "")
-          .replace(/\s*\((?:\/[^)]*\/|[^)]*\b(?:pronounced|pronunciation)\b)[^)]*\)/i, "")
-          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
-          .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
-          .replace(/\s*\(born\s+\d{4}\)/i, "");
-
-        return ensurePeriod(cleanedIntro);
+        return found
+          ? ensurePeriod(cleanText(found))
+          : ensurePeriod(`${name} is a film actor and filmmaker`);
       }
 
       const intro = identitySentence();
@@ -930,18 +878,7 @@
       const firstCareerYear = timeline.firstYear || (birthYear ? birthYear + 18 : 1970);
       const latestCareerYear = timeline.latestYear || firstCareerYear + 30;
       const span = Math.max(12, latestCareerYear - firstCareerYear);
-      /* PERSON 72 — CAREER-STAGE BOUNDARIES
-
-         "Early career" must be relative to when the performer actually began,
-         not 40% of an unusually long career. For a performer with a 45+ year
-         career, the old formula could classify films nearly twenty years after
-         the debut as early work. Cap the early chapter at roughly the first
-         12 years, while still allowing a shorter proportional window for
-         shorter careers. */
-      /* PERSON 89 — tighter rise window. Keep "early career" close to the
-         actual star-making period so later sequels cannot drift backward into it. */
-      const earlyCareerYears = Math.min(9, Math.max(6, Math.round(span * 0.22)));
-      const earlyEnd = firstCareerYear + earlyCareerYears;
+      const earlyEnd = firstCareerYear + Math.round(span * 0.40);
       const lateStart = firstCareerYear + Math.round(span * 0.68);
 
       const candidates = sourceSentences
@@ -1022,6 +959,49 @@
         defining = careerAnchor;
       }
 
+      /* PERSON 61 — SIGNATURE MID-CAREER CHAPTER
+
+         A strong rise and a strong later-career sentence can still leave a
+         large hole in the middle of a film career. Preserve one meaningful
+         middle chapter when it contains recognizable acting credits. This is
+         generic: no performer names or title overrides are hard-coded. */
+      const middlePool = candidates.filter(x => {
+        if (rise && x.index === rise.index) return false;
+        if (defining && x.index === defining.index) return false;
+        if (!x.year || x.year <= earlyEnd || x.year >= lateStart) return false;
+        return x.hits.length > 0 && significance(x) >= 8;
+      });
+      let middle = best(middlePool);
+
+      /* When the source has no useful middle-career sentence, use only
+         substantive TMDB acting credits and neutral wording. */
+      if (!middle || middle.hits.length < 2) {
+        const middleMovies = allNotable
+          .filter(movie =>
+            isBiographyActingCredit(movie) &&
+            movie.year &&
+            movie.year > earlyEnd &&
+            movie.year < lateStart
+          )
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .slice(0, 3)
+          .sort((a, b) => a.year - b.year);
+
+        if (middleMovies.length >= 2) {
+          const titles = middleMovies.map(movie => `${movie.title} (${movie.year})`);
+          const joined = titles.length === 2
+            ? `${titles[0]} and ${titles[1]}`
+            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
+          middle = {
+            sentence: `${generatedFilmPeriodLabel(middleMovies)}, ${name} appeared in ${joined}.`,
+            index: 9996,
+            years: middleMovies.map(movie => movie.year),
+            year: Math.min(...middleMovies.map(movie => movie.year)),
+            hits: middleMovies
+          };
+        }
+      }
+
       /* Chapter 3: recognition must not disappear behind lesser credits. */
       const recognitionPool = candidates.filter(x =>
         /\b(academy award|oscar|golden globe|bafta|emmy|critics.? choice|screen actors guild|independent spirit|mark twain prize|award|nominated|nomination|won)\b/i.test(x.sentence) &&
@@ -1068,188 +1048,6 @@
         isBiographyActingCredit(movie) &&
         movieRecognitionScore(movie) >= significanceFloor;
 
-      /* PERSON 88 — PERSON 86 CAREER-STAGE RANKING + EVIDENCE-ONLY ANCHORS
-
-         Person 85 established a stable chronological biography. Person 86 keeps that
-         structure, but treats credits as career stages rather than a flat set of
-         decade winners. Breakthrough/early-stardom work is protected first;
-         peak, mid-career, later-career and recent work then compete inside their
-         own part of the timeline. This prevents a later popular sequel or weak
-         high-vote credit from erasing the films that actually established a star.
-
-         Generic signals:
-           - top billing / central-role importance is the strongest signal
-           - durable audience recognition (votes + rating)
-           - source-biography mentions and career-milestone language
-           - broad cultural reach as a secondary tie-breaker
-           - popularity remains deliberately modest
-
-         No performer names or title-specific overrides are used.
-      */
-      function careerDefiningMovieScore(movie) {
-        if (!movie) return -Infinity;
-
-        const popularity = Math.max(0, Number(movie.popularity) || 0);
-        const votes = Math.max(0, Number(movie.vote_count) || 0);
-        const rating = Math.max(0, Number(movie.vote_average) || 0);
-        const order = Number(movie.order);
-        const character = String(movie.character || "").trim();
-
-        let score = 0;
-
-        /* Durable recognition: logarithmic so huge franchises do not win by
-           raw vote totals alone. */
-        score += Math.log10(votes + 1) * 18;
-        score += rating * 3;
-        score += Math.log10(popularity + 1) * 5;
-
-        /* A very large long-term vote footprint is useful evidence that a film
-           has remained culturally visible. Keep this modest and logarithmic so
-           it cannot overpower the performer's actual role importance. */
-        if (votes >= 20000) score += 10;
-        else if (votes >= 10000) score += 7;
-        else if (votes >= 5000) score += 4;
-
-        /* Billing is the strongest generic role-importance signal TMDB gives
-           us on a person's movie-credit record. */
-        if (Number.isFinite(order)) {
-          if (order === 0) score += 48;
-          else if (order === 1) score += 38;
-          else if (order === 2) score += 27;
-          else if (order <= 3) score += 21;
-          else if (order <= 6) score += 9;
-          else if (order <= 12) score += 2;
-        }
-
-        if (character && !/\b(self|uncredited|cameo|archive footage)\b/i.test(character)) {
-          score += 4;
-        }
-
-        /* PERSON 86 — career-stage context. Early top-billed work gets a small
-           protection bonus because those credits often establish stardom; this
-           is intentionally smaller than billing/source evidence and contains no
-           actor- or title-specific rules. */
-        if (movie.year && movie.year <= earlyEnd && Number.isFinite(order) && order <= 2) {
-          score += 12;
-        }
-
-        /* Wikipedia is used only as evidence of career significance. A title
-           that the source biography itself chooses to discuss deserves to beat
-           an otherwise more popular but less defining credit. */
-        const sourceMentions = sourceSentences.filter(sentence =>
-          sentenceMentionsTitle(sentence, movie.title)
-        );
-
-        if (sourceMentions.length) {
-          score += 28 + Math.min(10, (sourceMentions.length - 1) * 5);
-
-          if (sourceMentions.some(sentence =>
-            /\b(academy award|oscar|golden globe|bafta|screen actors guild|award|nominated|nomination|won|acclaim|acclaimed|breakthrough|breakout|defining|signature)\b/i.test(sentence)
-          )) score += 30;
-
-          if (sourceMentions.some(sentence =>
-            /\b(starred|starring|leading role|lead role|portrayed|played the title|performance)\b/i.test(sentence)
-          )) score += 18;
-        }
-
-        return score;
-      }
-
-      /* PERSON 92 — EVIDENCE-ONLY CAREER ANCHORS
-
-         Person 87 proved that source-biography evidence can identify genuinely
-         defining films, but it also let that evidence alter the biography
-         chapter pipeline. Person 88 deliberately does NOT do that.
-
-         These helpers only add a ranking bonus to verified TMDB acting credits.
-         Person 86's source cleanup, pronunciation removal, age output, chapter
-         selection, prose limits and rendering path remain untouched.
-      */
-      const careerAnchorCue =
-        /\b(breakthrough|breakout|rose to fame|rise to fame|rose to prominence|came to prominence|stardom|star-making|gained (?:wider |wide |international )?recognition|academy award|oscar|golden globe|bafta|acclaim|acclaimed|signature|iconic|best known|franchise|comeback|resurgence|career revival|leading role|lead role)\b/i;
-
-      const strongCareerAnchorCue =
-        /\b(breakthrough|breakout|rose to fame|rise to fame|rose to prominence|came to prominence|stardom|star-making|academy award|oscar|signature|iconic|best known|comeback|resurgence|career revival)\b/i;
-
-      /* PERSON 95 — FRANCHISE-ORIGIN SOURCE EVIDENCE.
-         Source prose may say "the first four X films (1976–1985)" without
-         separately spelling out the original film. Recognize the verified
-         base movie when its title and release year match that franchise range. */
-      function sourceSupportsFranchiseOrigin(movie) {
-        const rawTitle = String(movie?.title || "").trim();
-        const year = Number(movie?.year || 0);
-        if (!rawTitle || !year) return false;
-
-        const title = norm(rawTitle);
-        const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-        return sourceSentences.some(sentence => {
-          const normalized = norm(sentence);
-          if (!normalized.includes(title)) return false;
-
-          const franchisePattern = new RegExp(
-            `(?:first|original|initial)\\s+(?:\\w+\\s+){0,3}${escaped}\\s+(?:films?|movies?)`
-          );
-          const rangePattern = new RegExp(`\\(${year}\\s*[–—-]\\s*\\d{4}\\)`);
-
-          return franchisePattern.test(normalized) && rangePattern.test(sentence);
-        });
-      }
-
-      function careerAnchorStrength(movie) {
-        if (!movie?.title) return 0;
-
-        let strength = sourceSupportsFranchiseOrigin(movie) ? 3 : 0;
-        for (const sentence of sourceSentences) {
-          if (!sentenceMentionsTitle(sentence, movie.title)) continue;
-
-          strength = Math.max(strength, 1);
-          if (careerAnchorCue.test(sentence)) strength = Math.max(strength, 2);
-          if (strongCareerAnchorCue.test(sentence)) strength = Math.max(strength, 3);
-
-          if (/\b(award|won|nominat|performance|portray|played|starred|leading role|lead role)\b/i.test(sentence)) {
-            strength = Math.max(strength, 2);
-          }
-        }
-        return strength;
-      }
-
-      /* PERSON 89 — FRANCHISE EVIDENCE PROPAGATION
-         Source biographies often name a franchise once rather than listing every
-         installment. Give individual verified credits modest evidence when their
-         title belongs to a franchise explicitly discussed by the source. */
-      function titleFamilyKey(title = "") {
-        return norm(title)
-          .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
-          .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      }
-
-      function franchiseEvidenceStrength(movie) {
-        const family = titleFamilyKey(movie?.title || "");
-        if (!family || family.length < 4) return 0;
-
-        let strength = 0;
-        for (const sentence of sourceSentences) {
-          const clean = norm(sentence);
-          if (!/\b(franchise|film series|series)\b/i.test(sentence)) continue;
-          if (clean.includes(family)) strength = Math.max(strength, 2);
-        }
-        return strength;
-      }
-
-      function careerAnchorScore(movie) {
-        const strength = careerAnchorStrength(movie);
-        const bonus =
-          strength >= 3 ? 70 :
-          strength === 2 ? 42 :
-          strength === 1 ? 14 : 0;
-
-        const franchiseBonus = franchiseEvidenceStrength(movie) * 18;
-        return careerDefiningMovieScore(movie) + bonus + franchiseBonus;
-      }
-
       if (!resolvedRise) {
         const earlyMovies = allNotable
           .filter(movie =>
@@ -1257,11 +1055,7 @@
             movie.year &&
             movie.year <= earlyEnd
           )
-          .sort((a, b) =>
-            careerAnchorScore(b) - careerAnchorScore(a) ||
-            movieRecognitionScore(b) - movieRecognitionScore(a) ||
-            (a.year || 9999) - (b.year || 9999)
-          )
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
           .slice(0, 4);
 
         if (earlyMovies.length >= 2) {
@@ -1271,7 +1065,7 @@
             : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
 
           resolvedRise = {
-            sentence: `Early in ${name}'s film career, credits included ${joined}.`,
+            sentence: `${generatedFilmPeriodLabel(earlyMovies)}, ${name} appeared in ${joined}.`,
             index: -2,
             years: earlyMovies.map(movie => movie.year),
             year: Math.min(...earlyMovies.map(movie => movie.year)),
@@ -1326,20 +1120,7 @@
         overrides, and no invented claim that a film was a breakthrough.
       */
       const selectedEarlyTitleKeys = new Set();
-
-      /* PERSON 68 — count the introduction too.
-
-         Person 67 only inspected resolvedRise + defining before deciding that
-         an automatic early-film run was necessary. That could create a list
-         even when the introduction already told the performer's early-career
-         story (Tom Hanks is the clearest example). The actual biography card
-         is the authority: if intro/rise/defining already name enough notable
-         early films, do not manufacture another chapter. */
-      const plannedEarlyChapters = [
-        { sentence: intro, index: -2 },
-        resolvedRise,
-        defining
-      ].filter(Boolean);
+      const plannedEarlyChapters = [resolvedRise, defining].filter(Boolean);
 
       for (const chapter of plannedEarlyChapters) {
         const text = chapter?.sentence || "";
@@ -1364,11 +1145,7 @@
                 movie?.year &&
                 movie.year <= earlyEnd
               )
-              .sort((a, b) =>
-                careerAnchorScore(b) - careerAnchorScore(a) ||
-                movieRecognitionScore(b) - movieRecognitionScore(a) ||
-                (a.year || 9999) - (b.year || 9999)
-              )
+              .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
           }))
           .filter(group => group.movies.length >= 3)
           .sort((a, b) =>
@@ -1380,37 +1157,65 @@
         if (runGroup) {
           /* Keep up to five films so a genuine concentrated star-making run
              can read as a run, rather than collapsing to two random credits. */
-          /* PERSON 94 — FIRST-MAJOR-FILM PROTECTION.
-             Score-only slicing can accidentally drop the film that actually
-             established an actor when several later sequels/credits from the
-             same era score slightly higher. Protect the earliest substantial
-             credit, then fill the remaining slots with the strongest ranked
-             films. This is generic and contains no actor/title overrides. */
-          const chronologicalMajor = [...runGroup.movies]
+          /* PERSON 61: never repeat a title that is already named by a
+             selected source chapter. This fixes single-title repetition too
+             (for example an award sentence followed by a synthetic film run). */
+          const alreadyNamed = [resolvedRise, defining, recognition, middle, late]
+            .filter(Boolean)
+            .map(ch => ch.sentence || "");
+
+          /* PERSON 66 — COMPLETE FRANCHISE REDUNDANCY GUARD
+
+             Person 65 only checked a subset of selected chapters, which could
+             leave a sequel such as Toy Story 3 in a generated decade sentence
+             when the stronger franchise sentence lived in the later-career
+             chapter. Person 66 includes that later chapter and also scans
+             eligible source prose for explicit franchise/series statements.
+
+             The guard remains conservative: it suppresses only numbered
+             installments whose multi-word stem is explicitly described as a
+             franchise or series in factual source prose. */
+          const explicitFranchiseSource = candidates
+            .filter(x => /\b(franchise|film series|series of films)\b/i.test(x.sentence || ""))
+            .map(x => x.sentence || "");
+
+          /* PERSON 65 — FRANCHISE REDUNDANCY GUARD
+
+             If selected source prose already describes a film series/franchise,
+             do not use numbered installments from that same series merely to
+             pad a generated decade sentence. This keeps the broader career
+             statement (for example, voicing Woody in the Toy Story franchise)
+             without immediately repeating Toy Story 2 / Toy Story 3 elsewhere.
+
+             This is intentionally conservative: it only activates when the
+             source explicitly uses franchise/series wording and the movie title
+             clearly begins with the same multi-word title stem. */
+          const franchiseSourceText = [...alreadyNamed, ...explicitFranchiseSource].join(" ");
+
+          function franchiseStem(title = "") {
+            const cleaned = cleanText(title)
+              .replace(/\s*[0-9]+\s*$/g, "")
+              .replace(/\s*[:\-–—]\s*.*$/g, "")
+              .trim();
+            return cleaned;
+          }
+
+          function coveredBySourceFranchise(movie) {
+            const stem = franchiseStem(movie?.title || "");
+            if (!stem || stem.split(/\s+/).length < 2) return false;
+            const escaped = stem.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            const pattern = new RegExp(
+              `\\b${escaped}\\b[^.]{0,45}\\b(franchise|series)\\b`,
+              "i"
+            );
+            return pattern.test(franchiseSourceText);
+          }
+
+          const runMovies = runGroup.movies
             .filter(movie =>
-              Number(movie?.vote_count || 0) >= 750 ||
-              careerAnchorStrength(movie) >= 2
+              !alreadyNamed.some(text => sentenceMentionsTitle(text, movie.title)) &&
+              !coveredBySourceFranchise(movie)
             )
-            .sort((a, b) =>
-              (a.year || 9999) - (b.year || 9999) ||
-              careerAnchorScore(b) - careerAnchorScore(a)
-            );
-
-          const sourceBackedOrigins = chronologicalMajor
-            .filter(movie => sourceSupportsFranchiseOrigin(movie))
-            .sort((a, b) =>
-              (a.year || 9999) - (b.year || 9999) ||
-              careerAnchorScore(b) - careerAnchorScore(a)
-            );
-
-          const firstMajor =
-            sourceBackedOrigins[0] ||
-            chronologicalMajor[0] ||
-            null;
-          const runMovies = [
-            ...(firstMajor ? [firstMajor] : []),
-            ...runGroup.movies.filter(movie => !firstMajor || movie.id !== firstMajor.id)
-          ]
             .slice(0, 5)
             .sort((a, b) => a.year - b.year || movieRecognitionScore(b) - movieRecognitionScore(a));
           const titles = runMovies.map(movie => `${movie.title} (${movie.year})`);
@@ -1424,463 +1229,55 @@
             joined = `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
           }
 
-          careerRun = {
-            sentence: `${name}'s early momentum continued with ${joined}.`,
-            index: -1,
-            years: runMovies.map(movie => movie.year),
-            year: Math.min(...runMovies.map(movie => movie.year)),
-            hits: runMovies
-          };
+          if (runMovies.length >= 2) {
+            careerRun = {
+              sentence: `${generatedFilmPeriodLabel(runMovies)}, ${name} appeared in ${joined}.`,
+              index: -1,
+              years: runMovies.map(movie => movie.year),
+              year: Math.min(...runMovies.map(movie => movie.year)),
+              hits: runMovies
+            };
+          }
         }
       }
 
-      /* PERSON 68 — FINAL SYNTHETIC-RUN REDUNDANCY FILTER
+      /* PERSON 66 — NO DUPLICATE EARLY-CAREER CHAPTERS
 
-         A generated film list is only a safety net. Source prose always wins.
-         Before allowing the run into the card, remove every title already
-         named anywhere in the chapters we intend to use. Also treat an
-         explicit franchise sentence as covering numbered/sequel titles whose
-         normalized title begins with the named franchise title.
-
-         If fewer than two genuinely new titles remain, discard the synthetic
-         chapter completely. This prevents repeated Forrest Gump / Toy Story
-         material without actor-specific title overrides. */
+         Person 65 could generate an early-film run and then immediately keep
+         a source sentence naming many of the same movies (Tom Hanks). If the
+         generated run overlaps a selected source chapter by two or more
+         titles, the source prose wins and the synthetic run is removed. */
       if (careerRun) {
-        const sourceTexts = [intro, resolvedRise, defining, recognition, late]
-          .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
-          .filter(Boolean);
-
-        const coveredBySource = movie => sourceTexts.some(text => {
-          if (sentenceMentionsTitle(text, movie.title)) return true;
-          if (!/\bfranchise\b/i.test(text)) return false;
-
-          return allNotable.some(baseMovie => {
-            if (!baseMovie?.title || !sentenceMentionsTitle(text, baseMovie.title)) return false;
-            const base = norm(baseMovie.title);
-            const candidate = norm(movie.title);
-            return base && candidate !== base && candidate.startsWith(`${base} `);
-          });
+        const sourceChapters = [resolvedRise, defining].filter(ch => ch && ch.index >= 0);
+        const duplicateRun = sourceChapters.some(ch => {
+          let overlap = 0;
+          for (const movie of careerRun.hits || []) {
+            if (sentenceMentionsTitle(ch.sentence || "", movie.title)) overlap++;
+          }
+          return overlap >= 2;
         });
+        if (duplicateRun) careerRun = null;
+      }
 
-        const remaining = (careerRun.hits || []).filter(movie => !coveredBySource(movie));
+      if (!late) {
+        const laterMovies = allNotable
+          .filter(movie => movie.year && movie.year >= lateStart)
+          .sort((a, b) => movieRecognitionScore(b) - movieRecognitionScore(a))
+          .slice(0, 2);
 
-        if (remaining.length < 2) {
-          careerRun = null;
-        } else {
-          const titles = remaining.map(movie => `${movie.title} (${movie.year})`);
-          const joined = titles.length === 2
-            ? `${titles[0]} and ${titles[1]}`
-            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
-
-          careerRun = {
-            ...careerRun,
-            sentence: `${name}'s early momentum continued with ${joined}.`,
-            years: remaining.map(movie => movie.year),
-            year: Math.min(...remaining.map(movie => movie.year)),
-            hits: remaining
+        if (laterMovies.length) {
+          const titles = laterMovies.map(movie => `${movie.title} (${movie.year})`);
+          late = {
+            sentence: `Later film work included ${titles.join(" and ")}.`,
+            index: 9998,
+            years: laterMovies.map(movie => movie.year),
+            year: Math.min(...laterMovies.map(movie => movie.year)),
+            hits: laterMovies
           };
         }
       }
 
-      /* PERSON 86 — REQUIRED BREAKTHROUGH / EARLY-STARDOM STAGE
-
-         Decade ranking alone can begin too late when Wikipedia does not supply
-         a clean rise sentence. That is how a long-established star can appear
-         to begin in the 1990s even though the films that created the star were
-         in the 1980s. Protect the first meaningful career stage generically.
-
-         We do not call any movie a "breakthrough" unless the source does. The
-         generated sentence simply states that these were early starring-film
-         credits. Selection uses the same actor-centric score as later eras,
-         with top billing and source significance doing most of the work. */
-      const earlyStageAlreadyCovered = new Set();
-      for (const text of [intro, resolvedRise?.sentence, defining?.sentence].filter(Boolean)) {
-        for (const movie of allNotable) {
-          if (movie?.year && movie.year <= earlyEnd && sentenceMentionsTitle(text, movie.title)) {
-            earlyStageAlreadyCovered.add(norm(movie.title));
-          }
-        }
-      }
-
-      if (earlyStageAlreadyCovered.size < 2 && !careerRun) {
-        const earlyStagePool = allNotable
-          .filter(movie =>
-            isBiographyActingCredit(movie) &&
-            movie?.year &&
-            movie.year <= earlyEnd &&
-            Number(movie?.vote_count || 0) >= 250
-          )
-          .sort((a, b) =>
-            careerAnchorScore(b) - careerAnchorScore(a) ||
-            movieRecognitionScore(b) - movieRecognitionScore(a) ||
-            (a.year || 9999) - (b.year || 9999)
-          );
-
-        const earlyStageMovies = [];
-        for (const movie of earlyStagePool) {
-          if (earlyStageMovies.length >= 4) break;
-          if (earlyStageAlreadyCovered.has(norm(movie.title))) continue;
-          earlyStageMovies.push(movie);
-        }
-
-        if (earlyStageMovies.length >= 2) {
-          earlyStageMovies.sort((a, b) => a.year - b.year);
-          const titles = earlyStageMovies.map(movie => `${movie.title} (${movie.year})`);
-          const joined = titles.length === 2
-            ? `${titles[0]} and ${titles[1]}`
-            : `${titles.slice(0, -1).join(", ")}, and ${titles[titles.length - 1]}`;
-
-          careerRun = {
-            sentence: `Early film credits included ${joined}.`,
-            index: -1,
-            years: earlyStageMovies.map(movie => movie.year),
-            year: Math.min(...earlyStageMovies.map(movie => movie.year)),
-            hits: earlyStageMovies,
-            syntheticCareerStage: "early"
-          };
-        }
-      }
-
-      /* PERSON 76 — NO GENERIC "LATER FILM WORK" BUCKET
-
-         Person 75 could jump straight to the newest/highest-scoring credits
-         and produce a weak late-career sentence while skipping entire decades.
-         Later career is now handled only by the independent decade spine below.
-         A genuine source-derived late-career sentence may still be retained.
-      */
-
-
-      /* PERSON 78 — RELEASED, NON-REPEATING, DECADE-BALANCED SPINE
-
-         Keep Person 77's chronological architecture, but improve the material
-         placed inside it. A decade is built from released substantive acting
-         credits only. Titles already stated in the guaranteed source chapters
-         are removed before selection, preventing Forrest Gump-style repetition.
-
-         Long careers also need representative coverage. The old global 55th
-         percentile could leave a rich decade with one surviving title. Person 78
-         therefore ranks each decade locally and may use up to three strong
-         released credits, while still requiring a meaningful audience signal.
-      */
-      const eraChapters = [];
-      /* PERSON 80 — DUPLICATE-PROOF AGAINST EVERY SOURCE CHAPTER.
-         Person 78 only checked the intro/rise/run/defining chapters here.
-         A title named in the awards/recognition or later source chapter could
-         therefore be selected again by the decade spine. Include those source
-         chapters in the coverage test before any synthetic era is built. */
-      const sourceChapterTexts = [
-        intro, resolvedRise, careerRun, defining, recognition, late
-      ]
-        .map(ch => typeof ch === "string" ? ch : (ch?.sentence || ""))
-        .filter(Boolean);
-
-      const titleAlreadyCovered = movie => sourceChapterTexts.some(text =>
-        sentenceMentionsTitle(text, movie.title)
-      );
-
-      /* PERSON 94 — CAREER-ERA SELECTION SCORE.
-         Person 91 fixed candidate availability. Person 92 leaves that structure
-         untouched and refines only which three films win inside each era.
-
-         Priority:
-         1. explicit source/career evidence,
-         2. central/top-billed role,
-         3. awards/acclaim language tied to the title,
-         4. sustained franchise significance,
-         5. broad recognition as a tie-breaker.
-
-         Popularity alone is deliberately not enough to win a scarce biography
-         slot. No actor or movie titles are hard-coded here. */
-      /* PERSON 93 — SUSTAINED FRANCHISE SIGNIFICANCE.
-         The Person 92 diagnostic proved that major recurring franchise films
-         were reaching the final era ranking but starting with an artificial
-         anchor deficit when the biography named the series rather than each
-         installment. Detect that pattern generically from verified acting
-         credits + source language. No actor or franchise names are hard-coded. */
-      const franchiseStopWords = new Set([
-        "the", "a", "an", "and", "of", "in", "on", "for", "to", "with"
-      ]);
-
-      function recurringFranchiseKey(movie) {
-        const tokens = norm(movie?.title || "")
-          .split(/\s+/)
-          .filter(Boolean);
-        if (tokens.length < 2) return "";
-
-        /* Try compact leading title stems. Two words is important for subtitle
-           franchises such as X: Y, while stop-word-only stems are rejected. */
-        for (const size of [4, 3, 2]) {
-          if (tokens.length < size) continue;
-          const stemTokens = tokens.slice(0, size);
-          const meaningful = stemTokens.filter(token => !franchiseStopWords.has(token));
-          if (meaningful.length < 2) continue;
-          const stem = stemTokens.join(" ");
-
-          const sourceFramesSeries = sourceSentences.some(sentence => {
-            if (!/\b(franchise|film series|series of films|film franchise)\b/i.test(sentence)) return false;
-            return norm(sentence).includes(stem);
-          });
-          if (!sourceFramesSeries) continue;
-
-          const matching = allNotable.filter(other => {
-            if (!isBiographyActingCredit(other)) return false;
-            const otherTitle = norm(other?.title || "");
-            return otherTitle === stem || otherTitle.startsWith(`${stem} `);
-          });
-
-          if (matching.length >= 3) return stem;
-        }
-        return "";
-      }
-
-      function sustainedFranchiseBonus(movie) {
-        const key = recurringFranchiseKey(movie);
-        if (!key) return 0;
-
-        const order = Number(movie?.order);
-        if (Number.isFinite(order) && order > 2) return 0;
-
-        const family = allNotable.filter(other => {
-          if (!isBiographyActingCredit(other)) return false;
-          const title = norm(other?.title || "");
-          return title === key || title.startsWith(`${key} `);
-        });
-
-        /* A sustained top-billed series is career evidence in its own right. */
-        let bonus = 72;
-
-        /* Within that franchise, modestly favor the best-reviewed installment
-           so the representative film is not chosen merely by raw popularity. */
-        const ratings = family
-          .map(item => Number(item?.vote_average || 0))
-          .filter(value => value > 0);
-        const bestRating = ratings.length ? Math.max(...ratings) : 0;
-        const rating = Number(movie?.vote_average || 0);
-        if (bestRating && rating >= bestRating - 0.08) bonus += 16;
-
-        return bonus;
-      }
-
-      function eraSelectionScore(movie) {
-        let score = careerAnchorScore(movie) + sustainedFranchiseBonus(movie);
-        const order = Number(movie?.order);
-        const votes = Number(movie?.vote_count || 0);
-        const rating = Number(movie?.vote_average || 0);
-
-        if (Number.isFinite(order)) {
-          if (order === 0) score += 34;
-          else if (order === 1) score += 26;
-          else if (order === 2) score += 16;
-          else if (order <= 4) score += 6;
-          else score -= 8;
-        }
-
-        const mentions = sourceSentences.filter(sentence =>
-          sentenceMentionsTitle(sentence, movie.title)
-        );
-
-        if (mentions.length) {
-          score += 22;
-          if (mentions.some(sentence =>
-            /\b(academy award|oscar|golden globe|bafta|award|won|nominat|acclaim|acclaimed|breakthrough|signature|iconic|best known)\b/i.test(sentence)
-          )) score += 34;
-        }
-
-        /* Franchise evidence is useful only when the source actually frames the
-           recurring films as a franchise/series. This lets an important series
-           installment compete without allowing sequels to dominate every era. */
-        const normalizedTitle = norm(movie?.title || "");
-        const franchiseSource = sourceSentences.some(sentence => {
-          if (!/\b(franchise|film series|series of films|series)\b/i.test(sentence)) return false;
-          const cleanSentence = norm(sentence);
-          const base = normalizedTitle
-            .split(/\s+(?:part|chapter|episode)\s+/i)[0]
-            .split(/\s+-\s+|\s+:\s+/)[0]
-            .trim();
-          return base.length >= 5 && cleanSentence.includes(base);
-        });
-        if (franchiseSource) score += 28;
-
-        /* Keep quality/recognition secondary. These prevent obscure credits
-           from beating a major central performance solely on recency. */
-        if (votes >= 10000) score += 12;
-        else if (votes >= 4000) score += 8;
-        else if (votes >= 1500) score += 4;
-
-        if (rating >= 7.5) score += 10;
-        else if (rating >= 7.0) score += 6;
-        else if (rating > 0 && rating < 6.0) score -= 10;
-
-        return score;
-      }
-
-      const decadeGroups = Object.entries(timeline.byDecade || {})
-        .map(([label, movies]) => {
-          const decade = Number(String(label).match(/\d{4}/)?.[0]);
-
-          const eligible = (movies || [])
-            .filter(isBiographyActingCredit)
-            .filter(movie => !titleAlreadyCovered(movie))
-            .filter(movie => Number(movie?.vote_count || 0) >= 250)
-            .sort((a, b) =>
-              eraSelectionScore(b) - eraSelectionScore(a) ||
-              careerAnchorScore(b) - careerAnchorScore(a) ||
-              movieRecognitionScore(b) - movieRecognitionScore(a) ||
-              (a.year || 9999) - (b.year || 9999)
-            );
-
-          /* Prefer globally significant credits, but do not let the global
-             threshold collapse an otherwise substantial decade to one film. */
-          const significant = eligible.filter(isCareerSignificantCredit);
-
-          /* PERSON 94 — NO OBLIGATORY WEAK DECADES.
-             A smaller filmography should not produce a standalone decade
-             sentence merely because one marginal credit exists. A movie is
-             display-worthy when it has a meaningful audience footprint,
-             strong source-career evidence, or a genuinely central role with
-             solid reception. */
-          const displayWorthy = eligible.filter(movie => {
-            const votes = Number(movie?.vote_count || 0);
-            const rating = Number(movie?.vote_average || 0);
-            const order = Number(movie?.order);
-            const anchor = careerAnchorStrength(movie);
-
-            return (
-              votes >= 900 ||
-              anchor >= 2 ||
-              (
-                Number.isFinite(order) &&
-                order <= 2 &&
-                votes >= 300 &&
-                rating >= 6.5
-              )
-            );
-          });
-
-          const strongAnchors = displayWorthy.filter(movie =>
-            careerAnchorStrength(movie) >= 2 ||
-            Number(movie?.vote_count || 0) >= 2500
-          );
-
-          const rankedPool =
-            displayWorthy.length >= 2
-              ? displayWorthy
-              : (
-                  strongAnchors.length
-                    ? strongAnchors
-                    : (significant.length >= 2 ? significant : [])
-                );
-
-          const targetCount = rankedPool.length >= 3 ? 3 : rankedPool.length;
-
-          /* PERSON 80 — DECADE DIVERSITY.
-             A sequel-heavy franchise can otherwise occupy two or three slots
-             in one decade and hide substantial non-franchise starring work.
-             Use a conservative title-family key only for obvious numbered
-             sequels, then allow at most one such family entry per decade. */
-          const sequelFamily = movie => {
-            const sustained = recurringFranchiseKey(movie);
-            if (sustained) return sustained;
-
-            const title = norm(movie?.title || "");
-            if (!title) return "";
-            const family = title
-              .replace(/\b(?:part|chapter|episode)\s+(?:\d+|[ivxlcdm]+)\b/gi, " ")
-              .replace(/\b(?:\d+|[ivxlcdm]+)\b$/gi, " ")
-              .replace(/\s+/g, " ")
-              .trim();
-            return family && family !== title ? family : "";
-          };
-
-          const selected = [];
-          const usedFamilies = new Set();
-          const ranked = [...rankedPool].sort((a, b) =>
-            eraSelectionScore(b) - eraSelectionScore(a) ||
-            careerAnchorScore(b) - careerAnchorScore(a) ||
-            movieRecognitionScore(b) - movieRecognitionScore(a) ||
-            (a.year || 9999) - (b.year || 9999)
-          );
-
-          for (const movie of ranked) {
-            if (selected.length >= targetCount) break;
-            if (selected.some(item => item.id === movie.id)) continue;
-
-            const family = sequelFamily(movie);
-            if (family && usedFamilies.has(family)) continue;
-
-            selected.push(movie);
-            if (family) usedFamilies.add(family);
-          }
-
-          /* If diversity filtering leaves an unusually sparse decade, fill the
-             remaining slot(s) with the strongest unused released credits. */
-          for (const movie of rankedPool) {
-            if (selected.length >= targetCount) break;
-            if (!selected.some(item => item.id === movie.id)) selected.push(movie);
-          }
-
-          return { label, decade, movies: selected.slice(0, 3) };
-        })
-        .filter(group => Number.isFinite(group.decade) && group.movies.length);
-
-      const emittedTitles = new Set();
-
-      for (const group of decadeGroups) {
-        /* Opening/rise prose owns the true beginning of the career. */
-        if (group.decade < Math.floor((earlyEnd + 1) / 10) * 10) continue;
-
-        const movies = group.movies
-          .filter(movie => {
-            const key = norm(movie.title);
-            if (!key || emittedTitles.has(key)) return false;
-            emittedTitles.add(key);
-            return true;
-          })
-          .sort((a, b) => a.year - b.year);
-
-        if (!movies.length) continue;
-
-        const titles = movies.map(movie => `${movie.title} (${movie.year})`);
-        const joined = titles.length === 1
-          ? titles[0]
-          : titles.length === 2
-            ? `${titles[0]} and ${titles[1]}`
-            : `${titles[0]}, ${titles[1]}, and ${titles[2]}`;
-
-        const eraPosition = eraChapters.length;
-        /* PERSON 86: vary transitions for long careers so several consecutive
-           eras do not read as "Later ... Later ... Later ...". */
-        const eraLead = eraPosition === 0
-          ? `${name}’s career continued with ${joined}.`
-          : eraPosition === 1
-            ? `In the years that followed, ${name} starred in ${joined}.`
-            : group.decade >= 2020
-              ? `More recently, ${name} appeared in ${joined}.`
-              : eraPosition % 3 === 2
-                ? `${name}'s next phase included ${joined}.`
-                : eraPosition % 3 === 0
-                  ? `Another major stretch of ${name}'s film career included ${joined}.`
-                  : `Later, ${name} appeared in ${joined}.`;
-
-        eraChapters.push({
-          sentence: eraLead,
-          index: 9000 + group.decade,
-          years: movies.map(movie => movie.year),
-          year: Math.min(...movies.map(movie => movie.year)),
-          hits: movies,
-          syntheticEra: true
-        });
-      }
-
-      /* PERSON 76: keep every meaningful uncovered later-career era.
-         Person 74 could restore the 1990s but later decades could disappear.
-         The era spine now continues chronologically through the performer\'s
-         remaining career. These are verified acting-credit chapters and are
-         protected from later trimming. */
-      const eraSpine = eraChapters
-        .sort((a, b) => a.year - b.year);
-
-      const chosen = [resolvedRise, careerRun, defining, ...eraSpine, recognition, late].filter(Boolean);
+      const chosen = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1898,46 +1295,37 @@
         }
       }
 
-      /* The biography reads in career/source chronology. Recognition is
-         allowed to stay beside the career event it describes. */
-      /* PERSON 82 — CHRONOLOGY FOR CAREER-SPANNING SOURCE CHAPTERS.
+      /* PERSON 64 — BROAD-SPAN CHRONOLOGY ANCHOR
 
-         A source sentence describing a franchise or recurring film series can
-         span many years. Sorting that sentence by its FIRST year makes it jump
-         ahead of later 1990s/2000s/2010s chapters even though it summarizes a
-         much broader stretch of the career. For ordering only, place genuine
-         multi-year franchise/series summaries at their latest stated year.
-         The source sentence itself is unchanged. */
-      function biographySortYear(item) {
-        if (!item) return 9999;
-        const sentence = String(item.sentence || "");
-        const years = Array.isArray(item.years)
-          ? item.years.filter(Number.isFinite)
-          : [];
+         Person 63 fixed the major backward jumps, but sorting every broad
+         source sentence by its latest year can push an established franchise
+         chapter behind a later, focused milestone. Example: a sentence about
+         Toy Story (1995-present), The Polar Express (2004) and Robert Langdon
+         (2006-2016) belongs before a focused 2013 Broadway milestone.
 
-        /* PERSON 83 — KEEP THE MOVIE STORY TOGETHER.
+         Synthetic decade chapters stay anchored to their first film year.
+         Broad source sentences now use the midpoint of their dated span. This
+         keeps them after earlier focused chapters while preventing an open-ended
+         franchise date from artificially forcing the whole sentence to the end
+         of the biography. */
+      function biographyChronologyYear(item) {
+        const ys = (item?.years || []).filter(Number.isFinite);
+        if (!ys.length) return item?.year || 9999;
 
-           Stage/Broadway/theater milestones are worthwhile context, but on a
-           Reelwise movie-star profile they should not interrupt the film-career
-           chronology. Keep the source sentence unchanged and simply order a
-           clearly non-film stage chapter after the movie/franchise chapters. */
-        const isStageChapter =
-          /\b(Broadway|stage|theatre|theater|Tony Award|Tony Awards)\b/i.test(sentence) &&
-          !allNotable.some(movie => sentenceMentionsTitle(sentence, movie.title));
+        const earliest = Math.min(...ys);
+        const latest = Math.max(...ys);
+        const isSynthetic = item?.index < 0 || item?.index >= 9990;
 
-        if (isStageChapter) return 9998;
+        if (!isSynthetic && latest - earliest >= 10) {
+          return Math.round((earliest + latest) / 2);
+        }
 
-        const spansCareer =
-          years.length >= 2 &&
-          /\b(franchise|film series|series of films|recurring role|voiced|reprise|reprised)\b/i.test(sentence);
-
-        if (spansCareer) return Math.max(...years);
-        return item.year || (years.length ? Math.min(...years) : 9999);
+        return earliest;
       }
 
       chosen.sort((a, b) => {
-        const ay = biographySortYear(a);
-        const by = biographySortYear(b);
+        const ay = biographyChronologyYear(a);
+        const by = biographyChronologyYear(b);
         return ay - by || a.index - b.index;
       });
 
@@ -1962,20 +1350,6 @@
         });
         if (repeatsExisting) continue;
 
-        /* PERSON 89 — DUPLICATE IDENTITY GUARD
-           Some source extracts repeat the lead identity sentence with a birth
-           parenthetical or a slightly different profession list. The intro is
-           already rendered separately, so reject a second identity sentence
-           when it begins with the same person name and carries no film title. */
-        const introLead = norm(intro).split(" ").slice(0, 4).join(" ");
-        const itemLead = norm(item.sentence).split(" ").slice(0, 4).join(" ");
-        const duplicateIdentity =
-          introLead &&
-          itemLead === introLead &&
-          itemTitles.length === 0 &&
-          /\b(is an?|was an?|actor|actress|comedian|producer|director|singer|filmmaker)\b/i.test(item.sentence);
-        if (duplicateIdentity) continue;
-
         selected.push(item.sentence);
         used.add(key);
       }
@@ -1992,23 +1366,19 @@
 
       /* Remove the weakest optional chapter until the card stays readable.
          Identity, rise, recognition and late milestone are favored. */
-      while (words(selected.join(" ")) > 190 && selected.length > 4) {
+      while (words(selected.join(" ")) > 175 && selected.length > 4) {
         let weakestIndex = -1;
         let weakestScore = Infinity;
         for (let i = 1; i < selected.length; i++) {
           const sentence = selected[i];
           const protectedSentence =
             (resolvedRise && norm(sentence) === norm(resolvedRise.sentence)) ||
-            /* PERSON 91 — PROTECT THE VERIFIED EARLY-CAREER SPINE.
-               Once the engine has had to synthesize a verified early-star
-               chapter, do not let the word-limit trimmer erase it and make a
-               long-established performer appear to begin a decade too late. */
             (careerRun && norm(sentence) === norm(careerRun.sentence)) ||
             /* PERSON 67: the defining chapter is the spine of the profile.
                Person 66 could correctly select a sustained franchise/major
                role and then discard it during length trimming. */
             (defining && norm(sentence) === norm(defining.sentence)) ||
-            eraSpine.some(chapter => norm(sentence) === norm(chapter.sentence)) ||
+            (middle && norm(sentence) === norm(middle.sentence)) ||
             (recognition && norm(sentence) === norm(recognition.sentence)) ||
             (late && norm(sentence) === norm(late.sentence));
           if (protectedSentence) continue;
@@ -2023,315 +1393,52 @@
         selected.splice(weakestIndex, 1);
       }
 
-      /* PERSON 100 — SOURCE-VERIFIED BREAKTHROUGH FIRST.
-         A synthetic early-film list must not precede a source sentence that
-         explicitly identifies the breakthrough. This is generic: the source
-         must say so, and the sentence must refer to a verified acting credit.
-         Preserve the identity lead and all other chapters. */
-      const verifiedBreakthrough = candidates.find(item =>
-        /\b(breakthrough|breakout|big break|career.defining|rose to (?:fame|prominence)|came to prominence)\b/i.test(item.sentence) &&
-        item.hits.some(movie => isBiographyActingCredit(movie)) &&
-        sourceSentenceIsMovieNarrativeFriendly(item.sentence)
-      );
-      if (verifiedBreakthrough) {
-        const breakthroughKey = norm(verifiedBreakthrough.sentence);
-        const existingIndex = selected.findIndex(sentence => norm(sentence) === breakthroughKey);
-        if (existingIndex > 1) selected.splice(existingIndex, 1);
-        if (existingIndex !== 1) selected.splice(1, 0, verifiedBreakthrough.sentence);
-
-        /* An auto-generated early-career catalog can otherwise make the
-           career seem to begin after the documented breakthrough. Keep
-           meaningful source prose, but discard that conflicting catalog. */
-        const breakthroughYear = verifiedBreakthrough.year ||
-          Math.min(...verifiedBreakthrough.hits.map(movie => movie.year).filter(Number.isFinite));
-        for (let i = selected.length - 1; i > 1; i--) {
-          const sentence = selected[i];
-          if (!/\b(early film career included|early momentum continued with)\b/i.test(sentence)) continue;
-          const listedYears = yearsIn(sentence);
-          if (listedYears.length && Number.isFinite(breakthroughYear) &&
-              Math.min(...listedYears) > breakthroughYear) selected.splice(i, 1);
-        }
-      }
-
-      /* PERSON 102 — ESTABLISH THE CAREER ANCHOR BEFORE THE EARLY-CREDIT LIST.
-         Source-supported role/franchise prose can contain a date range (1976–1985)
-         without the literal word "breakthrough". The old filter only recognized
-         "early film career included", not the actual generated wording "Early film
-         credits included". It also required title-hit metadata that can miss a
-         source's franchise description. Compare explicit source years instead.
-         Do not manufacture a breakthrough claim or add an unverified credit. */
-      const isSyntheticEarlyCatalog = sentence =>
-        /\b(?:early film credits included|early film career included|early momentum continued with|early in .* film career, credits included)\b/i.test(sentence);
-      const syntheticEarlyIndex = selected.findIndex((sentence, index) =>
-        index > 0 && isSyntheticEarlyCatalog(sentence));
-      if (syntheticEarlyIndex > 0) {
-        const catalogYears = yearsIn(selected[syntheticEarlyIndex]);
-        const catalogStart = catalogYears.length ? Math.min(...catalogYears) : Infinity;
-        const sourceAnchors = candidates.filter(item => {
-          const sentence = String(item?.sentence || "");
-          if (!sentence || isSyntheticEarlyCatalog(sentence) ||
-              !sourceSentenceIsMovieNarrativeFriendly(sentence)) return false;
-          if (!/\b(?:best known|prominent roles|notable roles|signature role|iconic role|career.defining|breakthrough|breakout|rose to prominence|first .* films|film series|franchise)\b/i.test(sentence)) return false;
-          const explicitYears = yearsIn(sentence);
-          return explicitYears.length && Math.min(...explicitYears) < catalogStart &&
-            (/\b(?:film|films|movie|movies|played|portrayed|role|roles|starred)\b/i.test(sentence));
-        }).sort((a, b) => {
-          const ay = Math.min(...yearsIn(a.sentence));
-          const by = Math.min(...yearsIn(b.sentence));
-          return ay - by || significance(b) - significance(a);
-        });
-        const anchor = sourceAnchors[0];
-        if (anchor) {
-          const anchorKey = norm(anchor.sentence);
-          const oldIndex = selected.findIndex(sentence => norm(sentence) === anchorKey);
-          if (oldIndex >= 0) selected.splice(oldIndex, 1);
-          selected.splice(1, 0, anchor.sentence);
-          /* A later synthetic list is only filler. Do not let it suggest the
-             career started after the earlier source-documented signature work. */
-          for (let i = selected.length - 1; i > 1; i--) {
-            if (isSyntheticEarlyCatalog(selected[i])) selected.splice(i, 1);
-          }
-        }
-      }
-
-
-      /* PERSON 103 — SOURCE-GROUNDED SIGNATURE-ROLE OPENING.
-         A Wikipedia "best known for playing X in the Y series" statement
-         sometimes has no standalone year. Resolve its franchise origin only
-         against a real, released TMDB acting credit. Lead with the actual
-         character and original film, rather than a list of sequels. Never
-         invent the role or a breakthrough claim. Keep unrelated career and
-         recognition chapters. */
-      const signatureSource = sourceSentences.find(sentence =>
-        /\bbest known for (?:playing|portraying)\b/i.test(sentence) &&
-        /\b(?:films?|movies?|series|franchise)\b/i.test(sentence)
-      );
-      if (signatureSource) {
-        const match = signatureSource.match(
-          /\bbest known for (?:playing|portraying)\s+(.{3,85}?)\s+in\s+(?:the\s+)?(.{2,75}?)\s+(?:series of films|film series|films|movies|series|franchise)\b/i
+      /*
+        PERSON 68 — EDITORIAL FLOW PASS
+        Preserve the existing career chapter selection and factual wording.
+        Remove adjacent boilerplate openings only when the remaining sentence
+        is grammatical; never invent awards, roles or significance.
+      */
+      function polishCareerSentence(sentence, position) {
+        let s = String(sentence || "").trim();
+        if (position === 0) return s;
+        s = s.replace(
+          /^(?:In the years that followed|In subsequent years|As (?:his|her|their) career continued),\s*/i,
+          ""
         );
-        if (match) {
-          const character = match[1].trim();
-          const family = norm(match[2]).replace(/^(?:the|first|original)\s+/, "");
-          const origins = allNotable
-            .filter(movie =>
-              isBiographyActingCredit(movie) &&
-              movie?.title && movie?.year &&
-              (norm(movie.title) === family ||
-               titleFamilyKey(movie.title) === family)
-            )
-            .sort((a,b) => a.year - b.year);
-          const origin = origins[0];
-          if (origin && character && character.length < 85) {
-            const signatureOpening =
-              `${name} was best known for playing ${character} in ${origin.title} (${origin.year}).`;
-            /* Remove the synthetic catalog and source sentences that would
-               repeat the same signature-role claim. Keep other substantive
-               chapters (including awards and later-career work). */
-            for (let i = selected.length - 1; i >= 1; i--) {
-              const sentence = selected[i];
-              if (isSyntheticEarlyCatalog(sentence) ||
-                  (/\bbest known for (?:playing|portraying)\b/i.test(sentence) &&
-                   norm(sentence).includes(norm(character)))) {
-                selected.splice(i, 1);
-              }
-            }
-            selected.splice(1, 0, signatureOpening);
-          }
-        }
-      }
-
-      /* Suppress an early catalog when it repeats two or more film titles
-         already covered in a sourced, role-led chapter. */
-      const coveredBeforeCatalog = new Set();
-      for (let i = 1; i < selected.length; i++) {
-        const sentence = selected[i];
-        const hits = allNotable.filter(movie =>
-          sentenceMentionsTitle(sentence, movie.title)
+        s = s.replace(
+          /^((?:His|Her|Their|[A-Z][a-z]+(?:\s+[A-Z][a-z]+)?)\s+)?next phase included\s+/i,
+          "Later work included "
         );
-        if (isSyntheticEarlyCatalog(sentence) &&
-            hits.filter(movie => coveredBeforeCatalog.has(norm(movie.title))).length >= 2) {
-          selected.splice(i--, 1);
-          continue;
-        }
-        hits.forEach(movie => coveredBeforeCatalog.add(norm(movie.title)));
+        s = s.replace(
+          /^Another major stretch of .+? career included\s+/i,
+          "Other notable work included "
+        );
+        if (/^[a-z]/.test(s)) s = s.charAt(0).toUpperCase() + s.slice(1);
+        return s;
       }
 
-      let story = selected.filter(Boolean).join(" ");
+      const polishedSelected = selected
+        .filter(Boolean)
+        .map((sentence, index) => polishCareerSentence(sentence, index));
 
-      /* PERSON 114 — VERIFIED SIGNATURE-CREDIT SAFETY NET.
-         Keep the Person 113 source narrative unchanged. A small number of
-         omitted, highly recognizable, substantively billed TMDB acting credits
-         may be acknowledged in a neutral supplementary sentence. Never claim
-         a breakthrough, award or role that the data does not establish.
-         This is generic: no person names or film-title overrides. */
-      const signatureCandidates = allNotable
-        .filter(movie => movie?.title && Number.isFinite(Number(movie.year)))
-        .filter(isBiographyActingCredit)
-        .filter(movie => !sentenceMentionsTitle(story, movie.title))
-        .filter(movie => {
-          const order = Number(movie.order);
-          const votes = Number(movie.vote_count) || 0;
-          return Number.isFinite(order) && order <= 2 && votes >= 1500;
-        })
-        .map(movie => {
-          const votes = Number(movie.vote_count) || 0;
-          const order = Number(movie.order);
-          const sourceSupport = sourceSentences.some(sentence =>
-            sentenceMentionsTitle(sentence, movie.title)
-          );
-          const family = titleFamilyKey(movie.title);
-          const familySupport = family && allNotable.some(other =>
-            other !== movie && titleFamilyKey(other.title) === family &&
-            sentenceMentionsTitle(story, other.title)
-          );
-          return {
-            movie,
-            score: careerDefiningMovieScore(movie) +
-              (sourceSupport ? 32 : 0) + (familySupport ? 18 : 0)
-          };
-        })
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 2)
-        .map(item => item.movie)
-        .sort((a, b) => Number(a.year) - Number(b.year));
+      let story = polishedSelected.join(" ");
 
-      if (signatureCandidates.length && words(story) < 270) {
-        const additions = signatureCandidates
-          .map(movie => `${movie.title} (${movie.year})`);
-        const supplement = additions.length === 1
-          ? `Other notable film work included ${additions[0]}.`
-          : `Other notable film work included ${additions[0]} and ${additions[1]}.`;
-        story = `${story} ${supplement}`;
+      /* Absolute guard against encyclopedia dumps. */
+      if (words(story) > 190) {
+        story = polishedSelected.slice(0, 4).join(" ");
       }
 
-      /* PERSON 100 — NO BROKEN ABBREVIATION-ENDED VOICE CREDIT.
-         Wikipedia sentence splitting can cut a television title at 'vs.';
-         suppress that incomplete trailing clause instead of displaying
-         '... Star vs. He ...'. Do not invent a completion for a title. */
-      story = story.replace(/,?\s+and voiced\b[^.!?]*\bvs\.(?=\s|$)/gi, ".");
-      story = story.replace(/\.\s*\./g, ".").replace(/\s{2,}/g, " ").trim();
+      if (words(story) >= 70) return story;
 
-      /* PERSON 96 — GENERIC HEADER/PROSE DEDUPLICATION.
-         Born/Died dates belong in the profile metadata. If a source lead repeats
-         a lifespan parenthetical immediately after the person's name, remove it
-         from the biography for every person — no actor-specific rules. */
-      const escapedPersonName = String(name)
-        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-      story = story
-        .replace(
-          new RegExp(
-            `^(${escapedPersonName})\\s*\\((?:born\\s+)?[^()]{0,60}?[–—-]\\s*[^()]{0,60}?\\)\\s*`,
-            "i"
-          ),
-          "$1 "
-        )
-        .replace(/\s{2,}/g, " ")
-        .trim();
-
-      /* PERSON 76 — the verified decade spine is the biography architecture.
-         Do not cut it back to the first six sentences: that was silently
-         deleting the 2000s/2010s after they had been built correctly.
-         The earlier catalog filters and chapter limits already keep the card
-         concise, so this is only a generous emergency ceiling. */
-      if (words(story) > 285) {
-        story = selected.slice(0, 9).join(" ");
-      }
-
-      /* PERSON 70 — NEVER FALL BACK TO THE RAW ENCYCLOPEDIA LEAD.
-
-         Person 68/69 could build a perfectly usable Reelwise story that was
-         shorter than the old 70-word threshold. The function then discarded
-         that story and returned the Wikipedia summary instead. That is why
-         the live card suddenly showed the repeated birth date, long catalog
-         prose and the CC-BY-SA attribution.
-
-         A coherent Reelwise story now wins whenever it contains a meaningful
-         career narrative. The fallback itself is also sanitized as a final
-         defense, so source boilerplate can never reach the card. */
-      /* PERSON 98 — CAREER-FIRST SELECTION.
-         A concise, sourced career narrative must not be replaced by a generic
-         encyclopedia summary merely because it has fewer than 45 words.
-         Require an actual verified movie title before favoring the shorter
-         story; this avoids treating an identity-only introduction as a bio. */
-      const storyHasVerifiedMovie = allNotable.some(movie =>
-        sentenceMentionsTitle(story, movie.title)
-      );
-      if (words(story) >= 25 && storyHasVerifiedMovie) {
-        /* PERSON 80 — final display firewall. Never allow source licensing or
-           attribution boilerplate to survive even if an upstream source
-           changes its wording slightly. */
-        return removeWikipediaEnding(story)
-          .replace(/\s*(?:Description above from|This article uses material from)[\s\S]*$/i, "")
-          .replace(/\s*(?:licensed under|available under)[\s\S]*$/i, "")
-          .trim();
-      }
-
-      const fallbackSentences = sentenceSplit(
-        removeWikipediaEnding(wikipediaSummary || person?.biography || "")
-      )
+      const fallback = summarySentences
         .filter(sentence => !orphanStart.test(cleanText(sentence)))
         .filter(sentence => !isCatalogDump(cleanText(sentence), titleHits(sentence)))
-        .filter(sentence => !/\b(?:description above from|wikipedia article|licensed under|creative commons|full list of contributors)\b/i.test(sentence))
-        .slice(0, 3)
-        .map(sentence => ensurePeriod(cleanText(sentence)));
+        .slice(0, 4)
+        .map(sentence => ensurePeriod(cleanText(sentence)))
+        .join(" ");
 
-      if (fallbackSentences.length) {
-        /* The birthday belongs in the gold metadata line, not the prose. */
-        fallbackSentences[0] = fallbackSentences[0]
-          .replace(/\s*\(born\s+[A-Z][a-z]+\s+\d{1,2},\s+\d{4}\)/i, "")
-          .replace(/\s*\(born\s+\d{1,2}\s+[A-Z][a-z]+\s+\d{4}\)/i, "")
-          .replace(/\s*\(born\s+\d{4}\)/i, "")
-          .replace(/\s*\([^()]{0,60}?[–—-]\s*[^()]{0,60}?\)/, "");
-      }
-
-      /* PERSON 98 — VERIFIED FILM-CAREER RESCUE.
-         When source prose cannot form a complete Reelwise narrative, add
-         genuinely credited, recognizable movie milestones from TMDB. These
-         are described as credits, never invented breakthroughs or awards.
-         Prefer important billed roles across separate decades, and reject
-         uncredited, self, archival, or marginal appearances. */
-      const credited = (timeline.notable || [])
-        .filter(movie => movie?.title && movie?.year)
-        .filter(movie => {
-          const role = String(movie.character || "");
-          const order = Number(movie.order);
-          return !/\b(uncredited|archive footage|self|cameo)\b/i.test(role) &&
-            Number.isFinite(order) && order <= 5 &&
-            Number(movie.vote_count || 0) >= 100;
-        });
-      const milestoneGroups = new Map();
-      for (const movie of credited) {
-        const decade = Math.floor(movie.year / 10) * 10;
-        if (!milestoneGroups.has(decade)) milestoneGroups.set(decade, []);
-        milestoneGroups.get(decade).push(movie);
-      }
-      const milestoneSentences = [];
-      const usedTitles = new Set();
-      for (const [decade, movies] of [...milestoneGroups.entries()].sort((a,b) => a[0]-b[0])) {
-        const picks = movies
-          .sort((a,b) => careerDefiningMovieScore(b)-careerDefiningMovieScore(a))
-          .filter(movie => !usedTitles.has(norm(movie.title)))
-          .slice(0, 2);
-        if (!picks.length) continue;
-        picks.forEach(movie => usedTitles.add(norm(movie.title)));
-        const titles = picks.map(movie => `${movie.title} (${movie.year})`);
-        milestoneSentences.push(
-          `His film credits in the ${decade}s included ${titles.join(" and ")}.`
-        );
-        if (milestoneSentences.length >= 3) break;
-      }
-      const careerAdditions = milestoneSentences;
-      const fallback = removeWikipediaEnding(fallbackSentences.join(" "));
-      const base = story || fallback || `${name} is a film actor and filmmaker.`;
-      const missingMilestones = careerAdditions.filter(sentence =>
-        !credited.some(movie =>
-          sentenceMentionsTitle(sentence, movie.title) &&
-          sentenceMentionsTitle(base, movie.title)
-        )
-      );
-      return cleanText([base, ...missingMilestones].join(" "));
+      return fallback || story || `${name} is a film actor and filmmaker.`;
     }
 
     /* ============================================================
@@ -2974,121 +2081,6 @@
             wikipediaExtract
           });
 
-        /*
-          PERSON 97 — FINAL RESPONSE NORMALIZATION
-
-          Do this AFTER the biography engine has completely finished.
-          This is intentionally generic and actor-independent.
-
-          1. Calculate the final display age once from TMDB birthday/deathday.
-          2. Remove a duplicated lifespan parenthetical from the opening of the
-             final biography, because Born/Died already appear in the header.
-        */
-        const finalDisplayAge =
-          person.deathday
-            ? calculatePersonAge(person.birthday, person.deathday)
-            : calculatePersonAge(person.birthday);
-
-        const finalAgeAtDeath =
-          person.deathday
-            ? calculatePersonAge(person.birthday, person.deathday)
-            : null;
-
-        function normalizeFinalBiography(text, personName) {
-          let value = cleanText(text || "");
-          if (!value) return value;
-
-          const escapedName = String(personName || "")
-            .trim()
-            .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-          if (!escapedName) return value;
-
-          /*
-            Match:
-              Name (January 1, 1900 – February 2, 2000) was...
-              Name (1900–2000) was...
-              Name (born January 1, 1900) is...
-
-            Only an opening parenthetical immediately following the person's
-            name is removed. Other useful parentheticals remain untouched.
-          */
-          const openingDates = new RegExp(
-            `^(${escapedName})\\s*\\((?:born\\s+)?` +
-            `(?:(?:[A-Z][a-z]+\\s+\\d{1,2},\\s+)?\\d{4})` +
-            `(?:\\s*[–—-]\\s*(?:(?:[A-Z][a-z]+\\s+\\d{1,2},\\s+)?\\d{4}))?` +
-            `\\)\\s*`,
-            "i"
-          );
-
-          value = value.replace(openingDates, "$1 ");
-
-          /* PERSON 112 — A source can open with a longer legal name than
-             TMDB's display name (e.g. Robin McLaurin Williams versus Robin
-             Williams). Remove only a full lifespan parenthetical directly
-             before the identity verb, without altering later dates. */
-          value = value.replace(
-            /^([^.!?()]{3,105}?)\s*\((?:[A-Z][a-z]+\s+\d{1,2},\s+)?\d{4}\s*[–—-]\s*(?:[A-Z][a-z]+\s+\d{1,2},\s+)?\d{4}\)\s+(?=(?:was|is)\s+an?\s+)/,
-            (whole, lead) => {
-              const displayParts = String(personName || "").toLowerCase().split(/\s+/).filter(Boolean);
-              const leadWords = lead.toLowerCase().replace(/[^a-z\s'-]/g, " ").split(/\s+/).filter(Boolean);
-              return displayParts.length && displayParts.every(part => leadWords.includes(part))
-                ? `${lead.trim()} ` : whole;
-            }
-          );
-
-
-          /* PERSON 110 — remove only a demonstrably redundant synthetic
-             sequel sentence when the preceding prose already explicitly
-             covers that sequel's year within a numbered film-series span.
-             Do not touch other chapters, titles, or recognition. */
-          value = value.replace(
-            /(?:His|Her|Their|[A-Z][^.!?]{1,55}?[’']s) career continued with ([A-Z][^.!?()]{1,65}?) \((\d{4})\)\./g,
-            (sentence, filmTitle, yearText, offset, fullText) => {
-              const year = Number(yearText);
-              const family = String(filmTitle).replace(/\s+(?:[IVX]+|\d+)$/i, "").trim();
-              if (!family || family === filmTitle.trim()) return sentence;
-              const escapedFamily = family.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-              const preceding = fullText.slice(0, offset);
-              const series = new RegExp(
-                `\\bfirst\\s+(?:two|three|four|five|six|\\d+)\\s+${escapedFamily}\\s+films\\s*\\((\\d{4})\\s*[–—-]\\s*(\\d{4})\\)`,
-                "i"
-              ).exec(preceding);
-              return series && year >= Number(series[1]) && year <= Number(series[2]) ? "" : sentence;
-            }
-          );
-          /* PERSON 113 — conservative narrative cleanup.
-             This operates on the final display copy only. It does not alter
-             source selection, the TMDB credit list, or the stable 112 story. */
-
-          // A synthetic chapter describing older credits is not a
-          // chronological continuation of a source paragraph ending later.
-          // Use a neutral transition instead of implying forward movement.
-          value = value.replace(
-            /([.!?]\s+)((?:[A-Z][^.!?]{1,55}?[’']s|His|Her|Their) career continued with )([^.!?]{1,190}\.)/g,
-            (whole, boundary, lead, titles, offset, full) => {
-              const years = [...titles.matchAll(/\((\d{4})\)/g)].map(m => Number(m[1]));
-              if (!years.length) return whole;
-              const before = full.slice(0, offset + boundary.length);
-              const earlier = [...before.matchAll(/\((\d{4})\)/g)].map(m => Number(m[1]));
-              // Only when the immediately preceding source paragraph clearly
-              // extends past *every* credit in this synthetic chapter.
-              if (!earlier.length || Math.max(...earlier) <= Math.max(...years)) return whole;
-              return boundary + "Other films from that period included " + titles;
-            }
-          );
-
-          // A source may contain a convoluted account of negotiating a
-          // starring role. Preserve the facts; remove no sourced material.
-          return cleanText(value);
-        }
-
-        const finalBiography =
-          normalizeFinalBiography(
-            biography,
-            person.name
-          );
-
         const knownFor =
           buildKnownFor(
             credits
@@ -3123,35 +2115,20 @@
             deceased:
               Boolean(person.deathday),
 
-            /* PERSON 96 — GENERIC AGE CONTRACT.
-               Keep `age` populated for every person. For living people it is
-               current age; for deceased people it is age at death. This keeps
-               older Reelwise front ends working while the explicit death-age
-               aliases remain available. */
             age:
-              finalDisplayAge,
-
-            age_at_death:
-              finalAgeAtDeath,
-
-            /* Compatibility aliases for older/newer front ends. */
-            current_age:
               person.deathday
                 ? null
                 : calculatePersonAge(person.birthday),
 
-            ageAtDeath:
-              finalAgeAtDeath,
-
-            /* PERSON 97: extra compatibility alias for UI renderers. */
-            display_age:
-              finalDisplayAge,
+            age_at_death:
+              person.deathday
+                ? calculatePersonAge(person.birthday, person.deathday)
+                : null,
 
             place_of_birth:
               person.place_of_birth || "",
 
-            biography:
-              finalBiography,
+            biography,
 
             profile_path:
               person.profile_path || null,
