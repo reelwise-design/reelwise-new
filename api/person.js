@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 68
+      REELWISE PERSON API — PERSON 70
       ============================================================
 
       STAR PROFILE
@@ -1277,7 +1277,54 @@
         }
       }
 
-      const chosen = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
+      /*
+        PERSON 70 — GUARANTEED CAREER COVERAGE
+        Select strong acting credits from otherwise unrepresented career eras.
+        Unlike the old fallback, this runs even when four source chapters exist.
+        The generated statements make only verifiable film-credit claims.
+      */
+      const existingChapters = [resolvedRise, careerRun, defining, middle, recognition, late].filter(Boolean);
+      const represented = new Set();
+      for (const chapter of existingChapters) {
+        for (const movie of allNotable) {
+          if (sentenceMentionsTitle(chapter.sentence, movie.title)) represented.add(norm(movie.title));
+        }
+      }
+      const careerCredits = allNotable
+        .filter(movie => isBiographyActingCredit(movie) && movie.year &&
+          movie.year <= new Date().getUTCFullYear() &&
+          !represented.has(norm(movie.title)))
+        .sort((a,b) => movieRecognitionScore(b)-movieRecognitionScore(a));
+      const coverageChapters = [];
+      const eras = [
+        [firstCareerYear, firstCareerYear + Math.round(span * .25)],
+        [firstCareerYear + Math.round(span * .25) + 1, firstCareerYear + Math.round(span * .50)],
+        [firstCareerYear + Math.round(span * .50) + 1, firstCareerYear + Math.round(span * .75)],
+        [firstCareerYear + Math.round(span * .75) + 1, latestCareerYear]
+      ];
+      for (const [start,end] of eras) {
+        const pool = careerCredits.filter(movie => movie.year >= start && movie.year <= end);
+        const strong = pool.slice(0, 3).sort((a,b) => a.year-b.year);
+        if (!strong.length) continue;
+        const alreadyInEra = existingChapters.some(chapter =>
+          chapter.hits?.some(movie => movie.year >= start && movie.year <= end));
+        if (alreadyInEra && strong.length < 2) continue;
+        const labels = strong.map(movie => `${movie.title} (${movie.year})`);
+        const titles = labels.length === 1 ? labels[0] :
+          labels.length === 2 ? `${labels[0]} and ${labels[1]}` :
+          `${labels[0]}, ${labels[1]}, and ${labels[2]}`;
+        coverageChapters.push({
+          sentence: `${name} also appeared in ${titles}.`,
+          index: 9990 + coverageChapters.length,
+          years: strong.map(movie=>movie.year),
+          year: strong[0].year,
+          hits: strong,
+          coverage: true
+        });
+        for (const movie of strong) represented.add(norm(movie.title));
+      }
+
+      const chosen = [...existingChapters, ...coverageChapters];
       const chosenKeys = new Set(chosen.map(x => norm(x.sentence)));
 
       /* If a chapter is missing, fill it with a strong source sentence,
@@ -1348,7 +1395,7 @@
           }
           return overlap >= 2;
         });
-        if (repeatsExisting) continue;
+        if (repeatsExisting && !item.coverage) continue;
 
         selected.push(item.sentence);
         used.add(key);
@@ -1382,7 +1429,7 @@
       }
       let story = unique.join(" ");
       /* Long, complete biographies are preferable to missing signature work. */
-      if (words(story) >= 70) return story;
+      if (words(story) >= 35) return story;
 
       const fallback = summarySentences
         .filter(sentence => !orphanStart.test(cleanText(sentence)))
