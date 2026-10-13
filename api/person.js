@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 98
+      REELWISE PERSON API — PERSON 99
       ============================================================
 
       STAR PROFILE
@@ -1520,51 +1520,78 @@
       }
       const anchored77 = editorial77[norm(name)];
       if (anchored77) return anchored77;
-      /* PERSON 98 — SOURCE-FIRST NARRATIVE, GENERIC FOR ALL OTHER STARS.
-         Select complete source sentences in their original narrative order.
-         Never synthesize decade filmography paragraphs or move an award
-         summary across career eras. When the source is insufficient, use a
-         restrained intact summary rather than fabricate a career story. */
-      function composeSourceNarrative98() {
-        const intro = ensurePeriod(cleanText(unique[0] || summarySentences[0] || ""));
-        const candidates = sourceSentences.map(x => ensurePeriod(cleanText(x)));
-        const seen98 = new Set([norm(intro)]);
-        const picked = [];
-        let count = words(intro);
-        const noise = /^(?:early life|career|personal life|filmography|awards|references|external links|see also|notes|bibliography)\s*[:.]?$/i;
+      /* PERSON 99 — SOURCE NARRATIVE + VERIFIED FILM MILESTONES.
+         Generic for every non-curated actor. The source remains authoritative
+         for career claims; TMDB verifies movie title, year and acting credit.
+         Keep chronology and avoid a second identity sentence. */
+      function composeSourceNarrative99() {
+        const intro = ensurePeriod(cleanText(identitySentence()));
+        const sourcePool = sourceSentences.map(x => ensurePeriod(cleanText(x)));
+        const validFilms = allNotable.filter(m => m && m.title &&
+          Number(m.year) >= 1900 && Number(m.year) <= todayYear &&
+          isBiographyActingCredit(m) &&
+          (!m.release_date || m.release_date <= new Date().toISOString().slice(0,10)));
         const career = /\b(?:film|role|actor|actress|starred|portrayed|played|performance|breakthrough|recognition|acclaim|television|series|directed|produced|award|nominat|career|comedy|drama|stage|cinema|debut)\b/i;
-        for (const line of candidates) {
-          if (count >= 255 || picked.length >= 13) break;
-          const key = norm(line);
-          if (!key || seen98.has(key) || noise.test(line) ||
-              line.length < 48 || line.length > 440 ||
-              !/[.!?][”"']?$/.test(line) || !career.test(line) ||
-              orphanStart.test(line) || isCatalogDump(line, titleHits(line))) continue;
-          const mentioned = allNotable.filter(m => sentenceMentionsTitle(line, m.title));
-          if (mentioned.length && mentioned.every(m => Number(m.year) > todayYear) &&
-              completed79.test(line) && !future79.test(line)) continue;
-          seen98.add(key);
-          picked.push(line);
-          count += words(line);
+        const identity = /\b(?:born|is an? |was an? )\b.*\b(?:actor|actress|producer|director|narrator|comedian)\b/i;
+        const seen = new Set([norm(intro)]);
+        const candidates = [];
+        for (let i = 0; i < sourcePool.length; i++) {
+          const sentence = sourcePool[i];
+          const key = norm(sentence);
+          if (!key || seen.has(key) || sentence.length < 48 || sentence.length > 430 ||
+              !/[.!?][”"']?$/.test(sentence) || orphanStart.test(sentence) ||
+              !career.test(sentence) || identity.test(sentence) ||
+              /^(?:early life|career|personal life|filmography|awards|references|external links)\s*[:.]?$/i.test(sentence)) continue;
+          const hits = validFilms.filter(m => sentenceMentionsTitle(sentence,m.title));
+          if (hits.length && hits.every(m => Number(m.year) > todayYear)) continue;
+          seen.add(key);
+          const years = [...sentence.matchAll(/\b(?:19|20)\d{2}\b/g)].map(m=>Number(m[0]));
+          const filmYears = hits.map(m=>Number(m.year));
+          const date = filmYears.length ? Math.min(...filmYears) :
+            years.length ? Math.min(...years) : null;
+          const isAward = /\b(?:academy award|oscar|golden globe|bafta|emmy|nominat|won|winner)\b/i.test(sentence);
+          const score = hits.reduce((sum,m)=>sum + Math.max(0,score73(m)),0) +
+            (isAward ? 180 : 0) + (/\b(?:breakthrough|rose to fame|leading role|best known|defining)\b/i.test(sentence) ? 160 : 0);
+          candidates.push({sentence,date,score,index:i,hits});
         }
-        // A narrative that is too sparse should not be padded with generated
-        // credits. Prefer an intact, coherent encyclopedia summary instead.
-        if (count < 115) {
-          const summary = summarySentences.map(x => ensurePeriod(cleanText(x)))
-            .filter(x => x.length >= 45 && !orphanStart.test(x) &&
-              !isCatalogDump(x, titleHits(x)));
-          const distinct = []; const keys = new Set();
-          for (const x of summary) {
-            const k = norm(x);
-            if (!keys.has(k)) { distinct.push(x); keys.add(k); }
-          }
-          const summaryText = distinct.join(' ');
-          if (words(summaryText) >= 75) return summaryText;
+        // Select meaningful sourced chapters, not just the first paragraphs
+        // (which often contain lifetime honors and theater history).
+        const selected = candidates.filter(x=>x.date !== null || x.score > 0)
+          .sort((a,b)=>b.score-a.score || a.index-b.index).slice(0,12);
+        // Keep undated source context in source order, while placing dated
+        // chapters chronologically. Never relocate multi-era awards summaries.
+        const dated = selected.filter(x=>x.date !== null &&
+          !(x.hits.length > 2 && Math.max(...x.hits.map(m=>Number(m.year))) - x.date > 9))
+          .sort((a,b)=>a.date-b.date || a.index-b.index);
+        const used = new Set(selected.flatMap(x=>x.hits.map(m=>norm(m.title))));
+        // Verified signature films missing from prose get a single concise
+        // factual bridge per career era, with no invented praise or awards.
+        const missing = validFilms.filter(m=>!used.has(norm(m.title)))
+          .sort((a,b)=>score73(b)-score73(a)).slice(0,35);
+        const additions = [];
+        const decadeCount = new Map();
+        for (const m of missing) {
+          if (score73(m) < 90 || additions.length >= 7) continue;
+          const decade = Math.floor(Number(m.year)/10)*10;
+          if ((decadeCount.get(decade)||0) >= 2) continue;
+          decadeCount.set(decade,(decadeCount.get(decade)||0)+1);
+          additions.push({date:Number(m.year), sentence:`${name} appeared in ${m.title} (${m.year}).`, index:999, generated:true});
         }
-        return [intro, ...picked].filter(Boolean).join(' ').trim();
+        const blocks = [...dated,...additions].sort((a,b)=>a.date-b.date || Number(!!a.generated)-Number(!!b.generated) || a.index-b.index);
+        const undated = selected.filter(x=>!dated.includes(x)).sort((a,b)=>a.index-b.index);
+        const output = [intro];
+        const seenTitles = new Set();
+        for (const block of blocks) {
+          if (block.generated && seenTitles.has(norm(block.sentence))) continue;
+          output.push(block.sentence);
+          seenTitles.add(norm(block.sentence));
+        }
+        for (const item of undated.slice(0,3)) output.push(item.sentence);
+        // Prefer coherent, factual prose over padding with weak film credits.
+        return output.join(' ').replace(/\s+/g,' ').trim();
       }
-      const sourceNarrative98 = composeSourceNarrative98();
-      if (words(sourceNarrative98) >= 75) return sourceNarrative98;
+      const sourceNarrative99 = composeSourceNarrative99();
+      if (words(sourceNarrative99) >= 75) return sourceNarrative99;
 
       /*
         PERSON 85 — GENERIC BIOGRAPHY EDITORIAL PASS
