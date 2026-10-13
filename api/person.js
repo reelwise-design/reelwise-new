@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 99
+      REELWISE PERSON API — PERSON 100
       ============================================================
 
       STAR PROFILE
@@ -78,35 +78,17 @@
 
     function sentenceSplit(text = "") {
       let cleaned = cleanText(text);
-
-      if (!cleaned) {
-        return [];
-      }
-
-      /*
-        PERSON 58: protect common abbreviations before sentence splitting.
-        Person 57 could split a title such as "Mr. Deeds" into the broken
-        fragment "Mr." and then attach the next sentence to it.
-      */
-      const protectedDots = [
-        "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Sr.", "Jr.",
-        "St.", "Mt.", "No.", "U.S.", "U.K.", "e.g.", "i.e."
-      ];
-
-      const token = "__RW_DOT__";
-      for (const abbreviation of protectedDots) {
-        const safe = abbreviation.replace(/\./g, token);
-        cleaned = cleaned.replace(
-          new RegExp(abbreviation.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-          safe
-        );
-      }
-
-      return (
-        cleaned.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) || []
-      )
-        .map(sentence => cleanText(sentence.replace(new RegExp(token, "g"), ".")))
-        .filter(Boolean);
+      if (!cleaned) return [];
+      // Protect abbreviations, initials, acronyms and decimals before splitting.
+      const dot = "__RW_PROTECTED_DOT__";
+      const abbreviations = /\b(?:Mr|Mrs|Ms|Dr|Prof|Sr|Jr|St|Mt|No|vs|etc|e\.g|i\.e)\./gi;
+      cleaned = cleaned.replace(abbreviations, match => match.replace(/\./g, dot));
+      cleaned = cleaned.replace(/\b(?:[A-Z]\.){2,}/g, match => match.replace(/\./g, dot));
+      // Cecil B. DeMille, J. R. R. Tolkien, and similar names.
+      cleaned = cleaned.replace(/\b[A-Z]\.(?=\s+(?:[A-Z][a-z]|[A-Z]\.))/g, match => match.replace(".", dot));
+      cleaned = cleaned.replace(/(\d)\.(?=\d)/g, `$1${dot}`);
+      return (cleaned.match(/[^.!?]+[.!?]+(?:["')\]]+)?|[^.!?]+$/g) || [])
+        .map(part => cleanText(part.split(dot).join("."))).filter(Boolean);
     }
 
     function ensurePeriod(text = "") {
@@ -1520,78 +1502,44 @@
       }
       const anchored77 = editorial77[norm(name)];
       if (anchored77) return anchored77;
-      /* PERSON 99 — SOURCE NARRATIVE + VERIFIED FILM MILESTONES.
-         Generic for every non-curated actor. The source remains authoritative
-         for career claims; TMDB verifies movie title, year and acting credit.
-         Keep chronology and avoid a second identity sentence. */
-      function composeSourceNarrative99() {
+      /* PERSON 100 — SOURCE-FIRST, SENTENCE-SAFE BIOGRAPHY.
+         Do not splice generated credits into source sentences or sort source
+         sentences by their first year. Preserve their original narrative order.
+         Curated biographies return above this point unchanged. */
+      function composeSourceNarrative100() {
         const intro = ensurePeriod(cleanText(identitySentence()));
-        const sourcePool = sourceSentences.map(x => ensurePeriod(cleanText(x)));
-        const validFilms = allNotable.filter(m => m && m.title &&
-          Number(m.year) >= 1900 && Number(m.year) <= todayYear &&
-          isBiographyActingCredit(m) &&
-          (!m.release_date || m.release_date <= new Date().toISOString().slice(0,10)));
-        const career = /\b(?:film|role|actor|actress|starred|portrayed|played|performance|breakthrough|recognition|acclaim|television|series|directed|produced|award|nominat|career|comedy|drama|stage|cinema|debut)\b/i;
+        const pool = sourceSentences.map(x => ensurePeriod(cleanText(x)));
         const identity = /\b(?:born|is an? |was an? )\b.*\b(?:actor|actress|producer|director|narrator|comedian)\b/i;
+        const relevant = /\b(?:film|role|actor|actress|starred|portrayed|played|performance|breakthrough|recognition|acclaim|television|series|directed|produced|award|nominat|career|comedy|drama|stage|cinema|debut|theater|theatre|fame)\b/i;
         const seen = new Set([norm(intro)]);
-        const candidates = [];
-        for (let i = 0; i < sourcePool.length; i++) {
-          const sentence = sourcePool[i];
+        const accepted = [];
+        let total = words(intro);
+        for (const raw of pool) {
+          const sentence = cleanText(raw);
           const key = norm(sentence);
-          if (!key || seen.has(key) || sentence.length < 48 || sentence.length > 430 ||
+          if (!key || seen.has(key) || sentence.length < 32 || sentence.length > 650 ||
               !/[.!?][”"']?$/.test(sentence) || orphanStart.test(sentence) ||
-              !career.test(sentence) || identity.test(sentence) ||
+              identity.test(sentence) || !relevant.test(sentence) ||
               /^(?:early life|career|personal life|filmography|awards|references|external links)\s*[:.]?$/i.test(sentence)) continue;
-          const hits = validFilms.filter(m => sentenceMentionsTitle(sentence,m.title));
-          if (hits.length && hits.every(m => Number(m.year) > todayYear)) continue;
+          // Reject a future film credit stated as an already completed role.
+          const future = allNotable.filter(m => Number(m.year) > todayYear &&
+            sentenceMentionsTitle(sentence, m.title));
+          if (future.length && /\b(?:appeared|starred|played|portrayed)\b/i.test(sentence) &&
+              !/\b(?:will|upcoming|scheduled|set to)\b/i.test(sentence)) continue;
+          // Avoid repeated claims without deleting distinct career context.
+          if (accepted.some(previous => norm(previous) === key)) continue;
+          accepted.push(sentence);
           seen.add(key);
-          const years = [...sentence.matchAll(/\b(?:19|20)\d{2}\b/g)].map(m=>Number(m[0]));
-          const filmYears = hits.map(m=>Number(m.year));
-          const date = filmYears.length ? Math.min(...filmYears) :
-            years.length ? Math.min(...years) : null;
-          const isAward = /\b(?:academy award|oscar|golden globe|bafta|emmy|nominat|won|winner)\b/i.test(sentence);
-          const score = hits.reduce((sum,m)=>sum + Math.max(0,score73(m)),0) +
-            (isAward ? 180 : 0) + (/\b(?:breakthrough|rose to fame|leading role|best known|defining)\b/i.test(sentence) ? 160 : 0);
-          candidates.push({sentence,date,score,index:i,hits});
+          total += words(sentence);
+          if (total >= 300) break;
         }
-        // Select meaningful sourced chapters, not just the first paragraphs
-        // (which often contain lifetime honors and theater history).
-        const selected = candidates.filter(x=>x.date !== null || x.score > 0)
-          .sort((a,b)=>b.score-a.score || a.index-b.index).slice(0,12);
-        // Keep undated source context in source order, while placing dated
-        // chapters chronologically. Never relocate multi-era awards summaries.
-        const dated = selected.filter(x=>x.date !== null &&
-          !(x.hits.length > 2 && Math.max(...x.hits.map(m=>Number(m.year))) - x.date > 9))
-          .sort((a,b)=>a.date-b.date || a.index-b.index);
-        const used = new Set(selected.flatMap(x=>x.hits.map(m=>norm(m.title))));
-        // Verified signature films missing from prose get a single concise
-        // factual bridge per career era, with no invented praise or awards.
-        const missing = validFilms.filter(m=>!used.has(norm(m.title)))
-          .sort((a,b)=>score73(b)-score73(a)).slice(0,35);
-        const additions = [];
-        const decadeCount = new Map();
-        for (const m of missing) {
-          if (score73(m) < 90 || additions.length >= 7) continue;
-          const decade = Math.floor(Number(m.year)/10)*10;
-          if ((decadeCount.get(decade)||0) >= 2) continue;
-          decadeCount.set(decade,(decadeCount.get(decade)||0)+1);
-          additions.push({date:Number(m.year), sentence:`${name} appeared in ${m.title} (${m.year}).`, index:999, generated:true});
-        }
-        const blocks = [...dated,...additions].sort((a,b)=>a.date-b.date || Number(!!a.generated)-Number(!!b.generated) || a.index-b.index);
-        const undated = selected.filter(x=>!dated.includes(x)).sort((a,b)=>a.index-b.index);
-        const output = [intro];
-        const seenTitles = new Set();
-        for (const block of blocks) {
-          if (block.generated && seenTitles.has(norm(block.sentence))) continue;
-          output.push(block.sentence);
-          seenTitles.add(norm(block.sentence));
-        }
-        for (const item of undated.slice(0,3)) output.push(item.sentence);
-        // Prefer coherent, factual prose over padding with weak film credits.
-        return output.join(' ').replace(/\s+/g,' ').trim();
+        // No fabricated milestones and no generated 'appeared in' filler.
+        // The source's sentence order is more reliable than sorting on dates
+        // (a single awards sentence can span multiple decades).
+        return [intro, ...accepted].join(" ").replace(/\s+/g, " ").trim();
       }
-      const sourceNarrative99 = composeSourceNarrative99();
-      if (words(sourceNarrative99) >= 75) return sourceNarrative99;
+      const sourceNarrative100 = composeSourceNarrative100();
+      if (words(sourceNarrative100) >= 75) return sourceNarrative100;
 
       /*
         PERSON 85 — GENERIC BIOGRAPHY EDITORIAL PASS
