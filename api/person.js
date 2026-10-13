@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 100
+      REELWISE PERSON API — PERSON 101
       ============================================================
 
       STAR PROFILE
@@ -1508,35 +1508,50 @@
          Curated biographies return above this point unchanged. */
       function composeSourceNarrative100() {
         const intro = ensurePeriod(cleanText(identitySentence()));
-        const pool = sourceSentences.map(x => ensurePeriod(cleanText(x)));
         const identity = /\b(?:born|is an? |was an? )\b.*\b(?:actor|actress|producer|director|narrator|comedian)\b/i;
         const relevant = /\b(?:film|role|actor|actress|starred|portrayed|played|performance|breakthrough|recognition|acclaim|television|series|directed|produced|award|nominat|career|comedy|drama|stage|cinema|debut|theater|theatre|fame)\b/i;
-        const seen = new Set([norm(intro)]);
-        const accepted = [];
-        let total = words(intro);
-        for (const raw of pool) {
-          const sentence = cleanText(raw);
+        const overview = /\b(?:career spanning|numerous accolades|has received|has won|honored with|lifetime achievement|life achievement)\b/i;
+        const accepted = [], honors = [], seen = new Set([norm(intro)]);
+        for (const raw of sourceSentences) {
+          const sentence = ensurePeriod(cleanText(raw));
           const key = norm(sentence);
           if (!key || seen.has(key) || sentence.length < 32 || sentence.length > 650 ||
               !/[.!?][”"']?$/.test(sentence) || orphanStart.test(sentence) ||
               identity.test(sentence) || !relevant.test(sentence) ||
               /^(?:early life|career|personal life|filmography|awards|references|external links)\s*[:.]?$/i.test(sentence)) continue;
-          // Reject a future film credit stated as an already completed role.
-          const future = allNotable.filter(m => Number(m.year) > todayYear &&
-            sentenceMentionsTitle(sentence, m.title));
+          const future = allNotable.filter(m => Number(m.year) > todayYear && sentenceMentionsTitle(sentence,m.title));
           if (future.length && /\b(?:appeared|starred|played|portrayed)\b/i.test(sentence) &&
               !/\b(?:will|upcoming|scheduled|set to)\b/i.test(sentence)) continue;
-          // Avoid repeated claims without deleting distinct career context.
-          if (accepted.some(previous => norm(previous) === key)) continue;
-          accepted.push(sentence);
           seen.add(key);
-          total += words(sentence);
-          if (total >= 300) break;
+          (overview.test(sentence) ? honors : accepted).push(sentence);
+          if (accepted.reduce((n,x)=>n+words(x),0) >= 260) break;
         }
-        // No fabricated milestones and no generated 'appeared in' filler.
-        // The source's sentence order is more reliable than sorting on dates
-        // (a single awards sentence can span multiple decades).
-        return [intro, ...accepted].join(" ").replace(/\s+/g, " ").trim();
+        // TMDB supplies only verified titles and release years. It does not
+        // justify claims that a credit was a breakthrough, hit or award winner.
+        // Supply a compact chronological film chapter when source prose skips
+        // the actor's defining screen work; never splice into source sentences.
+        const currentDate = new Date().toISOString().slice(0,10);
+        const candidates = [...new Map(allNotable.filter(m =>
+          isBiographyActingCredit(m) && Number(m.year) >= 1900 &&
+          Number(m.year) <= todayYear && (!m.release_date || m.release_date <= currentDate))
+          .map(m=>[family74(m.title),m])).values()];
+        const sourceProse = accepted.join(' ');
+        const missing = candidates.filter(m => !sentenceMentionsTitle(sourceProse,m.title))
+          .sort((a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)).slice(0,9)
+          .sort((a,b)=>Number(a.year)-Number(b.year));
+        const filmChapters = [];
+        if (missing.length >= 2) {
+          const early = missing.filter(m=>Number(m.year)<2000).slice(0,4);
+          const later = missing.filter(m=>Number(m.year)>=2000).slice(0,4);
+          const join = ms => ms.map(m=>`${m.title} (${m.year})`).join(', ').replace(/, ([^,]+)$/,' and $1');
+          if (early.length) filmChapters.push(`His screen credits include ${join(early)}.`);
+          if (later.length) filmChapters.push(`His later screen credits include ${join(later)}.`);
+        }
+        // Early-life and career source prose retains its own order. Overview
+        // honors belong at the end, not before the performer's career story.
+        const narrative = [intro, ...accepted, ...filmChapters, ...honors.slice(0,2)]
+          .filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
+        return narrative;
       }
       const sourceNarrative100 = composeSourceNarrative100();
       if (words(sourceNarrative100) >= 75) return sourceNarrative100;
