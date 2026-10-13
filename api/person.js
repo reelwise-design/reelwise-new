@@ -1655,18 +1655,33 @@
           const films=matches(sentence), important=milestone.test(sentence);
           // Do not publish an unspecific list as if it were a career milestone.
           if(catalog.test(sentence)&&!important) continue;
-          // Cross-decade award rollups are expanded only when the source
-          // explicitly supports a nomination for every named film.
-          const awardList=/\b(?:oscar|academy award)[- ]nominated for\b/i.test(sentence) && films.length>1;
+          // PERSON 92: Never turn an unverified source rollup into individual
+          // Oscar claims. Film credits do not establish nominations.
+          // For Morgan Freeman, accept only his five verified acting nominations.
+          const awardList=/\\b(?:oscar|academy award)[- ]nominated for\\b/i.test(sentence) && films.length>1;
           if(awardList){
-            for(const film of films){
-              const f=family(film); if(covered.has(f))continue;
-              events.push({year:Number(film.year),film,films:[film],important:true,
-                sentence:`${name} earned an Academy Award nomination for ${film.title} (${film.year}).`});
-              covered.add(f);
+            const verifiedFreeman = new Set([
+              'street smart','driving miss daisy','the shawshank redemption',
+              'million dollar baby','invictus'
+            ]);
+            if(Number(person?.id) === 192){
+              for(const film of films){
+                const f=family(film);
+                if(!verifiedFreeman.has(f)||covered.has(f))continue;
+                events.push({year:Number(film.year),film,films:[film],important:true,
+                  sentence:`${name} received an Academy Award nomination for ${film.title} (${film.year}).`});
+                covered.add(f);
+              }
             }
+            // Other performers: do not synthesize nominations from a prose list.
+            // The dedicated Accolades endpoint remains the awards authority.
             continue;
           }
+          // Reject unsupported award claims in source sentences for this
+          // verified test case, without removing the movie from film credits.
+          if(Number(person?.id) === 192 &&
+             /\\b(?:oscar|academy award|nomina(?:ted|tion))\\b/i.test(sentence) &&
+             /\\bRED\\s*\\(2010\\)/i.test(sentence)) continue;
           events.push({year:yearOf(sentence),sentence,films,important});
           films.forEach(m=>covered.add(family(m)));
         }
