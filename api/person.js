@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 85
+      REELWISE PERSON API — PERSON 86
       ============================================================
 
       STAR PROFILE
@@ -1553,6 +1553,55 @@
         return result.join(" ");
       }
       let story = polishGenericCareer(published79);
+      /* PERSON 86 — GENERIC CAREER COVERAGE.
+         Unlike a per-actor biography override, this uses actual released TMDB
+         acting credits and source text for every non-curated actor. Select
+         substantial missing films across underrepresented career decades,
+         avoid repeating existing mentions or franchise variants, and never
+         infer awards, critical acclaim, or a breakthrough from popularity. */
+      function enrichGenericCareer86(base) {
+        if (!base || words(base) < 30) return base;
+        const yearNow = new Date().getUTCFullYear();
+        const already = new Set();
+        const representedDecades = new Set();
+        const allCredits = Object.values(timeline.byDecade || {}).flat()
+          .filter(m => m && m.title && m.year && m.year <= yearNow &&
+            isBiographyActingCredit(m) &&
+            (!m.release_date || m.release_date <= new Date().toISOString().slice(0,10)));
+        for (const m of allCredits) {
+          if (sentenceMentionsTitle(base, m.title)) {
+            already.add(family74(m.title));
+            representedDecades.add(Math.floor(m.year / 10));
+          }
+        }
+        const ranked = allCredits.filter(m => !already.has(family74(m.title)))
+          .sort((a,b) => {
+            const sa = score73(a) + (representedDecades.has(Math.floor(a.year/10)) ? 0 : 38);
+            const sb = score73(b) + (representedDecades.has(Math.floor(b.year/10)) ? 0 : 38);
+            return sb-sa;
+          });
+        const selected86 = [];
+        const families86 = new Set(already);
+        const decadeCount86 = new Map();
+        for (const m of ranked) {
+          const family = family74(m.title);
+          const decade = Math.floor(m.year/10);
+          if (!family || families86.has(family) || score73(m) < 105 ||
+              (decadeCount86.get(decade)||0) >= 2) continue;
+          selected86.push(m);
+          families86.add(family);
+          decadeCount86.set(decade,(decadeCount86.get(decade)||0)+1);
+          if (selected86.length === 5) break;
+        }
+        // Do not append a weak one-title resume sentence merely for length.
+        if (selected86.length < 2) return base;
+        selected86.sort((a,b)=>a.year-b.year);
+        const labels = selected86.map(m=>`${m.title} (${m.year})`);
+        const joined = labels.length===2 ? labels.join(' and ') :
+          `${labels.slice(0,-1).join(', ')}, and ${labels[labels.length-1]}`;
+        return `${base} Other notable screen credits across ${name}'s career include ${joined}.`;
+      }
+      story = enrichGenericCareer86(story);
       /* Long, complete biographies are preferable to missing signature work. */
       if (words(story) >= 35) return story;
 
