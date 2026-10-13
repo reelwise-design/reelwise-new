@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 95
+      REELWISE PERSON API — PERSON 96
       ============================================================
 
       STAR PROFILE
@@ -1624,94 +1624,84 @@
         }
         return output87.join(' ');
       }
-      /* PERSON 95 — GENERIC CAREER-DEPTH RESTORATION
-         Do not confuse removing repetitive catalogs with removing a career.
-         Preserve factual source sentences, then supply a small, chronological
-         selection of verified released acting credits when coverage is thin.
-         No inferred awards, acclaim, characters or invented milestones.
-         Curated biographies above remain unchanged. */
-      function composeGenericCareer95(sourceSentences) {
-        const source = sourceSentences.map(cleanText).filter(Boolean);
-        if (!source.length) return "";
-        const catalog95 = /\b(?:other notable|filmography|further film|additional film|other film work|other projects|film appearances|screen credits|film credits|later films|also appeared in|films also included|other screen work|later screen work)\b/i;
-        const normalized95 = x => norm(x).replace(/[^a-z0-9 ]/g," ").replace(/\s+/g," ").trim();
-        const selected95 = [];
-        const seen95 = new Set();
-        for (const raw of source) {
-          const sentence = ensurePeriod(raw);
-          const key = normalized95(sentence);
-          if (!key || seen95.has(key)) continue;
-          seen95.add(key);
-          // Keep the identity and every substantive sourced career statement.
-          // Generic catalogs are redundant only when they add no new films.
-          if (selected95.length && catalog95.test(sentence)) {
-            const hits = allNotable.filter(m => sentenceMentionsTitle(sentence,m.title));
-            const adds = hits.some(m => !selected95.some(x => sentenceMentionsTitle(x,m.title)));
-            if (!adds) continue;
-          }
-          selected95.push(sentence);
+      /* PERSON 96 — GENERIC CHRONOLOGICAL BIOGRAPHY COMPOSER.
+         Preserve curated biographies (returned above). For every other star,
+         retain sourced narrative, remove template-like credit catalogs, and
+         weave a limited number of released, verified credits into dated stages.
+         Awards are never inferred from popularity or TMDB credit data. */
+      function composeGenericCareer96(sourceSentences) {
+        const currentDate = new Date().toISOString().slice(0,10);
+        const creditPool = Object.values(timeline.byDecade || {}).flat()
+          .filter(m => m && m.title && Number(m.year)>=1900 &&
+            Number(m.year)<=todayYear && isBiographyActingCredit(m) &&
+            (!m.release_date || m.release_date<=currentDate));
+        const distinctCredits = [...new Map(creditPool.map(m=>[family74(m.title),m])).values()];
+        const normalizeLine = x => norm(x).replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+        const catalog = /\b(?:other screen credits|other film appearances|film credits during this period|other notable films|from the 1990s through|later film work included|his films also included|her films also included|screen credits in this period)\b/i;
+        const identity = cleanText(sourceSentences[0] || '');
+        const seen = new Set();
+        const sourced = [];
+        for (const raw of sourceSentences.slice(1)) {
+          const sentence=ensurePeriod(cleanText(raw));
+          const key=normalizeLine(sentence);
+          if(!key || seen.has(key) || catalog.test(sentence)) continue;
+          seen.add(key);
+          const hits=distinctCredits.filter(m=>sentenceMentionsTitle(sentence,m.title));
+          const years=[...sentence.matchAll(/\b(?:19|20)\d{2}\b/g)]
+            .map(v=>Number(v[0])).filter(y=>y>=1900 && y<=todayYear);
+          const allYears=[...hits.map(m=>Number(m.year)),...years];
+          const isAwards=/(?:academy award|oscar|golden globe|bafta|emmy|award nomination|nominated)/i.test(sentence);
+          sourced.push({sentence,year:allYears.length?Math.min(...allYears):null,
+            isAwards, multiPeriod:allYears.length>1 && Math.max(...allYears)-Math.min(...allYears)>8});
         }
-        const today95 = new Date().toISOString().slice(0,10);
-        const eligible95 = Object.values(timeline.byDecade || {}).flat()
-          .filter(m => m && m.title && Number(m.year) >= 1900 &&
-            Number(m.year) <= todayYear && isBiographyActingCredit(m) &&
-            (!m.release_date || m.release_date <= today95));
-        const unique95 = new Map();
-        for (const m of eligible95) {
-          const key = family74(m.title);
-          if (!key || selected95.some(x => sentenceMentionsTitle(x,m.title))) continue;
-          if (!unique95.has(key) || score73(m)>score73(unique95.get(key))) unique95.set(key,m);
+        // Multi-decade award summaries belong after the career narrative, not
+        // at their first mentioned year (which breaks chronology).
+        const narrative=sourced.filter(x=>!x.multiPeriod);
+        const awards=sourced.filter(x=>x.multiPeriod);
+        narrative.sort((a,b)=>(a.year??9999)-(b.year??9999));
+        const used=new Set();
+        for(const line of sourced) for(const m of distinctCredits)
+          if(sentenceMentionsTitle(line.sentence,m.title)) used.add(family74(m.title));
+        const extras=distinctCredits.filter(m=>!used.has(family74(m.title)) && score73(m)>=105)
+          .sort((a,b)=>score73(b)-score73(a));
+        const selected=[]; const perDecade=new Map();
+        for(const m of extras) {
+          const d=Math.floor(Number(m.year)/10)*10;
+          if((perDecade.get(d)||0)>=2) continue;
+          selected.push(m); perDecade.set(d,(perDecade.get(d)||0)+1);
+          if(selected.length>=6) break;
         }
-        const usedDecades95 = new Map();
-        const supplements95 = [...unique95.values()].sort((a,b)=>score73(b)-score73(a))
-          .filter(m => {
-            const decade=Math.floor(Number(m.year)/10);
-            if ((usedDecades95.get(decade)||0)>=2) return false;
-            usedDecades95.set(decade,(usedDecades95.get(decade)||0)+1);
-            return true;
-          }).slice(0,7).sort((a,b)=>Number(a.year)-Number(b.year));
-        // A source-first biography can be short when its source omits major
-        // credits. Add neutral credit bridges, but never attach an award or
-        // breakthrough claim to a title without source support.
-        if (words(selected95.join(" ")) < 145 && supplements95.length) {
-          const groups = new Map();
-          for (const m of supplements95) {
-            const decade=Math.floor(Number(m.year)/10)*10;
-            if (!groups.has(decade)) groups.set(decade,[]);
-            groups.get(decade).push(m);
+        const blocks=narrative.map(x=>({...x}));
+        // Only fill meaningful gaps, not every possible filmography decade.
+        if(words([identity,...narrative.map(x=>x.sentence)].join(' '))<175) {
+          const byDecade=new Map();
+          for(const m of selected) {
+            const d=Math.floor(Number(m.year)/10)*10;
+            if(!byDecade.has(d)) byDecade.set(d,[]);
+            byDecade.get(d).push(m);
           }
-          const bridges = [...groups].sort((a,b)=>a[0]-b[0]).map(([decade,films])=>{
-            const labels=films.map(m=>`${m.title} (${m.year})`);
-            const joined=labels.length===1?labels[0]:labels.length===2?labels.join(" and "):
-              `${labels.slice(0,-1).join(", ")}, and ${labels[labels.length-1]}`;
-            return {year:decade, sentence:`His or her other screen credits in this period included ${joined}.`};
-          });
-          // Use the performer's name rather than guessing gender or pronouns.
-          for (const bridge of bridges) bridge.sentence=bridge.sentence.replace("His or her",`${name}'s`);
-          const yearOf95 = line => {
-            const films=eligible95.filter(m=>sentenceMentionsTitle(line,m.title));
-            if(films.length) return Math.min(...films.map(m=>Number(m.year)));
-            const years=[...line.matchAll(/\b(?:19|20)\d{2}\b/g)].map(x=>Number(x[0]))
-              .filter(y=>y>=1900 && y<=todayYear);
-            return years.length?Math.min(...years):null;
-          };
-          const out=[selected95[0]];
-          let pending=[...bridges];
-          for(let i=1;i<selected95.length;i++) {
-            const y=yearOf95(selected95[i]);
-            if(y!==null) {
-              const before=pending.filter(b=>b.year<y);
-              out.push(...before.map(b=>b.sentence));
-              pending=pending.filter(b=>b.year>=y);
-            }
-            out.push(selected95[i]);
+          for(const [decade,movies] of byDecade) {
+            const labels=movies.sort((a,b)=>a.year-b.year).map(m=>`${m.title} (${m.year})`);
+            const joined=labels.length===1?labels[0]:labels.join(' and ');
+            blocks.push({year:Math.min(...movies.map(m=>Number(m.year))),
+              sentence:`${name} also appeared in ${joined}.`,isAwards:false});
           }
-          out.push(...pending.map(b=>b.sentence));
-          return out.join(" ").replace(/\s+/g," ").trim();
         }
-        return selected95.join(" ").replace(/\s+/g," ").trim();
+        blocks.sort((a,b)=>(a.year??9999)-(b.year??9999));
+        const output=[identity];
+        let previousGeneric=false;
+        for(const block of blocks) {
+          const generic=block.sentence.startsWith(`${name} also appeared in `);
+          if(generic && previousGeneric) {
+            // Avoid stacked, mechanically identical credit bridges.
+            continue;
+          }
+          output.push(block.sentence); previousGeneric=generic;
+        }
+        output.push(...awards.map(x=>x.sentence));
+        return output.filter(Boolean).join(' ').replace(/\s+/g,' ').trim();
       }
-      story = composeGenericCareer95(published79);
+      story = composeGenericCareer96(published79);
       /* Long, complete biographies are preferable to missing signature work. */
       if (words(story) >= 35) return story;
 
