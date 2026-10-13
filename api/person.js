@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 97
+      REELWISE PERSON API — PERSON 98
       ============================================================
 
       STAR PROFILE
@@ -1520,6 +1520,52 @@
       }
       const anchored77 = editorial77[norm(name)];
       if (anchored77) return anchored77;
+      /* PERSON 98 — SOURCE-FIRST NARRATIVE, GENERIC FOR ALL OTHER STARS.
+         Select complete source sentences in their original narrative order.
+         Never synthesize decade filmography paragraphs or move an award
+         summary across career eras. When the source is insufficient, use a
+         restrained intact summary rather than fabricate a career story. */
+      function composeSourceNarrative98() {
+        const intro = ensurePeriod(cleanText(unique[0] || summarySentences[0] || ""));
+        const candidates = sourceSentences.map(x => ensurePeriod(cleanText(x)));
+        const seen98 = new Set([norm(intro)]);
+        const picked = [];
+        let count = words(intro);
+        const noise = /^(?:early life|career|personal life|filmography|awards|references|external links|see also|notes|bibliography)\s*[:.]?$/i;
+        const career = /\b(?:film|role|actor|actress|starred|portrayed|played|performance|breakthrough|recognition|acclaim|television|series|directed|produced|award|nominat|career|comedy|drama|stage|cinema|debut)\b/i;
+        for (const line of candidates) {
+          if (count >= 255 || picked.length >= 13) break;
+          const key = norm(line);
+          if (!key || seen98.has(key) || noise.test(line) ||
+              line.length < 48 || line.length > 440 ||
+              !/[.!?][”"']?$/.test(line) || !career.test(line) ||
+              orphanStart.test(line) || isCatalogDump(line, titleHits(line))) continue;
+          const mentioned = allNotable.filter(m => sentenceMentionsTitle(line, m.title));
+          if (mentioned.length && mentioned.every(m => Number(m.year) > todayYear) &&
+              completed79.test(line) && !future79.test(line)) continue;
+          seen98.add(key);
+          picked.push(line);
+          count += words(line);
+        }
+        // A narrative that is too sparse should not be padded with generated
+        // credits. Prefer an intact, coherent encyclopedia summary instead.
+        if (count < 115) {
+          const summary = summarySentences.map(x => ensurePeriod(cleanText(x)))
+            .filter(x => x.length >= 45 && !orphanStart.test(x) &&
+              !isCatalogDump(x, titleHits(x)));
+          const distinct = []; const keys = new Set();
+          for (const x of summary) {
+            const k = norm(x);
+            if (!keys.has(k)) { distinct.push(x); keys.add(k); }
+          }
+          const summaryText = distinct.join(' ');
+          if (words(summaryText) >= 75) return summaryText;
+        }
+        return [intro, ...picked].filter(Boolean).join(' ').trim();
+      }
+      const sourceNarrative98 = composeSourceNarrative98();
+      if (words(sourceNarrative98) >= 75) return sourceNarrative98;
+
       /*
         PERSON 85 — GENERIC BIOGRAPHY EDITORIAL PASS
         Apply to all non-curated actors. Keep meaningful sourced career
