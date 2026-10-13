@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 89
+      REELWISE PERSON API — PERSON 90
       ============================================================
 
       STAR PROFILE
@@ -1624,86 +1624,104 @@
         }
         return output87.join(' ');
       }
-      /* PERSON 89 — MILESTONE-PRESERVING GENERIC COMPOSER.
-         Source context is never traded away for shorter prose. Keep distinct
-         released credits, avoid repeated film titles in supplemental material,
-         and place contextual award paragraphs by their relevant film year. */
-      function composeGenericCareer89(sourceSentences) {
+      /* PERSON 90 — STRUCTURED GENERIC CAREER COMPOSER.
+         Collect source-backed milestones and released acting credits first;
+         assemble by film year, rather than editing a completed paragraph.
+         Keep curated profiles above entirely unchanged. */
+      function composeGenericCareer90(sourceSentences) {
         const now = new Date();
-        const today = now.toISOString().slice(0,10);
-        const released = Object.values(timeline.byDecade || {}).flat()
-          .filter(m => m && m.title && Number(m.year)>=1900 &&
-            Number(m.year)<=now.getUTCFullYear() && isBiographyActingCredit(m) &&
-            (!m.release_date || m.release_date<=today));
+        const today = now.toISOString().slice(0, 10);
+        const credits = Object.values(timeline.byDecade || {}).flat()
+          .filter(m => m && m.title && Number(m.year) >= 1900 &&
+            Number(m.year) <= now.getUTCFullYear() &&
+            isBiographyActingCredit(m) &&
+            (!m.release_date || m.release_date <= today));
         const base = sourceSentences.map(cleanText).filter(Boolean);
         if (!base.length) return '';
-        const intro = base.shift();
-        const hits = sentence => released.filter(m=>sentenceMentionsTitle(sentence,m.title));
-        const family = m=>family74(m.title);
-        const yearOf = sentence => {
-          const films=hits(sentence);
-          if (films.length) return Math.min(...films.map(m=>Number(m.year)));
-          const years=[...sentence.matchAll(/\b(?:19|20)\d{2}\b/g)]
-            .map(x=>Number(x[0])).filter(y=>y<=now.getUTCFullYear());
-          return years.length ? Math.min(...years) : 9999;
-        };
-        const context=/\b(?:award|oscar|nomina|won|winning|breakthrough|breakout|acclaim|direct|portray|role|starred as|first|known for)\b/i;
-        const catalog=/\b(?:other notable|filmography also|further film|additional film|other film work|other projects|film appearances|film work included|appeared in)\b/i;
-        const seenSentences=new Set();
-        const chapters=[];
+        const opening = base.shift();
+        const matches = sentence => credits.filter(m => sentenceMentionsTitle(sentence,m.title));
+        const family = m => family74(m.title);
+        const yearIn = sentence => [...sentence.matchAll(/\b(?:19|20)\d{2}\b/g)]
+          .map(x=>Number(x[0])).filter(y=>y<=now.getUTCFullYear());
+        const milestone = /\b(?:award|oscar|nomina|won|winning|breakthrough|breakout|acclaim|direct|portray|role|starred as|first|known for|rose to fame)\b/i;
+        const catalog = /\b(?:other notable|filmography also|further film|additional film|other film work|other projects|film appearances|film work included|appeared in|screen credits|later film work)\b/i;
+        const events=[]; const seen=new Set(); const covered=new Set(matches(opening).map(family));
+        const overview=[];
         for (const [index,sentence] of base.entries()) {
           const key=norm(sentence);
-          if (!key || seenSentences.has(key)) continue;
-          seenSentences.add(key);
-          chapters.push({sentence,index,year:yearOf(sentence),films:hits(sentence),
-            contextual:context.test(sentence),catalog:catalog.test(sentence)});
-        }
-        // Keep every distinct source milestone, even when it mentions a film
-        // already covered in a different achievement sentence. Never discard
-        // an award statement merely because its movie title is repeated.
-        const used=new Set(hits(intro).map(family));
-        const selected=[];
-        for (const chapter of chapters.sort((a,b)=>a.year-b.year || a.index-b.index)) {
-          const fresh=chapter.films.filter(m=>!used.has(family(m)));
-          if (chapter.catalog && !chapter.contextual && chapter.films.length && !fresh.length)
+          if (!key || seen.has(key)) continue;
+          seen.add(key);
+          const films=matches(sentence);
+          const years=films.length ? [...new Set(films.map(m=>Number(m.year)))].sort((a,b)=>a-b) : yearIn(sentence);
+          const isContext=milestone.test(sentence);
+          // A cross-decade award overview belongs at the end as a career
+          // retrospective, not in 1987 merely because that is its first year.
+          if (isContext && years.length>1 && years[years.length-1]-years[0]>9 &&
+              /\b(?:oscar|award|nomina)\b/i.test(sentence)) {
+            overview.push(sentence);
+            films.forEach(m=>covered.add(family(m)));
             continue;
-          if (chapter.catalog && !chapter.contextual && chapter.films.length &&
-              fresh.length<chapter.films.length) {
-            // Preserve the missing films as factual credits, without repeating
-            // titles that have already appeared in the source narrative.
-            const labels=fresh.map(m=>`${m.title} (${m.year})`);
-            if (labels.length) selected.push({year:Math.min(...fresh.map(m=>m.year)),
-              index:chapter.index, sentence:`His other screen credits included ${labels.join(', ')}.`});
-          } else selected.push(chapter);
-          chapter.films.forEach(m=>used.add(family(m)));
+          }
+          if (catalog.test(sentence) && !isContext) {
+            // Save the actual credits, never the mechanically worded list.
+            continue;
+          }
+          events.push({sentence,year:years.length?years[0]:9999,index,films,context:isContext});
+          films.forEach(m=>covered.add(family(m)));
         }
-        // Supplement only with released, high-signal credits not already
-        // narrated. Do not require two credits in a decade: that previously
-        // dropped important single-film milestones such as Unforgiven.
-        const ranked=released.filter(m=>!used.has(family(m)))
-          .sort((a,b)=>score73(b)-score73(a));
-        const extras=[]; const perDecade=new Map();
+        // Source-mentioned credits are protected, even if earlier editorial
+        // cleanup dropped their generic sentence. Fill remaining career gaps
+        // with ranked, released acting credits, capped per decade.
+        const sourceText=sourceSentences.join(' ');
+        const protectedFilms=credits.filter(m=>sentenceMentionsTitle(sourceText,m.title));
+        const ranked=[...protectedFilms,...credits.sort((a,b)=>score73(b)-score73(a))];
+        const supplemental=[]; const decadeCount=new Map(); const added=new Set();
         for (const m of ranked) {
-          const f=family(m), d=Math.floor(m.year/10);
-          if (!f || used.has(f) || score73(m)<105 || (perDecade.get(d)||0)>=3) continue;
-          extras.push(m); used.add(f); perDecade.set(d,(perDecade.get(d)||0)+1);
-          if (extras.length>=9) break;
+          const f=family(m), d=Math.floor(Number(m.year)/10);
+          if (!f || covered.has(f) || added.has(f)) continue;
+          const protectedCredit=protectedFilms.some(x=>family(x)===f);
+          if (!protectedCredit && score73(m)<105) continue;
+          if ((decadeCount.get(d)||0)>=3) continue;
+          supplemental.push(m); added.add(f);
+          decadeCount.set(d,(decadeCount.get(d)||0)+1);
+          if (supplemental.length>=12) break;
         }
-        const grouped=new Map();
-        for (const m of extras.sort((a,b)=>a.year-b.year)) {
-          const decade=Math.floor(m.year/10);
-          if (!grouped.has(decade)) grouped.set(decade,[]);
-          grouped.get(decade).push(m);
+        // Group only nearby years; do not combine decades in one sentence.
+        supplemental.sort((a,b)=>a.year-b.year);
+        let group=[];
+        const flush=()=>{
+          if (!group.length) return;
+          const labels=group.map(m=>`${m.title} (${m.year})`);
+          const joined=labels.length===1?labels[0]:labels.length===2?labels.join(' and '):
+            `${labels.slice(0,-1).join(', ')}, and ${labels[labels.length-1]}`;
+          events.push({year:Number(group[0].year),index:10000,
+            sentence:`His films also included ${joined}.`,films:[...group],context:false});
+          group=[];
+        };
+        for (const m of supplemental) {
+          if (group.length && (m.year-group[group.length-1].year>4 || group.length>=3)) flush();
+          group.push(m);
         }
-        for (const [decade,films] of grouped) {
-          const labels=films.map(m=>`${m.title} (${m.year})`);
-          selected.push({year:Math.min(...films.map(m=>m.year)),index:10000,
-            sentence:`His screen credits in this period also included ${labels.join(', ')}.`});
+        flush();
+        events.sort((a,b)=>a.year-b.year || Number(!a.context)-Number(!b.context) || a.index-b.index);
+        const output=[opening]; const already=new Set(matches(opening).map(family));
+        for (const event of events) {
+          const fresh=event.films.filter(m=>!already.has(family(m)));
+          // Source-backed context (especially awards) is never removed just
+          // because another chapter mentions the same film.
+          if (!event.context && event.films.length && !fresh.length) continue;
+          if (!event.context && fresh.length!==event.films.length) {
+            const labels=fresh.map(m=>`${m.title} (${m.year})`);
+            output.push(`His films also included ${labels.join(' and ')}.`);
+          } else output.push(event.sentence);
+          event.films.forEach(m=>already.add(family(m)));
         }
-        selected.sort((a,b)=>a.year-b.year || a.index-b.index);
-        return [intro,...selected.map(x=>x.sentence)].join(' ');
+        // Career-spanning award summaries are retrospective, never a
+        // chronological chapter attached to the earliest nomination.
+        for (const sentence of overview) if (!output.includes(sentence)) output.push(sentence);
+        return output.join(' ');
       }
-      story = composeGenericCareer89(published79);
+      story = composeGenericCareer90(published79);
       /* Long, complete biographies are preferable to missing signature work. */
       if (words(story) >= 35) return story;
 
