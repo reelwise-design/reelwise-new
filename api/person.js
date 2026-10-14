@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 109
+      REELWISE PERSON API — PERSON 110
       ============================================================
 
       STAR PROFILE
@@ -762,90 +762,112 @@
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
-      // PERSON 109 — STRUCTURED, SOURCE-GROUNDED CAREER TIMELINE
-      // A credit proves participation, not importance. No popularity-based
-      // promotion, decade quotas, fabricated breakthroughs or award outcomes.
-      const today = new Date().toISOString().slice(0,10);
-      const normalize = t => cleanText(t).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
-      const films = validMovieCredits(credits).filter(isBiographyActingCredit)
-        .filter(m=>m.release_date && m.release_date<=today)
-        .map(m=>({...m,year:yearFromDate(m.release_date)})).filter(m=>m.year);
-      const source = cleanText(wikipediaExtract || wikipediaSummary || person?.biography || "");
+      // PERSON 110: source-backed career timeline and narrative composer.
+      // No decade quotas, popularity selection, or invented award outcomes.
+      const today = new Date().toISOString().slice(0, 10);
+      const normTitle = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const creditsByTitle = new Map();
+      for (const m of validMovieCredits(credits).filter(isBiographyActingCredit)) {
+        const year = yearFromDate(m.release_date);
+        if (!year || !m.release_date || m.release_date > today) continue;
+        const key = normTitle(m.title);
+        if (!creditsByTitle.has(key)) creditsByTitle.set(key, { ...m, year });
+      }
+      const films = [...creditsByTitle.values()];
       const summary = cleanText(wikipediaSummary || person?.biography || "");
-      const sentences = sentenceSplit(source);
-      const identity = [...sentenceSplit(summary),...sentences].find(t=>
-        t.toLowerCase().startsWith(name.toLowerCase()) &&
-        /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) &&
-        t.length<240);
-      const intro = ensurePeriod(identity
-        ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi,"")
-        : `${name} ${person?.deathday?"was":"is"} a film and television performer.`);
-      const titleMention = (text,m) => {
-        const title=cleanText(m.title);
-        const escaped=title.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
-        if(normalize(title).length<6)
-          return new RegExp(`\\b${escaped}\\s*\\(${m.year}\\)`,"i").test(text);
-        return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`,"i").test(text);
+      const extract = cleanText(wikipediaExtract || "");
+      const source = extract.length > summary.length ? extract : summary;
+      const sourceSentences = sentenceSplit(source);
+      const intro = [...sentenceSplit(summary), ...sourceSentences].find(t =>
+        t.toLowerCase().startsWith(name.toLowerCase()) && t.length < 230 &&
+        /\b(actor|actress|comedian|filmmaker|director|producer|performer|narrator)\b/i.test(t)
+      );
+      const identity = intro ? ensurePeriod(intro.replace(/\s*\((?:born|died)[^)]*\)/gi, "")) :
+        `${name} ${person?.deathday ? "was" : "is"} an actor and performer.`;
+      const titleIn = (sentence, m) => {
+        const title = cleanText(m.title);
+        const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        if (normTitle(title).length < 6) return new RegExp(`\\b${escaped}\\s*\\(${m.year}\\)`, "i").test(sentence);
+        return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(sentence);
       };
-      const uniqueFilms=[...new Map(films.map(m=>[normalize(m.title),m])).values()];
-      const timeline=[];
-      const seen=new Set();
-      for(const raw of sentences){
-        const text=cleanText(raw), key=normalize(text);
-        if(text.length<35||text.length>480||seen.has(key))continue;
-        if(/^(filmography|references|external links|personal life)\b/i.test(text))continue;
-        const matches=uniqueFilms.filter(m=>titleMention(text,m));
-        if(!matches.length)continue;
-        const isList=matches.length>3 ||
-          /\b(?:films include|films included|also performed in|also appeared in|other films|other roles|credits include|acted in the action films)\b/i.test(text);
-        const breakthrough=/\b(breakthrough|breakout|rose to (?:international |widespread )?(?:fame|prominence)|gained recognition)\b/i.test(text);
-        const award=/\b(academy award|oscar|golden globe|bafta|nominat(?:ed|ion)|won)\b/i.test(text);
-        const signature=/\b(best known|defining|signature|iconic|critical acclaim|critically acclaimed|praised|portray(?:ed|al)|performance|starring|starred)\b/i.test(text);
-        const type=breakthrough?"breakthrough":award?"recognition":signature?"defining work":"career credit";
-        timeline.push({year:Math.min(...matches.map(m=>m.year)),text,matches,type,isList});
-        seen.add(key);
-      }
-      timeline.sort((a,b)=>a.year-b.year);
-      const paragraphs=[intro], used=new Set();
-      let previousType="";
-      for(const item of timeline){
-        if(item.isList)continue; // never turn a source filmography into invented prose
-        if(item.type==="career credit" && paragraphs.length>5)continue;
-        const filmKeys=item.matches.map(m=>normalize(m.title));
-        if(filmKeys.every(k=>used.has(k)))continue;
-        // Award claims mentioning multiple films may misattribute a win.
-        if(item.type==="recognition" && item.matches.length>1)continue;
-        let prose=item.text
-          .replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name)
-          .replace(/^His\b/,`${name}'s`).replace(/^Her\b/,`${name}'s`);
-        if(normalize(prose)===normalize(intro))continue;
-        paragraphs.push(ensurePeriod(prose));
-        filmKeys.forEach(k=>used.add(k));
-        previousType=item.type;
-        if(paragraphs.length>=11)break;
-      }
-      // A complete source overview is safer than a two-line bio when detailed
-      // career evidence is absent. Do not substitute an awards-only lead.
-      if(paragraphs.length<4){
-        const overview=sentenceSplit(source).filter(t=>
-          t.length>=35 && t.length<=420 &&
-          /\b(film|role|starred|played|portrayed|performance|career|breakthrough|acting)\b/i.test(t) &&
-          !/\b(?:readers' poll|lifetime achievement|honorary)\b/i.test(t) &&
-          !/\b(?:films include|also performed in|credits include)\b/i.test(t));
-        for(const t of overview){
-          if(paragraphs.length>=7)break;
-          if(!paragraphs.some(p=>normalize(p)===normalize(t)))
-            paragraphs.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name)));
+      const timeline = new Map();
+      const strength = { breakthrough: 5, win: 5, nomination: 4, signature: 3, notable: 2, credit: 1 };
+      for (const sentence of sourceSentences) {
+        if (sentence.length < 35 || sentence.length > 650) continue;
+        if (/^(?:references|external links|filmography|personal life)\b/i.test(sentence)) continue;
+        const mentioned = films.filter(m => titleIn(sentence, m));
+        if (!mentioned.length || mentioned.length > 12) continue;
+        const breakthrough = /\b(breakthrough|breakout|rose to (?:fame|prominence)|gained (?:widespread|international) recognition)\b/i.test(sentence);
+        const award = /\b(academy award|oscar|golden globe|bafta)\b/i.test(sentence);
+        const nominated = /\b(nominat(?:ed|ion|ions)|oscar-nominated)\b/i.test(sentence);
+        const won = /\b(won|winning|win)\b/i.test(sentence);
+        const signature = /\b(best known|defining|signature|iconic|acclaimed|praised|critical acclaim)\b/i.test(sentence);
+        const awardName = /\b(academy award|oscar)\b/i.test(sentence) ? "Academy Award" :
+          /\bgolden globe\b/i.test(sentence) ? "Golden Globe" : /\bbafta\b/i.test(sentence) ? "BAFTA" : "";
+        for (const m of mentioned) {
+          // A win or nomination spanning multiple titles is ambiguous unless
+          // the sentence explicitly describes a common nomination list.
+          const sharedNominations = mentioned.length > 1 && nominated &&
+            /\b(nominated for|nominations? for|oscar-nominated for)\b/i.test(sentence) && !won;
+          let type = "credit";
+          if (breakthrough && mentioned.length === 1) type = "breakthrough";
+          else if (award && won && mentioned.length === 1 && !nominated) type = "win";
+          else if (award && nominated && (mentioned.length === 1 || sharedNominations)) type = "nomination";
+          else if (signature && mentioned.length <= 2) type = "signature";
+          else if (/\b(starred|portrayed|played|role|performance|appeared)\b/i.test(sentence)) type = "notable";
+          if (type === "credit" && mentioned.length > 3) continue;
+          const key = normTitle(m.title);
+          const old = timeline.get(key);
+          const item = { movie: m, type, awardName, evidence: sentence };
+          if (!old || strength[type] > strength[old.type]) timeline.set(key, item);
         }
       }
-      // Include one relevant narration/legacy sentence only after career coverage.
-      if(paragraphs.length>=4){
-        const legacy=sentences.find(t=>t.length>=45 && t.length<=320 &&
-          /\b(narrat(?:ed|ion|or)|documentar(?:y|ies))\b/i.test(t) &&
-          !paragraphs.some(p=>normalize(p)===normalize(t)));
-        if(legacy)paragraphs.push(ensurePeriod(legacy));
+      // An explicit film-credit mention is weaker than a career milestone.
+      // Never promote a movie based on TMDB popularity or decade alone.
+      const items = [...timeline.values()].filter(x => x.type !== "credit")
+        .sort((a,b) => a.movie.year-b.movie.year || strength[b.type]-strength[a.type]);
+      const joinTitles = values => values.length === 1 ? values[0] :
+        values.length === 2 ? values.join(" and ") :
+        `${values.slice(0,-1).join(", ")}, and ${values[values.length-1]}`;
+      const filmLabel = x => `${x.movie.title} (${x.movie.year})`;
+      const parts = [identity];
+      const group = [];
+      const flushGroup = () => {
+        if (!group.length) return;
+        const first = group[0].movie.year;
+        const labels = group.map(filmLabel);
+        parts.push(`${name}'s other documented screen work around ${first} included ${joinTitles(labels)}.`);
+        group.length = 0;
+      };
+      for (const item of items) {
+        if (item.type === "notable") {
+          if (group.length && (group.length >= 3 || item.movie.year-group[0].movie.year > 5)) flushGroup();
+          group.push(item);
+          continue;
+        }
+        flushGroup();
+        const label = filmLabel(item);
+        if (item.type === "breakthrough") parts.push(`${label} marked a breakthrough in ${name}'s screen career.`);
+        else if (item.type === "win" && item.awardName)
+          parts.push(`${name} won a${/^[AEIOU]/i.test(item.awardName) ? "n" : ""} ${item.awardName} for ${label}.`);
+        else if (item.type === "nomination" && item.awardName)
+          parts.push(`${name} received a${/^[AEIOU]/i.test(item.awardName) ? "n" : ""} ${item.awardName} nomination for ${label}.`);
+        else if (item.type === "signature")
+          parts.push(`${label} became another recognized part of ${name}'s screen career.`);
       }
-      return uniqueStrings(paragraphs).join(" ");
+      flushGroup();
+      // If a source gives too few individually attributable film milestones,
+      // retain a career-focused source overview, never an awards-only summary.
+      if (parts.length < 4) {
+        const career = sourceSentences.filter(t => t.length > 45 && t.length < 400 &&
+          /\b(acting|stage|television|career|breakthrough|starred|portrayed|film|role)\b/i.test(t) &&
+          !/\b(readers' poll|lifetime achievement|honorary)\b/i.test(t) &&
+          !t.toLowerCase().startsWith(name.toLowerCase() + " (born"));
+        for (const t of career.slice(0, 5)) {
+          if (!parts.some(p => normTitle(p) === normTitle(t))) parts.push(ensurePeriod(t));
+        }
+      }
+      return uniqueStrings(parts).join(" ");
 
     }
 
