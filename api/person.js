@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 108
+      REELWISE PERSON API — PERSON 109
       ============================================================
 
       STAR PROFILE
@@ -762,91 +762,90 @@
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
-      // PERSON 108 — GENERIC CAREER STORY FROM PERSON 106
-      // Use source-backed film mentions, with no popularity/decade filler.
-      const normalize = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
+      // PERSON 109 — STRUCTURED, SOURCE-GROUNDED CAREER TIMELINE
+      // A credit proves participation, not importance. No popularity-based
+      // promotion, decade quotas, fabricated breakthroughs or award outcomes.
       const today = new Date().toISOString().slice(0,10);
+      const normalize = t => cleanText(t).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
       const films = validMovieCredits(credits).filter(isBiographyActingCredit)
-        .filter(movie => movie.release_date && movie.release_date <= today)
-        .map(movie => ({...movie,year:yearFromDate(movie.release_date)}))
-        .filter(movie => movie.year);
+        .filter(m=>m.release_date && m.release_date<=today)
+        .map(m=>({...m,year:yearFromDate(m.release_date)})).filter(m=>m.year);
+      const source = cleanText(wikipediaExtract || wikipediaSummary || person?.biography || "");
       const summary = cleanText(wikipediaSummary || person?.biography || "");
-      const extract = cleanText(wikipediaExtract || "");
-      const source = extract.length > summary.length ? extract : summary;
       const sentences = sentenceSplit(source);
-      const intro = sentenceSplit(summary).find(sentence =>
-        sentence.toLowerCase().startsWith(name.toLowerCase()) &&
-        /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(sentence)
-      ) || `${name} ${person?.deathday ? "was" : "is"} a film and television performer.`;
-      const mention = (sentence,movie) => {
-        const title=cleanText(movie.title);
-        if(!title)return false;
+      const identity = [...sentenceSplit(summary),...sentences].find(t=>
+        t.toLowerCase().startsWith(name.toLowerCase()) &&
+        /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) &&
+        t.length<240);
+      const intro = ensurePeriod(identity
+        ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi,"")
+        : `${name} ${person?.deathday?"was":"is"} a film and television performer.`);
+      const titleMention = (text,m) => {
+        const title=cleanText(m.title);
         const escaped=title.replace(/[.*+?^${}()|[\]\\]/g,"\\$&");
         if(normalize(title).length<6)
-          return new RegExp(`\\b${escaped}\\s*\\(${movie.year}\\)`,"i").test(sentence);
-        return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`,"i").test(sentence);
+          return new RegExp(`\\b${escaped}\\s*\\(${m.year}\\)`,"i").test(text);
+        return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`,"i").test(text);
       };
       const uniqueFilms=[...new Map(films.map(m=>[normalize(m.title),m])).values()];
-      const evidence=[];
+      const timeline=[];
+      const seen=new Set();
       for(const raw of sentences){
-        const text=cleanText(raw);
-        if(text.length<35 || text.length>550)continue;
-        if(/^(?:filmography|references|external links|personal life)\b/i.test(text))continue;
-        const matches=uniqueFilms.filter(movie=>mention(text,movie));
+        const text=cleanText(raw), key=normalize(text);
+        if(text.length<35||text.length>480||seen.has(key))continue;
+        if(/^(filmography|references|external links|personal life)\b/i.test(text))continue;
+        const matches=uniqueFilms.filter(m=>titleMention(text,m));
         if(!matches.length)continue;
-        const significant=/\b(breakthrough|breakout|acclaim|acclaimed|prominence|fame|award|oscar|nomination|nominated|won|winning|portrayed|performance|role|starred|played|success)\b/i.test(text);
-        const listLike=matches.length>=4 || /\b(?:also performed in|films include|also appeared in|acted in the action films|other films|other roles|credits include)\b/i.test(text);
-        const earliest=Math.min(...matches.map(m=>m.year));
-        evidence.push({text,matches,earliest,significant,listLike});
+        const isList=matches.length>3 ||
+          /\b(?:films include|films included|also performed in|also appeared in|other films|other roles|credits include|acted in the action films)\b/i.test(text);
+        const breakthrough=/\b(breakthrough|breakout|rose to (?:international |widespread )?(?:fame|prominence)|gained recognition)\b/i.test(text);
+        const award=/\b(academy award|oscar|golden globe|bafta|nominat(?:ed|ion)|won)\b/i.test(text);
+        const signature=/\b(best known|defining|signature|iconic|critical acclaim|critically acclaimed|praised|portray(?:ed|al)|performance|starring|starred)\b/i.test(text);
+        const type=breakthrough?"breakthrough":award?"recognition":signature?"defining work":"career credit";
+        timeline.push({year:Math.min(...matches.map(m=>m.year)),text,matches,type,isList});
+        seen.add(key);
       }
-      evidence.sort((a,b)=>a.earliest-b.earliest);
-      const parts=[ensurePeriod(intro)];
-      const covered=new Set();
-      let narrativeCount=0;
-      for(const item of evidence){
-        const fresh=item.matches.filter(m=>!covered.has(normalize(m.title)));
-        if(!fresh.length)continue;
-        if(item.listLike){
-          // Retain career coverage without reproducing Wikipedia's long lists.
-          // A source-supported appearance is not called a breakthrough or award.
-          const picked=fresh.slice(0,3);
-          const titles=picked.map(m=>`${m.title} (${m.year})`);
-          if(!titles.length)continue;
-          const phrase=titles.length===1?titles[0]:titles.length===2?
-            titles.join(" and "):`${titles[0]}, ${titles[1]}, and ${titles[2]}`;
-          parts.push(ensurePeriod(`${name}'s screen work during this period included ${phrase}`));
-          picked.forEach(m=>covered.add(normalize(m.title)));
-          continue;
-        }
-        // Award statements are preserved exactly, never generalized to other titles.
-        if(item.matches.length>1 && /\b(award|oscar|nominated|nomination|won|winning)\b/i.test(item.text))
-          continue;
-        if(!item.significant && narrativeCount>=5)continue;
-        let prose=item.text.replace(/^He\b/,name).replace(/^She\b/,name)
-          .replace(/^They\b/,name).replace(/^His\b/,`${name}'s`)
-          .replace(/^Her\b/,`${name}'s`);
+      timeline.sort((a,b)=>a.year-b.year);
+      const paragraphs=[intro], used=new Set();
+      let previousType="";
+      for(const item of timeline){
+        if(item.isList)continue; // never turn a source filmography into invented prose
+        if(item.type==="career credit" && paragraphs.length>5)continue;
+        const filmKeys=item.matches.map(m=>normalize(m.title));
+        if(filmKeys.every(k=>used.has(k)))continue;
+        // Award claims mentioning multiple films may misattribute a win.
+        if(item.type==="recognition" && item.matches.length>1)continue;
+        let prose=item.text
+          .replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name)
+          .replace(/^His\b/,`${name}'s`).replace(/^Her\b/,`${name}'s`);
         if(normalize(prose)===normalize(intro))continue;
-        parts.push(ensurePeriod(prose));
-        fresh.forEach(m=>covered.add(normalize(m.title)));
-        narrativeCount++;
+        paragraphs.push(ensurePeriod(prose));
+        filmKeys.forEach(k=>used.add(k));
+        previousType=item.type;
+        if(paragraphs.length>=11)break;
       }
-      // Narration and honorary awards belong after the acting-career story,
-      // not in place of it. Include only independently sourced sentences.
-      const supplemental=sentences.filter(raw=>{
-        const t=cleanText(raw);
-        return t.length>=45 && t.length<=380 &&
-          /\b(narrat(?:ed|ion|or)|documentar(?:y|ies)|lifetime achievement|Kennedy Center Honor)\b/i.test(t) &&
-          !parts.some(p=>normalize(p)===normalize(t)) &&
-          !/\b(?:also performed in|films include|credits include)\b/i.test(t);
-      }).slice(0,2);
-      if(parts.length<3){
-        // Do not replace a thin story with an awards-only introductory summary.
-        const career=sentences.filter(t=>t.length>=45 && t.length<=380 &&
-          /\b(film|role|starred|played|portrayed|performance|career|breakthrough)\b/i.test(t) &&
-          !/\b(?:honorary|lifetime achievement|readers' poll)\b/i.test(t)).slice(0,6);
-        return uniqueStrings([ensurePeriod(intro),...career.map(ensurePeriod)]).join(" ");
+      // A complete source overview is safer than a two-line bio when detailed
+      // career evidence is absent. Do not substitute an awards-only lead.
+      if(paragraphs.length<4){
+        const overview=sentenceSplit(source).filter(t=>
+          t.length>=35 && t.length<=420 &&
+          /\b(film|role|starred|played|portrayed|performance|career|breakthrough|acting)\b/i.test(t) &&
+          !/\b(?:readers' poll|lifetime achievement|honorary)\b/i.test(t) &&
+          !/\b(?:films include|also performed in|credits include)\b/i.test(t));
+        for(const t of overview){
+          if(paragraphs.length>=7)break;
+          if(!paragraphs.some(p=>normalize(p)===normalize(t)))
+            paragraphs.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name)));
+        }
       }
-      return uniqueStrings([...parts,...supplemental.map(ensurePeriod)]).join(" ");
+      // Include one relevant narration/legacy sentence only after career coverage.
+      if(paragraphs.length>=4){
+        const legacy=sentences.find(t=>t.length>=45 && t.length<=320 &&
+          /\b(narrat(?:ed|ion|or)|documentar(?:y|ies))\b/i.test(t) &&
+          !paragraphs.some(p=>normalize(p)===normalize(t)));
+        if(legacy)paragraphs.push(ensurePeriod(legacy));
+      }
+      return uniqueStrings(paragraphs).join(" ");
 
     }
 
