@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 104
+      REELWISE PERSON API — PERSON 106
       ============================================================
 
       STAR PROFILE
@@ -762,82 +762,76 @@
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
-      // PERSON 105 — EVIDENCE-FIRST GENERIC BIOGRAPHY
-      // Never promote a film just to populate a decade or reach a quota.
-      // Curated profiles above and the accolades endpoint below are unchanged.
-      const now = new Date().toISOString().slice(0, 10);
-      const normalize = value => cleanText(value).toLowerCase()
-        .replace(/[^a-z0-9]+/g, " ").trim();
-      const films = validMovieCredits(credits)
-        .filter(isBiographyActingCredit)
-        .filter(m => m.release_date && m.release_date <= now)
-        .map(m => ({ ...m, year: yearFromDate(m.release_date) }))
-        .filter(m => m.year);
-      const byTitle = new Map();
-      for (const film of films) {
-        const key = normalize(film.title);
-        if (!byTitle.has(key)) byTitle.set(key, film);
-      }
-      const all = [...byTitle.values()];
-      const source = cleanText(wikipediaExtract || wikipediaSummary || person?.biography || "");
+      // PERSON 106 — SOURCE-LED CAREER NARRATIVE
+      // Prefer factual career sentences to keyword-only filtering.
+      // Do not invent milestones or elevate films solely to fill decades.
+      const normalize = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+      const today = new Date().toISOString().slice(0,10);
+      const films = validMovieCredits(credits).filter(isBiographyActingCredit)
+        .filter(movie => movie.release_date <= today)
+        .map(movie => ({...movie, year:yearFromDate(movie.release_date)}))
+        .filter(movie => movie.year);
       const summary = cleanText(wikipediaSummary || person?.biography || "");
-      const sentences = sentenceSplit(source);
-      const introSentence = [...sentenceSplit(summary), ...sentences].find(sentence =>
+      const extract = cleanText(wikipediaExtract || "");
+      const source = extract.length > summary.length ? extract : summary;
+      const intro = sentenceSplit(summary).find(sentence =>
         sentence.toLowerCase().startsWith(name.toLowerCase()) &&
-        /\b(?:actor|actress|comedian|filmmaker|director|producer|performer|screenwriter)\b/i.test(sentence) &&
-        sentence.length < 260
-      );
-      const intro = introSentence
-        ? ensurePeriod(introSentence.replace(/\s*\((?:born|died)[^)]*\)/gi, ""))
-        : `${name} ${person?.deathday ? "was" : "is"} a film and television performer.`;
-      // Short titles are ambiguous in ordinary prose: require exact title plus
-      // a parenthesized year or a quoted/italicized mention.
-      const titleMention = (sentence, movie) => {
+        /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter)\b/i.test(sentence)
+      ) || `${name} ${person?.deathday ? "was" : "is"} a film and television performer.`;
+      const mention = (sentence, movie) => {
         const title = cleanText(movie.title);
         if (!title) return false;
         const escaped = title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        // Require a year for short/ambiguous titles.
         if (normalize(title).length < 6)
-          return new RegExp(`(?:["“'‘*])${escaped}(?:["”'’*])|\\b${escaped}\\s*\\(${movie.year}\\)`, "i").test(sentence);
+          return new RegExp(`\\b${escaped}\\s*\\(${movie.year}\\)`, "i").test(sentence);
         return new RegExp(`(^|[^a-z0-9])${escaped}(?=$|[^a-z0-9])`, "i").test(sentence);
       };
-      const significance = /\b(breakthrough|breakout|rose to prominence|rose to fame|gained recognition|critical acclaim|critically acclaimed|widely praised|best known for|signature role|defining role|Academy Award|Oscar|Golden Globe|BAFTA|nominated|nomination)\b/i;
-      const evidence = [];
+      const sentences = sentenceSplit(source);
+      const candidates = [];
+      const seen = new Set();
       for (const sentence of sentences) {
-        if (sentence.length < 35 || sentence.length > 430 || !significance.test(sentence)) continue;
-        if (/\b(?:not|never|unlike|rather than|instead of)\b/i.test(sentence)) continue;
-        const mentioned = all.filter(movie => titleMention(sentence, movie));
-        // Multiple films in the same sentence cannot safely inherit one another's awards.
-        if (mentioned.length !== 1) continue;
-        const movie = mentioned[0];
-        const score = /\b(breakthrough|breakout|rose to prominence|rose to fame)\b/i.test(sentence) ? 3 :
-          /\b(Academy Award|Oscar|Golden Globe|BAFTA|nominated|nomination)\b/i.test(sentence) ? 2 : 1;
-        evidence.push({movie, sentence, score});
+        const text = cleanText(sentence);
+        if (text.length < 35 || text.length > 450 || seen.has(normalize(text))) continue;
+        if (/^(?:filmography|references|external links|awards and nominations|personal life)\b/i.test(text)) continue;
+        const matches = films.filter(movie => mention(text,movie));
+        if (!matches.length) continue;
+        const unique = [...new Map(matches.map(m=>[normalize(m.title),m])).values()];
+        const years = unique.map(m=>m.year);
+        const milestone = /\b(breakthrough|breakout|critical acclaim|acclaimed|best known|prominence|fame|award|oscar|nomination|nominated|starred|portrayed|played|appeared|role|performance|success|directed)\b/i.test(text);
+        const score = (milestone ? 3 : 1) + (unique.length <= 3 ? 1 : 0);
+        candidates.push({text, year:Math.min(...years), score, titles:unique.map(m=>m.title)});
+        seen.add(normalize(text));
       }
-      const milestones = new Map();
-      for (const item of evidence) {
-        const key = normalize(item.movie.title);
-        if (!milestones.has(key) || milestones.get(key).score < item.score)
-          milestones.set(key, item);
+      // The source may contain extensive career prose; preserve chronology
+      // and substantive source sentences rather than imposing a film quota.
+      candidates.sort((a,b)=>a.year-b.year || b.score-a.score);
+      const chosen = [];
+      const covered = new Set();
+      for (const item of candidates) {
+        if (chosen.length >= 12) break; // prose readability, not a film quota
+        const fresh = item.titles.some(title=>!covered.has(normalize(title)));
+        if (!fresh) continue;
+        if (item.score < 3 && chosen.length >= 7) continue;
+        chosen.push(item.text);
+        item.titles.forEach(title=>covered.add(normalize(title)));
       }
-      const ordered = [...milestones.values()].sort((a,b) =>
-        a.movie.year - b.movie.year || b.score - a.score
-      );
-      if (!ordered.length) {
-        // A faithful sourced biography is preferable to fabricated significance.
-        return summary && summary.length > intro.length
-          ? ensurePeriod(summary) : intro;
+      if (chosen.length < 3) {
+        // If source-to-credit matching is sparse, retain the substantial
+        // Wikipedia/TMDB summary rather than publishing a two-sentence bio.
+        if (summary.length >= 300) return ensurePeriod(summary);
+        if (source.length >= 300) {
+          const career = sentenceSplit(source).filter(t =>
+            t.length >= 40 && t.length <= 400 &&
+            !/^(?:filmography|references|external links|personal life)\b/i.test(t)
+          ).slice(0,8);
+          return uniqueStrings([ensurePeriod(intro),...career.map(ensurePeriod)]).join(" ");
+        }
+        return ensurePeriod(summary || intro);
       }
-      const segments = [intro];
-      for (const item of ordered) {
-        // Preserve the original evidence sentence instead of inventing an award
-        // win, a breakthrough, or a causal relationship from a keyword.
-        let sentence = cleanText(item.sentence);
-        sentence = sentence.replace(/^He\b/, name).replace(/^She\b/, name)
-          .replace(/^They\b/, name);
-        if (normalize(sentence) !== normalize(intro))
-          segments.push(ensurePeriod(sentence));
-      }
-      return uniqueStrings(segments).join(" ");
+      const result = [ensurePeriod(intro), ...chosen.map(ensurePeriod)];
+      return uniqueStrings(result).join(" ");
+
     }
 
     /* ============================================================
