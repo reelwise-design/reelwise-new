@@ -809,8 +809,17 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) && t.length < 230);
       const intro = ensurePeriod(identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") :
         `${name} ${person?.deathday ? "was" : "is"} an actor and performer.`);
+      // A source summary may merge two sentences into its introductory chunk.
+      // Never let a context-dependent "that same year" clause into the intro.
+      const safeIntro = /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(intro)
+        ? (() => {
+            const first = intro.split(/\.\s+(?=[A-Z])/)[0];
+            return /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(first)
+              ? `${name} ${person?.deathday ? "was" : "is"} an actor and performer.`
+              : ensurePeriod(first);
+          })() : intro;
       const today = new Date().toISOString().slice(0, 10);
-      const films = [...new Map(validMovieCredits(credits).filter(isActingMovieCredit)
+      const films = [...new Map(validMovieCredits(credits).filter(isBiographyActingCredit)
         .filter(m => m.release_date <= today)
         .map(m => [normalize(m.title), { ...m, year: yearFromDate(m.release_date) }])).values()];
       const esc = v => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -859,7 +868,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         sentence = sentence.split(/\s+and (?:acted|appeared) in\b|\s+as well as the films\b|\s+and the films\b/i)[0];
       }
         const key = normalize(sentence);
-        if (sentence.length < 25 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence)) continue;
+        if (sentence.length < 25 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(sentence)) continue;
         seen.add(key);
         const matched = films.filter(m => mentions(sentence, m));
         // Separate a documented film credit from an unverified award claim.
@@ -897,6 +906,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       if (early) selected.push(early);
       for (const item of items.filter(x => x.year > 0 && x.year < 9998).sort((a,b) => a.year-b.year || b.score-a.score)) {
         if (item.score < 5 || item.narr && !item.award) continue;
+        if (item.matched.length > 5 && !item.award) continue;
         const decade = Math.floor(item.year/10);
         if (selected.filter(x => x.year > 0 && Math.floor(x.year/10) === decade).length >= 6) continue;
         if (!item.award && item.matched.length && item.matched.every(m => covered.has(normalize(m.title)))) continue;
@@ -904,7 +914,29 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         if (selected.length >= 18) break;
       }
       selected.sort((a,b) => a.year-b.year);
-      const output = [intro], used = new Set([normalize(intro)]);
+      // PERSON 151: Give substantial, source-confirmed early/middle film roles
+      // room before a long recent-film inventory. Never label a role a
+      // "breakthrough" merely from popularity, and never invent an award.
+      // Use TMDB acting credits only; preserve source sentences for context.
+      const careerCredits = films.filter(m => m.year && m.year <= Number(today.slice(0,4)))
+        .filter(m => Number(m.vote_count || 0) >= 100 || Number(m.popularity || 0) >= 15);
+      const decades = [...new Set(careerCredits.map(m => Math.floor(m.year/10)))].sort((a,b)=>a-b);
+      const anchorCredits = [];
+      for (const decade of decades) {
+        const pool = careerCredits.filter(m => Math.floor(m.year/10) === decade)
+          .sort((a,b) => movieRecognitionScore(b)-movieRecognitionScore(a));
+        const cap = decade === decades[0] ? 4 : 3;
+        anchorCredits.push(...pool.slice(0,cap));
+      }
+      const sourceMatched = new Set(selected.flatMap(x => x.matched.map(m => normalize(m.title))));
+      const anchorItems = anchorCredits.filter(m => !sourceMatched.has(normalize(m.title)))
+        .map(m => ({sentence: `${name} appeared in ${m.title} (${m.year}).`, matched:[m],
+          year:m.year, score:5, early:false, award:false, narr:false, win:false, neutralCredit:true}));
+      // A film already mentioned by a selected sourced sentence need not be
+      // repeated as an automatically generated credit.
+      selected.push(...anchorItems);
+      selected.sort((a,b) => a.year-b.year || b.score-a.score);
+      const output = [safeIntro], used = new Set([normalize(safeIntro)]);
       let nominationCount = 0;
       let pendingCredits = [];
       let creditGroupCount = 0;
@@ -955,7 +987,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         for (const raw of sentences) {
           const t = cleanText(raw), key = normalize(t);
           if (output.length >= 6) break;
-          if (used.has(key) || isIntro(t) || bad.test(t) || t.length < 45 || t.length > 360) continue;
+          if (used.has(key) || isIntro(t) || bad.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
           if (awardLanguage.test(t) && !verified(t, films.filter(m => mentions(t,m)))) continue;
           if (!/\b(career|acting|film|role|performance|stage|television|starred|portrayed)\b/i.test(t)) continue;
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
