@@ -3207,112 +3207,90 @@ function reelwiseAccoladesShell(safeId,safeName,body,eyebrow="REELWISE ACCOLADES
   `;
 }
 
-function renderPersonAccoladesData(data,safeId,safeName){
-const page=results.querySelector(".accolades-page");
-if(!page)return;
-
-if(!data||data.unavailable){
-  page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
-    '<div class="message">Academy Awards are temporarily unavailable.</div>'
-  );
-  return;
-}
-
-/*
-  person.js can expose the same Academy data as history,
-  academy_awards, academyAwards, or accolades. Normalize all
-  supported shapes here so the profile does not falsely report
-  that an actor has no nominations when valid award data exists.
-*/
-let rawHistory=[];
-
-if(Array.isArray(data.history)&&data.history.length){
-  rawHistory=data.history;
-}else if(Array.isArray(data.academy_awards)&&data.academy_awards.length){
-  rawHistory=data.academy_awards;
-}else if(Array.isArray(data.academyAwards)&&data.academyAwards.length){
-  rawHistory=data.academyAwards;
-}else if(Array.isArray(data.accolades)&&data.accolades.length){
-  rawHistory=data.accolades;
-}
-
-const history=rawHistory.map(item=>{
-  const result=String(item?.result||item?.status||"").trim().toLowerCase();
-  const winner=
-    item?.winner===true ||
-    item?.won===true ||
-    result==="winner" ||
-    result==="won" ||
-    result==="win";
-
+/* Reelwise Person 147 Accolades response adapter. Integrate into index.html
+   after fetching /api/person?id=...&mode=accolades. No HTML is injected. */
+function normalizeReelwiseAccolades(data, expectedPersonId) {
+  if (!data || typeof data !== 'object' || Array.isArray(data)) throw new Error('Invalid Accolades response');
+  const id = Number(data.id);
+  if (!Number.isSafeInteger(id) || id <= 0 || (expectedPersonId !== undefined && id !== Number(expectedPersonId))) {
+    throw new Error('Accolades identity mismatch');
+  }
+  if (data.coverage === 'not_verified') {
+    if (data.confirmed !== false || data.unavailable !== true || data.found !== false ||
+        data.wins !== null || data.nominations !== null || !Array.isArray(data.history) || data.history.length) {
+      throw new Error('Inconsistent unverified Accolades response');
+    }
+    return {
+      state: 'not_verified', title: 'Academy Awards — Not yet verified',
+      message: 'Reelwise has not yet independently verified this performer’s Academy acting-awards history. This does not mean they have zero nominations or wins.',
+      nominations: null, wins: null, history: []
+    };
+  }
+  if (data.coverage !== 'verified_acting_only' || data.confirmed !== true ||
+      data.unavailable !== false || data.found !== true || !Array.isArray(data.history)) {
+    throw new Error('Unexpected Accolades response');
+  }
+  const allowed = new Set(['Best Actor', 'Best Supporting Actor', 'Best Actress', 'Best Supporting Actress']);
+  if (!data.history.length || !data.history.every(x => x && typeof x.movie === 'string' && x.movie.trim() &&
+      Number.isInteger(x.year) && x.year > 1920 && allowed.has(x.category) && typeof x.winner === 'boolean')) {
+    throw new Error('Invalid verified acting-awards history');
+  }
+  if (!Number.isSafeInteger(data.nominations) || !Number.isSafeInteger(data.wins) ||
+      data.nominations !== data.history.length || data.wins !== data.history.filter(x => x.winner === true).length) {
+    throw new Error('Inconsistent verified Accolades totals');
+  }
   return {
-    year:String(item?.year||item?.ceremonyYear||item?.ceremony_year||""),
-    movie:String(item?.movie||item?.work||item?.film||item?.title||"Film"),
-    category:String(item?.category||item?.award||item?.name||"Academy Award"),
-    winner
+    state: 'verified', title: 'Academy Awards — Acting',
+    message: 'Independently verified competitive acting nominations only.',
+    nominations: data.nominations, wins: data.wins, history: data.history
   };
-}).filter(item=>item.year||item.movie!=="Film"||item.category!=="Academy Award");
-
-history.sort((a,b)=>{
-  const ay=parseInt(a.year,10)||0;
-  const by=parseInt(b.year,10)||0;
-  return by-ay;
-});
-
-const calculatedWins=history.filter(item=>item.winner).length;
-const suppliedWins=Number(data.wins);
-const suppliedNominations=Number(data.nominations);
-
-const wins=Number.isFinite(suppliedWins)
-  ?suppliedWins
-  :calculatedWins;
-
-const nominations=Number.isFinite(suppliedNominations)&&suppliedNominations>0
-  ?suppliedNominations
-  :history.length;
-
-const found=
-  data.found===true ||
-  history.length>0 ||
-  wins>0 ||
-  nominations>0;
-
-if(!found||!history.length){
-  page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
-    '<div class="message">'+escapeHTML(safeName||"This performer")+' has not received an Academy Award nomination.</div>'
-  );
-  return;
 }
 
-// We reached the real awards-card path: this is a known-good result.
-reelwiseAccoladesCache.set(String(safeId),data);
-
-const cards=history.map(item=>`
-  <div class="accolade-card ${item.winner?"winner":""}">
-    <div>
-      <div class="accolade-year">${escapeHTML(item.year||"")}</div>
-      <div class="accolade-status">${item.winner?"WINNER":"NOMINEE"}</div>
+function renderPersonAccoladesData(data,safeId,safeName){
+  const page=results.querySelector(".accolades-page");
+  if(!page)return;
+  let normalized;
+  try{
+    normalized=normalizeReelwiseAccolades(data,safeId);
+  }catch(error){
+    page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
+      '<div class="message">Academy Awards information could not be verified right now.</div>');
+    return;
+  }
+  if(normalized.state==="not_verified"){
+    page.innerHTML=reelwiseAccoladesShell(safeId,safeName,
+      '<div class="message">'+escapeHTML(normalized.message)+'</div>',
+      "REELWISE ACCOLADES — NOT YET VERIFIED");
+    return;
+  }
+  // Cache only fully validated awards; never cache a failed or unknown lookup.
+  reelwiseAccoladesCache.set(String(safeId),data);
+  const history=[...normalized.history].sort((a,b)=>b.year-a.year);
+  const cards=history.map(item=>`
+    <div class="accolade-card ${item.winner?"winner":""}">
+      <div>
+        <div class="accolade-year">${escapeHTML(item.year)}</div>
+        <div class="accolade-status">${item.winner?"WINNER":"NOMINEE"}</div>
+      </div>
+      <div>
+        <div class="accolade-movie">${escapeHTML(item.movie)}</div>
+        <div class="accolade-category">${escapeHTML(item.category)}</div>
+      </div>
+    </div>`).join("");
+  const wins=normalized.wins,nominations=normalized.nominations;
+  page.innerHTML=`
+    <button class="back-button" onclick="returnFromPersonAccolades('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
+    <div class="accolades-head">
+      <div class="eyebrow">REELWISE ACCOLADES</div>
+      <h1>${escapeHTML(safeName)}</h1>
+      <div class="award-body-label">ACADEMY AWARDS — ACTING</div>
+      <p class="accolades-scope">${escapeHTML(normalized.message)}</p>
+      <div class="accolades-summary">
+        <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
+        <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
+      </div>
     </div>
-    <div>
-      <div class="accolade-movie">${escapeHTML(item.movie||"Film")}</div>
-      <div class="accolade-category">${escapeHTML(item.category||"Academy Award")}</div>
-    </div>
-  </div>
-`).join("");
-
-page.innerHTML=`
-  <button class="back-button" onclick="returnFromPersonAccolades('${escapeHTML(safeId)}')">← Back to ${escapeHTML(safeName)}</button>
-  <div class="accolades-head">
-    <div class="eyebrow">REELWISE ACCOLADES</div>
-    <h1>${escapeHTML(safeName)}</h1>
-    <div class="award-body-label">ACADEMY AWARDS</div>
-    <div class="accolades-summary">
-      <div class="accolades-stat"><strong>${wins}</strong> ${wins===1?"WIN":"WINS"}</div>
-      <div class="accolades-stat"><strong>${nominations}</strong> ${nominations===1?"NOMINATION":"NOMINATIONS"}</div>
-    </div>
-  </div>
-  <div class="accolades-list">${cards}</div>
-`;
+    <div class="accolades-list">${cards}</div>`;
 }
 
 async function showPersonAccolades(id,name){
@@ -3392,28 +3370,11 @@ async function showPersonAccolades(id,name){
           throw new Error(candidate.error||"Accolades could not be loaded.");
         }
 
-        const history=Array.isArray(candidate?.history)?candidate.history:[];
-
-        /*
-          THREE-STATE ACCOLADES:
-          confirmed:true is a successful lookup even when found:false
-          and history is empty. That is a legitimate zero-nomination
-          performer, not a temporary failure.
-        */
-        if(candidate?.confirmed===true){
-          data=candidate;
-          break;
-        }
-
-        /*
-          Backward compatibility for older successful API responses.
-        */
-        if(candidate?.found && history.length){
-          data=candidate;
-          break;
-        }
-
-        lastError=new Error("Academy Awards data was temporarily unavailable.");
+        // Valid unknown coverage is a completed response, not a network
+        // failure to retry. Invalid or legacy ambiguous responses fail closed.
+        normalizeReelwiseAccolades(candidate,safeId);
+        data=candidate;
+        break;
       }catch(error){
         lastError=error;
       }
