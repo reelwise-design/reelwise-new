@@ -1,3 +1,4 @@
+import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
     const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
     /*
@@ -753,164 +754,15 @@
       );
     }
 
-    // Independently audited Oscar acting records. A separate source's claims
-    // cannot add entries here. Expand only after checking Academy records.
-    // Keyed by TMDB person ID to avoid name collisions.
-    const AUDITED_OSCAR_ACTING = Object.freeze({
-      192: Object.freeze([
-        {movie:"Street Smart", year:1987, category:"Best Supporting Actor", winner:false},
-        {movie:"Driving Miss Daisy", year:1989, category:"Best Actor", winner:false},
-        {movie:"The Shawshank Redemption", year:1994, category:"Best Actor", winner:false},
-        {movie:"Million Dollar Baby", year:2004, category:"Best Supporting Actor", winner:true},
-        {movie:"Invictus", year:2009, category:"Best Actor", winner:false}
-      ]),
-      // Robin Williams: complete Academy acting history (1988, 1990, 1992, 1998 ceremonies).
-      2157: Object.freeze([
-        {movie:"Good Morning, Vietnam", year:1987, category:"Best Actor", winner:false},
-        {movie:"Dead Poets Society", year:1989, category:"Best Actor", winner:false},
-        {movie:"The Fisher King", year:1991, category:"Best Actor", winner:false},
-        {movie:"Good Will Hunting", year:1997, category:"Best Supporting Actor", winner:true}
-      ]),
-      // Sylvester Stallone: complete competitive acting history (1977 and 2016 ceremonies).
-      // Rocky's separate screenplay nomination is not an acting award.
-      16483: Object.freeze([
-        {movie:"Rocky", year:1976, category:"Best Actor", winner:false},
-        {movie:"Creed", year:2015, category:"Best Supporting Actor", winner:false}
-      ]),
-      // Robert De Niro: eight competitive acting nominations, two wins.
-      // His separate Best Picture producer nomination for The Irishman is excluded.
-      380: Object.freeze([
-        {movie:"The Godfather Part II", year:1974, category:"Best Supporting Actor", winner:true},
-        {movie:"Taxi Driver", year:1976, category:"Best Actor", winner:false},
-        {movie:"The Deer Hunter", year:1978, category:"Best Actor", winner:false},
-        {movie:"Raging Bull", year:1980, category:"Best Actor", winner:true},
-        {movie:"Awakenings", year:1990, category:"Best Actor", winner:false},
-        {movie:"Cape Fear", year:1991, category:"Best Actor", winner:false},
-        {movie:"Silver Linings Playbook", year:2012, category:"Best Supporting Actor", winner:false},
-        {movie:"Killers of the Flower Moon", year:2023, category:"Best Supporting Actor", winner:false}
-      ]),
-      // Brad Pitt: four competitive acting nominations, one acting win.
-      // His Best Picture producer nominations/win are excluded.
-      287: Object.freeze([
-        {movie:"12 Monkeys", year:1995, category:"Best Supporting Actor", winner:false},
-        {movie:"The Curious Case of Benjamin Button", year:2008, category:"Best Actor", winner:false},
-        {movie:"Moneyball", year:2011, category:"Best Actor", winner:false},
-        {movie:"Once Upon a Time... in Hollywood", year:2019, category:"Best Supporting Actor", winner:true}
-      ]),
-      // Leonardo DiCaprio: seven competitive acting nominations through the
-      // 98th Academy Awards (2026), one acting win. The Wolf of Wall Street
-      // Best Picture producer nomination is excluded.
-      6193: Object.freeze([
-        {movie:"What's Eating Gilbert Grape", year:1993, category:"Best Supporting Actor", winner:false},
-        {movie:"The Aviator", year:2004, category:"Best Actor", winner:false},
-        {movie:"Blood Diamond", year:2006, category:"Best Actor", winner:false},
-        {movie:"The Wolf of Wall Street", year:2013, category:"Best Actor", winner:false},
-        {movie:"The Revenant", year:2015, category:"Best Actor", winner:true},
-        {movie:"Once Upon a Time... in Hollywood", year:2019, category:"Best Actor", winner:false},
-        {movie:"One Battle After Another", year:2025, category:"Best Actor", winner:false}
-      ]),
-      // Kate Winslet: seven competitive acting nominations, one win.
-      // Cross-checked against the Academy Awards Database (1995–2015 film years).
-      204: Object.freeze([
-        {movie:"Sense and Sensibility", year:1995, category:"Best Supporting Actress", winner:false},
-        {movie:"Titanic", year:1997, category:"Best Actress", winner:false},
-        {movie:"Iris", year:2001, category:"Best Supporting Actress", winner:false},
-        {movie:"Eternal Sunshine of the Spotless Mind", year:2004, category:"Best Actress", winner:false},
-        {movie:"Little Children", year:2006, category:"Best Actress", winner:false},
-        {movie:"The Reader", year:2008, category:"Best Actress", winner:true},
-        {movie:"Steve Jobs", year:2015, category:"Best Supporting Actress", winner:false}
-      ]),
-      // Meryl Streep: 21 competitive acting nominations through the 2018 ceremony, three wins.
-      5064: Object.freeze([
-        {movie:"The Deer Hunter", year:1978, category:"Best Supporting Actress", winner:false},
-        {movie:"Kramer vs. Kramer", year:1979, category:"Best Supporting Actress", winner:true},
-        {movie:"The French Lieutenant's Woman", year:1981, category:"Best Actress", winner:false},
-        {movie:"Sophie's Choice", year:1982, category:"Best Actress", winner:true},
-        {movie:"Silkwood", year:1983, category:"Best Actress", winner:false},
-        {movie:"Out of Africa", year:1985, category:"Best Actress", winner:false},
-        {movie:"Ironweed", year:1987, category:"Best Actress", winner:false},
-        {movie:"A Cry in the Dark", year:1988, category:"Best Actress", winner:false},
-        {movie:"Postcards from the Edge", year:1990, category:"Best Actress", winner:false},
-        {movie:"The Bridges of Madison County", year:1995, category:"Best Actress", winner:false},
-        {movie:"One True Thing", year:1998, category:"Best Actress", winner:false},
-        {movie:"Music of the Heart", year:1999, category:"Best Actress", winner:false},
-        {movie:"Adaptation.", year:2002, category:"Best Supporting Actress", winner:false},
-        {movie:"The Devil Wears Prada", year:2006, category:"Best Actress", winner:false},
-        {movie:"Doubt", year:2008, category:"Best Actress", winner:false},
-        {movie:"Julie & Julia", year:2009, category:"Best Actress", winner:false},
-        {movie:"The Iron Lady", year:2011, category:"Best Actress", winner:true},
-        {movie:"August: Osage County", year:2013, category:"Best Actress", winner:false},
-        {movie:"Into the Woods", year:2014, category:"Best Supporting Actress", winner:false},
-        {movie:"Florence Foster Jenkins", year:2016, category:"Best Actress", winner:false},
-        {movie:"The Post", year:2017, category:"Best Actress", winner:false}
-      ]),
-      // Denzel Washington: nine competitive acting nominations, two acting wins.
-      // Fences Best Picture producer nomination is deliberately excluded.
-      529: Object.freeze([
-        {movie:"Cry Freedom", year:1987, category:"Best Supporting Actor", winner:false},
-        {movie:"Glory", year:1989, category:"Best Supporting Actor", winner:true},
-        {movie:"Malcolm X", year:1992, category:"Best Actor", winner:false},
-        {movie:"The Hurricane", year:1999, category:"Best Actor", winner:false},
-        {movie:"Training Day", year:2001, category:"Best Actor", winner:true},
-        {movie:"Flight", year:2012, category:"Best Actor", winner:false},
-        {movie:"Fences", year:2016, category:"Best Actor", winner:false},
-        {movie:"Roman J. Israel, Esq.", year:2017, category:"Best Actor", winner:false},
-        {movie:"The Tragedy of Macbeth", year:2021, category:"Best Actor", winner:false}
-      ]),
-      // Frances McDormand: six competitive acting nominations, three acting wins.
-      // Best Picture producer credits for Nomadland and Women Talking excluded.
-      3910: Object.freeze([
-        {movie:"Mississippi Burning", year:1988, category:"Best Supporting Actress", winner:false},
-        {movie:"Fargo", year:1996, category:"Best Actress", winner:true},
-        {movie:"Almost Famous", year:2000, category:"Best Supporting Actress", winner:false},
-        {movie:"North Country", year:2005, category:"Best Supporting Actress", winner:false},
-        {movie:"Three Billboards Outside Ebbing, Missouri", year:2017, category:"Best Actress", winner:true},
-        {movie:"Nomadland", year:2020, category:"Best Actress", winner:true}
-      ]),
-      // Viola Davis: four competitive acting nominations, one win.
-      // The Academy's 93rd ceremony fact sheet confirms all four records.
-      19492: Object.freeze([
-        {movie:"Doubt", year:2008, category:"Best Supporting Actress", winner:false},
-        {movie:"The Help", year:2011, category:"Best Actress", winner:false},
-        {movie:"Fences", year:2016, category:"Best Supporting Actress", winner:true},
-        {movie:"Ma Rainey's Black Bottom", year:2020, category:"Best Actress", winner:false}
-      ]),
-      // Tom Hanks: Academy Awards Database nominee search, six competitive
-      // acting nominations, including consecutive Best Actor wins. Film years.
-      31: Object.freeze([
-        {movie:"Big", year:1988, category:"Best Actor", winner:false},
-        {movie:"Philadelphia", year:1993, category:"Best Actor", winner:true},
-        {movie:"Forrest Gump", year:1994, category:"Best Actor", winner:true},
-        {movie:"Saving Private Ryan", year:1998, category:"Best Actor", winner:false},
-        {movie:"Cast Away", year:2000, category:"Best Actor", winner:false},
-        {movie:"A Beautiful Day in the Neighborhood", year:2019, category:"Best Supporting Actor", winner:false}
-      ]),
-      // Tom Cruise: competitive ACTING nominations only; production and honorary awards excluded.
-      500: Object.freeze([
-        {movie:"Born on the Fourth of July", year:1989, category:"Best Actor", winner:false},
-        {movie:"Jerry Maguire", year:1996, category:"Best Actor", winner:false},
-        {movie:"Magnolia", year:1999, category:"Best Supporting Actor", winner:false}
-      ])
-    });
+    // Bulk Oscar data lives in its own generated module, not in person.js.
+    // Require exact TMDB ID AND normalized identity before exposing awards.
     function independentlyAuditedOscars(person) {
-      // Require both the TMDB ID and the expected identity. This also
-      // protects against bad upstream fixtures or mismatched API records.
       const id = Number(person?.id);
       const name = String(person?.name || "").trim().toLowerCase().replace(/\s+/g, " ");
-      if (id === 192 && name === "morgan freeman") return AUDITED_OSCAR_ACTING[192];
-      if (id === 2157 && name === "robin williams") return AUDITED_OSCAR_ACTING[2157];
-      if (id === 500 && name === "tom cruise") return AUDITED_OSCAR_ACTING[500];
-      if (id === 16483 && name === "sylvester stallone") return AUDITED_OSCAR_ACTING[16483];
-      if (id === 380 && name === "robert de niro") return AUDITED_OSCAR_ACTING[380];
-      if (id === 287 && name === "brad pitt") return AUDITED_OSCAR_ACTING[287];
-      if (id === 6193 && name === "leonardo dicaprio") return AUDITED_OSCAR_ACTING[6193];
-      if (id === 204 && name === "kate winslet") return AUDITED_OSCAR_ACTING[204];
-      if (id === 5064 && name === "meryl streep") return AUDITED_OSCAR_ACTING[5064];
-      if (id === 529 && name === "denzel washington") return AUDITED_OSCAR_ACTING[529];
-      if (id === 3910 && name === "frances mcdormand") return AUDITED_OSCAR_ACTING[3910];
-      if (id === 19492 && name === "viola davis") return AUDITED_OSCAR_ACTING[19492];
-      if (id === 31 && name === "tom hanks") return AUDITED_OSCAR_ACTING[31];
-      return [];
+      if (!Number.isSafeInteger(id) || id < 1) return [];
+      const entry = OSCAR_ACTING_PERFORMERS[String(id)];
+      if (!entry || entry.verification !== "academy_audited" || entry.name !== name) return [];
+      return entry.records;
     }
 
     function buildReelwiseBiography({ person, credits, wikipediaSummary, wikipediaExtract }) {
