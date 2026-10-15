@@ -894,6 +894,19 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           const list = names.length===2 ? names.join(' and ') : names.length>2 ? `${names.slice(0,-1).join(', ')}, and ${names.at(-1)}` : names[0];
           sentence = `${name}'s ${context} work includes ${list}.`;
         }
+        // Preserve a source-backed career category when some listed titles
+        // are absent from the current TMDB credit response. Use only matching
+        // acting credits; never assert unsupported titles or awards.
+        if (/\b(?:dramatic roles|comedic roles|dramatic performances|comedy roles)\b/i.test(sentence) &&
+            (sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 2) {
+          const contextualFilms = films.filter(m => mentions(sentence,m)).sort((a,b)=>a.year-b.year);
+          if (contextualFilms.length >= 2) {
+            const chosen=contextualFilms.slice(0,3);
+            const labels=chosen.map(m=>`${m.title} (${m.year})`);
+            const list=labels.length===2?labels.join(' and '):`${labels.slice(0,-1).join(', ')}, and ${labels.at(-1)}`;
+            sentence=`${name}'s ${/dramatic/i.test(sentence)?'dramatic':'comedic'} work includes ${list}.`;
+          }
+        }
         const key = normalize(sentence);
         // Unsupported promotional superlatives are not independently established facts.
         if (/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(sentence)) continue;
@@ -986,6 +999,12 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length < 3 &&
         !/\b(?:married|divorced|children|lawsuit|political|religion)\b/i.test(t)
       );
+      // Preserve an independently stated stage/television origin even when
+      // its source sentence continues into a long film-title inventory.
+      const origin = sentences.map(t => cleanText(t).match(/^((?:He|She|They)\s+(?:began|started) (?:his|her|their) career (?:on|in) (?:the )?(?:stage|theatre|theater|television))\s+before\s+(?:appearing|starring|acting)\s+in\b/i)?.[1]).find(Boolean);
+      if (origin && !output.some(t=>t.includes(origin))) {
+        output.push(ensurePeriod(origin.replace(/^He\\b/,name).replace(/^She\\b/,name).replace(/^They\\b/,name)));
+      }
       let nominationCount = 0;
       // Source-backed statements carry the story. Generic credits bridge gaps,
       // with distinct prose by era, rather than pretending to know impact.
