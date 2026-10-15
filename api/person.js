@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 117
+      REELWISE PERSON API — PERSON 127
       ============================================================
 
       STAR PROFILE
@@ -55,7 +55,9 @@
       const response = await fetch(url, options);
 
       if (!response.ok) {
-        throw new Error(`Request failed: ${response.status}`);
+        const error = new Error(`Request failed: ${response.status}`);
+        error.upstreamStatus = response.status;
+        throw error;
       }
 
       return response.json();
@@ -334,12 +336,17 @@
         `https://api.themoviedb.org/3/person/${personId}` +
         "?language=en-US";
 
-      return fetchJSON(url, {
-        headers: {
-          Authorization: `Bearer ${TOKEN}`,
-          accept: "application/json"
-        }
-      });
+      try {
+        return await fetchJSON(url, {
+          headers: {
+            Authorization: `Bearer ${TOKEN}`,
+            accept: "application/json"
+          }
+        });
+      } catch (error) {
+        error.personLookup = true;
+        throw error;
+      }
     }
 
 
@@ -746,7 +753,158 @@
       );
     }
 
+    // Independently audited Oscar acting records. A separate source's claims
+    // cannot add entries here. Expand only after checking Academy records.
+    // Keyed by TMDB person ID to avoid name collisions.
+    const AUDITED_OSCAR_ACTING = Object.freeze({
+      192: Object.freeze([
+        {movie:"Street Smart", year:1987, category:"Best Supporting Actor", winner:false},
+        {movie:"Driving Miss Daisy", year:1989, category:"Best Actor", winner:false},
+        {movie:"The Shawshank Redemption", year:1994, category:"Best Actor", winner:false},
+        {movie:"Million Dollar Baby", year:2004, category:"Best Supporting Actor", winner:true},
+        {movie:"Invictus", year:2009, category:"Best Actor", winner:false}
+      ]),
+      // Robin Williams: complete Academy acting history (1988, 1990, 1992, 1998 ceremonies).
+      2157: Object.freeze([
+        {movie:"Good Morning, Vietnam", year:1987, category:"Best Actor", winner:false},
+        {movie:"Dead Poets Society", year:1989, category:"Best Actor", winner:false},
+        {movie:"The Fisher King", year:1991, category:"Best Actor", winner:false},
+        {movie:"Good Will Hunting", year:1997, category:"Best Supporting Actor", winner:true}
+      ]),
+      // Sylvester Stallone: complete competitive acting history (1977 and 2016 ceremonies).
+      // Rocky's separate screenplay nomination is not an acting award.
+      16483: Object.freeze([
+        {movie:"Rocky", year:1976, category:"Best Actor", winner:false},
+        {movie:"Creed", year:2015, category:"Best Supporting Actor", winner:false}
+      ]),
+      // Robert De Niro: eight competitive acting nominations, two wins.
+      // His separate Best Picture producer nomination for The Irishman is excluded.
+      380: Object.freeze([
+        {movie:"The Godfather Part II", year:1974, category:"Best Supporting Actor", winner:true},
+        {movie:"Taxi Driver", year:1976, category:"Best Actor", winner:false},
+        {movie:"The Deer Hunter", year:1978, category:"Best Actor", winner:false},
+        {movie:"Raging Bull", year:1980, category:"Best Actor", winner:true},
+        {movie:"Awakenings", year:1990, category:"Best Actor", winner:false},
+        {movie:"Cape Fear", year:1991, category:"Best Actor", winner:false},
+        {movie:"Silver Linings Playbook", year:2012, category:"Best Supporting Actor", winner:false},
+        {movie:"Killers of the Flower Moon", year:2023, category:"Best Supporting Actor", winner:false}
+      ]),
+      // Brad Pitt: four competitive acting nominations, one acting win.
+      // His Best Picture producer nominations/win are excluded.
+      287: Object.freeze([
+        {movie:"12 Monkeys", year:1995, category:"Best Supporting Actor", winner:false},
+        {movie:"The Curious Case of Benjamin Button", year:2008, category:"Best Actor", winner:false},
+        {movie:"Moneyball", year:2011, category:"Best Actor", winner:false},
+        {movie:"Once Upon a Time... in Hollywood", year:2019, category:"Best Supporting Actor", winner:true}
+      ]),
+      // Leonardo DiCaprio: seven competitive acting nominations through the
+      // 98th Academy Awards (2026), one acting win. The Wolf of Wall Street
+      // Best Picture producer nomination is excluded.
+      6193: Object.freeze([
+        {movie:"What's Eating Gilbert Grape", year:1993, category:"Best Supporting Actor", winner:false},
+        {movie:"The Aviator", year:2004, category:"Best Actor", winner:false},
+        {movie:"Blood Diamond", year:2006, category:"Best Actor", winner:false},
+        {movie:"The Wolf of Wall Street", year:2013, category:"Best Actor", winner:false},
+        {movie:"The Revenant", year:2015, category:"Best Actor", winner:true},
+        {movie:"Once Upon a Time... in Hollywood", year:2019, category:"Best Actor", winner:false},
+        {movie:"One Battle After Another", year:2025, category:"Best Actor", winner:false}
+      ]),
+      // Kate Winslet: seven competitive acting nominations, one win.
+      // Cross-checked against the Academy Awards Database (1995–2015 film years).
+      204: Object.freeze([
+        {movie:"Sense and Sensibility", year:1995, category:"Best Supporting Actress", winner:false},
+        {movie:"Titanic", year:1997, category:"Best Actress", winner:false},
+        {movie:"Iris", year:2001, category:"Best Supporting Actress", winner:false},
+        {movie:"Eternal Sunshine of the Spotless Mind", year:2004, category:"Best Actress", winner:false},
+        {movie:"Little Children", year:2006, category:"Best Actress", winner:false},
+        {movie:"The Reader", year:2008, category:"Best Actress", winner:true},
+        {movie:"Steve Jobs", year:2015, category:"Best Supporting Actress", winner:false}
+      ]),
+      // Meryl Streep: 21 competitive acting nominations through the 2018 ceremony, three wins.
+      5064: Object.freeze([
+        {movie:"The Deer Hunter", year:1978, category:"Best Supporting Actress", winner:false},
+        {movie:"Kramer vs. Kramer", year:1979, category:"Best Supporting Actress", winner:true},
+        {movie:"The French Lieutenant's Woman", year:1981, category:"Best Actress", winner:false},
+        {movie:"Sophie's Choice", year:1982, category:"Best Actress", winner:true},
+        {movie:"Silkwood", year:1983, category:"Best Actress", winner:false},
+        {movie:"Out of Africa", year:1985, category:"Best Actress", winner:false},
+        {movie:"Ironweed", year:1987, category:"Best Actress", winner:false},
+        {movie:"A Cry in the Dark", year:1988, category:"Best Actress", winner:false},
+        {movie:"Postcards from the Edge", year:1990, category:"Best Actress", winner:false},
+        {movie:"The Bridges of Madison County", year:1995, category:"Best Actress", winner:false},
+        {movie:"One True Thing", year:1998, category:"Best Actress", winner:false},
+        {movie:"Music of the Heart", year:1999, category:"Best Actress", winner:false},
+        {movie:"Adaptation.", year:2002, category:"Best Supporting Actress", winner:false},
+        {movie:"The Devil Wears Prada", year:2006, category:"Best Actress", winner:false},
+        {movie:"Doubt", year:2008, category:"Best Actress", winner:false},
+        {movie:"Julie & Julia", year:2009, category:"Best Actress", winner:false},
+        {movie:"The Iron Lady", year:2011, category:"Best Actress", winner:true},
+        {movie:"August: Osage County", year:2013, category:"Best Actress", winner:false},
+        {movie:"Into the Woods", year:2014, category:"Best Supporting Actress", winner:false},
+        {movie:"Florence Foster Jenkins", year:2016, category:"Best Actress", winner:false},
+        {movie:"The Post", year:2017, category:"Best Actress", winner:false}
+      ]),
+      // Denzel Washington: nine competitive acting nominations, two acting wins.
+      // Fences Best Picture producer nomination is deliberately excluded.
+      529: Object.freeze([
+        {movie:"Cry Freedom", year:1987, category:"Best Supporting Actor", winner:false},
+        {movie:"Glory", year:1989, category:"Best Supporting Actor", winner:true},
+        {movie:"Malcolm X", year:1992, category:"Best Actor", winner:false},
+        {movie:"The Hurricane", year:1999, category:"Best Actor", winner:false},
+        {movie:"Training Day", year:2001, category:"Best Actor", winner:true},
+        {movie:"Flight", year:2012, category:"Best Actor", winner:false},
+        {movie:"Fences", year:2016, category:"Best Actor", winner:false},
+        {movie:"Roman J. Israel, Esq.", year:2017, category:"Best Actor", winner:false},
+        {movie:"The Tragedy of Macbeth", year:2021, category:"Best Actor", winner:false}
+      ]),
+      // Frances McDormand: six competitive acting nominations, three acting wins.
+      // Best Picture producer credits for Nomadland and Women Talking excluded.
+      3910: Object.freeze([
+        {movie:"Mississippi Burning", year:1988, category:"Best Supporting Actress", winner:false},
+        {movie:"Fargo", year:1996, category:"Best Actress", winner:true},
+        {movie:"Almost Famous", year:2000, category:"Best Supporting Actress", winner:false},
+        {movie:"North Country", year:2005, category:"Best Supporting Actress", winner:false},
+        {movie:"Three Billboards Outside Ebbing, Missouri", year:2017, category:"Best Actress", winner:true},
+        {movie:"Nomadland", year:2020, category:"Best Actress", winner:true}
+      ]),
+      // Viola Davis: four competitive acting nominations, one win.
+      // The Academy's 93rd ceremony fact sheet confirms all four records.
+      19492: Object.freeze([
+        {movie:"Doubt", year:2008, category:"Best Supporting Actress", winner:false},
+        {movie:"The Help", year:2011, category:"Best Actress", winner:false},
+        {movie:"Fences", year:2016, category:"Best Supporting Actress", winner:true},
+        {movie:"Ma Rainey's Black Bottom", year:2020, category:"Best Actress", winner:false}
+      ]),
+      // Tom Cruise: competitive ACTING nominations only; production and honorary awards excluded.
+      500: Object.freeze([
+        {movie:"Born on the Fourth of July", year:1989, category:"Best Actor", winner:false},
+        {movie:"Jerry Maguire", year:1996, category:"Best Actor", winner:false},
+        {movie:"Magnolia", year:1999, category:"Best Supporting Actor", winner:false}
+      ])
+    });
+    function independentlyAuditedOscars(person) {
+      // Require both the TMDB ID and the expected identity. This also
+      // protects against bad upstream fixtures or mismatched API records.
+      const id = Number(person?.id);
+      const name = String(person?.name || "").trim().toLowerCase().replace(/\s+/g, " ");
+      if (id === 192 && name === "morgan freeman") return AUDITED_OSCAR_ACTING[192];
+      if (id === 2157 && name === "robin williams") return AUDITED_OSCAR_ACTING[2157];
+      if (id === 500 && name === "tom cruise") return AUDITED_OSCAR_ACTING[500];
+      if (id === 16483 && name === "sylvester stallone") return AUDITED_OSCAR_ACTING[16483];
+      if (id === 380 && name === "robert de niro") return AUDITED_OSCAR_ACTING[380];
+      if (id === 287 && name === "brad pitt") return AUDITED_OSCAR_ACTING[287];
+      if (id === 6193 && name === "leonardo dicaprio") return AUDITED_OSCAR_ACTING[6193];
+      if (id === 204 && name === "kate winslet") return AUDITED_OSCAR_ACTING[204];
+      if (id === 5064 && name === "meryl streep") return AUDITED_OSCAR_ACTING[5064];
+      if (id === 529 && name === "denzel washington") return AUDITED_OSCAR_ACTING[529];
+      if (id === 3910 && name === "frances mcdormand") return AUDITED_OSCAR_ACTING[3910];
+      if (id === 19492 && name === "viola davis") return AUDITED_OSCAR_ACTING[19492];
+      return [];
+    }
+
     function buildReelwiseBiography({ person, credits, wikipediaSummary, wikipediaExtract }) {
+      // The audit is resolved internally: callers cannot inject award records.
+      const verifiedAwards = independentlyAuditedOscars(person);
       const name = cleanText(person?.name || "This performer");
       const norm = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
       // Editorial profiles are preserved verbatim, with no generic rewriting.
@@ -762,7 +920,7 @@
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
-      // PERSON 117 — editorial ordering and duplicate-introduction guard.
+      // PERSON 130 — editorial ordering and duplicate-introduction guard.
       // Only grounded source statements are used; awards are never inferred from credits.
       const normalize = v => cleanText(v).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const summary = cleanText(wikipediaSummary || person?.biography || "");
@@ -792,6 +950,29 @@
       const bad = /\b(films include|films included|also performed in|also appeared in|other films|other roles|credits include|filmography includes|readers' poll)\b/i;
       const isIntro = t => /\b(?:born|is an? (?:american|british|canadian|australian)? ?(?:actor|actress|producer|comedian)|was an? (?:american|british|canadian|australian)? ?(?:actor|actress|producer|comedian))\b/i.test(t) &&
         (normalize(t).startsWith(normalize(name)) || /\(born\b/i.test(t));
+      // Fail closed on every award assertion, including "Oscar nod" and
+      // "Academy recognition". Source prose is not independent award evidence.
+      const awardLanguage = /\b(?:academy|oscar|nomina(?:ted|tion|tions)|nominee|nod|award|won|winner)\b/i;
+      const verified = (sentence, matched) => {
+        if (!awardLanguage.test(sentence)) return true;
+        // Do not distribute an award across a multi-film sentence.
+        if (matched.length !== 1) return false;
+        const win = /\b(?:won|winner|winning|win)\b/i.test(sentence);
+        const nom = /\b(?:nomina(?:ted|tion|tions)|nominee|nod)\b/i.test(sentence);
+        if (!win && !nom) return false;
+        return verifiedAwards.some(a => {
+          const title = normalize(a.movie || a.work || "");
+          const category = String(a.category || a.award || "");
+          const result = String(a.result || "");
+          const isOscar = /academy award|oscar|^best (?:actor|actress|supporting actor|supporting actress)$/i.test(category);
+          const winner = a.winner === true || /^winner$/i.test(result);
+          const recognized = winner || a.winner === false || /^nominee|nominated$/i.test(result);
+          const year = a.year ? Number(a.year) : 0;
+          return isOscar && title && title === normalize(matched[0].title) &&
+            (win ? winner : recognized) &&
+            (!year || Math.abs(year - matched[0].year) <= 2);
+        });
+      };
       const items = [], seen = new Set();
       for (const raw of sentences) {
         let sentence = cleanText(raw);
@@ -801,39 +982,38 @@
         sentence = sentence.split(/\s+and (?:acted|appeared) in\b|\s+as well as the films\b|\s+and the films\b/i)[0];
       }
         const key = normalize(sentence);
-        if (sentence.length < 38 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence)) continue;
+        if (sentence.length < 25 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence)) continue;
         seen.add(key);
         const matched = films.filter(m => mentions(sentence, m));
-        const early = earlyPattern.test(sentence), award = recognition.test(sentence), narr = narration.test(sentence);
+        // Separate a documented film credit from an unverified award claim.
+        // A failed award check removes the award assertion, not the film.
+        const awardVerified = verified(sentence, matched);
+        if (!awardVerified) {
+          if (matched.length !== 1) continue;
+          const film = matched[0];
+          // The film itself comes from the verified TMDB acting credits.
+          // This neutral statement never implies a nomination or a win.
+          sentence = `${name} appeared in ${film.title} (${film.year}).`;
+        }
+        const early = earlyPattern.test(sentence), award = awardVerified && recognition.test(sentence), narr = narration.test(sentence);
         // Named character/franchise evidence may not map to a single TMDB title.
         // Retain a concise, sourced role statement with an explicit date range.
         const roleRange = /\b(?:portrayed|played|starred as)\b/i.test(sentence) &&
           /\b(?:trilogy|franchise|series)\b/i.test(sentence) &&
           /\b(?:19|20)\d{2}\s*[–-]\s*(?:19|20)\d{2}\b/.test(sentence);
         if (!matched.length && !early && !narr && !roleRange) continue;
-        // A sourced collective nomination statement is distributive: each named
-        // film is explicitly identified as nominated. Split it into dated events
-        // so a 2009 nomination cannot precede a 2004 Oscar win. Do not split
-        // collective WIN statements or ambiguous award descriptions.
-        const collectiveNomination = /\b(?:oscar[- ]nominated for|academy award nominations? for|nominated for (?:an? )?(?:academy award|oscar) for)\b/i.test(sentence);
-        const collectiveWin = /\b(?:won|received the academy award|academy award for best|oscar win)\b/i.test(sentence);
-        if (collectiveNomination && !collectiveWin && matched.length > 1 &&
-            matched.every(m => Number.isInteger(m.year) && m.year > 1900)) {
-          for (const m of matched.sort((a,b) => a.year-b.year)) {
-            const itemSentence = `${name} received an Academy Award nomination for ${m.title} (${m.year}).`;
-            items.push({sentence:itemSentence,matched:[m],year:m.year,score:13,
-              early:false,award:true,narr:false,win:false});
-          }
-          continue;
-        }
+        // Never distribute an award claim over every film title in a sentence.
+        // The title list can include non-nominated films; doing so fabricated
+        // nominations for Glory and Lean on Me in the live Person 117 output.
+        // Preserve source wording only; do not manufacture award assertions.
         const years = matched.map(m => m.year).filter(Boolean);
         // An award for a particular film belongs to that film's release period,
         // not the earliest title in a multi-decade list of nominations.
         const win = /\b(won|received the academy award|academy award for best|oscar win)\b/i.test(sentence);
         const rangeYear = roleRange ? Number(sentence.match(/\b((?:19|20)\d{2})\s*[–-]/)?.[1]) : 0;
         const year = win && years.length ? Math.max(...years) : years.length ? Math.min(...years) : roleRange ? rangeYear : early ? 0 : 9998;
-        const score = (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
-        items.push({ sentence, matched, year, score, early, award, narr, win });
+        const score = (!awardVerified && matched.length === 1 ? 5 : 0) + (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
+        items.push({ sentence, matched, year, score, early, award, narr, win, neutralCredit: !awardVerified && matched.length === 1 });
       }
       const selected = [], covered = new Set();
       const early = items.filter(x => x.early && x.year === 0).sort((a,b) => b.score-a.score)[0];
@@ -841,17 +1021,40 @@
       for (const item of items.filter(x => x.year > 0 && x.year < 9998).sort((a,b) => a.year-b.year || b.score-a.score)) {
         if (item.score < 5 || item.narr && !item.award) continue;
         const decade = Math.floor(item.year/10);
-        if (selected.filter(x => x.year > 0 && Math.floor(x.year/10) === decade).length >= 4) continue;
+        if (selected.filter(x => x.year > 0 && Math.floor(x.year/10) === decade).length >= 6) continue;
         if (!item.award && item.matched.length && item.matched.every(m => covered.has(normalize(m.title)))) continue;
         selected.push(item); item.matched.forEach(m => covered.add(normalize(m.title)));
-        if (selected.length >= 11) break;
+        if (selected.length >= 18) break;
       }
       selected.sort((a,b) => a.year-b.year);
       const output = [intro], used = new Set([normalize(intro)]);
       let nominationCount = 0;
+      let pendingCredits = [];
+      let creditGroupCount = 0;
+      const flushCredits = () => {
+        if (!pendingCredits.length) return;
+        // Group only confirmed credits. Do not infer acclaim, breakthroughs or awards.
+        const names = pendingCredits.map(x => `${x.matched[0].title} (${x.year})`);
+        const phrase = names.length === 1 ? names[0] :
+          names.length === 2 ? names.join(" and ") :
+          `${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}`;
+        const lead = creditGroupCount === 0 ? `${name}'s screen work included` :
+          creditGroupCount === 1 ? `Subsequent film roles included` :
+          `Other screen credits included`;
+        output.push(`${lead} ${phrase}.`);
+        creditGroupCount++;
+        pendingCredits = [];
+      };
       for (const item of selected) {
         const key = normalize(item.sentence);
         if (used.has(key) || isIntro(item.sentence)) continue;
+        if (item.neutralCredit) {
+          // Keep a chronological batch within a decade; don't collapse distant eras.
+          if (pendingCredits.length && Math.floor(pendingCredits[0].year/10) !== Math.floor(item.year/10)) flushCredits();
+          pendingCredits.push(item); used.add(key);
+          continue;
+        }
+        flushCredits();
         let prose = item.sentence.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name);
         // Generic actor-name comparison; no person-specific editorial content.
         const awardLead = `${name} received an Academy Award nomination for `;
@@ -865,6 +1068,7 @@
         output.push(ensurePeriod(prose));
         used.add(key);
       }
+      flushCredits();
       // A brief narration note is a closing observation, not a filmography chapter.
       const narrItem = items.find(x => x.narr && x.year === 9998);
       if (narrItem && output.length >= 3 && !output.slice(1).some(x => /\bnarrat/i.test(x)))
@@ -875,6 +1079,7 @@
           const t = cleanText(raw), key = normalize(t);
           if (output.length >= 6) break;
           if (used.has(key) || isIntro(t) || bad.test(t) || t.length < 45 || t.length > 360) continue;
+          if (awardLanguage.test(t) && !verified(t, films.filter(m => mentions(t,m)))) continue;
           if (!/\b(career|acting|film|role|performance|stage|television|starred|portrayed)\b/i.test(t)) continue;
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
         }
@@ -1419,6 +1624,18 @@
           });
         }
 
+        // Reject malformed IDs before issuing an external request.
+        // An array, signed number, zero or nonnumeric string is not a TMDB ID.
+        if (
+          Array.isArray(personId) ||
+          !/^[1-9][0-9]*$/.test(String(personId).trim()) ||
+          !Number.isSafeInteger(Number(personId))
+        ) {
+          return res.status(400).json({
+            error: "A valid TMDB person ID is required."
+          });
+        }
+
         const mode =
           String(
             req.query.mode || ""
@@ -1434,10 +1651,11 @@
             personId
           );
 
-        const wikipediaPage =
-          await getWikipediaPage(
-            person.name
-          );
+        // Do not attach an audited history (or profile) to a response
+        // for a different requested TMDB person.
+        if (Number(person?.id) !== Number(personId)) {
+          throw new Error("TMDB person identity mismatch.");
+        }
 
 
         /* ========================================================
@@ -1449,48 +1667,52 @@
            ======================================================== */
 
         if (mode === "accolades") {
-
-          const awardsData =
-            await getAwardsAndAccolades(
-              person.name,
-              wikipediaPage.wikidataId
-            );
-
-          return res
-            .status(200)
-            .json({
-              id: person.id,
-
-              name:
-                person.name || "",
-
-              found:
-                awardsData.found,
-
-              wins:
-                awardsData.wins,
-
-              nominations:
-                awardsData.nominations,
-
-              history:
-                awardsData.history,
-
-              academy_awards:
-                awardsData.academy_awards,
-
-              academyAwards:
-                awardsData.academyAwards,
-
-              accolades:
-                awardsData.accolades
+          // A source claim is not independent verification. Until the
+          // audit is expanded, return unavailable rather than unverified
+          // nominations or a misleading confirmed zero.
+          const audited = independentlyAuditedOscars(person);
+          if (!audited.length) {
+            // A valid person profile must not become an HTTP outage just
+            // because this performer is outside the curated acting audit.
+            // Null totals mean UNKNOWN, not zero nominations or wins.
+            return res.status(200).json({
+              id: person.id, name: person.name || "",
+              confirmed: false, unavailable: true, found: false,
+              wins: null, nominations: null, history: [],
+              academy_awards: [], academyAwards: [], accolades: [],
+              message: "Academy acting-awards history has not yet been verified for this performer.",
+              source: "Reelwise curated Academy acting audit",
+              coverage: "not_verified"
             });
+          }
+          const history = audited.map(item => ({
+            movie: item.movie, year: item.year,
+            category: item.category, winner: item.winner
+          })).sort((a,b) => b.year - a.year);
+          const awards = history.map(item => ({
+            award: item.category, result: item.winner ? "Winner" : "Nominee",
+            year: item.year, work: item.movie, ceremony: ""
+          }));
+          return res.status(200).json({
+            id: person.id, name: person.name || "",
+            confirmed: true, unavailable: false, found: true,
+            source: "Reelwise curated Academy acting audit",
+            coverage: "verified_acting_only",
+            wins: history.filter(item => item.winner).length,
+            nominations: history.length, history,
+            academy_awards: awards, academyAwards: awards, accolades: awards
+          });
         }
 
 
         /* ========================================================
            NORMAL STAR PROFILE MODE
            ======================================================== */
+
+        const wikipediaPage =
+          await getWikipediaPage(
+            person.name
+          );
 
         const [
           credits,
@@ -1515,6 +1737,8 @@
           a breakthrough role.
         */
 
+        // Accolades are fetched only by mode=accolades; profile loading
+        // must not depend on Wikidata availability or latency.
         const biography =
           buildReelwiseBiography({
             person,
@@ -1526,16 +1750,6 @@
         const knownFor =
           buildKnownFor(
             credits
-          );
-
-        /*
-          Keep awards in the normal response for compatibility.
-        */
-
-        const awardsData =
-          await getAwardsAndAccolades(
-            person.name,
-            wikipediaPage.wikidataId
           );
 
         return res
@@ -1591,13 +1805,13 @@
               knownFor,
 
             academy_awards:
-              awardsData.academy_awards,
+              [],
 
             academyAwards:
-              awardsData.academyAwards,
+              [],
 
             accolades:
-              awardsData.accolades,
+              [],
 
             /*
               Compatibility aliases used by older Reelwise code.
@@ -1616,14 +1830,18 @@
           error
         );
 
-        return res
-          .status(500)
-          .json({
-            error:
-              "Unable to load star profile.",
+        const notFound = error?.upstreamStatus === 404 &&
+          /^Request failed: 404$/.test(error.message) &&
+          // A missing credit/Wikipedia page is not a missing person.
+          // Only the initial TMDB person lookup may generate this 404.
+          error.personLookup === true;
 
-            details:
-              error.message
+        return res
+          .status(notFound ? 404 : 500)
+          .json({
+            error: notFound
+              ? "Movie star not found."
+              : "Unable to load star profile."
           });
       }
     }
