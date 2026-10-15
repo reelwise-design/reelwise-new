@@ -867,7 +867,17 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           (sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 4) {
         sentence = sentence.split(/\s+and (?:acted|appeared) in\b|\s+as well as the films\b|\s+and the films\b/i)[0];
       }
+        // Resolve a source's dangling date reference only when one matching
+        // acting credit provides an unambiguous film year.
+        if (/\bthat same year\b/i.test(sentence)) {
+          const referenced = films.filter(m => mentions(sentence, m));
+          if (referenced.length === 1) sentence = sentence.replace(/\bthat same year\b/ig, `in ${referenced[0].year}`);
+        }
+        // Large film inventories crowd out sourced career milestones.
+        if ((sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5) continue;
         const key = normalize(sentence);
+        // Unsupported promotional superlatives are not independently established facts.
+        if (/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(sentence)) continue;
         if (sentence.length < 25 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(sentence)) continue;
         seen.add(key);
         const matched = films.filter(m => mentions(sentence, m));
@@ -928,13 +938,16 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const cap = decade === decades[0] ? 4 : 3;
         anchorCredits.push(...pool.slice(0,cap));
       }
+      // PERSON 153: Source-backed career story takes precedence over a credit inventory.
+      // A short neutral credit bridge is permitted only when sourced milestones are sparse.
+      const sourcedMilestones = selected.filter(x => !x.neutralCredit && !x.narr && (x.matched.length || x.early));
       const sourceMatched = new Set(selected.flatMap(x => x.matched.map(m => normalize(m.title))));
       const anchorItems = anchorCredits.filter(m => !sourceMatched.has(normalize(m.title)))
         .map(m => ({sentence: `${name} appeared in ${m.title} (${m.year}).`, matched:[m],
           year:m.year, score:5, early:false, award:false, narr:false, win:false, neutralCredit:true}));
       // A film already mentioned by a selected sourced sentence need not be
       // repeated as an automatically generated credit.
-      selected.push(...anchorItems);
+      if (sourcedMilestones.length < 2) selected.push(...anchorItems.slice(0, 4));
       selected.sort((a,b) => a.year-b.year || b.score-a.score);
       const output = [safeIntro], used = new Set([normalize(safeIntro)]);
       let nominationCount = 0;
@@ -947,10 +960,8 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const phrase = names.length === 1 ? names[0] :
           names.length === 2 ? names.join(" and ") :
           `${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}`;
-        const lead = creditGroupCount === 0 ? `${name}'s screen work included` :
-          creditGroupCount === 1 ? `Subsequent film roles included` :
-          `Other screen credits included`;
-        output.push(`${lead} ${phrase}.`);
+        // One factual bridge is better than repeating a filmography for each decade.
+        if (creditGroupCount === 0) output.push(`${name}'s film appearances include ${phrase}.`);
         creditGroupCount++;
         pendingCredits = [];
       };
@@ -958,9 +969,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const key = normalize(item.sentence);
         if (used.has(key) || isIntro(item.sentence)) continue;
         if (item.neutralCredit) {
-          // Keep a chronological batch within a decade; don't collapse distant eras.
-          if (pendingCredits.length && Math.floor(pendingCredits[0].year/10) !== Math.floor(item.year/10)) flushCredits();
-          pendingCredits.push(item); used.add(key);
+          // A bounded bridge across eras, never one list sentence per decade.
+          if (pendingCredits.length < 4 && creditGroupCount === 0) pendingCredits.push(item);
+          used.add(key);
           continue;
         }
         flushCredits();
@@ -987,7 +998,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         for (const raw of sentences) {
           const t = cleanText(raw), key = normalize(t);
           if (output.length >= 6) break;
-          if (used.has(key) || isIntro(t) || bad.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
+          if (used.has(key) || isIntro(t) || bad.test(t) || (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5 || /\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
           if (awardLanguage.test(t) && !verified(t, films.filter(m => mentions(t,m)))) continue;
           if (!/\b(career|acting|film|role|performance|stage|television|starred|portrayed)\b/i.test(t)) continue;
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
