@@ -873,8 +873,19 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           const referenced = films.filter(m => mentions(sentence, m));
           if (referenced.length === 1) sentence = sentence.replace(/\bthat same year\b/ig, `in ${referenced[0].year}`);
         }
-        // Large film inventories crowd out sourced career milestones.
-        if ((sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5) continue;
+        // Keep a compact source-backed dramatic/comedic career statement rather
+        // than discarding the entire milestone when a source lists many films.
+        if ((sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5) {
+          const sourceFilms = films.filter(m => mentions(sentence, m)).sort((a,b)=>a.year-b.year);
+          const contextual = /\b(?:dramatic roles|comedic roles|dramatic performances|comedy roles)\b/i.test(sentence);
+          if (!contextual || sourceFilms.length < 2) continue;
+          const chosen = [sourceFilms[0], sourceFilms[Math.floor((sourceFilms.length-1)/2)], sourceFilms[sourceFilms.length-1]]
+            .filter((m,i,a)=>a.findIndex(x=>normalize(x.title)===normalize(m.title))===i);
+          const context = /dramatic/i.test(sentence) ? 'dramatic' : 'comedic';
+          const names = chosen.map(m=>`${m.title} (${m.year})`);
+          const list = names.length===2 ? names.join(' and ') : names.length>2 ? `${names.slice(0,-1).join(', ')}, and ${names.at(-1)}` : names[0];
+          sentence = `${name}'s ${context} work includes ${list}.`;
+        }
         const key = normalize(sentence);
         // Unsupported promotional superlatives are not independently established facts.
         if (/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(sentence)) continue;
@@ -907,8 +918,8 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         // not the earliest title in a multi-decade list of nominations.
         const win = /\b(won|received the academy award|academy award for best|oscar win)\b/i.test(sentence);
         const rangeYear = roleRange ? Number(sentence.match(/\b((?:19|20)\d{2})\s*[–-]/)?.[1]) : 0;
-        const year = win && years.length ? Math.max(...years) : years.length ? Math.min(...years) : roleRange ? rangeYear : early ? 0 : 9998;
-        const score = (!awardVerified && matched.length === 1 ? 5 : 0) + (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
+        const year = win && years.length ? Math.max(...years) : /\b(?:dramatic|comedic) work includes\b/i.test(sentence) && years.length ? Math.max(...years) : years.length ? Math.min(...years) : roleRange ? rangeYear : early ? 0 : 9998;
+        const score = (!awardVerified && matched.length === 1 ? 5 : 0) + (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (/\b(?:dramatic|comedic) work includes\b/i.test(sentence) ? 4 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
         items.push({ sentence, matched, year, score, early, award, narr, win, neutralCredit: !awardVerified && matched.length === 1 });
       }
       const selected = [], covered = new Set();
@@ -978,12 +989,16 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         output.push(ensurePeriod(prose));used.add(key);
       };
       opening.forEach(appendSource);
+      let bridgeCount = 0;
       const bridge = (ms, era) => {
-        if (!ms.length || sourcedMilestones.length>=4) return;
+        if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 2) return;
+        // A bridge states only the documented appearance, never a claimed
+        // breakthrough, commercial result or award inferred from popularity.
         const phrase=filmPhrase(ms);
-        output.push(era==='early'?`Early screen credits include ${phrase}.`:
-          era==='middle'?`Other film work during the following years includes ${phrase}.`:
-          `Later screen appearances include ${phrase}.`);
+        output.push(era==='early'?`${name} also appeared in ${phrase}.`:
+          era==='middle'?`Other documented film work includes ${phrase}.`:
+          `More recent screen work includes ${phrase}.`);
+        bridgeCount++;
       };
       const cut1=firstYear+Math.max(10,Math.floor(careerSpan*.35));
       const cut2=firstYear+Math.max(18,Math.floor(careerSpan*.75));
