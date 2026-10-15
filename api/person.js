@@ -942,53 +942,59 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // A short neutral credit bridge is permitted only when sourced milestones are sparse.
       const sourcedMilestones = selected.filter(x => !x.neutralCredit && !x.narr && (x.matched.length || x.early));
       const sourceMatched = new Set(selected.flatMap(x => x.matched.map(m => normalize(m.title))));
-      const anchorItems = anchorCredits.filter(m => !sourceMatched.has(normalize(m.title)))
-        .map(m => ({sentence: `${name} appeared in ${m.title} (${m.year}).`, matched:[m],
-          year:m.year, score:5, early:false, award:false, narr:false, win:false, neutralCredit:true}));
-      // A film already mentioned by a selected sourced sentence need not be
-      // repeated as an automatically generated credit.
-      if (sourcedMilestones.length < 2) selected.push(...anchorItems.slice(0, 4));
-      selected.sort((a,b) => a.year-b.year || b.score-a.score);
+      // PERSON 154: A bounded, evidence-based career bridge. Preserve the
+      // source's actual milestones and supplement only missing film credits.
+      // A credit's presence is factual; its status as a breakthrough is not inferred.
+      const sourceCovered = new Set(selected.flatMap(x => x.matched.map(m => normalize(m.title))));
+      const pool = anchorCredits.filter(m => !sourceCovered.has(normalize(m.title)));
+      const firstYear = films.length ? Math.min(...films.map(m => m.year).filter(Boolean)) : 0;
+      const careerSpan = films.length ? Math.max(...films.map(m => m.year).filter(Boolean)) - firstYear : 0;
+      const earlyPool = pool.filter(m => m.year <= firstYear + Math.max(10, Math.floor(careerSpan * .35)))
+        .sort((a,b) => movieRecognitionScore(b)-movieRecognitionScore(a)).slice(0,4).sort((a,b)=>a.year-b.year);
+      const middlePool = pool.filter(m => m.year > firstYear + Math.max(10, Math.floor(careerSpan*.35)) && m.year <= firstYear + Math.max(18,Math.floor(careerSpan*.75)))
+        .sort((a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)).slice(0,2).sort((a,b)=>a.year-b.year);
+      const latePool = pool.filter(m => m.year > firstYear + Math.max(18,Math.floor(careerSpan*.75)))
+        .sort((a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)).slice(0,2).sort((a,b)=>a.year-b.year);
+      const filmPhrase = ms => { const a=ms.map(m=>`${m.title} (${m.year})`); return a.length<2?a.join(''):a.length===2?a.join(' and '):`${a.slice(0,-1).join(', ')}, and ${a.at(-1)}`; };
       const output = [safeIntro], used = new Set([normalize(safeIntro)]);
       let nominationCount = 0;
-      let pendingCredits = [];
-      let creditGroupCount = 0;
-      const flushCredits = () => {
-        if (!pendingCredits.length) return;
-        // Group only confirmed credits. Do not infer acclaim, breakthroughs or awards.
-        const names = pendingCredits.map(x => `${x.matched[0].title} (${x.year})`);
-        const phrase = names.length === 1 ? names[0] :
-          names.length === 2 ? names.join(" and ") :
-          `${names.slice(0,-1).join(", ")}, and ${names[names.length-1]}`;
-        // One factual bridge is better than repeating a filmography for each decade.
-        if (creditGroupCount === 0) output.push(`${name}'s film appearances include ${phrase}.`);
-        creditGroupCount++;
-        pendingCredits = [];
-      };
-      for (const item of selected) {
-        const key = normalize(item.sentence);
-        if (used.has(key) || isIntro(item.sentence)) continue;
-        if (item.neutralCredit) {
-          // A bounded bridge across eras, never one list sentence per decade.
-          if (pendingCredits.length < 4 && creditGroupCount === 0) pendingCredits.push(item);
-          used.add(key);
-          continue;
-        }
-        flushCredits();
-        let prose = item.sentence.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name);
-        // Generic actor-name comparison; no person-specific editorial content.
-        const awardLead = `${name} received an Academy Award nomination for `;
-        if (prose.startsWith(awardLead)) {
-          const subject = prose.slice(awardLead.length).replace(/\.$/, "");
+      // Source-backed statements carry the story. Generic credits bridge gaps,
+      // with distinct prose by era, rather than pretending to know impact.
+      const sourced = selected.filter(x => !x.neutralCredit && !x.narr);
+      const opening = sourced.filter(x=>x.early && x.year===0);
+      const chronological = sourced.filter(x=>!(x.early && x.year===0)).sort((a,b)=>a.year-b.year);
+      const appendSource = item => {
+        const key=normalize(item.sentence);
+        if(used.has(key)||isIntro(item.sentence))return;
+        let prose=item.sentence.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name);
+        const awardLead=`${name} received an Academy Award nomination for `;
+        if(prose.startsWith(awardLead)){
+          const subject=prose.slice(awardLead.length).replace(/\.$/,'');
           nominationCount++;
-          prose = nominationCount === 1 ? `${name} earned an Academy Award nomination for ${subject}.` :
-            nominationCount === 2 ? `Another Academy Award nomination followed for ${subject}.` :
+          prose=nominationCount===1?`${name} earned an Academy Award nomination for ${subject}.`:
+            nominationCount===2?`Another Academy Award nomination followed for ${subject}.`:
             `The Academy also nominated ${name} for ${subject}.`;
         }
-        output.push(ensurePeriod(prose));
-        used.add(key);
-      }
-      flushCredits();
+        output.push(ensurePeriod(prose));used.add(key);
+      };
+      opening.forEach(appendSource);
+      const bridge = (ms, era) => {
+        if (!ms.length || sourcedMilestones.length>=4) return;
+        const phrase=filmPhrase(ms);
+        output.push(era==='early'?`Early screen credits include ${phrase}.`:
+          era==='middle'?`Other film work during the following years includes ${phrase}.`:
+          `Later screen appearances include ${phrase}.`);
+      };
+      const cut1=firstYear+Math.max(10,Math.floor(careerSpan*.35));
+      const cut2=firstYear+Math.max(18,Math.floor(careerSpan*.75));
+      chronological.filter(x=>x.year<=cut1).forEach(appendSource);
+      bridge(earlyPool,'early');
+      chronological.filter(x=>x.year>cut1&&x.year<=cut2).forEach(appendSource);
+      bridge(middlePool,'middle');
+      chronological.filter(x=>x.year>cut2).forEach(appendSource);
+      bridge(latePool,'late');
+      // Avoid padding a biography with weak, contextless source fragments.
+      // A concise, honest biography is preferable to fabricated achievements.
       // A brief narration note is a closing observation, not a filmography chapter.
       const narrItem = items.find(x => x.narr && x.year === 9998);
       if (narrItem && output.length >= 3 && !output.slice(1).some(x => /\bnarrat/i.test(x)))
