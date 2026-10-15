@@ -875,6 +875,16 @@
         {movie:"Fences", year:2016, category:"Best Supporting Actress", winner:true},
         {movie:"Ma Rainey's Black Bottom", year:2020, category:"Best Actress", winner:false}
       ]),
+      // Tom Hanks: Academy Awards Database nominee search, six competitive
+      // acting nominations, including consecutive Best Actor wins. Film years.
+      31: Object.freeze([
+        {movie:"Big", year:1988, category:"Best Actor", winner:false},
+        {movie:"Philadelphia", year:1993, category:"Best Actor", winner:true},
+        {movie:"Forrest Gump", year:1994, category:"Best Actor", winner:true},
+        {movie:"Saving Private Ryan", year:1998, category:"Best Actor", winner:false},
+        {movie:"Cast Away", year:2000, category:"Best Actor", winner:false},
+        {movie:"A Beautiful Day in the Neighborhood", year:2019, category:"Best Supporting Actor", winner:false}
+      ]),
       // Tom Cruise: competitive ACTING nominations only; production and honorary awards excluded.
       500: Object.freeze([
         {movie:"Born on the Fourth of July", year:1989, category:"Best Actor", winner:false},
@@ -899,6 +909,7 @@
       if (id === 529 && name === "denzel washington") return AUDITED_OSCAR_ACTING[529];
       if (id === 3910 && name === "frances mcdormand") return AUDITED_OSCAR_ACTING[3910];
       if (id === 19492 && name === "viola davis") return AUDITED_OSCAR_ACTING[19492];
+      if (id === 31 && name === "tom hanks") return AUDITED_OSCAR_ACTING[31];
       return [];
     }
 
@@ -917,6 +928,9 @@
         "leonardo dicaprio": `Leonardo Wilhelm DiCaprio is an American actor and producer who earned his first Academy Award nomination for his supporting performance in What's Eating Gilbert Grape (1993). Romeo + Juliet (1996) and the worldwide success of Titanic (1997) made him an international star. He broadened his career with Catch Me If You Can (2002) and began a long collaboration with director Martin Scorsese in Gangs of New York (2002). Their subsequent films included The Aviator (2004), for which he received a Best Actor Oscar nomination, The Departed (2006), Shutter Island (2010), The Wolf of Wall Street (2013), and Killers of the Flower Moon (2023). He also starred in Blood Diamond (2006), Revolutionary Road (2008), Christopher Nolan's Inception (2010), Django Unchained (2012), and The Great Gatsby (2013). His portrayal of frontiersman Hugh Glass in The Revenant (2015) earned him his first Academy Award for Best Actor. He later appeared in Once Upon a Time in Hollywood (2019), earning another Best Actor nomination, and Don't Look Up (2021), continuing to balance commercially successful films with ambitious dramatic roles.`,
         "tom cruise": `Thomas Cruise Mapother IV is an American actor and producer. After gaining attention in Risky Business (1983), he became an international star playing naval aviator Pete “Maverick” Mitchell in Top Gun (1986). He built a parallel reputation as a dramatic actor with The Color of Money (1986), Rain Man (1988), Born on the Fourth of July (1989), A Few Good Men (1992), and Jerry Maguire (1996), earning Academy Award nominations for Born on the Fourth of July, Jerry Maguire, and Magnolia (1999). In 1996 he introduced Ethan Hunt in Mission: Impossible, the long-running action franchise for which he became known for performing elaborate stunts. His other major films include Minority Report (2002), The Last Samurai (2003), Collateral (2004), and Edge of Tomorrow (2014). He returned to one of his defining early roles in Top Gun: Maverick (2022), a major commercial success, while continuing the Mission: Impossible series through The Final Reckoning (2025).`
       };
+      if (Number(person?.id) === 31 && norm(name) === "tom hanks") {
+        return `Tom Hanks is an American actor and filmmaker who broke through with Splash (1984) and earned his first Academy Award nomination for Big (1988). He won consecutive Academy Awards for Best Actor for Philadelphia (1993) and Forrest Gump (1994), and received further acting nominations for Saving Private Ryan (1998), Cast Away (2000), and A Beautiful Day in the Neighborhood (2019). His other defining films include Apollo 13 (1995), The Green Mile (1999), Catch Me If You Can (2002), The Terminal (2004), Captain Phillips (2013), Bridge of Spies (2015), and The Post (2017). He voiced Woody in the Toy Story series and worked extensively with director Steven Spielberg. Hanks also directed That Thing You Do! (1996) and served as an executive producer on Band of Brothers (2001) and The Pacific (2010).`;
+      }
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
