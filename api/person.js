@@ -807,8 +807,10 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const identity = sentenceSplit(summary).find(t =>
         normalize(t).startsWith(normalize(name)) &&
         /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) && t.length < 230);
-      const intro = ensurePeriod(identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") :
-        `${name} ${person?.deathday ? "was" : "is"} an actor and performer.`);
+      const sourceIntro = identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
+      const department = String(person?.known_for_department || "").toLowerCase();
+      const fallbackProfession = department === "acting" ? "actor" : "performer";
+      const intro = ensurePeriod(sourceIntro || `${name} ${person?.deathday ? "was" : "is"} an ${fallbackProfession}.`);
       // A source summary may merge two sentences into its introductory chunk.
       // Never let a context-dependent "that same year" clause into the intro.
       const safeIntro = /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(intro)
@@ -968,6 +970,16 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         .sort((a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)).slice(0,2).sort((a,b)=>a.year-b.year);
       const filmPhrase = ms => { const a=ms.map(m=>`${m.title} (${m.year})`); return a.length<2?a.join(''):a.length===2?a.join(' and '):`${a.slice(0,-1).join(', ')}, and ${a.at(-1)}`; };
       const output = [safeIntro], used = new Set([normalize(safeIntro)]);
+      // Person 156: source-supported career context precedes a neutral TMDB
+      // credits bridge; credits alone never establish impact or breakthrough.
+      const careerContext = sentences.filter(t =>
+        /\b(?:cast member|Saturday Night Live|television|stage|stand-up|standup|comedian|comedy|breakthrough|prominence|recognition)\b/i.test(t) &&
+        !awardLanguage.test(t) && !/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) &&
+        t.length >= 45 && t.length <= 260 && !isIntro(t) &&
+        !/\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) &&
+        (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length < 3 &&
+        !/\b(?:married|divorced|children|lawsuit|political|religion)\b/i.test(t)
+      );
       let nominationCount = 0;
       // Source-backed statements carry the story. Generic credits bridge gaps,
       // with distinct prose by era, rather than pretending to know impact.
@@ -989,6 +1001,18 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         output.push(ensurePeriod(prose));used.add(key);
       };
       opening.forEach(appendSource);
+      // Include a single concise, genuinely sourced pre-film career milestone.
+      // Do not infer SNL, stage experience, or commercial success from TMDB.
+      const contextual = careerContext.find(t =>
+        /\b(?:cast member|Saturday Night Live|stand-up|standup|stage|television)\b/i.test(t)
+      );
+      if (contextual) {
+        const key = normalize(contextual);
+        if (!used.has(key)) {
+          output.push(ensurePeriod(contextual.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name)));
+          used.add(key);
+        }
+      }
       let bridgeCount = 0;
       const bridge = (ms, era) => {
         if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 2) return;
