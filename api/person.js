@@ -2,7 +2,7 @@
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 115
+      REELWISE PERSON API — PERSON 117
       ============================================================
 
       STAR PROFILE
@@ -762,7 +762,7 @@
       const curated = editorial77[norm(name)];
       if (curated) return curated;
 
-      // PERSON 115 — editorial ordering and duplicate-introduction guard.
+      // PERSON 117 — editorial ordering and duplicate-introduction guard.
       // Only grounded source statements are used; awards are never inferred from credits.
       const normalize = v => cleanText(v).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const summary = cleanText(wikipediaSummary || person?.biography || "");
@@ -794,12 +794,23 @@
         (normalize(t).startsWith(normalize(name)) || /\(born\b/i.test(t));
       const items = [], seen = new Set();
       for (const raw of sentences) {
-        const sentence = cleanText(raw), key = normalize(sentence);
+        let sentence = cleanText(raw);
+        // A long inventory cannot be dated by its earliest title alone.
+      if (/\b(?:and acted in|and appeared in|as well as the films|and the films)\b/i.test(sentence) &&
+          (sentence.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 4) {
+        sentence = sentence.split(/\s+and (?:acted|appeared) in\b|\s+as well as the films\b|\s+and the films\b/i)[0];
+      }
+        const key = normalize(sentence);
         if (sentence.length < 38 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence)) continue;
         seen.add(key);
         const matched = films.filter(m => mentions(sentence, m));
         const early = earlyPattern.test(sentence), award = recognition.test(sentence), narr = narration.test(sentence);
-        if (!matched.length && !early && !narr) continue;
+        // Named character/franchise evidence may not map to a single TMDB title.
+        // Retain a concise, sourced role statement with an explicit date range.
+        const roleRange = /\b(?:portrayed|played|starred as)\b/i.test(sentence) &&
+          /\b(?:trilogy|franchise|series)\b/i.test(sentence) &&
+          /\b(?:19|20)\d{2}\s*[–-]\s*(?:19|20)\d{2}\b/.test(sentence);
+        if (!matched.length && !early && !narr && !roleRange) continue;
         // A sourced collective nomination statement is distributive: each named
         // film is explicitly identified as nominated. Split it into dated events
         // so a 2009 nomination cannot precede a 2004 Oscar win. Do not split
@@ -819,8 +830,9 @@
         // An award for a particular film belongs to that film's release period,
         // not the earliest title in a multi-decade list of nominations.
         const win = /\b(won|received the academy award|academy award for best|oscar win)\b/i.test(sentence);
-        const year = win && years.length ? Math.max(...years) : years.length ? Math.min(...years) : early ? 0 : 9998;
-        const score = (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + Math.min(matched.length, 4) * 2;
+        const rangeYear = roleRange ? Number(sentence.match(/\b((?:19|20)\d{2})\s*[–-]/)?.[1]) : 0;
+        const year = win && years.length ? Math.max(...years) : years.length ? Math.min(...years) : roleRange ? rangeYear : early ? 0 : 9998;
+        const score = (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
         items.push({ sentence, matched, year, score, early, award, narr, win });
       }
       const selected = [], covered = new Set();
@@ -836,10 +848,21 @@
       }
       selected.sort((a,b) => a.year-b.year);
       const output = [intro], used = new Set([normalize(intro)]);
+      let nominationCount = 0;
       for (const item of selected) {
         const key = normalize(item.sentence);
         if (used.has(key) || isIntro(item.sentence)) continue;
-        output.push(ensurePeriod(item.sentence.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name)));
+        let prose = item.sentence.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name);
+        // Generic actor-name comparison; no person-specific editorial content.
+        const awardLead = `${name} received an Academy Award nomination for `;
+        if (prose.startsWith(awardLead)) {
+          const subject = prose.slice(awardLead.length).replace(/\.$/, "");
+          nominationCount++;
+          prose = nominationCount === 1 ? `${name} earned an Academy Award nomination for ${subject}.` :
+            nominationCount === 2 ? `Another Academy Award nomination followed for ${subject}.` :
+            `The Academy also nominated ${name} for ${subject}.`;
+        }
+        output.push(ensurePeriod(prose));
         used.add(key);
       }
       // A brief narration note is a closing observation, not a filmography chapter.
