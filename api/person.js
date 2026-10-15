@@ -835,9 +835,13 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const normalize = v => cleanText(v).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
       const summary = cleanText(wikipediaSummary || person?.biography || "");
       const extract = cleanText(wikipediaExtract || "");
-      const source = extract.length > summary.length ? extract : summary;
+      // Person 160: keep the full extract as the main career source while
+      // retaining distinct summary sentences. Length is not a quality ranking.
+      const source = [extract || summary, ...sentenceSplit(summary).filter(t =>
+        !sentenceSplit(extract).some(e => normalize(e) === normalize(t))
+      )].filter(Boolean).join(" ");
       const sentences = sentenceSplit(source);
-      const identity = sentenceSplit(summary).find(t =>
+      const identity = [...sentenceSplit(summary), ...sentenceSplit(extract)].find(t =>
         normalize(t).startsWith(normalize(name)) &&
         /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) && t.length < 230);
       const sourceIntro = identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
@@ -1036,7 +1040,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // its source sentence continues into a long film-title inventory.
       const origin = sentences.map(t => cleanText(t).match(/^((?:He|She|They)\s+(?:began|started) (?:his|her|their) career (?:on|in) (?:the )?(?:stage|theatre|theater|television))\s+before\s+(?:appearing|starring|acting)\s+in\b/i)?.[1]).find(Boolean);
       if (origin && !output.some(t=>t.includes(origin))) {
-        output.push(ensurePeriod(origin.replace(/^He\\b/,name).replace(/^She\\b/,name).replace(/^They\\b/,name)));
+        output.push(ensurePeriod(origin.replace(/^He\b/,name).replace(/^She\b/,name).replace(/^They\b/,name)));
       }
       let nominationCount = 0;
       // Source-backed statements carry the story. Generic credits bridge gaps,
