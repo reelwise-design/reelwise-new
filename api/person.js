@@ -765,6 +765,39 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       return entry.records;
     }
 
+    // Person 159: verify source-only film claims against the film's TMDB cast.
+    // Missing person/movie credits are not evidence of absence, but source prose
+    // alone must never establish a credit. Bounded to three source-only titles.
+    async function verifySourceOnlyCredits(person, credits, source) {
+      const known = new Set(validMovieCredits(credits).map(m => cleanText(m.title).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim()));
+      const normalizeTitle = v => cleanText(v).toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+      const candidates = [];
+      // Source-only claims must explicitly name a film and its release year.
+      const re = /(?:^|[,;:]\s*|\band\s+)([A-Z][A-Za-z0-9'’&:!?.\- ]{1,65}?)\s*\(((?:19|20)\d{2})\)/g;
+      let match;
+      while ((match = re.exec(source)) && candidates.length < 3) {
+        const title=cleanText(match[1]).replace(/^(?:the films?|in|and)\s+/i,'').trim();
+        const year=Number(match[2]), key=normalizeTitle(title);
+        if (!key || known.has(key) || candidates.some(x=>x.key===key) || year>new Date().getUTCFullYear()) continue;
+        candidates.push({title,year,key});
+      }
+      const verified=[];
+      for (const candidate of candidates) {
+        try {
+          const search = await fetchJSON(`https://api.themoviedb.org/3/search/movie?query=${encodeURIComponent(candidate.title)}&year=${candidate.year}&language=en-US`,
+            {headers:{Authorization:`Bearer ${TOKEN}`,accept:'application/json'}});
+          const movie = (search?.results||[]).find(m=>normalizeTitle(m.title)===candidate.key && Number(String(m.release_date||'').slice(0,4))===candidate.year);
+          if (!movie || !Number.isSafeInteger(movie.id)) continue;
+          const cast = await fetchJSON(`https://api.themoviedb.org/3/movie/${movie.id}/credits?language=en-US`,
+            {headers:{Authorization:`Bearer ${TOKEN}`,accept:'application/json'}});
+          if (!(cast?.cast||[]).some(a=>Number(a.id)===Number(person.id))) continue;
+          verified.push({id:movie.id,title:movie.title,release_date:movie.release_date,year:candidate.year,character:'Verified cast',order:0,vote_count:100,popularity:15});
+          known.add(candidate.key);
+        } catch { /* optional verification must never break a profile */ }
+      }
+      return verified;
+    }
+
     function buildReelwiseBiography({ person, credits, wikipediaSummary, wikipediaExtract }) {
       // The audit is resolved internally: callers cannot inject award records.
       const verifiedAwards = independentlyAuditedOscars(person);
@@ -1731,10 +1764,12 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
         // Accolades are fetched only by mode=accolades; profile loading
         // must not depend on Wikidata availability or latency.
+        const sourceOnlyVerified = await verifySourceOnlyCredits(person, credits,
+          `${wikipediaSummary || ''} ${wikipediaExtract || ''}`);
         const biography =
           buildReelwiseBiography({
             person,
-            credits,
+            credits: [...credits, ...sourceOnlyVerified],
             wikipediaSummary,
             wikipediaExtract
           });
