@@ -783,8 +783,19 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       if (Number(person?.id) === 31 && norm(name) === "tom hanks") {
         return `Tom Hanks is an American actor and filmmaker who broke through with Splash (1984) and earned his first Academy Award nomination for Big (1988). He won consecutive Academy Awards for Best Actor for Philadelphia (1993) and Forrest Gump (1994), and received further acting nominations for Saving Private Ryan (1998), Cast Away (2000), and A Beautiful Day in the Neighborhood (2019). His other defining films include Apollo 13 (1995), The Green Mile (1999), Catch Me If You Can (2002), The Terminal (2004), Captain Phillips (2013), Bridge of Spies (2015), and The Post (2017). He voiced Woody in the Toy Story series and worked extensively with director Steven Spielberg. Hanks also directed That Thing You Do! (1996) and served as an executive producer on Band of Brothers (2001) and The Pacific (2010).`;
       }
+      // Curated prose must match the verified TMDB identity, not a name alone.
+      // Same-name people must use the source-grounded generic engine.
+      const editorialIdentity = {
+        "sylvester stallone": 16483,
+        "robin williams": 2157,
+        "tom holland": 1136406,
+        "robert de niro": 380,
+        "brad pitt": 287,
+        "leonardo dicaprio": 6193,
+        "tom cruise": 500
+      };
       const curated = editorial77[norm(name)];
-      if (curated) return curated;
+      if (curated && editorialIdentity[norm(name)] === Number(person?.id)) return curated;
 
       // PERSON 130 — editorial ordering and duplicate-introduction guard.
       // Only grounded source statements are used; awards are never inferred from credits.
