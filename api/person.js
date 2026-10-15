@@ -810,7 +810,13 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const sourceIntro = identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
       const department = String(person?.known_for_department || "").toLowerCase();
       const fallbackProfession = department === "acting" ? "actor" : "performer";
-      const intro = ensurePeriod(sourceIntro || `${name} ${person?.deathday ? "was" : "is"} an ${fallbackProfession}.`);
+      // PERSON 157: A sparse TMDB lead must not override a sourced profession.
+      // This is a source-backed descriptor, not an inferred career achievement.
+      const sourcedProfession = /\bcomedian\b/i.test(source) && /\bactor\b/i.test(source)
+        ? "actor and comedian" : /\bcomedian\b/i.test(source) ? "comedian" : fallbackProfession;
+      const weakIntro = /\bis an? (?:actor|performer)(?: and performer)?\.?$/i.test(sourceIntro) ||
+        /\bwas an? (?:actor|performer)(?: and performer)?\.?$/i.test(sourceIntro);
+      const intro = ensurePeriod(sourceIntro && !weakIntro ? sourceIntro : `${name} ${person?.deathday ? "was" : "is"} an ${sourcedProfession}.`);
       // A source summary may merge two sentences into its introductory chunk.
       // Never let a context-dependent "that same year" clause into the intro.
       const safeIntro = /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(intro)
@@ -1046,6 +1052,8 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           if (used.has(key) || isIntro(t) || bad.test(t) || (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5 || /\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
           if (awardLanguage.test(t) && !verified(t, films.filter(m => mentions(t,m)))) continue;
           if (!/\b(career|acting|film|role|performance|stage|television|starred|portrayed)\b/i.test(t)) continue;
+          // Do not reintroduce an unverified title inventory in the fallback.
+          if ((t.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 3) continue;
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
         }
       }
