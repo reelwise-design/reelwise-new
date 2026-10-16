@@ -1628,6 +1628,142 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
        API HANDLER
        ============================================================ */
 
+
+/* Person 161 opt-in isolated preview; default biography and accolades unchanged. */
+const Bio161Engine = (()=>{
+/* Reelwise Person 161 laboratory engine. No network, no production API changes.
+   Input facts must be independently sourced upstream; a credit alone cannot
+   assert significance. The engine never invents a milestone. */
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const categories=['origin','breakthrough','signature','range','later'];
+const labels={origin:'early career',breakthrough:'breakthrough',signature:'defining work',range:'career development',later:'later work'};
+function validateMilestones(person, milestones){
+ const errors=[], accepted=[], seen=new Set();
+ for(const [i,m] of (milestones||[]).entries()){
+  if(!categories.includes(m.category)){errors.push(`${i}: invalid category`);continue;}
+  if(!clean(m.text)||clean(m.text).length<18){errors.push(`${i}: insufficient fact`);continue;}
+  if(!m.source?.id||!m.source?.kind){errors.push(`${i}: missing source provenance`);continue;}
+  if(m.personId!==person.id){errors.push(`${i}: person identity mismatch`);continue;}
+  if(/\b(?:academy award|oscar|won|nomination|nominated)\b/i.test(m.text) && m.source.kind!=='audited_award'){
+   errors.push(`${i}: award assertion requires audited source`);continue;
+  }
+  if(/\b(?:greatest|biggest star in the world|worldwide superstar)\b/i.test(m.text)){
+   errors.push(`${i}: promotional claim`);continue;
+  }
+  const key=clean(m.text).toLowerCase();if(seen.has(key))continue;seen.add(key);
+  accepted.push({...m,text:clean(m.text)});
+ }
+ return {accepted,errors};
+}
+function buildBiography(person,milestones,{maxMilestones=8}={}){
+ if(!person||!Number.isSafeInteger(person.id)||!clean(person.name))throw Error('Verified person identity required');
+ const {accepted,errors}=validateMilestones(person,milestones);
+ const intro=clean(person.profession)?`${person.name} ${person.deathday?'was':'is'} ${clean(person.profession).replace(/\.$/,'')}.`:`${person.name} ${person.deathday?'was':'is'} a performer.`;
+ const order={origin:0,breakthrough:1,signature:2,range:3,later:4};
+ const selected=accepted.sort((a,b)=>order[a.category]-order[b.category]||Number(a.year||9999)-Number(b.year||9999)).slice(0,maxMilestones);
+ const paragraphs=[intro];
+ for(const category of categories){
+  const facts=selected.filter(x=>x.category===category).map(x=>x.text.replace(/\.$/,'')+'.');
+  if(facts.length)paragraphs.push(facts.join(' '));
+ }
+ return {biography:paragraphs.join(' '),milestones:selected,errors,coverage:{categories:categories.filter(c=>selected.some(x=>x.category===c)),count:selected.length},readyForPublication:selected.length>=3&&selected.some(x=>x.category==='breakthrough'||x.category==='signature')};
+}
+
+return {validateMilestones,buildBiography};
+})();
+const Bio161Source = (()=>{
+/* Isolated source-to-milestone adapter. No network, no production writes.
+   This adapter extracts only explicit, source-backed statements; film credits
+   by themselves cannot establish a breakthrough, acclaim, or awards. */
+const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const split=s=>clean(s).replace(/\bvs\./gi,'vs․').match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(x=>clean(x.replace(/vs․/gi,'vs.'))).filter(Boolean)||[];
+const contextual=[
+ ['origin',/\b(?:began (?:his|her|their) career|started (?:his|her|their) career|stage|theater|theatre|television|Saturday Night Live|Mork\s*&\s*Mindy)\b/i],
+ ['breakthrough',/\b(?:breakthrough|rose to prominence|gained prominence|first major|established (?:him|her|them)(?:self)?(?: as)?)\b/i],
+ ['range',/\b(?:dramatic (?:roles?|performances?|work)|comedic (?:roles?|performances?|work)|versatility|transitioned)\b/i],
+ ['signature',/\b(?:defining|signature|best known for|widely known for)\b/i],
+ ['later',/\b(?:later (?:career|work|roles?)|more recently|subsequently)\b/i]
+];
+function extractMilestones(person,sources,{maxPerSource=30}={}){
+ if(!person||!Number.isSafeInteger(person.id)||!clean(person.name))throw Error('Person identity required');
+ const facts=[],excluded=[];
+ for(const source of sources||[]){
+  if(!source?.id||!source?.kind||source.personId!==person.id){excluded.push({source:source?.id||null,reason:'source identity or provenance missing'});continue;}
+  for(const sentence of split(source.text).slice(0,maxPerSource)){
+   if(sentence.length<25||sentence.length>400){excluded.push({source:source.id,reason:'sentence length'});continue;}
+   if(/\b(?:academy award|oscar|won|nomination|nominated)\b/i.test(sentence)&&source.kind!=='audited_award'){
+    excluded.push({source:source.id,reason:'award claim requires audited record'});continue;
+   }
+   const priority={breakthrough:0,signature:1,range:2,later:3,origin:4};
+   const found=contextual.filter(([,pattern])=>pattern.test(sentence)).sort((a,b)=>priority[a[0]]-priority[b[0]])[0];
+   if(!found){excluded.push({source:source.id,reason:'no explicit career context'});continue;}
+   const year=sentence.match(/\b(?:19|20)\d{2}\b/)?.[0];
+   facts.push({personId:person.id,category:found[0],text:sentence,year:year?Number(year):null,source:{kind:source.kind,id:source.id}});
+  }
+ }
+ const deduped=[],seen=new Set();
+ for(const fact of facts){const key=fact.text.toLowerCase().replace(/[^a-z0-9]/g,'');if(seen.has(key)){excluded.push({source:fact.source.id,reason:'duplicate statement across sources'});continue;}seen.add(key);deduped.push(fact);}
+ const checked=Bio161Engine.validateMilestones(person,deduped);
+ return {milestones:checked.accepted,excluded,errors:checked.errors};
+}
+function buildFromSources(person,sources,options){
+ const extracted=extractMilestones(person,sources,options);
+ const result=Bio161Engine.buildBiography(person,extracted.milestones);
+ return {...result,diagnostic:{sourcesConsidered:(sources||[]).length,accepted:extracted.milestones.length,excluded:extracted.excluded,errors:extracted.errors}};
+}
+return {extractMilestones,buildFromSources};
+})();
+const Bio161Retrieval = (()=>{
+/* Read-only source acquisition. Wikipedia identity requires a Wikidata ID matching
+   the ID returned by TMDB external_ids; title similarity is not identity proof. */
+const norm=s=>String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,' ').trim().toLowerCase();
+const plain=s=>String(s||'').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim();
+async function getJson(fetcher,url,options={}){const r=await fetcher(url,options);if(!r.ok)throw Error('Source request failed');return r.json();}
+async function retrieveBiographySources(person,{fetcher=globalThis.fetch,tmdbToken,wikipediaTitle}={}){
+ if(!Number.isSafeInteger(person?.id)||person.id<1||!person.name||typeof fetcher!=='function'||!tmdbToken)throw Error('Verified identity, fetcher and token required');
+ const diagnostics={tmdbIdentity:false,wikipediaIdentity:false,sourceKinds:[],warnings:[]};
+ const tmdb=await getJson(fetcher,`https://api.themoviedb.org/3/person/${person.id}?language=en-US`,{headers:{Authorization:`Bearer ${tmdbToken}`,accept:'application/json'}});
+ if(tmdb.id!==person.id||norm(tmdb.name)!==norm(person.name))throw Error('TMDB identity mismatch');
+ diagnostics.tmdbIdentity=true;
+ const sources=[];
+ if(plain(tmdb.biography).length>=40)sources.push({id:`tmdb:person:${person.id}`,kind:'tmdb_biography',personId:person.id,text:plain(tmdb.biography)});
+ let wikidataId;
+ try{
+  const external=await getJson(fetcher,`https://api.themoviedb.org/3/person/${person.id}/external_ids`,{headers:{Authorization:`Bearer ${tmdbToken}`,accept:'application/json'}});
+  if(/^Q[1-9]\d*$/.test(external?.wikidata_id||''))wikidataId=external.wikidata_id;
+ }catch{diagnostics.warnings.push('TMDB external identity unavailable');}
+ if(!wikidataId){diagnostics.warnings.push('Wikipedia skipped: no verified Wikidata linkage');diagnostics.sourceKinds=sources.map(x=>x.kind);return {sources,diagnostics};}
+ const title=wikipediaTitle||person.name;
+ try{
+  const u=new URL('https://en.wikipedia.org/w/api.php');
+  u.searchParams.set('action','query');u.searchParams.set('prop','pageprops|extracts');u.searchParams.set('explaintext','1');u.searchParams.set('exintro','1');u.searchParams.set('format','json');u.searchParams.set('redirects','1');u.searchParams.set('titles',title);
+  const data=await getJson(fetcher,u.toString());
+  const pages=Object.values(data?.query?.pages||{});
+  const page=pages.find(x=>!x.missing&&x.pageprops?.wikibase_item===wikidataId);
+  if(!page){diagnostics.warnings.push('Wikipedia skipped: Wikidata identity mismatch');}
+  else{
+   diagnostics.wikipediaIdentity=true;
+   if(plain(page.extract).length>=40)sources.push({id:`wikipedia:intro:${wikidataId}`,kind:'wikipedia_summary',personId:person.id,text:plain(page.extract)});
+   const full=new URL('https://en.wikipedia.org/w/api.php');
+   full.searchParams.set('action','query');full.searchParams.set('prop','pageprops|extracts');full.searchParams.set('explaintext','1');full.searchParams.set('format','json');full.searchParams.set('redirects','1');full.searchParams.set('titles',page.title);
+   try{
+    const data2=await getJson(fetcher,full.toString());
+    const verified=Object.values(data2?.query?.pages||{}).find(x=>!x.missing&&x.pageprops?.wikibase_item===wikidataId);
+    if(verified&&plain(verified.extract).length>=40)sources.push({id:`wikipedia:extract:${wikidataId}`,kind:'wikipedia_extract',personId:person.id,text:plain(verified.extract)});
+    else diagnostics.warnings.push('Wikipedia full extract missing or identity mismatch');
+   }catch{diagnostics.warnings.push('Wikipedia full extract unavailable');}
+  }
+ }catch{diagnostics.warnings.push('Wikipedia identity lookup unavailable');}
+ diagnostics.sourceKinds=sources.map(x=>x.kind);
+ return {sources,diagnostics};
+}
+async function buildFromRetrievedSources(person,options){
+ const {sources,diagnostics}=await retrieveBiographySources(person,options);
+ const built=Bio161Source.buildFromSources(person,sources);
+ return {...built,diagnostic:{...built.diagnostic,retrieval:diagnostics}};
+}
+return {retrieveBiographySources,buildFromRetrievedSources};
+})();
     export default async function handler(
       req,
       res
@@ -1686,6 +1822,35 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           throw new Error("TMDB person identity mismatch.");
         }
 
+
+        // Person 161 preview is deliberately opt-in and does not replace the live biography.
+        // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
+        if (mode === "biography161_preview") {
+          try {
+            const draft = await Bio161Retrieval.buildFromRetrievedSources(
+              {id: Number(person.id), name: person.name,
+               profession: person.known_for_department === "Acting" ? "an actor" : "a performer",
+               deathday: person.deathday},
+              {tmdbToken: TOKEN}
+            );
+            return res.status(200).json({
+              preview: true, deployedBiographyUnchanged: true,
+              id: person.id, name: person.name,
+              biography: draft.biography,
+              readyForPublication: false, structuralCoveragePass: draft.readyForPublication,
+              coverage: draft.coverage,
+              milestones: draft.milestones.map(m => ({category:m.category,year:m.year,
+                text:m.text,source:{kind:m.source.kind,id:m.source.id}})),
+              diagnostic: draft.diagnostic
+            });
+          } catch (error) {
+            return res.status(200).json({
+              preview:true, deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,readyForPublication:false,
+              error:"Person 161 preview source retrieval unavailable"
+            });
+          }
+        }
 
         /* ========================================================
            ACCOLADES MODE
