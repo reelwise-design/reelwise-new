@@ -1761,6 +1761,8 @@ return {compose};
    This is a pilot, not an actor-specific patch to the public biography. */
 const Bio161MilestonePilot=(()=>{
 const records={
+  31:{name:'Tom Hanks',intro:'Tom Hanks developed from early screen comedy into a leading dramatic actor, while continuing to work across animation, historical drama and character-driven films.',films:[
+    ['Splash',1984,'early comedy'],['Big',1988,'early leading role'],['Philadelphia',1993,'dramatic role'],['Forrest Gump',1994,'dramatic leading role'],['Apollo 13',1995,'ensemble drama'],['Toy Story',1995,'animated voice role'],['Saving Private Ryan',1998,'war drama'],['Cast Away',2000,'leading dramatic role'],['Captain Phillips',2013,'later dramatic role'],['Bridge of Spies',2015,'later historical drama'],['A Beautiful Day in the Neighborhood',2019,'later character role']]},
   5064:{name:'Meryl Streep',intro:'Meryl Streep trained at Vassar College and the Yale School of Drama before building a career on stage and screen.',films:[
     ['The Deer Hunter',1978,'early film career'],['Kramer vs. Kramer',1979,'major dramatic role'],["Sophie's Choice",1982,'defining dramatic role'],['Out of Africa',1985,'leading dramatic role'],['The Bridges of Madison County',1995,'later dramatic role'],['The Devil Wears Prada',2006,'mainstream role'],['Mamma Mia!',2008,'musical role'],['The Iron Lady',2011,'later dramatic portrayal']]},
   19292:{name:'Adam Sandler',intro:'Adam Sandler developed his comedy career through stand-up and Saturday Night Live before becoming a leading film comedian.',films:[
@@ -1772,13 +1774,19 @@ function compose(person,cast){
  if(!record||norm(record.name)!==norm(person.name))return {biography:null,coverage:'not_curated',readyForPublication:false,diagnostic:{reason:'No editorial record for this performer; generic public profile remains unchanged'}};
  const verified=[],missing=[];
  for(const [title,year,editorialLabel] of record.films){
-  const credit=(cast||[]).find(c=>c&&typeof c==='object'&&norm(c.title)===norm(title)&&Number(String(c.release_date||'').slice(0,4))===year&&c.media_type==='movie'&&c.adult===false&&typeof c.credit_id==='string'&&c.credit_id.trim()&&/^\d{4}-\d{2}-\d{2}$/.test(c.release_date||'')&&Number.isSafeInteger(c.id));
+  const credit=(cast||[]).find(c=>c&&typeof c==='object'&&norm(c.title)===norm(title)&&Number(String(c.release_date||'').slice(0,4))===year&&(c.media_type===undefined||c.media_type==='movie')&&c.adult!==true&&typeof c.credit_id==='string'&&c.credit_id.trim()&&/^\d{4}-\d{2}-\d{2}$/.test(c.release_date||'')&&Number.isSafeInteger(c.id)&&typeof c.character==='string'&&c.character.trim());
   if(!credit){missing.push({title,year,reason:'not verified in exact TMDB person cast'});continue;}
   verified.push({id:credit.id,title,year,editorialLabel,source:{kind:'tmdb_person_cast',id:`tmdb:person:${person.id}:movie:${credit.id}`}});
  }
  verified.sort((a,b)=>a.year-b.year||a.title.localeCompare(b.title));
- const biography=record.intro+' Selected verified film credits for editorial review: '+verified.map(c=>`${c.title} (${c.year})`).join(', ')+'. This is a milestone preview, not a finished biography.';
- return {biography,coverage:'curated_pilot',verified,missing,readyForPublication:false,editorialQualityPass:false,diagnostic:{editorialCandidates:record.films.length,verified:verified.length,missing:missing.length,limitations:['TMDB verifies cast participation, not editorial significance','Editorial labels are hypotheses pending source audit','No award claims inferred']}};
+ const allVerified=missing.length===0;
+ const narrative=Number(person.id)===31&&allVerified?[
+  "Tom Hanks moved from early screen comedy in Splash (1984) and Big (1988) into dramatic leading roles in Philadelphia (1993) and Forrest Gump (1994).",
+  "His subsequent screen work ranged from the ensemble drama Apollo 13 (1995) and the voice of Woody in Toy Story (1995) to Saving Private Ryan (1998) and the largely solitary role in Cast Away (2000).",
+  "He continued working in character-led dramas including Captain Phillips (2013), Bridge of Spies (2015), and A Beautiful Day in the Neighborhood (2019)."
+ ].join(" "):null;
+ const biography=narrative||record.intro+' Selected verified film credits for editorial review: '+verified.map(c=>`${c.title} (${c.year})`).join(', ')+'. This is a milestone preview, not a finished biography.';
+ return {biography,narrativePreview:!!narrative,coverage:'curated_pilot',verified,missing,readyForPublication:false,editorialQualityPass:false,diagnostic:{editorialCandidates:record.films.length,verified:verified.length,missing:missing.length,limitations:['TMDB verifies cast participation, not editorial significance','Editorial labels are hypotheses pending source audit','No award claims inferred']}};
 }
 return {compose};
 })();
@@ -1891,6 +1899,25 @@ return {retrieveBiographySources,buildFromRetrievedSources};
           throw new Error("TMDB person identity mismatch.");
         }
 
+
+        // Person 163: isolated opt-in narrative preview; never modifies public profile.
+        if (mode === "biography163_preview") {
+          try {
+            const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`,{headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
+            const cast = Array.isArray(creditResponse?.cast) ? creditResponse.cast : [];
+            const pilot = Bio161MilestonePilot.compose(person,cast);
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,coverage:pilot.coverage,
+              biography:null,narrativePreview:pilot.narrativePreview?pilot.biography:null,
+              readyForPublication:false,releaseStatus:pilot.narrativePreview?"narrative_editorial_review":"evidence_incomplete",
+              diagnostic:{castRecords:cast.length,verifiedMilestones:Array.isArray(pilot.verified)?pilot.verified.length:0,
+                missingMilestones:pilot.missing||[],limitations:pilot.diagnostic?.limitations||[]}});
+          } catch {
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,biography:null,narrativePreview:null,readyForPublication:false,
+              releaseStatus:"preview_unavailable"});
+          }
+        }
 
         // Person 162: opt-in narrative evidence diagnostic; public output unchanged.
         if (mode === "biography162_preview") {
