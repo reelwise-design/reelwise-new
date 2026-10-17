@@ -2100,37 +2100,22 @@ return {retrieveBiographySources,buildFromRetrievedSources};
             ? PERSON163_HANKS_AUDITED_DRAFT
             : generatedBiography;
 
-        // Person 164: identity-agnostic quality diagnostics, preview only.
-        // No automatically generated draft can displace an existing public biography.
-        const normalize164 = v => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-        const movie164 = validMovieCredits(credits).filter(isBiographyActingCredit);
-        const filmMentions164 = movie164.filter(m => {
-          const title = normalize164(m.title);
-          return title.length > 3 && normalize164(generatedBiography).includes(title);
-        });
-        const uniqueMentions164 = [...new Set(filmMentions164.map(m => normalize164(m.title)))];
-        const wordCount164 = String(generatedBiography || "").trim().split(/\s+/).filter(Boolean).length;
-        const context164 = /\b(?:career|early|later|breakthrough|recognition|dramatic|comedic|television|stage|film)\b/i.test(generatedBiography);
-        const placeholder164 = /\b(?:unknown|undefined|null|no biography available)\b/i.test(generatedBiography);
-        const genericQuality164 = {
-          wordCount: wordCount164,
-          verifiedFilmMentions: uniqueMentions164.length,
-          hasCareerContext: context164,
-          hasUnsupportedPlaceholder: placeholder164,
-          passesMinimum: wordCount164 >= 65 && uniqueMentions164.length >= 3 && context164 && !placeholder164
-        };
-        if (mode === "biography164_preview") {
-          return res.status(200).json({
-            preview: true, deployedBiographyUnchanged: true,
-            id: person.id, name: person.name,
-            publicBiography: biography,
-            genericCandidate: generatedBiography,
-            quality: genericQuality164,
-            readyForPublication: false,
-            releaseStatus: "generic_editorial_review",
-            policy: "Candidate never replaces an existing public biography automatically."
-          });
-        }
+        // Person 164: generic diagnostic; minimum quality is never publication approval.
+        const normalize164 = v => String(v || '').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+        const contains164 = (body,title) => { const t=normalize164(title); return t.length>=4 && (' '+normalize164(body)+' ').includes(' '+t+' '); };
+        const movie164=validMovieCredits(credits).filter(isBiographyActingCredit);
+        const titles164=[...new Map(movie164.filter(m=>m.title).map(m=>[normalize164(m.title),m.title])).values()];
+        const mentions164=body=>titles164.filter(t=>contains164(body,t));
+        const candidateFilms164=mentions164(generatedBiography), publicFilms164=mentions164(biography);
+        const candidateSet164=new Set(candidateFilms164.map(normalize164));
+        const omittedFilms164=publicFilms164.filter(t=>!candidateSet164.has(normalize164(t)));
+        const words164=body=>String(body||'').trim().split(/\s+/).filter(Boolean).length;
+        const progression164=/\b(?:broke through|breakthrough|rose to prominence|emerged|early career|early roles|subsequently|later|followed by|went on to|transitioned|shifted|established|became known|defining|signature|continued|expanded|afterward|afterwards)\b/i.test(generatedBiography);
+        const context164=progression164||/\b(?:career|recognition|dramatic|comedic|television|stage|film work|film career)\b/i.test(generatedBiography);
+        const placeholder164=/\b(?:unknown|undefined|null|no biography available)\b/i.test(generatedBiography);
+        const minimum164=words164(generatedBiography)>=65&&candidateFilms164.length>=3&&context164&&!placeholder164;
+        const genericQuality164={wordCount:words164(generatedBiography),verifiedFilmMentions:candidateFilms164.length,hasCareerContext:context164,hasNarrativeProgression:progression164,hasUnsupportedPlaceholder:placeholder164,passesMinimum:minimum164,comparison:{publicWordCount:words164(biography),publicVerifiedFilmMentions:publicFilms164.length,omittedPublicFilmTitles:omittedFilms164,preservesVerifiedFilmCoverage:omittedFilms164.length===0,candidateShorterThanPublic:words164(generatedBiography)<words164(biography)},editorialPublicationApproved:false};
+        if(mode==='biography164_preview')return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,publicBiography:biography,genericCandidate:generatedBiography,quality:genericQuality164,readyForPublication:false,releaseStatus:'generic_editorial_review',policy:'Minimum checks are diagnostics, never automatic publication approval.'});
 
         const knownFor =
           buildKnownFor(
