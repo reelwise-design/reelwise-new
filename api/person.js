@@ -2086,13 +2086,19 @@ return {retrieveBiographySources,buildFromRetrievedSources};
         // must not depend on Wikidata availability or latency.
         const sourceOnlyVerified = await verifySourceOnlyCredits(person, credits,
           `${wikipediaSummary || ''} ${wikipediaExtract || ''}`);
-        const biography =
+        const generatedBiography =
           buildReelwiseBiography({
             person,
             credits: [...credits, ...sourceOnlyVerified],
             wikipediaSummary,
             wikipediaExtract
           });
+        // Person 163: publish only the identity-scoped editorial biography.
+        // All other performers retain the existing biography engine.
+        const biography =
+          Number(person.id) === 31 && person.name === "Tom Hanks"
+            ? PERSON163_HANKS_AUDITED_DRAFT
+            : generatedBiography;
 
         const knownFor =
           buildKnownFor(
