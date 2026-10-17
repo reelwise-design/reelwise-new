@@ -1759,6 +1759,7 @@ return {compose};
 })();
 /* R8 curated milestone pilot: title+release-year verified against exact person cast.
    This is a pilot, not an actor-specific patch to the public biography. */
+const PERSON163_HANKS_AUDITED_DRAFT = "Tom Hanks emerged as a film lead with Splash (1984) and earned his first Academy Award nomination for Big (1988). He subsequently won consecutive Academy Awards for Best Actor for Philadelphia (1993) and Forrest Gump (1994), and received further acting nominations for Saving Private Ryan (1998), Cast Away (2000), and A Beautiful Day in the Neighborhood (2019). His film work also spans Apollo 13 (1995), The Green Mile (1999), Catch Me If You Can (2002), The Terminal (2004), Captain Phillips (2013), Bridge of Spies (2015), and The Post (2017). He voiced Woody in the Toy Story films, collaborated repeatedly with Steven Spielberg, directed That Thing You Do! (1996), and served as an executive producer on Band of Brothers (2001) and The Pacific (2010).";
 const Bio161MilestonePilot=(()=>{
 const records={
   31:{name:'Tom Hanks',intro:'Tom Hanks developed from early screen comedy into a leading dramatic actor, while continuing to work across animation, historical drama and character-driven films.',films:[
@@ -1899,6 +1900,14 @@ return {retrieveBiographySources,buildFromRetrievedSources};
           throw new Error("TMDB person identity mismatch.");
         }
 
+
+        // Separate publication review route; does not modify the public profile.
+        if (mode === "biography163_publication_preview") {
+          if (Number(person.id) !== 31 || person.name !== "Tom Hanks") {
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,biography:null,publicationCandidate:null,readyForPublication:false,releaseStatus:"not_curated"});
+          }
+          return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,biography:null,publicationCandidate:PERSON163_HANKS_AUDITED_DRAFT,readyForPublication:false,releaseStatus:"editorial_publication_review",sourceAudit:{academy:"https://awardsdatabase.oscars.org/",televisionAcademy:"https://www.televisionacademy.com/bios/tom-hanks",productionBiography:"https://cdn.festival-cannes.com/media/uploads/2023/03/144135.pdf"}});
+        }
 
         // Person 163: isolated opt-in narrative preview; never modifies public profile.
         if (mode === "biography163_preview") {
