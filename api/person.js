@@ -1645,27 +1645,39 @@ function validateMilestones(person,milestones){
  }
  return {accepted,errors};
 }
-function buildBiography(person,milestones,{maxMilestones=8}={}){
+function buildBiography(person,milestones,{maxMilestones=9}={}){
  if(!Number.isSafeInteger(person?.id)||!person.name)throw Error('Verified identity required');
  const {accepted,errors}=validateMilestones(person,milestones);
- // Select a balanced chronological story, not simply the first twelve sentences.
  const order={origin:0,breakthrough:1,signature:2,range:3,later:4};
- const dated=accepted.filter(x=>x.year>=1900&&x.year<=2100).sort((a,b)=>a.year-b.year||order[a.category]-order[b.category]);
- const undated=accepted.filter(x=>!dated.includes(x));
+ const score=m=>{
+  const t=m.text;
+  let n=({breakthrough:12,signature:9,range:7,later:6,origin:3})[m.category]||0;
+  if(/\b(?:breakthrough|first major|first leading|rose to prominence|established)\b/i.test(t))n+=6;
+  if(/\b(?:starred in|leading role|performance in|portrayed|played (?:the|a) (?:lead|title|central) role)\b/i.test(t))n+=5;
+  if(/\b(?:film|movie|drama|comedy|series|musical)\b/i.test(t))n+=2;
+  if(/\b(?:school|college|university|theater|theatre|stage)\b/i.test(t)&&m.category==='origin')n+=2;
+  if(/\b(?:said to herself|she said|he said|in an interview|workshopping|opposite|six weeks|five plays|story within a story)\b/i.test(t))n-=9;
+  if(t.length>230)n-=5;
+  if(m.year>=1900&&m.year<=2100)n+=2;
+  return n;
+ };
+ const dated=accepted.filter(m=>m.year>=1900&&m.year<=2100);
+ const undated=accepted.filter(m=>!dated.includes(m));
  const selected=[],used=new Set();
- const add=m=>{if(m&&!used.has(m)){selected.push(m);used.add(m);}};
- // One early-career event and one breakthrough when supported; reserve space for later decades.
- add(dated.find(m=>m.category==='origin')||undated.find(m=>m.category==='origin'));
- add(dated.find(m=>m.category==='breakthrough')||undated.find(m=>m.category==='breakthrough'));
- const buckets=new Set();
- for(const m of dated){const decade=Math.floor(m.year/10);if(!buckets.has(decade)){add(m);buckets.add(decade);}}
- for(const m of dated){if(selected.length>=maxMilestones)break;add(m);}
- if(selected.length<maxMilestones)for(const m of undated){if(selected.length>=maxMilestones)break;add(m);}
+ const add=m=>{if(m&&!used.has(m)&&selected.length<maxMilestones){selected.push(m);used.add(m);}};
+ const best=arr=>[...arr].sort((a,b)=>score(b)-score(a)||((a.year||9999)-(b.year||9999)))[0];
+ // Limit early-career detail and reserve places for important screen work.
+ add(best(dated.filter(m=>m.category==='origin'))||best(undated.filter(m=>m.category==='origin')));
+ add(best(accepted.filter(m=>m.category==='breakthrough')));
+ const decades=[...new Set(dated.filter(m=>m.category!=='origin').map(m=>Math.floor(m.year/10)))].sort();
+ for(const decade of decades)add(best(dated.filter(m=>Math.floor(m.year/10)===decade&&m.category!=='origin')));
+ for(const m of [...accepted].filter(m=>m.category!=='origin').sort((a,b)=>score(b)-score(a)))add(m);
+ if(selected.length<maxMilestones)for(const m of [...undated].sort((a,b)=>score(b)-score(a)))add(m);
  selected.sort((a,b)=>(a.year||9999)-(b.year||9999)||order[a.category]-order[b.category]);
  const profession=String(person.profession||'a performer').replace(/\.$/,'');
  const intro=`${person.name} ${person.deathday?'was':'is'} ${profession}.`;
- const paragraphs=[intro,...selected.map(m=>m.text.replace(/[.\s]+$/,'')+'.')];
- const coverage={categories:cats.filter(c=>selected.some(m=>m.category===c)),count:selected.length};
+ const paragraphs=[intro,...selected.map(m=>clean(m.text).replace(/[.\s]+$/,'')+'.')];
+ const coverage={categories:cats.filter(c=>selected.some(m=>m.category===c)),count:selected.length,decades:[...new Set(selected.filter(m=>m.year).map(m=>Math.floor(m.year/10)*10))].sort()};
  return {biography:paragraphs.join(' '),milestones:selected,errors,coverage,readyForPublication:false};
 }
 return {validateMilestones,buildBiography};
@@ -1819,7 +1831,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
 
         // Person 161 preview is deliberately opt-in and does not replace the live biography.
         // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
-        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview") {
+        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview") {
           try {
             const draft = await Bio161Retrieval.buildFromRetrievedSources(
               {id: Number(person.id), name: person.name,
@@ -1831,7 +1843,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
               preview: true, deployedBiographyUnchanged: true,
               id: person.id, name: person.name,
               biography: draft.biography,
-              readyForPublication: false, structuralCoveragePass: draft.coverage.count >= 3 && draft.coverage.categories.length >= 2,
+              readyForPublication: false, structuralCoveragePass: draft.coverage.count >= 5 && draft.coverage.decades.length >= 3 && draft.coverage.categories.some(c => c === "breakthrough" || c === "signature"),
               coverage: draft.coverage,
               milestones: draft.milestones.map(m => ({category:m.category,year:m.year,
                 text:m.text,source:{kind:m.source.kind,id:m.source.id}})),
