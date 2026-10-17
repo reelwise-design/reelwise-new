@@ -1757,6 +1757,31 @@ function compose(person,credits,sources){
 }
 return {compose};
 })();
+/* R8 curated milestone pilot: title+release-year verified against exact person cast.
+   This is a pilot, not an actor-specific patch to the public biography. */
+const Bio161MilestonePilot=(()=>{
+const records={
+  5064:{name:'Meryl Streep',intro:'Meryl Streep trained at Vassar College and the Yale School of Drama before building a career on stage and screen.',films:[
+    ['The Deer Hunter',1978,'early film career'],['Kramer vs. Kramer',1979,'major dramatic role'],["Sophie's Choice",1982,'defining dramatic role'],['Out of Africa',1985,'leading dramatic role'],['The Bridges of Madison County',1995,'later dramatic role'],['The Devil Wears Prada',2006,'mainstream role'],['Mamma Mia!',2008,'musical role'],['The Iron Lady',2011,'later dramatic portrayal']]},
+  19292:{name:'Adam Sandler',intro:'Adam Sandler developed his comedy career through stand-up and Saturday Night Live before becoming a leading film comedian.',films:[
+    ['Billy Madison',1995,'early starring comedy'],['Happy Gilmore',1996,'signature comedy'],['The Wedding Singer',1998,'romantic comedy'],['The Waterboy',1998,'popular comedy'],['Punch-Drunk Love',2002,'dramatic performance'],['Uncut Gems',2019,'later dramatic performance'],['Hustle',2022,'later dramatic performance']]}
+};
+const norm=s=>String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+function compose(person,cast){
+ const record=records[Number(person?.id)];
+ if(!record||norm(record.name)!==norm(person.name))return {biography:null,coverage:'not_curated',readyForPublication:false,diagnostic:{reason:'No editorial record for this performer; generic public profile remains unchanged'}};
+ const verified=[],missing=[];
+ for(const [title,year,editorialLabel] of record.films){
+  const credit=(cast||[]).find(c=>c&&typeof c==='object'&&norm(c.title)===norm(title)&&Number(String(c.release_date||'').slice(0,4))===year&&c.media_type==='movie'&&c.adult===false&&typeof c.credit_id==='string'&&c.credit_id.trim()&&/^\d{4}-\d{2}-\d{2}$/.test(c.release_date||'')&&Number.isSafeInteger(c.id));
+  if(!credit){missing.push({title,year,reason:'not verified in exact TMDB person cast'});continue;}
+  verified.push({id:credit.id,title,year,editorialLabel,source:{kind:'tmdb_person_cast',id:`tmdb:person:${person.id}:movie:${credit.id}`}});
+ }
+ verified.sort((a,b)=>a.year-b.year||a.title.localeCompare(b.title));
+ const biography=record.intro+' Selected verified film credits for editorial review: '+verified.map(c=>`${c.title} (${c.year})`).join(', ')+'. This is a milestone preview, not a finished biography.';
+ return {biography,coverage:'curated_pilot',verified,missing,readyForPublication:false,editorialQualityPass:false,diagnostic:{editorialCandidates:record.films.length,verified:verified.length,missing:missing.length,limitations:['TMDB verifies cast participation, not editorial significance','Editorial labels are hypotheses pending source audit','No award claims inferred']}};
+}
+return {compose};
+})();
 const Bio161Retrieval = (()=>{
 /* Read-only source acquisition. Wikipedia identity requires a Wikidata ID matching
    the ID returned by TMDB external_ids; title similarity is not identity proof. */
@@ -1867,9 +1892,21 @@ return {retrieveBiographySources,buildFromRetrievedSources};
         }
 
 
+        // R9 opt-in preview only; public profile and Accolades remain unchanged.
+        if (mode === "biography161_r9_preview") {
+          try {
+            const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`,{headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
+            const cast = Array.isArray(creditResponse?.cast) ? creditResponse.cast : [];
+            const pilot = Bio161MilestonePilot.compose(person,cast);
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,...pilot,readyForPublication:false,releaseStatus:"editorial_review_required",diagnostic:{...pilot.diagnostic,castRecords:cast.length,releaseBlockers:["Independent milestone source audit","Publication-quality narrative","Full integrated API and frontend regression"]}});
+          } catch (error) {
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,readyForPublication:false,releaseStatus:"preview_unavailable",error:"Person 161 R9 preview unavailable"});
+          }
+        }
+
         // Person 161 preview is deliberately opt-in and does not replace the live biography.
         // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
-        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview" || mode === "biography161_r5_preview" || mode === "biography161_r6_preview" || mode === "biography161_r7_preview") {
+        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview" || mode === "biography161_r5_preview" || mode === "biography161_r6_preview" || mode === "biography161_r7_preview" || mode === "biography161_r8_preview") {
           try {
             const draft = await Bio161Retrieval.buildFromRetrievedSources(
               {id: Number(person.id), name: person.name,
@@ -1877,6 +1914,11 @@ return {retrieveBiographySources,buildFromRetrievedSources};
                deathday: person.deathday},
               {tmdbToken: TOKEN}
             );
+            if (mode === "biography161_r8_preview") {
+              const creditResponse=await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`,{headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
+              const pilot=Bio161MilestonePilot.compose(person,creditResponse?.cast||[]);
+              return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,...pilot});
+            }
             if (mode === "biography161_r5_preview" || mode === "biography161_r6_preview" || mode === "biography161_r7_preview") {
               const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`, {headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
               const verifiedSources = await Bio161Retrieval.retrieveBiographySources(
