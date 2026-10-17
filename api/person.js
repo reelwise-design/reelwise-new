@@ -1660,55 +1660,48 @@ function buildBiography(person,milestones,{maxMilestones=8}={}){
  const {accepted,errors}=validateMilestones(person,milestones);
  const intro=clean(person.profession)?`${person.name} ${person.deathday?'was':'is'} ${clean(person.profession).replace(/\.$/,'')}.`:`${person.name} ${person.deathday?'was':'is'} a performer.`;
  const order={origin:0,breakthrough:1,signature:2,range:3,later:4};
- const selected=accepted.sort((a,b)=>order[a.category]-order[b.category]||Number(a.year||9999)-Number(b.year||9999)).slice(0,maxMilestones);
+ const selected=accepted.sort((a,b)=>Number(a.year||9999)-Number(b.year||9999)||order[a.category]-order[b.category]).slice(0,maxMilestones);
  const paragraphs=[intro];
- for(const category of categories){
-  const facts=selected.filter(x=>x.category===category).map(x=>x.text.replace(/\.$/,'')+'.');
-  if(facts.length)paragraphs.push(facts.join(' '));
- }
+ for(const fact of selected){paragraphs.push(fact.text.replace(/\.$/,'')+'.');}
  return {biography:paragraphs.join(' '),milestones:selected,errors,coverage:{categories:categories.filter(c=>selected.some(x=>x.category===c)),count:selected.length},readyForPublication:selected.length>=3&&selected.some(x=>x.category==='breakthrough'||x.category==='signature')};
 }
 
 return {validateMilestones,buildBiography};
 })();
 const Bio161Source = (()=>{
-/* Isolated source-to-milestone adapter. No network, no production writes.
-   This adapter extracts only explicit, source-backed statements; film credits
-   by themselves cannot establish a breakthrough, acclaim, or awards. */
-const clean=s=>String(s||'').replace(/\s+/g,' ').trim();
+const clean=s=>String(s||'').replace(/={2,}[^=]{1,90}={2,}/g,' ').replace(/\[[0-9,\s]+\]/g,'').replace(/\s+/g,' ').trim();
 const split=s=>clean(s).replace(/\bvs\./gi,'vs․').match(/[^.!?]+[.!?]+|[^.!?]+$/g)?.map(x=>clean(x.replace(/vs․/gi,'vs.'))).filter(Boolean)||[];
-const contextual=[
- ['origin',/\b(?:began (?:his|her|their) career|started (?:his|her|their) career|stage|theater|theatre|television|Saturday Night Live|Mork\s*&\s*Mindy)\b/i],
- ['breakthrough',/\b(?:breakthrough|rose to prominence|gained prominence|first major|established (?:him|her|them)(?:self)?(?: as)?)\b/i],
- ['range',/\b(?:dramatic (?:roles?|performances?|work)|comedic (?:roles?|performances?|work)|versatility|transitioned)\b/i],
- ['signature',/\b(?:defining|signature|best known for|widely known for)\b/i],
- ['later',/\b(?:later (?:career|work|roles?)|more recently|subsequently)\b/i]
+const patterns=[
+ ['breakthrough',/\b(?:breakthrough|rose to prominence|gained prominence|first major|first starring|first leading|launched (?:his|her|their) career|established (?:him|her|them)(?:self)?(?: as)?)\b/i],
+ ['origin',/\b(?:began (?:his|her|their) career|started (?:his|her|their) career|early career|stage debut|Broadway debut|television debut|Saturday Night Live|Mork\s*&\s*Mindy|studied drama|trained at|Yale School of Drama)\b/i],
+ ['signature',/\b(?:defining|signature|best known for|widely known for|starred in|leading role|portrayed|played the role|played [A-Z]|appeared in|performance in)\b/i],
+ ['range',/\b(?:dramatic (?:roles?|performances?|work)|comedic (?:roles?|performances?|work)|versatility|transitioned|shifted to|also starred|voice role|musical film)\b/i],
+ ['later',/\b(?:later (?:career|work|roles?)|more recently|subsequently|returned to|in recent years)\b/i]
 ];
-function extractMilestones(person,sources,{maxPerSource=30}={}){
+const generic=/\b(?:prolific artist|best actress of her generation|greatest actor|audiobooks?|musical recordings|grossed more than|box office total)\b/i;
+function extractMilestones(person,sources,{maxPerSource=160}={}){
  if(!person||!Number.isSafeInteger(person.id)||!clean(person.name))throw Error('Person identity required');
- const facts=[],excluded=[];
+ const facts=[],excluded=[],seen=new Set();
  for(const source of sources||[]){
   if(!source?.id||!source?.kind||source.personId!==person.id){excluded.push({source:source?.id||null,reason:'source identity or provenance missing'});continue;}
   for(const sentence of split(source.text).slice(0,maxPerSource)){
-   if(sentence.length<25||sentence.length>400){excluded.push({source:source.id,reason:'sentence length'});continue;}
-   if(/\b(?:academy award|oscar|won|nomination|nominated)\b/i.test(sentence)&&source.kind!=='audited_award'){
-    excluded.push({source:source.id,reason:'award claim requires audited record'});continue;
-   }
-   const priority={breakthrough:0,signature:1,range:2,later:3,origin:4};
-   const found=contextual.filter(([,pattern])=>pattern.test(sentence)).sort((a,b)=>priority[a[0]]-priority[b[0]])[0];
+   if(sentence.length<35||sentence.length>340){excluded.push({source:source.id,reason:'sentence length'});continue;}
+   if(generic.test(sentence)){excluded.push({source:source.id,reason:'generic or promotional material'});continue;}
+   if(/\b(?:academy award|oscar|won|nomination|nominated)\b/i.test(sentence)&&source.kind!=='audited_award'){excluded.push({source:source.id,reason:'award claim requires audited record'});continue;}
+   const found=patterns.find(([,p])=>p.test(sentence));
    if(!found){excluded.push({source:source.id,reason:'no explicit career context'});continue;}
+   const key=sentence.toLowerCase().replace(/[^a-z0-9]/g,'');
+   if(seen.has(key)){excluded.push({source:source.id,reason:'duplicate statement across sources'});continue;}seen.add(key);
    const year=sentence.match(/\b(?:19|20)\d{2}\b/)?.[0];
    facts.push({personId:person.id,category:found[0],text:sentence,year:year?Number(year):null,source:{kind:source.kind,id:source.id}});
   }
  }
- const deduped=[],seen=new Set();
- for(const fact of facts){const key=fact.text.toLowerCase().replace(/[^a-z0-9]/g,'');if(seen.has(key)){excluded.push({source:fact.source.id,reason:'duplicate statement across sources'});continue;}seen.add(key);deduped.push(fact);}
- const checked=Bio161Engine.validateMilestones(person,deduped);
+ const checked=Bio161Engine.validateMilestones(person,facts);
  return {milestones:checked.accepted,excluded,errors:checked.errors};
 }
 function buildFromSources(person,sources,options){
  const extracted=extractMilestones(person,sources,options);
- const result=Bio161Engine.buildBiography(person,extracted.milestones);
+ const result=Bio161Engine.buildBiography(person,extracted.milestones,{maxMilestones:12});
  return {...result,diagnostic:{sourcesConsidered:(sources||[]).length,accepted:extracted.milestones.length,excluded:extracted.excluded,errors:extracted.errors}};
 }
 return {extractMilestones,buildFromSources};
@@ -1825,7 +1818,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
 
         // Person 161 preview is deliberately opt-in and does not replace the live biography.
         // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
-        if (mode === "biography161_preview") {
+        if (mode === "biography161_preview" || mode === "biography161_r2_preview") {
           try {
             const draft = await Bio161Retrieval.buildFromRetrievedSources(
               {id: Number(person.id), name: person.name,
