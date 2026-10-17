@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 127
+      REELWISE PERSON API — PERSON 166
       ============================================================
 
       STAR PROFILE
@@ -1842,6 +1842,66 @@ async function buildFromRetrievedSources(person,options){
 }
 return {retrieveBiographySources,buildFromRetrievedSources};
 })();
+
+/* Person 166: generic source-context preview. No performer-specific records.
+   Cast participation corroborates a title, not the sentence's significance claim.
+   Source sentences remain attributed review material, never automatic publication. */
+const Bio166Preview = (() => {
+  const norm = value => String(value || '').normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const contains = (text, title) => {
+    const key = norm(title);
+    return key.length >= 5 && (' ' + norm(text) + ' ').includes(' ' + key + ' ');
+  };
+  function compose(person, credits, sources, publicBiography = '', today = new Date().toISOString().slice(0,10)) {
+    const movies = validMovieCredits(credits).filter(isBiographyActingCredit)
+      .filter(movie => (!movie.media_type || movie.media_type === 'movie') && !movie.adult && Number.isSafeInteger(movie.id) && movie.title &&
+        /^\d{4}-\d{2}-\d{2}$/.test(movie.release_date || '') && movie.release_date <= today);
+    const extracted = Bio161Source.extractMilestones(person, sources);
+    const candidates = [], excluded = [];
+    for (const milestone of extracted.milestones) {
+      const films = movies.filter(movie => contains(milestone.text, movie.title));
+      // Film statements need a dated title as well as explicit career context.
+      // This avoids inventing an arc from billing or popularity rankings.
+      if (!films.length || !milestone.year) {
+        excluded.push({reason:'No dated acting-film anchor',source:milestone.source});
+        continue;
+      }
+      if (/\b(?:he|she|his|her|they|their|it|this|that)\b/i.test(milestone.text.split(/\s+/)[0]) && !contains(milestone.text, person.name)) {
+        excluded.push({reason:'Opening needs unresolved source context',source:milestone.source});
+        continue;
+      }
+      // Do not mistake another date in a sentence for a matched film's year.
+      const dates = [...milestone.text.matchAll(/\b(?:19|20)\d{2}\b/g)].map(match => Number(match[0]));
+      const datedFilms = films.filter(movie => dates.includes(Number(movie.release_date.slice(0,4))));
+      if (!datedFilms.length) {
+        excluded.push({reason:'Film and sentence dates do not corroborate',source:milestone.source});
+        continue;
+      }
+      candidates.push({...milestone,year:Math.min(...datedFilms.map(movie => Number(movie.release_date.slice(0,4)))),
+        films:datedFilms.map(movie => ({tmdbMovieId:movie.id,title:movie.title,year:Number(movie.release_date.slice(0,4))}))});
+    }
+    // Reserve chronological breadth before filling remaining places.
+    const selected=[],seen=new Set();
+    const add=item=>{if(item && selected.length<6 && !seen.has(norm(item.text))){selected.push(item);seen.add(norm(item.text));}};
+    const ordered=candidates.sort((a,b)=>a.year-b.year);
+    for(const decade of [...new Set(ordered.map(item=>Math.floor(item.year/10)))]) add(ordered.find(item=>Math.floor(item.year/10)===decade));
+    for(const item of ordered) add(item);
+    selected.sort((a,b)=>a.year-b.year);
+    const candidate=selected.map(item=>item.text).join(' ');
+    const omitted=movies.filter(movie=>contains(publicBiography,movie.title)&&!contains(candidate,movie.title));
+    return {genericCandidate:candidate || null,
+      evidence:selected.map(item=>({text:item.text,year:item.year,category:item.category,source:item.source,films:item.films})),
+      quality:{sourceGroundedStatements:selected.length,representedDecades:[...new Set(selected.map(item=>Math.floor(item.year/10)*10))],
+        omittedPublicVerifiedTitles:omitted.map(movie=>({tmdbMovieId:movie.id,title:movie.title})),
+        preservesPublicFilmCoverage:omitted.length===0,independentSignificanceAuditComplete:false},
+      diagnostics:{excluded:[...extracted.excluded,...excluded].slice(0,30),candidateStatements:candidates.length},
+      readyForPublication:false,releaseStatus:selected.length?'source_context_editorial_review':'insufficient_source_context',
+      policy:'Attributed source-excerpt preview only. Credits corroborate participation; career significance, context, and wording still require editorial review.'};
+  }
+  return {compose};
+})();
+
     export default async function handler(
       req,
       res
@@ -2117,6 +2177,22 @@ return {retrieveBiographySources,buildFromRetrievedSources};
         const genericQuality164={wordCount:words164(generatedBiography),verifiedFilmMentions:candidateFilms164.length,hasCareerContext:context164,hasNarrativeProgression:progression164,hasUnsupportedPlaceholder:placeholder164,passesMinimum:minimum164,comparison:{publicWordCount:words164(biography),publicVerifiedFilmMentions:publicFilms164.length,omittedPublicFilmTitles:omittedFilms164,preservesVerifiedFilmCoverage:omittedFilms164.length===0,candidateShorterThanPublic:words164(generatedBiography)<words164(biography)},editorialPublicationApproved:false};
         if(mode==='biography164_preview')return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,publicBiography:biography,genericCandidate:generatedBiography,quality:genericQuality164,readyForPublication:false,releaseStatus:'generic_editorial_review',policy:'Minimum checks are diagnostics, never automatic publication approval.'});
 
+        // Person 166: identity-linked source context, isolated from public biography.
+        if (mode === "biography166_preview") {
+          try {
+            const retrieved166 = await Bio161Retrieval.retrieveBiographySources(person,
+              {tmdbToken:TOKEN,wikipediaTitle:wikipediaPage.title});
+            const draft166 = Bio166Preview.compose(person,credits,retrieved166.sources,biography);
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,publicBiography:biography,...draft166,
+              sourceRetrieval:retrieved166.diagnostics});
+          } catch {
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,publicBiography:biography,genericCandidate:null,
+              readyForPublication:false,releaseStatus:"preview_unavailable"});
+          }
+        }
+
         // Person 165: independent, generic, credit-grounded narrative preview.
         // This never copies the public biography or asserts unverified significance.
         if (mode === "biography165_preview") {
@@ -2259,3 +2335,4 @@ return {retrieveBiographySources,buildFromRetrievedSources};
           });
       }
     }
+
