@@ -2117,6 +2117,50 @@ return {retrieveBiographySources,buildFromRetrievedSources};
         const genericQuality164={wordCount:words164(generatedBiography),verifiedFilmMentions:candidateFilms164.length,hasCareerContext:context164,hasNarrativeProgression:progression164,hasUnsupportedPlaceholder:placeholder164,passesMinimum:minimum164,comparison:{publicWordCount:words164(biography),publicVerifiedFilmMentions:publicFilms164.length,omittedPublicFilmTitles:omittedFilms164,preservesVerifiedFilmCoverage:omittedFilms164.length===0,candidateShorterThanPublic:words164(generatedBiography)<words164(biography)},editorialPublicationApproved:false};
         if(mode==='biography164_preview')return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,publicBiography:biography,genericCandidate:generatedBiography,quality:genericQuality164,readyForPublication:false,releaseStatus:'generic_editorial_review',policy:'Minimum checks are diagnostics, never automatic publication approval.'});
 
+        // Person 165: independent, generic, credit-grounded narrative preview.
+        // This never copies the public biography or asserts unverified significance.
+        if (mode === "biography165_preview") {
+          const today165=new Date().toISOString().slice(0,10);
+          const movies165=validMovieCredits(credits).filter(isBiographyActingCredit)
+            .filter(m=>/^\d{4}-\d{2}-\d{2}$/.test(m.release_date||'') && m.release_date<=today165)
+            .map(m=>({id:m.id,title:String(m.title).trim(),year:Number(m.release_date.slice(0,4)),
+              order:Number.isFinite(Number(m.order))?Number(m.order):999,popularity:Number(m.popularity)||0}))
+            .filter(m=>m.year>=1900).sort((a,b)=>a.year-b.year||a.order-b.order||a.id-b.id);
+          const first165=movies165[0]?.year,last165=movies165.at(-1)?.year;
+          const span165=first165===undefined?0:last165-first165;
+          const earlyEnd165=first165+Math.max(5,Math.floor(span165*.25));
+          const laterStart165=last165-Math.max(4,Math.floor(span165*.25));
+          const bins165=[{key:'early',items:movies165.filter(m=>m.year<=earlyEnd165)},
+            {key:'middle',items:movies165.filter(m=>m.year>earlyEnd165&&m.year<laterStart165)},
+            {key:'later',items:movies165.filter(m=>m.year>=laterStart165&&m.year>earlyEnd165)}];
+          const picked165=[],seen165=new Set();
+          for(const bin of bins165){
+            const best=[...bin.items].sort((a,b)=>a.order-b.order||b.popularity-a.popularity||a.year-b.year).slice(0,3);
+            for(const m of best.sort((a,b)=>a.year-b.year))if(!seen165.has(m.id)){seen165.add(m.id);picked165.push({...m,period:bin.key});}
+          }
+          const fmt165=items=>items.map(m=>`${m.title} (${m.year})`).join(', ');
+          const paragraphs165=[];
+          for(const bin of bins165){const items=picked165.filter(m=>m.period===bin.key);if(!items.length)continue;
+            const lead=bin.key==='early'?`${person.name}'s earlier verified film credits include `:
+              bin.key==='middle'?'In the middle portion of the recorded film career, credits include ':'Later recorded film work includes ';
+            paragraphs165.push(lead+fmt165(items)+'.');}
+          const candidate165=paragraphs165.join(' ');
+          const norm165=v=>String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+          const mentions165=(body,title)=>{const t=norm165(title);return t.length>=4&&(' '+norm165(body)+' ').includes(' '+t+' ');};
+          const omitted165=movies165.filter(m=>mentions165(biography,m.title)&&!mentions165(candidate165,m.title))
+            .map(m=>({tmdbMovieId:m.id,title:m.title,year:m.year}));
+          return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,
+            publicBiography:biography,genericCandidate:candidate165,
+            methodology:'Independent chronological acting-credit sampling; billing and popularity are not proof of cultural significance.',
+            evidence:picked165.map(({id,title,year,period})=>({tmdbMovieId:id,title,year,period})),
+            quality:{independentOfPublicBiography:norm165(candidate165)!==norm165(biography),
+              selectedVerifiedCredits:picked165.length,representedPeriods:[...new Set(picked165.map(m=>m.period))],
+              omittedPublicVerifiedTitles:omitted165,preservesPublicFilmCoverage:omitted165.length===0,
+              narrativeSignificanceVerified:false},readyForPublication:false,
+            releaseStatus:'generic_candidate_editorial_review',
+            policy:'Preview only. Never replace a public biography on credit inventory alone.'});
+        }
+
         const knownFor =
           buildKnownFor(
             credits
