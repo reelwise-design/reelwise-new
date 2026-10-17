@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 167
+      REELWISE PERSON API — PERSON 168
       ============================================================
 
       STAR PROFILE
@@ -1910,7 +1910,7 @@ const Bio167Preview = (() => {
   const has=(body,title)=>norm(title).length>=5&&(' '+norm(body)+' ').includes(' '+norm(title)+' ');
   const award=/\b(?:awards?|oscars?|nominat(?:ed|ions?)|golden globe|bafta|emmy|won|winning)\b/i;
   const career=/\b(?:starred|starring|appeared|performance|performances|portrayed|played|voiced|voice role|transitioned|feature film role|film debut|screen debut|leading actress|leading actor|returned|breakthrough|rose to prominence|began.{0,30}career)\b/i;
-  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10)) {
+  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10),options={}) {
     const movies=validMovieCredits(credits).filter(isBiographyActingCredit).filter(m=>
       (!m.media_type||m.media_type==='movie')&&!m.adult&&Number.isSafeInteger(m.id)&&
       /^\d{4}-\d{2}-\d{2}$/.test(m.release_date||'')&&m.release_date<=today);
@@ -1945,6 +1945,7 @@ const Bio167Preview = (() => {
           source:{id:source.id,kind:source.kind},films:films.map(m=>({tmdbMovieId:m.id,title:m.title,year:Number(m.release_date.slice(0,4))}))});
       }
     }
+    if(options.collectCandidates)return {movies,candidates,excluded};
     candidates.sort((a,b)=>a.year-b.year);
     const selected=[],used=new Set();
     const add=item=>{if(item&&selected.length<6&&!used.has(item)){selected.push(item);used.add(item);}};
@@ -1962,6 +1963,72 @@ const Bio167Preview = (() => {
       diagnostics:{candidateStatements:candidates.length,excluded:excluded.slice(0,30)},
       readyForPublication:false,releaseStatus:!selected.length?'insufficient_source_context':representedDecades.length<2?'incomplete_career_coverage':'source_context_editorial_review',
       policy:'Attributed source excerpts with limited clause cleanup. Credits corroborate participation, not significance. Context, omissions, and narrative quality require editorial review before publication.'};
+  }
+  return {compose};
+})();
+
+
+/* Person 168: rank linked career context; ordinary appearances never outrank
+   a supported transition simply because they occur earlier in a decade. */
+const Bio168Preview = (() => {
+  const norm=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const has=(body,title)=>norm(title).length>=5&&(' '+norm(body)+' ').includes(' '+norm(title)+' ');
+  const format=films=>films.map(m=>`${m.title} (${m.year})`).join(', ');
+  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10)) {
+    const {movies,candidates:raw,excluded}=Bio167Preview.compose(person,credits,sources,publicBiography,today,{collectCandidates:true});
+    const candidates=raw.map(item=>{
+      const originalText=item.text;
+      let text=originalText;
+      const routine=/\b(?:appeared (?:alongside|with)|starred (?:alongside|with|opposite)|co-starred|co-starring|on the set)\b/i.test(text);
+      if(routine)text=`${person.name} ${/\b(?:starred|co-starred)\b/i.test(text)?'starred':'appeared'} in ${format(item.films)}.`;
+      else text=text.split(/,\s*(?:set in|based on|directed by|which (?:follows|tells)|where (?:she|he|they))\b/i)[0];
+      text=ensurePeriod(text);
+      const origin=/\b(?:debut|first feature|transitioned to film|began.{0,30}career)\b/i.test(originalText);
+      const transition=/\b(?:became a leading|breakthrough|breakout|rose to prominence|established|transitioned|returned to|dramatic (?:roles?|work)|comedic (?:roles?|work))\b/i.test(originalText);
+      const sourceLead=item.source.kind==='wikipedia_summary'||item.source.kind==='tmdb_biography';
+      const score=(origin?24:0)+(transition?22:0)+(sourceLead?12:0)+(routine?0:3);
+      return {...item,text,originalText,stage:origin?'origin':transition?'transition':'screen_work',score,
+        rankingReasons:[...(origin?['source describes career start']:[]),...(transition?['source describes career transition']:[]),...(sourceLead?['biographical lead context']:[])]};
+    });
+    // Reuse the existing identity-scoped Academy audit, never raw source claims.
+    // The audit's year is the film year; an Oscar ceremony may be the next year.
+    const audited=independentlyAuditedOscars(person);
+    for(const record of audited.filter(record=>record.winner)){
+      const film=movies.find(m=>norm(m.title)===norm(record.movie)&&Number(m.release_date.slice(0,4))===record.year);
+      if(!film)continue;
+      const films=[{tmdbMovieId:film.id,title:film.title,year:record.year}];
+      candidates.push({text:`${person.name} won the Academy Award for ${record.category} for ${film.title} (${record.year}).`,
+        year:record.year,films,source:{id:`reelwise:academy-acting:${person.id}:${film.id}:${record.year}`,kind:'audited_award'},
+        stage:'audited_award',score:40,rankingReasons:['identity-matched audited acting win and dated cast credit']});
+    }
+    const ranked=[...candidates].sort((a,b)=>b.score-a.score||a.year-b.year||a.text.localeCompare(b.text));
+    const selected=[],seen=new Set();
+    const add=item=>{if(!item||selected.length>=8||seen.has(norm(item.text)))return;
+      // Avoid several routine sentences for the same film.
+      if(item.stage!=='audited_award'&&item.films.every(f=>selected.some(s=>s.films.some(g=>f.tmdbMovieId===g.tmdbMovieId))))return;
+      selected.push(item);seen.add(norm(item.text));};
+    add(ranked.find(item=>item.stage==='origin'));
+    for(const item of ranked.filter(item=>item.stage==='audited_award').slice(0,3)){add(item);}
+    for(const item of ranked.filter(item=>item.stage==='transition').slice(0,2))add(item);
+    // Breadth uses the strongest candidate within each period, not the first.
+    const years=movies.map(m=>Number(m.release_date.slice(0,4))),first=Math.min(...years),last=Math.max(...years),span=last-first;
+    const period=year=>span<=0?'early':year<=first+span/3?'early':year>=first+2*span/3?'later':'middle';
+    for(const key of ['early','middle','later'])if(!selected.some(item=>period(item.year)===key))add(ranked.find(item=>period(item.year)===key));
+    for(const item of ranked)add(item);
+    selected.sort((a,b)=>a.year-b.year||b.score-a.score);
+    const surname=String(person.name).trim().split(/\s+/).at(-1);
+    const candidate=selected.map((item,index)=>index?item.text.replaceAll(person.name,surname):item.text).join(' ');
+    const omitted=movies.filter(m=>has(publicBiography,m.title)&&!has(candidate,m.title));
+    return {genericCandidate:candidate||null,evidence:selected,
+      quality:{sourceGroundedStatements:selected.length,representedDecades:[...new Set(selected.map(c=>Math.floor(c.year/10)*10))],
+        omittedPublicVerifiedTitles:omitted.map(m=>({tmdbMovieId:m.id,title:m.title})),preservesPublicFilmCoverage:omitted.length===0,
+        auditedAwardStatements:selected.filter(c=>c.stage==='audited_award').length,
+        careerTransitionStatements:selected.filter(c=>c.stage==='transition').length,
+        independentSignificanceAuditComplete:false},
+      diagnostics:{candidateStatements:candidates.length,excluded:excluded.slice(0,30),
+        selectionPolicy:'Rank explicit source career context and audited acting wins before routine appearances; chronology orders the chosen material, not its importance.'},
+      readyForPublication:false,releaseStatus:!selected.length?'insufficient_source_context':'milestone_selection_editorial_review',
+      policy:'Preview only. Source-language significance remains for editorial review; award statements use the existing identity-scoped Academy audit. No automatic public replacement.'};
   }
   return {compose};
 })();
@@ -2242,11 +2309,11 @@ const Bio167Preview = (() => {
         if(mode==='biography164_preview')return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,publicBiography:biography,genericCandidate:generatedBiography,quality:genericQuality164,readyForPublication:false,releaseStatus:'generic_editorial_review',policy:'Minimum checks are diagnostics, never automatic publication approval.'});
 
         // Person 166: identity-linked source context, isolated from public biography.
-        if (mode === "biography166_preview" || mode === "biography167_preview") {
+        if (["biography166_preview","biography167_preview","biography168_preview"].includes(mode)) {
           try {
             const retrieved166 = await Bio161Retrieval.retrieveBiographySources(person,
               {tmdbToken:TOKEN,wikipediaTitle:wikipediaPage.title});
-            const draft166 = (mode === "biography167_preview" ? Bio167Preview : Bio166Preview).compose(person,credits,retrieved166.sources,biography);
+            const draft166 = (mode === "biography168_preview" ? Bio168Preview : mode === "biography167_preview" ? Bio167Preview : Bio166Preview).compose(person,credits,retrieved166.sources,biography);
             return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
               id:person.id,name:person.name,publicBiography:biography,...draft166,
               sourceRetrieval:retrieved166.diagnostics});
