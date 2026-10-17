@@ -1719,6 +1719,52 @@ function buildFromSources(person,sources,options){
 }
 return {extractMilestones,buildFromSources};
 })();
+/* R5: evidence-first filmography narrative. Never copy raw encyclopedia sentences into prose. */
+const Bio161Editorial = (()=>{
+const norm=s=>String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,' ').trim().toLowerCase();
+const year=s=>Number(String(s||'').slice(0,4));
+const stop=/\b(?:academy award|oscar|bafta|golden globe|won|nominated)\b/i;
+function compose(person,credits,sources){
+ const excluded=[],all=[];
+ const texts=(sources||[]).map(s=>String(s.text||'').replace(/={2,}[^=\n]{1,90}={2,}/g,' '));
+ const evidence=texts.join(' ').toLowerCase();
+ for(const c of credits||[]){
+  if(c?.media_type&&c.media_type!=='movie')continue;
+  const title=String(c?.title||'').trim(), y=year(c?.release_date);
+  if(!title||y<1900||y>new Date().getUTCFullYear()||c?.adult||!Number.isSafeInteger(c?.id))continue;
+  // Combined credits are returned by TMDB for the exact person ID; no title-based actor inference.
+  if(c?.order===undefined||c?.order===null){excluded.push({title,reason:'cast order unavailable'});continue;}
+  const key=norm(title);if(!key)continue;
+  const mentioned=texts.some(t=>norm(t).includes(key));
+  const vote=Number(c.vote_count)||0;
+  const popularity=Number(c.popularity)||0;
+  const lead=c.order<=2;
+  const score=(mentioned?12:0)+(lead?6:c.order<=5?3:0)+Math.min(6,Math.log10(vote+1)*1.4)+Math.min(2,popularity/30);
+  all.push({id:c.id,title,year:y,order:c.order,mentioned,score,source:{kind:'tmdb_person_cast',id:`tmdb:person:${person.id}:movie:${c.id}`}});
+ }
+ const dedup=new Map();for(const c of all){const k=norm(c.title)+':'+c.year;if(!dedup.has(k)||dedup.get(k).score<c.score)dedup.set(k,c);}
+ const sorted=[...dedup.values()].sort((a,b)=>b.score-a.score||a.year-b.year);
+ const selected=[],used=new Set();const add=c=>{if(c&&!used.has(c.id)&&selected.length<9){selected.push(c);used.add(c.id);}};
+ // Require source mention for main milestones; credits-only titles may fill only sparse biographies.
+ const eligible=sorted.filter(c=>c.mentioned);
+ const decades=[...new Set(eligible.map(c=>Math.floor(c.year/10)))].sort();
+ for(const d of decades)add(eligible.find(c=>Math.floor(c.year/10)===d));
+ for(const c of eligible)add(c);
+ if(selected.length<4)for(const c of sorted.filter(c=>c.order<=3))add(c);
+ selected.sort((a,b)=>a.year-b.year||b.score-a.score);
+ const groups=[];for(let i=0;i<selected.length;i+=3)groups.push(selected.slice(i,i+3));
+ const fmt=c=>`${c.title} (${c.year})`;
+ const join=arr=>arr.length===1?arr[0]:arr.length===2?arr.join(' and '):arr.slice(0,-1).join(', ')+', and '+arr.at(-1);
+ const profession=person.known_for_department==='Acting'?'screen performer':'film and television professional';
+ let biography=`${person.name} ${person.deathday?'was':'is'} a ${profession}.`;
+ if(groups[0]?.length)biography+=` Early screen credits include ${join(groups[0].map(fmt))}.`;
+ if(groups[1]?.length)biography+=` Subsequent film work includes ${join(groups[1].map(fmt))}.`;
+ if(groups[2]?.length)biography+=` Later credits include ${join(groups[2].map(fmt))}.`;
+ const decadesCovered=[...new Set(selected.map(c=>Math.floor(c.year/10)*10))].sort();
+ return {biography,credits:selected,diagnostic:{totalCastCredits:all.length,sourceMentioned:eligible.length,selected:selected.length,decadesCovered,excluded:excluded.slice(0,12)},readyForPublication:false,editorialQualityPass:false};
+}
+return {compose};
+})();
 const Bio161Retrieval = (()=>{
 /* Read-only source acquisition. Wikipedia identity requires a Wikidata ID matching
    the ID returned by TMDB external_ids; title similarity is not identity proof. */
@@ -1831,7 +1877,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
 
         // Person 161 preview is deliberately opt-in and does not replace the live biography.
         // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
-        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview") {
+        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview" || mode === "biography161_r5_preview") {
           try {
             const draft = await Bio161Retrieval.buildFromRetrievedSources(
               {id: Number(person.id), name: person.name,
@@ -1839,6 +1885,16 @@ return {retrieveBiographySources,buildFromRetrievedSources};
                deathday: person.deathday},
               {tmdbToken: TOKEN}
             );
+            if (mode === "biography161_r5_preview") {
+              const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`, {headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
+              const verifiedSources = await Bio161Retrieval.retrieveBiographySources(
+                {id:Number(person.id),name:person.name},{tmdbToken:TOKEN});
+              const editorial = Bio161Editorial.compose(person,creditResponse?.cast||[],verifiedSources.sources);
+              return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+                id:person.id,name:person.name,biography:editorial.biography,
+                readyForPublication:false,editorialQualityPass:false,
+                credits:editorial.credits,diagnostic:{...editorial.diagnostic,retrieval:verifiedSources.diagnostics}});
+            }
             return res.status(200).json({
               preview: true, deployedBiographyUnchanged: true,
               id: person.id, name: person.name,
