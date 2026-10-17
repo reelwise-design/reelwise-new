@@ -1723,44 +1723,37 @@ return {extractMilestones,buildFromSources};
 const Bio161Editorial = (()=>{
 const norm=s=>String(s||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/gi,' ').trim().toLowerCase();
 const year=s=>Number(String(s||'').slice(0,4));
+const context=/\b(?:breakthrough|breakout|acclaim|praised|recognized|prominence|leading role|lead role|starring role|starred|performance|portrayed|career|turning point|signature|best known|noted for|critical|comeback|dramatic role|comedic role)\b/i;
 function compose(person,credits,sources){
- const excluded=[], all=[], now=new Date().getUTCFullYear();
- const texts=(sources||[]).map(s=>String(s.text||'').replace(/={2,}[^=\n]{1,90}={2,}/g,' '));
- const evidence=norm(texts.join(' '));
+ const now=new Date().getUTCFullYear(),candidates=[],excluded=[];
+ const verified=(sources||[]).filter(s=>s?.personId===person.id&&s?.id&&s?.kind);
  for(const c of credits||[]){
-  if(c?.media_type&&c.media_type!=='movie')continue;
   const title=String(c?.title||'').trim(),y=year(c?.release_date);
-  if(!title||y<1900||y>now||c?.adult||!Number.isSafeInteger(c?.id))continue;
-  if(c?.order===undefined||c?.order===null){excluded.push({title,reason:'cast order unavailable'});continue;}
+  if(c?.media_type&&c.media_type!=='movie')continue;
+  if(!Number.isSafeInteger(c?.id)||!title||y<1900||y>now||c.adult||c.order===undefined||c.order===null)continue;
   const key=norm(title);if(key.length<5)continue;
-  const mentioned=evidence.includes(key);
-  const lead=c.order<=2;
-  // Popularity is deliberately NOT a career-significance proxy.
-  const score=(mentioned?20:0)+(lead?5:c.order<=5?2:0)+Math.min(3,Math.log10((Number(c.vote_count)||0)+1));
-  all.push({id:c.id,title,year:y,order:c.order,mentioned,score,source:{kind:'tmdb_person_cast',id:`tmdb:person:${person.id}:movie:${c.id}`}});
+  const evidence=[];
+  for(const source of verified){
+   const sentences=String(source.text||'').replace(/\bvs\./gi,'vs․').split(/(?<=[.!?])\s+/).map(x=>norm(x.replace(/․/g,'.')));
+   const excerpt=sentences.find(x=>x.includes(key));if(!excerpt)continue;
+   evidence.push({sourceId:source.id,kind:source.kind,context:context.test(excerpt)?'career_context':'title_mention'});
+  }
+  if(!evidence.length){excluded.push({title,reason:'no linked source mention'});continue;}
+  const meaningful=evidence.filter(e=>e.context==='career_context');
+  const sourceFamilies=new Set(meaningful.map(e=>e.kind.startsWith('wikipedia')?'wikipedia':e.kind));
+  const significance=!meaningful.length?'mention_only':sourceFamilies.size>=2?'cross_source_context':'single_source_context';
+  candidates.push({id:c.id,title,year:y,order:c.order,significance,evidence,source:{kind:'tmdb_person_cast',id:`tmdb:person:${person.id}:movie:${c.id}`}});
  }
- const unique=new Map();for(const c of all){const k=norm(c.title)+':'+c.year;if(!unique.has(k)||unique.get(k).score<c.score)unique.set(k,c);}
- const eligible=[...unique.values()].filter(c=>c.mentioned).sort((a,b)=>b.score-a.score||a.year-b.year);
- const selected=[],used=new Set();const add=c=>{if(c&&!used.has(c.id)&&selected.length<10){selected.push(c);used.add(c.id);}};
- // Reserve two places for the formative screen era before later decades can fill slots.
- const first=eligible.length?Math.min(...eligible.map(c=>c.year)):null;
- if(first!==null){for(const c of eligible.filter(c=>c.year<=first+9).slice(0,2))add(c);}
- // One representative per decade; avoid using a contemporary sequel to crowd out career foundations.
- const decades=[...new Set(eligible.map(c=>Math.floor(c.year/10)))].sort((a,b)=>a-b);
- for(const d of decades)add(eligible.find(c=>Math.floor(c.year/10)===d));
- for(const c of eligible)add(c);
- // Credits not mentioned in the verified text are never presented as defining milestones.
- selected.sort((a,b)=>a.year-b.year||b.score-a.score);
- const fmt=c=>`${c.title} (${c.year})`;
- const join=arr=>arr.length===1?arr[0]:arr.length===2?arr.join(' and '):arr.slice(0,-1).join(', ')+', and '+arr.at(-1);
- const groups=[];for(let i=0;i<selected.length;i+=3)groups.push(selected.slice(i,i+3));
- let biography=`${person.name} ${person.deathday?'was':'is'} a screen performer.`;
- if(groups[0]?.length)biography+=` Early screen credits include ${join(groups[0].map(fmt))}.`;
- if(groups[1]?.length)biography+=` Other film credits include ${join(groups[1].map(fmt))}.`;
- if(groups[2]?.length)biography+=` Subsequent work includes ${join(groups[2].map(fmt))}.`;
- if(groups[3]?.length)biography+=` Additional credits include ${join(groups[3].map(fmt))}.`;
- const decadesCovered=[...new Set(selected.map(c=>Math.floor(c.year/10)*10))].sort();
- return {biography,credits:selected,diagnostic:{totalCastCredits:all.length,sourceMentioned:eligible.length,selected:selected.length,decadesCovered,excluded:excluded.slice(0,12),selectionPolicy:'verified cast plus source mention; chronological decade reservations; no popularity bonus'},readyForPublication:false,editorialQualityPass:false};
+ const unique=new Map();for(const c of candidates){const k=norm(c.title)+':'+c.year;if(!unique.has(k)||unique.get(k).evidence.length<c.evidence.length)unique.set(k,c);}
+ const all=[...unique.values()].sort((a,b)=>a.year-b.year||a.title.localeCompare(b.title));
+ const rank={cross_source_context:0,single_source_context:1,mention_only:2};
+ const supported=all.filter(c=>c.significance!=='mention_only');
+ const sorted=[...supported].sort((a,b)=>rank[a.significance]-rank[b.significance]||a.year-b.year);
+ const selected=[],ids=new Set();const add=c=>{if(c&&!ids.has(c.id)&&selected.length<9){selected.push(c);ids.add(c.id);}};
+ for(const d of [...new Set(supported.map(c=>Math.floor(c.year/10)))].sort())add(sorted.find(c=>Math.floor(c.year/10)===d));
+ for(const c of sorted)add(c);selected.sort((a,b)=>a.year-b.year);
+ const biography=selected.length?`${person.name} has source-supported screen credits including ${selected.map(c=>`${c.title} (${c.year})`).join(', ')}. This is a diagnostic overview, not a publication-ready biography.`:`Insufficient linked career context to draft a biography for ${person.name}.`;
+ return {biography,credits:selected,candidates:all,diagnostic:{sourceMentioned:all.length,careerContextCandidates:supported.length,selected:selected.length,excluded:excluded.slice(0,12),selectionPolicy:'Verified TMDB cast + career-context evidence; no popularity scoring',limitations:['Keyword proximity is not independent proof of career significance','Wikipedia intro and extract count as one source family','No unsupported awards or breakthrough claims']},readyForPublication:false,editorialQualityPass:false};
 }
 return {compose};
 })();
@@ -1876,7 +1869,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
 
         // Person 161 preview is deliberately opt-in and does not replace the live biography.
         // It exposes only sanitized source coverage, accepted milestone provenance and draft text.
-        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview" || mode === "biography161_r5_preview" || mode === "biography161_r6_preview") {
+        if (mode === "biography161_preview" || mode === "biography161_r2_preview" || mode === "biography161_r3_preview" || mode === "biography161_r4_preview" || mode === "biography161_r5_preview" || mode === "biography161_r6_preview" || mode === "biography161_r7_preview") {
           try {
             const draft = await Bio161Retrieval.buildFromRetrievedSources(
               {id: Number(person.id), name: person.name,
@@ -1884,7 +1877,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
                deathday: person.deathday},
               {tmdbToken: TOKEN}
             );
-            if (mode === "biography161_r5_preview" || mode === "biography161_r6_preview") {
+            if (mode === "biography161_r5_preview" || mode === "biography161_r6_preview" || mode === "biography161_r7_preview") {
               const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`, {headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
               const verifiedSources = await Bio161Retrieval.retrieveBiographySources(
                 {id:Number(person.id),name:person.name},{tmdbToken:TOKEN});
@@ -1892,7 +1885,7 @@ return {retrieveBiographySources,buildFromRetrievedSources};
               return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
                 id:person.id,name:person.name,biography:editorial.biography,
                 readyForPublication:false,editorialQualityPass:false,
-                credits:editorial.credits,diagnostic:{...editorial.diagnostic,retrieval:verifiedSources.diagnostics}});
+                credits:editorial.credits,candidates:mode === "biography161_r7_preview" ? editorial.candidates : undefined,diagnostic:{...editorial.diagnostic,retrieval:verifiedSources.diagnostics}});
             }
             return res.status(200).json({
               preview: true, deployedBiographyUnchanged: true,
