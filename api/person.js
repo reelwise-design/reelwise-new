@@ -2100,6 +2100,38 @@ return {retrieveBiographySources,buildFromRetrievedSources};
             ? PERSON163_HANKS_AUDITED_DRAFT
             : generatedBiography;
 
+        // Person 164: identity-agnostic quality diagnostics, preview only.
+        // No automatically generated draft can displace an existing public biography.
+        const normalize164 = v => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+        const movie164 = validMovieCredits(credits).filter(isBiographyActingCredit);
+        const filmMentions164 = movie164.filter(m => {
+          const title = normalize164(m.title);
+          return title.length > 3 && normalize164(generatedBiography).includes(title);
+        });
+        const uniqueMentions164 = [...new Set(filmMentions164.map(m => normalize164(m.title)))];
+        const wordCount164 = String(generatedBiography || "").trim().split(/\s+/).filter(Boolean).length;
+        const context164 = /\b(?:career|early|later|breakthrough|recognition|dramatic|comedic|television|stage|film)\b/i.test(generatedBiography);
+        const placeholder164 = /\b(?:unknown|undefined|null|no biography available)\b/i.test(generatedBiography);
+        const genericQuality164 = {
+          wordCount: wordCount164,
+          verifiedFilmMentions: uniqueMentions164.length,
+          hasCareerContext: context164,
+          hasUnsupportedPlaceholder: placeholder164,
+          passesMinimum: wordCount164 >= 65 && uniqueMentions164.length >= 3 && context164 && !placeholder164
+        };
+        if (mode === "biography164_preview") {
+          return res.status(200).json({
+            preview: true, deployedBiographyUnchanged: true,
+            id: person.id, name: person.name,
+            publicBiography: biography,
+            genericCandidate: generatedBiography,
+            quality: genericQuality164,
+            readyForPublication: false,
+            releaseStatus: "generic_editorial_review",
+            policy: "Candidate never replaces an existing public biography automatically."
+          });
+        }
+
         const knownFor =
           buildKnownFor(
             credits
