@@ -1892,6 +1892,25 @@ return {retrieveBiographySources,buildFromRetrievedSources};
         }
 
 
+        // Person 162: opt-in narrative evidence diagnostic; public output unchanged.
+        if (mode === "biography162_preview") {
+          try {
+            const creditResponse = await fetchJSON(`https://api.themoviedb.org/3/person/${person.id}/combined_credits?language=en-US`,{headers:{Authorization:`Bearer ${TOKEN}`,accept:"application/json"}});
+            const cast = Array.isArray(creditResponse?.cast) ? creditResponse.cast : [];
+            const pilot = Bio161MilestonePilot.compose(person, cast);
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,coverage:pilot.coverage,biography:null,
+              readyForPublication:false,releaseStatus:"editorial_evidence_required",
+              diagnostic:{reason:"A verified credit inventory is not a publishable career story.",
+                castRecords:cast.length, verifiedMilestones:Array.isArray(pilot.verified)?pilot.verified.length:0,
+                nextGate:"Independently audit milestone significance and write source-grounded narrative."}});
+          } catch {
+            return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
+              id:person.id,name:person.name,biography:null,readyForPublication:false,
+              releaseStatus:"preview_unavailable"});
+          }
+        }
+
         // R9 opt-in preview only; public profile and Accolades remain unchanged.
         if (mode === "biography161_r9_preview") {
           try {
