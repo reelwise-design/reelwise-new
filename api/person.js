@@ -1,9 +1,9 @@
-import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
+import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } from "../data/oscars.js";
     const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 179
+      REELWISE PERSON API — PERSON 180
       ============================================================
 
       STAR PROFILE
@@ -779,13 +779,38 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     // Bulk Oscar data lives in its own generated module, not in person.js.
     // Require exact TMDB ID AND normalized identity before exposing awards.
-    function independentlyAuditedOscars(person) {
+    function normalizeAcademyIdentity(value = '') {
+      return cleanText(value).normalize('NFKD').replace(/\p{M}/gu,'')
+        .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+    }
+
+    function indexedAcademyPerformer(person) {
+      const key=normalizeAcademyIdentity(person?.name || '');
+      const entry=OSCAR_ACTING_BY_NAME[key];
+      return entry?.verification==='academy_imported' && Array.isArray(entry.records) ? entry : null;
+    }
+
+    function independentlyAuditedOscars(person, credits = null) {
       const id = Number(person?.id);
-      const name = String(person?.name || "").trim().toLowerCase().replace(/\s+/g, " ");
+      const name = String(person?.name || '').trim().toLowerCase().replace(/\s+/g, ' ');
       if (!Number.isSafeInteger(id) || id < 1) return [];
-      const entry = OSCAR_ACTING_PERFORMERS[String(id)];
-      if (!entry || entry.verification !== "academy_audited" || entry.name !== name) return [];
-      return entry.records;
+      const bound = OSCAR_ACTING_PERFORMERS[String(id)];
+      // Preserve the existing ID-and-name bindings, including rejecting a
+      // response which uses a known ID with a different performer's name.
+      if (bound) return bound.verification==='academy_audited' && bound.name===name ? bound.records : [];
+      const entry=indexedAcademyPerformer(person);
+      if(!entry || !Array.isArray(credits))return [];
+      // A matching name alone is insufficient. Require this exact TMDB
+      // person's cast credit for an Academy-nominated film in its release
+      // period. Do not use fuzzy names, unrelated crew jobs or archive clips.
+      const cast=validMovieCredits(credits).filter(isActingMovieCredit)
+        .filter(m=>!/\b(?:self|archive|uncredited|cameo)\b/i.test(m.character));
+      const proof=entry.records.some(record=>{
+        const titles=(Array.isArray(record.films) && record.films.length?record.films:[record.movie]).map(normalizeAcademyIdentity);
+        return cast.some(movie=>titles.includes(normalizeAcademyIdentity(movie.title)) &&
+          Math.abs(yearFromDate(movie.release_date)-Number(record.year))<=1);
+      });
+      return proof?entry.records:[];
     }
 
     // Person 175: a stage production can have a TMDB screen record (for
@@ -832,7 +857,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     function buildReelwiseBiography({ person, credits, directingCredits = [], wikipediaSummary, wikipediaExtract }) {
       // The audit is resolved internally: callers cannot inject award records.
-      const verifiedAwards = independentlyAuditedOscars(person);
+      const verifiedAwards = independentlyAuditedOscars(person, credits);
       const name = cleanText(person?.name || "This performer");
       const norm = value => cleanText(value).toLowerCase().replace(/[^a-z0-9]+/g," ").trim();
       // Editorial profiles are preserved verbatim, with no generic rewriting.
@@ -1036,7 +1061,8 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       };
       const awardCandidates=[];
       for(const record of verifiedAwards){
-        const film=films.find(m=>normalize(m.title)===normalize(record.movie||record.work||''));
+        const awardTitles=Array.isArray(record.films)&&record.films.length?record.films:[record.movie||record.work||''];
+        const film=films.find(m=>awardTitles.some(title=>normalize(m.title)===normalize(title)));
         const category=categoryName(record.category||record.award||'');
         if(!film || !category)continue;
         const year=Number(record.year||0);
@@ -2369,10 +2395,20 @@ const Bio169Preview=(()=>{
            ======================================================== */
 
         if (mode === "accolades") {
-          // A source claim is not independent verification. Until the
-          // audit is expanded, return unavailable rather than unverified
-          // nominations or a misleading confirmed zero.
-          const audited = independentlyAuditedOscars(person);
+          // Academy results are bundled locally. ID-bound records resolve
+          // directly; broader name-indexed records require cast confirmation.
+          let audited = independentlyAuditedOscars(person);
+          let identityCheckUnavailable=false;
+          // Broad coverage is resolved from the bundled Academy dataset. The
+          // only live lookup is TMDB cast evidence for this person's identity.
+          if(!audited.length && indexedAcademyPerformer(person)){
+            try {
+              const cast=await getMovieCredits(personId);
+              audited=independentlyAuditedOscars(person,cast);
+            } catch {
+              identityCheckUnavailable=true;
+            }
+          }
           if (!audited.length) {
             // A valid person profile must not become an HTTP outage just
             // because this performer is outside the curated acting audit.
@@ -2384,7 +2420,10 @@ const Bio169Preview=(()=>{
               academy_awards: [], academyAwards: [], accolades: [],
               message: "Academy acting-awards history has not yet been verified for this performer.",
               source: "Reelwise curated Academy acting audit",
-              coverage: "not_verified"
+              coverage: "not_verified",
+              reason: identityCheckUnavailable ? "identity_lookup_unavailable" :
+                indexedAcademyPerformer(person) ? "identity_not_confirmed" : "not_in_acting_dataset",
+              dataset_through_eligibility_year: OSCAR_DATASET_META.through_eligibility_year
             });
           }
           const history = audited.map(item => ({
@@ -2398,8 +2437,9 @@ const Bio169Preview=(()=>{
           return res.status(200).json({
             id: person.id, name: person.name || "",
             confirmed: true, unavailable: false, found: true,
-            source: "Reelwise curated Academy acting audit",
+            source: "Academy Awards Database — Reelwise verified acting dataset",
             coverage: "verified_acting_only",
+            dataset_through_eligibility_year: OSCAR_DATASET_META.through_eligibility_year,
             wins: history.filter(item => item.winner).length,
             nominations: history.length, history,
             academy_awards: awards, academyAwards: awards, accolades: awards
