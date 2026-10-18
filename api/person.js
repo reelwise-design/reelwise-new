@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 172
+      REELWISE PERSON API — PERSON 173
       ============================================================
 
       STAR PROFILE
@@ -871,11 +871,30 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         .filter(m => m.release_date <= today)
         .map(m => [normalize(m.title), { ...m, year: yearFromDate(m.release_date) }])).values()];
       const esc = v => v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // Person 173: title boundaries alone do not distinguish a film from
+      // its sequel. Explicit title/year pairs take precedence; undated title
+      // mentions belong to the longest matching credit at that position.
       const mentions = (sentence, m) => {
         const title = cleanText(m.title);
-        if (normalize(title).length < 5)
-          return new RegExp(`\\b${esc(title)}\\s*\\(${m.year}\\)`, "i").test(sentence);
-        return new RegExp(`(^|[^a-z0-9])${esc(title)}(?=$|[^a-z0-9])`, "i").test(sentence);
+        const pattern = new RegExp(`(^|[^a-z0-9])${esc(title)}(?=$|[^a-z0-9])`, 'ig');
+        for (const match of sentence.matchAll(pattern)) {
+          const start = match.index + match[1].length;
+          const end = start + title.length;
+          const dated = sentence.slice(end).match(/^\s*\(((?:19|20)\d{2})\)/);
+          if (dated) {
+            if (Number(dated[1]) === m.year) return true;
+            continue;
+          }
+          if (normalize(title).length < 5) continue;
+          const longer = films.some(other => {
+            const otherTitle = cleanText(other.title);
+            return otherTitle.length > title.length &&
+              normalize(otherTitle).startsWith(normalize(title) + ' ') &&
+              new RegExp(`^${esc(otherTitle)}(?=$|[^a-z0-9])`, 'i').test(sentence.slice(start));
+          });
+          if (!longer) return true;
+        }
+        return false;
       };
       const earlyPattern = /\b(early career|began (?:his |her |their )?(?:acting |screen |film )?career|started (?:his |her |their )?career|theater|theatre|stage|television debut|first major role|first appeared|electric company)\b/i;
       const recognition = /\b(academy award|oscar|golden globe|bafta|nominat(?:ed|ion)|won|received the award)\b/i;
