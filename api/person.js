@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 171
+      REELWISE PERSON API — PERSON 172
       ============================================================
 
       STAR PROFILE
@@ -853,7 +853,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         .map(t=>t.match(descriptorPattern)?.[1]).filter(Boolean);
       // Prefer an explicit nationality; sparse TMDB text must not mask a richer lead.
       const descriptor = descriptors.find(t=>new RegExp(`^${nationality}\\b`,'i').test(t)) || descriptors[0];
-      const profession = descriptor ? descriptor.replace(/\bactress\b/gi,'actor') :
+      const profession = descriptor ? descriptor :
         String(person?.known_for_department || '').toLowerCase()==='acting' ? 'actor' : 'performer';
       const article = /^[aeiou]/i.test(profession) ? 'an' : 'a';
       const intro = `${name} ${person?.deathday ? 'was' : 'is'} ${article} ${profession}.`;
@@ -1103,6 +1103,8 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           used.add(key);
         }
       }
+      // Person 172: each bridge stops at a sourced milestone, then all
+      // dated material is merged by release year before prose is varied.
       let bridgeCount = 0;
       const bridge = (ms, era) => {
         if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 3) return;
@@ -1116,9 +1118,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         }
         for(const group of groups.values()){
           const phrase=filmPhrase(group);
-          output.push(era==='early'?`${name}'s early film work includes ${phrase}.`:
-            era==='middle'?`${name}'s film work continued with ${phrase}.`:
-            `${name}'s later films include ${phrase}.`);
+          output.push(era==='early'?`Early film appearances included ${phrase}.`:
+            era==='middle'?`Film roles during this period included ${phrase}.`:
+            `Later film appearances included ${phrase}.`);
         }
         bridgeCount++;
       };
@@ -1149,23 +1151,42 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
         }
       }
-      // Repeat the full name only in the introduction. Do not infer gender.
+      // Person 172: sort complete sentences, never split at punctuation in
+      // titles (Kramer vs. Kramer, Fantastic Mr. Fox). Prefer verified credit
+      // years over unrelated dates contained in the source prose.
       const shortName = name.trim().split(/\s+/).at(-1);
-      const datedOutput = output.slice(1).map((line,index)=>({line,index,
-        years:[...line.matchAll(/\b((?:19|20)\d{2})\b/g)].map(m=>Number(m[1]))}));
-      datedOutput.sort((a,b)=>(a.years.length?Math.min(...a.years):0)-(b.years.length?Math.min(...b.years):0)||a.index-b.index);
-      let winCount=0;
+      const datedOutput = output.slice(1).map((line,index)=>{
+        const matched = films.filter(m=>mentions(line,m));
+        const years = matched.length ? matched.map(m=>m.year) :
+          [...line.matchAll(/\b((?:19|20)\d{2})\b/g)].map(m=>Number(m[1]));
+        return {line,index,year:years.length?Math.min(...years):0};
+      });
+      datedOutput.sort((a,b)=>a.year-b.year||a.index-b.index);
+      let winCount=0, earlyBridgeCount=0, laterBridgeCount=0;
       const ordered = [output[0],...datedOutput.map(item=>{
         let line=item.line;
         const lead=`${name} won the Academy Award for `;
         if(line.startsWith(lead)){
           winCount++;
-          if(winCount>1)line=`${name} ${winCount===2?'earned another Academy Award':'received a further Academy Award'} for ${line.slice(lead.length)}`;
+          const award = line.slice(lead.length).match(/^(Best (?:Supporting )?(?:Actor|Actress)) for (.+)\.$/i);
+          if(award){
+            line=winCount===1 ? `For ${award[2]}, ${name} won the Academy Award for ${award[1]}.` :
+              winCount===2 ? `A performance in ${award[2]} earned ${name} another Academy Award for ${award[1]}.` :
+              `An additional Academy Award for ${award[1]} followed for ${award[2]}.`;
+          }
+        }
+        if(line.startsWith('Early film appearances included ')){
+          earlyBridgeCount++;
+          if(earlyBridgeCount>1)line=line.replace('Early film appearances included ','Other early roles included ');
+        }
+        if(line.startsWith('Later film appearances included ')){
+          laterBridgeCount++;
+          if(laterBridgeCount>1)line=line.replace('Later film appearances included ','Subsequent roles included ');
         }
         return line;
       })];
       return ordered.map((line,index)=>index && shortName !== name
-        ? line.replace(new RegExp(`^${esc(name)}(?=\\s|['’])`),shortName) : line).join(" ");
+        ? line.replace(new RegExp(`\\b${esc(name)}(?=\\s|['’])`),shortName) : line).join(" ");
 
     }
 
