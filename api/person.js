@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 170
+      REELWISE PERSON API — PERSON 171
       ============================================================
 
       STAR PROFILE
@@ -841,21 +841,22 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         !sentenceSplit(extract).some(e => normalize(e) === normalize(t))
       )].filter(Boolean).join(" ");
       const sentences = sentenceSplit(source);
-      const identity = [...sentenceSplit(summary), ...sentenceSplit(extract)].find(t =>
-        normalize(t).startsWith(normalize(name)) &&
-        /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) && t.length < 230);
-      // Person 170: statistics and publication inventories do not introduce a career.
+      // Person 171: recover a compact nationality/profession clause from
+      // source introductions, including legal names and long lead sentences.
+      // Never derive nationality from birthplace or infer a profession from credits.
       const inventoryLanguage = /\b(?:prolific artist|audiobooks?|musical recordings|spans? over|filmography|documented film work)\b|\b\d+\s+(?:films|television projects|recordings)\b/i;
-      const sourceIntro = identity && !inventoryLanguage.test(identity) ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
-      const department = String(person?.known_for_department || "").toLowerCase();
-      const fallbackProfession = department === "acting" ? "actor" : "performer";
-      // PERSON 157: A sparse TMDB lead must not override a sourced profession.
-      // This is a source-backed descriptor, not an inferred career achievement.
-      const sourcedProfession = /\bcomedian\b/i.test(source) && /\bactor\b/i.test(source)
-        ? "actor and comedian" : /\bcomedian\b/i.test(source) ? "comedian" : fallbackProfession;
-      const weakIntro = /\bis an? (?:actor|performer)(?: and performer)?\.?$/i.test(sourceIntro) ||
-        /\bwas an? (?:actor|performer)(?: and performer)?\.?$/i.test(sourceIntro);
-      const intro = ensurePeriod(sourceIntro && !weakIntro ? sourceIntro : `${name} ${person?.deathday ? "was" : "is"} an ${sourcedProfession}.`);
+      const occupation = '(?:actor|actress|filmmaker|director|producer|screenwriter|comedian|singer|musician|writer|narrator|performer|dancer|playwright|author)';
+      const nationality = '(?:American|British|English|Scottish|Welsh|Irish|Northern Irish|Canadian|Australian|New Zealand|French|German|Italian|Spanish|Portuguese|Mexican|Brazilian|Argentine|Indian|Pakistani|Bangladeshi|Chinese|Hong Kong|Taiwanese|Japanese|South Korean|Korean|Filipino|Indonesian|Malaysian|Singaporean|Thai|Vietnamese|South African|Nigerian|Kenyan|Egyptian|Moroccan|Israeli|Palestinian|Lebanese|Iranian|Turkish|Swedish|Danish|Norwegian|Finnish|Icelandic|Dutch|Belgian|Swiss|Austrian|Polish|Czech|Slovak|Hungarian|Romanian|Greek|Russian|Ukrainian|Jamaican|Cuban|Puerto Rican|Chilean|Colombian|Peruvian|Venezuelan|New Zealander)';
+      const descriptorPattern = new RegExp(`\\b(?:is|was)\\s+(?:an?|the)\\s+((?:${nationality}(?:(?:-| and |, )${nationality})*\\s+)?${occupation}(?:(?:,\\s*(?:and\\s+)?|\\s+and\\s+)${occupation})*)(?=[.,;]|\\s+(?:who|known|whose|with|best|noted|regarded)|$)`, 'i');
+      const leads = [sentenceSplit(summary)[0],sentenceSplit(extract)[0],sentenceSplit(person?.biography || '')[0]].filter(Boolean);
+      const descriptors = leads.map(t=>cleanText(t).replace(/\s*\([^)]*\)/g,''))
+        .map(t=>t.match(descriptorPattern)?.[1]).filter(Boolean);
+      // Prefer an explicit nationality; sparse TMDB text must not mask a richer lead.
+      const descriptor = descriptors.find(t=>new RegExp(`^${nationality}\\b`,'i').test(t)) || descriptors[0];
+      const profession = descriptor ? descriptor.replace(/\bactress\b/gi,'actor') :
+        String(person?.known_for_department || '').toLowerCase()==='acting' ? 'actor' : 'performer';
+      const article = /^[aeiou]/i.test(profession) ? 'an' : 'a';
+      const intro = `${name} ${person?.deathday ? 'was' : 'is'} ${article} ${profession}.`;
       // A source summary may merge two sentences into its introductory chunk.
       // Never let a context-dependent "that same year" clause into the intro.
       const safeIntro = /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(intro)
@@ -1107,10 +1108,18 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 3) return;
         // A bridge states only the documented appearance, never a claimed
         // breakthrough, commercial result or award inferred from popularity.
-        const phrase=filmPhrase(ms.slice(0,2));
-        output.push(era==='early'?`${name}'s early film work includes ${phrase}.`:
-          era==='middle'?`${name}'s film work continued with ${phrase}.`:
-          `${name}'s later films include ${phrase}.`);
+        const groups = new Map();
+        for(const film of ms.slice(0,2)){
+          const slot=chronological.filter(x=>x.year<=film.year).length;
+          if(!groups.has(slot))groups.set(slot,[]);
+          groups.get(slot).push(film);
+        }
+        for(const group of groups.values()){
+          const phrase=filmPhrase(group);
+          output.push(era==='early'?`${name}'s early film work includes ${phrase}.`:
+            era==='middle'?`${name}'s film work continued with ${phrase}.`:
+            `${name}'s later films include ${phrase}.`);
+        }
         bridgeCount++;
       };
       const cut1=firstYear+Math.max(10,Math.floor(careerSpan*.35));
@@ -1142,7 +1151,20 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       }
       // Repeat the full name only in the introduction. Do not infer gender.
       const shortName = name.trim().split(/\s+/).at(-1);
-      return output.map((line,index)=>index && shortName !== name
+      const datedOutput = output.slice(1).map((line,index)=>({line,index,
+        years:[...line.matchAll(/\b((?:19|20)\d{2})\b/g)].map(m=>Number(m[1]))}));
+      datedOutput.sort((a,b)=>(a.years.length?Math.min(...a.years):0)-(b.years.length?Math.min(...b.years):0)||a.index-b.index);
+      let winCount=0;
+      const ordered = [output[0],...datedOutput.map(item=>{
+        let line=item.line;
+        const lead=`${name} won the Academy Award for `;
+        if(line.startsWith(lead)){
+          winCount++;
+          if(winCount>1)line=`${name} ${winCount===2?'earned another Academy Award':'received a further Academy Award'} for ${line.slice(lead.length)}`;
+        }
+        return line;
+      })];
+      return ordered.map((line,index)=>index && shortName !== name
         ? line.replace(new RegExp(`^${esc(name)}(?=\\s|['’])`),shortName) : line).join(" ");
 
     }
