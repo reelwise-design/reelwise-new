@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 168
+      REELWISE PERSON API — PERSON 169
       ============================================================
 
       STAR PROFILE
@@ -1974,7 +1974,7 @@ const Bio168Preview = (() => {
   const norm=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
   const has=(body,title)=>norm(title).length>=5&&(' '+norm(body)+' ').includes(' '+norm(title)+' ');
   const format=films=>films.map(m=>`${m.title} (${m.year})`).join(', ');
-  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10)) {
+  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10),options={}) {
     const {movies,candidates:raw,excluded}=Bio167Preview.compose(person,credits,sources,publicBiography,today,{collectCandidates:true});
     const candidates=raw.map(item=>{
       const originalText=item.text;
@@ -2001,6 +2001,7 @@ const Bio168Preview = (() => {
         year:record.year,films,source:{id:`reelwise:academy-acting:${person.id}:${film.id}:${record.year}`,kind:'audited_award'},
         stage:'audited_award',score:40,rankingReasons:['identity-matched audited acting win and dated cast credit']});
     }
+    if(options.collectCandidates)return {movies,candidates,excluded};
     const ranked=[...candidates].sort((a,b)=>b.score-a.score||a.year-b.year||a.text.localeCompare(b.text));
     const selected=[],seen=new Set();
     const add=item=>{if(!item||selected.length>=8||seen.has(norm(item.text)))return;
@@ -2029,6 +2030,74 @@ const Bio168Preview = (() => {
         selectionPolicy:'Rank explicit source career context and audited acting wins before routine appearances; chronology orders the chosen material, not its importance.'},
       readyForPublication:false,releaseStatus:!selected.length?'insufficient_source_context':'milestone_selection_editorial_review',
       policy:'Preview only. Source-language significance remains for editorial review; award statements use the existing identity-scoped Academy audit. No automatic public replacement.'};
+  }
+  return {compose};
+})();
+
+
+/* Person 169: reserve recent-career coverage before filling the sentence budget.
+   Plain cast-backed role statements replace plot/review/co-star digressions. */
+const Bio169Preview=(()=>{
+  const norm=v=>String(v||'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+  const has=(body,title)=>norm(title).length>=5&&(' '+norm(body)+' ').includes(' '+norm(title)+' ');
+  function compose(person,credits,sources,publicBiography='',today=new Date().toISOString().slice(0,10)){
+    const collected=Bio168Preview.compose(person,credits,sources,publicBiography,today,{collectCandidates:true});
+    const movies=collected.movies.filter(m=>!Array.isArray(m.genre_ids)||!m.genre_ids.includes(99));
+    const movieIds=new Set(movies.map(m=>m.id));
+    const candidates=collected.candidates.filter(item=>item.films.some(f=>movieIds.has(f.tmdbMovieId))).map(item=>{
+      const films=item.films.filter(f=>movieIds.has(f.tmdbMovieId));
+      let text=item.text;
+      // Ordinary appearances should carry only the verified role or film,
+      // never reception, other performers, or a character's personal history.
+      if(item.stage==='screen_work'){
+        const film=films[0],credit=movies.find(m=>m.id===film.tmdbMovieId);
+        const role=cleanText(credit?.character||'');
+        const usableRole=role&&role.length<=65&&!/[.!?;\n]/.test(role)&&!/\b(?:uncredited|archive|self)\b/i.test(role);
+        text=films.length===1&&usableRole?`${person.name} played ${role} in ${film.title} (${film.year}).`:
+          `${person.name} appeared in ${films.map(f=>`${f.title} (${f.year})`).join(', ')}.`;
+      }
+      return {...item,text,films};
+    });
+    const ranked=[...candidates].sort((a,b)=>b.score-a.score||b.year-a.year||a.text.localeCompare(b.text));
+    const selected=[],seen=new Set();
+    const add=item=>{
+      if(!item||selected.length>=8||seen.has(norm(item.text)))return false;
+      if(item.stage!=='audited_award'&&item.films.every(f=>selected.some(s=>s.films.some(g=>f.tmdbMovieId===g.tmdbMovieId))))return false;
+      selected.push(item);seen.add(norm(item.text));return true;
+    };
+    const years=movies.map(m=>Number(m.release_date.slice(0,4)));
+    const first=years.length?Math.min(...years):null,last=years.length?Math.max(...years):null;
+    const recentStart=last===null?null:Math.max(first,last-7);
+    const recentCandidates=ranked.filter(c=>c.year>=recentStart);
+    // Reserve this position first. An award from fifteen years earlier cannot
+    // satisfy later-career coverage just because it falls in the final third.
+    const recent=[...recentCandidates].sort((a,b)=>b.year-a.year||b.score-a.score)[0];
+    add(recent);
+    add(ranked.filter(c=>c.stage==='origin').sort((a,b)=>b.score-a.score||a.year-b.year)[0]);
+    for(const item of ranked.filter(c=>c.stage==='audited_award').sort((a,b)=>a.year-b.year).slice(0,3))add(item);
+    for(const item of ranked.filter(c=>c.stage==='transition').slice(0,2))add(item);
+    const span=last===null?0:last-first;
+    // Preserve a genuine middle period when there is supported material.
+    const middle=ranked.filter(c=>span>15&&c.year>first+span/3&&c.year<first+2*span/3);
+    if(!selected.some(c=>span>15&&c.year>first+span/3&&c.year<first+2*span/3))for(const item of middle)if(add(item))break;
+    // Do not fill every remaining place with an early minor appearance.
+    for(const item of ranked.filter(c=>c.stage==='transition'||c.stage==='audited_award'))add(item);
+    selected.sort((a,b)=>a.year-b.year||b.score-a.score);
+    const surname=String(person.name).trim().split(/\s+/).at(-1);
+    const candidate=selected.map((item,index)=>index?item.text.replaceAll(person.name,surname):item.text).join(' ');
+    const omitted=movies.filter(m=>has(publicBiography,m.title)&&!has(candidate,m.title));
+    const recentCovered=last!==null&&selected.some(c=>c.year>=recentStart);
+    return {genericCandidate:candidate||null,evidence:selected,
+      quality:{sourceGroundedStatements:selected.length,representedDecades:[...new Set(selected.map(c=>Math.floor(c.year/10)*10))],
+        omittedPublicVerifiedTitles:omitted.map(m=>({tmdbMovieId:m.id,title:m.title})),preservesPublicFilmCoverage:omitted.length===0,
+        latestVerifiedFilmYear:last,recentCoverageStartYear:recentStart,recentCareerCovered:recentCovered,
+        latestSelectedYear:selected.length?Math.max(...selected.map(c=>c.year)):null,
+        auditedAwardStatements:selected.filter(c=>c.stage==='audited_award').length,
+        independentSignificanceAuditComplete:false},
+      diagnostics:{candidateStatements:candidates.length,excluded:collected.excluded.slice(0,30),
+        selectionPolicy:'Reserve recent linked career context first; retain origins, audited acting wins and source transitions; do not pad with minor early appearances.'},
+      readyForPublication:false,releaseStatus:!selected.length?'insufficient_source_context':!recentCovered?'recent_career_source_gap':'career_narrative_editorial_review',
+      policy:'Preview only. No significance is inferred from role or billing data. Missing recent source context is reported rather than invented.'};
   }
   return {compose};
 })();
@@ -2309,11 +2378,11 @@ const Bio168Preview = (() => {
         if(mode==='biography164_preview')return res.status(200).json({preview:true,deployedBiographyUnchanged:true,id:person.id,name:person.name,publicBiography:biography,genericCandidate:generatedBiography,quality:genericQuality164,readyForPublication:false,releaseStatus:'generic_editorial_review',policy:'Minimum checks are diagnostics, never automatic publication approval.'});
 
         // Person 166: identity-linked source context, isolated from public biography.
-        if (["biography166_preview","biography167_preview","biography168_preview"].includes(mode)) {
+        if (["biography166_preview","biography167_preview","biography168_preview","biography169_preview"].includes(mode)) {
           try {
             const retrieved166 = await Bio161Retrieval.retrieveBiographySources(person,
               {tmdbToken:TOKEN,wikipediaTitle:wikipediaPage.title});
-            const draft166 = (mode === "biography168_preview" ? Bio168Preview : mode === "biography167_preview" ? Bio167Preview : Bio166Preview).compose(person,credits,retrieved166.sources,biography);
+            const draft166 = (mode === "biography169_preview" ? Bio169Preview : mode === "biography168_preview" ? Bio168Preview : mode === "biography167_preview" ? Bio167Preview : Bio166Preview).compose(person,credits,retrieved166.sources,biography);
             return res.status(200).json({preview:true,deployedBiographyUnchanged:true,
               id:person.id,name:person.name,publicBiography:biography,...draft166,
               sourceRetrieval:retrieved166.diagnostics});
