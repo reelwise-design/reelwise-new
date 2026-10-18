@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 169
+      REELWISE PERSON API — PERSON 170
       ============================================================
 
       STAR PROFILE
@@ -844,7 +844,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const identity = [...sentenceSplit(summary), ...sentenceSplit(extract)].find(t =>
         normalize(t).startsWith(normalize(name)) &&
         /\b(actor|actress|comedian|filmmaker|director|producer|performer|screenwriter|narrator)\b/i.test(t) && t.length < 230);
-      const sourceIntro = identity ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
+      // Person 170: statistics and publication inventories do not introduce a career.
+      const inventoryLanguage = /\b(?:prolific artist|audiobooks?|musical recordings|spans? over|filmography|documented film work)\b|\b\d+\s+(?:films|television projects|recordings)\b/i;
+      const sourceIntro = identity && !inventoryLanguage.test(identity) ? identity.replace(/\s*\((?:born|died)[^)]*\)/gi, "") : "";
       const department = String(person?.known_for_department || "").toLowerCase();
       const fallbackProfession = department === "acting" ? "actor" : "performer";
       // PERSON 157: A sparse TMDB lead must not override a sourced profession.
@@ -947,6 +949,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const key = normalize(sentence);
         // Unsupported promotional superlatives are not independently established facts.
         if (/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(sentence)) continue;
+        if (inventoryLanguage.test(sentence)) continue;
         if (sentence.length < 25 || sentence.length > 430 || seen.has(key) || bad.test(sentence) || isIntro(sentence) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(sentence)) continue;
         seen.add(key);
         const matched = films.filter(m => mentions(sentence, m));
@@ -980,17 +983,41 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const score = (!awardVerified && matched.length === 1 ? 5 : 0) + (early ? 5 : 0) + (award ? 6 : 0) + (strong.test(sentence) ? 5 : 0) + (/\b(?:dramatic|comedic) work includes\b/i.test(sentence) ? 4 : 0) + (roleRange ? 4 : 0) + Math.min(matched.length, 4) * 2;
         items.push({ sentence, matched, year, score, early, award, narr, win, neutralCredit: !awardVerified && matched.length === 1 });
       }
+      // Independently audited wins supply compact milestones even when the
+      // source lead bundles several films into one unusable award sentence.
+      for (const record of verifiedAwards.filter(a => a.winner === true)) {
+        const film = films.find(m => normalize(m.title) === normalize(record.movie || record.work || ""));
+        if (!film) continue;
+        const category = cleanText(record.category || "");
+        if (!/^Best (?:Actor|Actress|Supporting Actor|Supporting Actress)$/i.test(category)) continue;
+        // Replace anecdotal source award prose with the audited fact alone.
+        for (let i=items.length-1;i>=0;i--) {
+          if (items[i].award && items[i].matched.some(m=>m.id===film.id)) items.splice(i,1);
+        }
+        items.push({sentence:`${name} won the Academy Award for ${category} for ${film.title} (${film.year}).`,
+          matched:[film],year:film.year,score:16,early:false,award:true,narr:false,win:true,neutralCredit:false});
+      }
       const selected = [], covered = new Set();
       const early = items.filter(x => x.early && x.year === 0).sort((a,b) => b.score-a.score)[0];
       if (early) selected.push(early);
-      for (const item of items.filter(x => x.year > 0 && x.year < 9998).sort((a,b) => a.year-b.year || b.score-a.score)) {
+      const dated = items.filter(x => x.year > 0 && x.year < 9998 && !inventoryLanguage.test(x.sentence));
+      // Reserve material across the career before filling remaining positions.
+      const ranked = [...dated].sort((a,b)=>b.score-a.score || a.year-b.year);
+      const minYear = films.length ? Math.min(...films.map(m=>m.year)) : 0;
+      const maxYear = films.length ? Math.max(...films.map(m=>m.year)) : 0;
+      const span = maxYear-minYear;
+      const reserved = [ranked.find(x=>x.early),
+        ...ranked.filter(x=>x.award && x.win).slice(0,3),
+        ...[0,1,2].map(bin=>ranked.find(x=>span>0 && Math.min(2,Math.floor(3*(x.year-minYear)/span))===bin))].filter(Boolean);
+      for (const item of [...new Set([...reserved,...ranked])]) {
+        if (selected.includes(item)) continue;
         if (item.score < 5 || item.narr && !item.award) continue;
         if (item.matched.length > 5 && !item.award) continue;
         const decade = Math.floor(item.year/10);
         if (selected.filter(x => x.year > 0 && Math.floor(x.year/10) === decade).length >= 6) continue;
         if (!item.award && item.matched.length && item.matched.every(m => covered.has(normalize(m.title)))) continue;
         selected.push(item); item.matched.forEach(m => covered.add(normalize(m.title)));
-        if (selected.length >= 18) break;
+        if (selected.length >= 7) break;
       }
       selected.sort((a,b) => a.year-b.year);
       // PERSON 151: Give substantial, source-confirmed early/middle film roles
@@ -1030,7 +1057,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // credits bridge; credits alone never establish impact or breakthrough.
       const careerContext = sentences.filter(t =>
         /\b(?:cast member|Saturday Night Live|television|stage|stand-up|standup|comedian|comedy|breakthrough|prominence|recognition)\b/i.test(t) &&
-        !awardLanguage.test(t) && !/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) &&
+        !inventoryLanguage.test(t) && !awardLanguage.test(t) && !/\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) &&
         t.length >= 45 && t.length <= 260 && !isIntro(t) &&
         !/\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) &&
         (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length < 3 &&
@@ -1077,13 +1104,13 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       }
       let bridgeCount = 0;
       const bridge = (ms, era) => {
-        if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 2) return;
+        if (!ms.length || sourcedMilestones.length>=4 || bridgeCount >= 3) return;
         // A bridge states only the documented appearance, never a claimed
         // breakthrough, commercial result or award inferred from popularity.
-        const phrase=filmPhrase(ms);
-        output.push(era==='early'?`${name} also appeared in ${phrase}.`:
-          era==='middle'?`Other documented film work includes ${phrase}.`:
-          `More recent screen work includes ${phrase}.`);
+        const phrase=filmPhrase(ms.slice(0,2));
+        output.push(era==='early'?`${name}'s early film work includes ${phrase}.`:
+          era==='middle'?`${name}'s film work continued with ${phrase}.`:
+          `${name}'s later films include ${phrase}.`);
         bridgeCount++;
       };
       const cut1=firstYear+Math.max(10,Math.floor(careerSpan*.35));
@@ -1105,7 +1132,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         for (const raw of sentences) {
           const t = cleanText(raw), key = normalize(t);
           if (output.length >= 6) break;
-          if (used.has(key) || isIntro(t) || bad.test(t) || (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5 || /\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
+          if (inventoryLanguage.test(t) || used.has(key) || isIntro(t) || bad.test(t) || (t.match(/\b(?:19|20)\d{2}\b/g)||[]).length >= 5 || /\b(?:worldwide superstar|biggest star in the world|greatest actor of all time|unparalleled genius)\b/i.test(t) || /\b(?:that(?: same)?|the same|following|previous) year\b/i.test(t) || t.length < 45 || t.length > 360) continue;
           if (awardLanguage.test(t) && !verified(t, films.filter(m => mentions(t,m)))) continue;
           if (!/\b(career|acting|film|role|performance|stage|television|starred|portrayed)\b/i.test(t)) continue;
           // Do not reintroduce an unverified title inventory in the fallback.
@@ -1113,7 +1140,10 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           output.push(ensurePeriod(t.replace(/^He\b/,name).replace(/^She\b/,name))); used.add(key);
         }
       }
-      return output.join(" ");
+      // Repeat the full name only in the introduction. Do not infer gender.
+      const shortName = name.trim().split(/\s+/).at(-1);
+      return output.map((line,index)=>index && shortName !== name
+        ? line.replace(new RegExp(`^${esc(name)}(?=\\s|['’])`),shortName) : line).join(" ");
 
     }
 
