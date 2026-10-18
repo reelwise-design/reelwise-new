@@ -1,7 +1,6 @@
-// GENERATED from reelwise_oscar_acting_seed.json. Do not hand-edit.
-// Only independently audited acting records belong here.
-// Identity correction: Denzel Washington uses TMDB ID 5292.
-// Apply the same ID correction to the seed before regenerating this module.
+// GENERATED from reelwise_oscar_acting_seed_179.json.
+// Existing records preserved; Foster and Norton verified against Academy records.
+// Record years are film/Academy eligibility years, not ceremony years.
 export const OSCAR_ACTING_PERFORMERS = Object.freeze(
 {
   "192": {
@@ -596,6 +595,87 @@ export const OSCAR_ACTING_PERFORMERS = Object.freeze(
         "category": "Best Supporting Actor",
         "winner": false
       }
+    ]
+  },
+  "1038": {
+    "name": "jodie foster",
+    "verification": "academy_audited",
+    "records": [
+      {
+        "movie": "Taxi Driver",
+        "year": 1976,
+        "category": "Best Supporting Actress",
+        "winner": false
+      },
+      {
+        "movie": "The Accused",
+        "year": 1988,
+        "category": "Best Actress",
+        "winner": true
+      },
+      {
+        "movie": "The Silence of the Lambs",
+        "year": 1991,
+        "category": "Best Actress",
+        "winner": true
+      },
+      {
+        "movie": "Nell",
+        "year": 1994,
+        "category": "Best Actress",
+        "winner": false
+      },
+      {
+        "movie": "Nyad",
+        "year": 2023,
+        "category": "Best Supporting Actress",
+        "winner": false
+      }
+    ],
+    "identity_source": "https://www.themoviedb.org/person/1038",
+    "audit_sources": [
+      "https://www.oscars.org/oscars/ceremonies/1977",
+      "https://www.oscars.org/oscars/ceremonies/1989",
+      "https://www.oscars.org/oscars/ceremonies/1992",
+      "https://www.oscars.org/oscars/ceremonies/1995",
+      "https://www.oscars.org/oscars/ceremonies/2024"
+    ]
+  },
+  "819": {
+    "name": "edward norton",
+    "verification": "academy_audited",
+    "records": [
+      {
+        "movie": "Primal Fear",
+        "year": 1996,
+        "category": "Best Supporting Actor",
+        "winner": false
+      },
+      {
+        "movie": "American History X",
+        "year": 1998,
+        "category": "Best Actor",
+        "winner": false
+      },
+      {
+        "movie": "Birdman or (The Unexpected Virtue of Ignorance)",
+        "year": 2014,
+        "category": "Best Supporting Actor",
+        "winner": false
+      },
+      {
+        "movie": "A Complete Unknown",
+        "year": 2024,
+        "category": "Best Supporting Actor",
+        "winner": false
+      }
+    ],
+    "identity_source": "https://www.themoviedb.org/person/819",
+    "audit_sources": [
+      "https://www.oscars.org/oscars/ceremonies/1997",
+      "https://www.oscars.org/oscars/ceremonies/1999",
+      "https://www.oscars.org/oscars/ceremonies/2015",
+      "https://www.oscars.org/oscars/ceremonies/2025"
     ]
   }
 }
