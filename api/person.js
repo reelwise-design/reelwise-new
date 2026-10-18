@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 177
+      REELWISE PERSON API — PERSON 178
       ============================================================
 
       STAR PROFILE
@@ -255,6 +255,26 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
        WIKIPEDIA BIOGRAPHY / CAREER SOURCE
        ============================================================ */
 
+    // Keep article prose and remove section headings before sentence parsing.
+    // Exclude unrelated sections, including all their nested subsections.
+    function careerExtractText(raw = '') {
+      const lines=String(raw).split(/\r?\n/);
+      let skipLevel=0;
+      const kept=[];
+      for(const line of lines){
+        const heading=line.match(/^\s*(={2,6})\s*(.*?)\s*\1\s*$/);
+        if(heading){
+          const level=heading[1].length;
+          if(skipLevel && level>skipLevel)continue;
+          skipLevel=0;
+          if(/\b(?:personal life|family|relationships|political|politics|religion|religious|philanthropy|activism|controversies|legal issues|filmography|discography|awards|accolades|references|external links|bibliography|further reading|notes|see also)\b/i.test(heading[2]))skipLevel=level;
+          continue;
+        }
+        if(!skipLevel)kept.push(line);
+      }
+      return removeWikipediaEnding(cleanText(kept.join(' ')));
+    }
+
     async function getWikipediaExtract(pageTitle) {
       if (!pageTitle) {
         return "";
@@ -267,7 +287,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
             action: "query",
             prop: "extracts",
             titles: pageTitle,
-            exintro: "0",
+            // Boolean parameters are true when present, including "0".
+            // Omit exintro to retrieve the career sections, not just the lead.
+            exsectionformat: "wiki",
             explaintext: "1",
             redirects: "1",
             format: "json",
@@ -278,9 +300,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const pages = data?.query?.pages || {};
         const page = Object.values(pages)[0];
 
-        return removeWikipediaEnding(
-          cleanText(page?.extract || "")
-        );
+        return careerExtractText(page?.extract || "");
       } catch (error) {
         console.error(
           "Wikipedia extract error:",
@@ -355,7 +375,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
        TMDB MOVIE CREDITS
        ============================================================ */
 
-    async function getMovieCredits(personId) {
+    async function getMovieCredits(personId, { includeCrew = false } = {}) {
       const url =
         `https://api.themoviedb.org/3/person/${personId}/movie_credits` +
         "?language=en-US";
@@ -368,7 +388,10 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           }
         });
 
-      return data?.cast || [];
+      const cast=Array.isArray(data?.cast)?data.cast:[];
+      // Retain crew from the same response; keep legacy callers' array shape.
+      if(includeCrew)return {cast,crew:Array.isArray(data?.crew)?data.crew:[]};
+      return cast;
     }
 
 
@@ -807,7 +830,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       return verified;
     }
 
-    function buildReelwiseBiography({ person, credits, wikipediaSummary, wikipediaExtract }) {
+    function buildReelwiseBiography({ person, credits, directingCredits = [], wikipediaSummary, wikipediaExtract }) {
       // The audit is resolved internally: callers cannot inject award records.
       const verifiedAwards = independentlyAuditedOscars(person);
       const name = cleanText(person?.name || "This performer");
@@ -857,10 +880,10 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const descriptor=descriptors.sort((a,b)=>
         (new RegExp(`^${nationality}\\b`,'i').test(b)?100:0)+(b.match(new RegExp(`\\b${occupation}\\b`,'gi'))||[]).length-
         (new RegExp(`^${nationality}\\b`,'i').test(a)?100:0)-(a.match(new RegExp(`\\b${occupation}\\b`,'gi'))||[]).length)[0];
-      let profession=descriptor || (String(person?.known_for_department || '').toLowerCase()==='acting'?'actor':'performer');
+      let profession=descriptor || (String(person?.known_for_department || '').toLowerCase()==='acting'?'actor':String(person?.known_for_department || '').toLowerCase()==='directing'?'director':'performer');
       // An explicit statement about this person's directing can supplement a
       // sparse lead. Another person's directing credit must never do so.
-      const hasDirecting=sentences.some(t=>new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+(?:(?:has|had)\\s+)?(?:also\\s+)?directed\\b`,'i').test(t));
+      const hasDirecting=validMovieCredits(directingCredits.filter(m=>m?.job==='Director')).some(m=>m.release_date<=new Date().toISOString().slice(0,10)) || sentences.some(t=>new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+(?:(?:has|had)\\s+)?(?:also\\s+)?directed\\b`,'i').test(t));
       if(hasDirecting && !/\b(?:director|filmmaker)\b/i.test(profession))profession+=' and director';
       const intro=`${name} ${subject} ${/^[aeiou]/i.test(profession)?'an':'a'} ${profession}.`;
       const today=new Date().toISOString().slice(0,10);
@@ -894,6 +917,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const significance=/\b(?:breakthrough|breakout|broke through|rose to (?:fame|prominence)|gained (?:recognition|attention)|critical acclaim|critically acclaimed|leading role|defining|signature)\b/i;
       const originPattern=/\b(?:began|started)\b.*\b(?:career|acting|child|commercials|television|stage|theat(?:er|re))\b/i;
       const contextBad=/\b(?:married|divorced|children|lawsuit|political|religion|that same year|the following year|the previous year)\b/i;
+      const performerSubject=new RegExp(`^(?:${esc(name)}|${esc(surname)})(?:['’]s)?\\b|^(?:He|She|They|His|Her|Their)\\b`,'i');
+      const temporalSubject=new RegExp(`^(?:After|Before|In|During|Following|At)\\b.{0,180}\\b(?:${esc(name)}|${esc(surname)})\\b`,'i');
+      const isPerformerStatement=t=>performerSubject.test(t)||temporalSubject.test(t);
       const originCandidates=[];
       const candidates=new Map();
       const sourceGroups=[];
@@ -907,7 +933,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         return clauses.length>1 && clauses.every(c=>subjectStart.test(c)) ? clauses : [t];
       });
       for(const raw of careerSentences){
-        if(raw.length>650 || contextBad.test(raw))continue;
+        if(raw.length>650 || contextBad.test(raw) || !isPerformerStatement(raw))continue;
         let t=raw.replace(/\bfirst breakthrough lead role\b/ig,'breakthrough role');
         let matched=isStageProductionSentence(t)?[]:films.filter(m=>mentions(t,m));
         // Preserve a single compact origin; film dates belong to milestones.
@@ -1003,14 +1029,14 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         if(awardFilms.has(item.film.id))add(item.film,item);
         else if(!candidates.has(item.film.id))add(item.film,{score:6,kind:'credit',prose:''});
       }
-      if(!films.length)return [intro,originCandidates[0]&&ensurePeriod(originCandidates[0].replace(/^(?:He|She|They)\b/,surname))].filter(Boolean).join(' ');
+
       const selected=[],used=new Set();
       const take=item=>{if(item && selected.length<12 && !used.has(item.film.id)){selected.push(item);used.add(item.film.id);}};
       const ranked=[...candidates.values()].sort((a,b)=>b.score-a.score||a.year-b.year);
       ranked.filter(x=>x.kind==='award').slice(0,4).forEach(take);
       take(ranked.find(x=>x.kind==='source' && significance.test(x.prose)));
       // Explicit source milestones are preferred across each career decade.
-      const first=films[0].year,last=films.at(-1).year;
+      const first=films[0]?.year || yearFromDate(directingCredits[0]?.release_date) || new Date().getUTCFullYear(),last=films.at(-1)?.year || first;
       for(let decade=Math.floor(first/10)*10;decade<=last;decade+=10){
         take(ranked.find(x=>x.year>=decade&&x.year<decade+10));
       }
@@ -1045,6 +1071,25 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         if(film)take(candidates.get(film.id)||{film,year:film.year,kind:'credit',score:1,prose:''});
       }
       selected.sort((a,b)=>a.year-b.year||b.score-a.score);
+      const directed=validMovieCredits(directingCredits.filter(m=>m?.job==='Director'))
+        .filter(m=>m.release_date<=today).map(m=>({...m,year:yearFromDate(m.release_date)}))
+        .filter(m=>m.year).sort((a,b)=>a.year-b.year||a.id-b.id);
+      const sourceDirected=directed.filter(m=>sentences.some(t=>isPerformerStatement(t) &&
+        /\b(?:directed|directorial|director)\b/i.test(t) && !isStageProductionSentence(t) && mentions(t,m)));
+      const directingSelection=[];
+      if(sourceDirected.length){
+        directingSelection.push(sourceDirected[0]);
+        const later=sourceDirected.filter(m=>m.id!==sourceDirected[0].id).sort((a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)||a.year-b.year)[0];
+        if(later)directingSelection.push(later);
+      }else if(directed.length)directingSelection.push(directed[0]);
+      for(const film of directingSelection){
+        const existing=selected.find(x=>x.film.id===film.id);
+        // Keep one mention of a film: direction can replace a neutral cast
+        // description, while award/source prose gets a brief attached clause.
+        if(existing)existing.directed=true;
+        else selected.push({film,year:film.year,kind:'directing',directed:true,score:20,prose:''});
+      }
+      selected.sort((a,b)=>a.year-b.year||b.score-a.score);
       const output=[intro];
       // Choose one origin only, preferring a specific statement to a broad
       // paraphrase that repeats the same childhood/television/stage beginning.
@@ -1055,7 +1100,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const roleFor=film=>{
         const role=cleanText(film.character || '');
         if(!role || role.length>65 || /[\/;()\[\]\n]/.test(role) ||
-           /\b(?:self|uncredited|archive|cameo|unknown|various|additional|unnamed|voice|narrator)\b/i.test(role) ||
+           /\b(?:self|uncredited|archive|cameo|unknown|various|additional|unnamed|voice|narrator|verified cast|credited role)\b/i.test(role) ||
            /^(?:man|woman|boy|girl|guard|doctor|officer|student|actor|actress|performer|character)(?: \d+)?$/i.test(role))return '';
         return role;
       };
@@ -1075,6 +1120,22 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       let wins=0,nominations=0,neutral=0,dramatic=0,comedic=0;
       for(let i=0;i<selected.length;i++){
         const item=selected[i];
+        if(item.directed){
+          if(person?.deathday && item.film.release_date>person.deathday && item.kind==='directing'){
+            output.push(`${label(item.film)} was released posthumously, with ${surname} credited as director.`);
+            continue;
+          }
+          if(item.kind==='directing' || (!item.prose && item.kind!=='award')){
+            const role=roleFor(item.film);
+            const acted=films.some(m=>m.id===item.film.id);
+            output.push(`${subjectFor()} also directed ${label(item.film)}${acted?(role?`, in which ${pronoun?pronoun.toLowerCase():surname} played ${role}`:', and appeared in the film'):''}.`);
+            continue;
+          }
+          // Attach direction to already supported source/award prose without
+          // repeating the title or letting it enter an acting-only group.
+          if(item.prose)item.prose=item.prose.replace(/[.]$/,'')+`, a film ${pronoun?pronoun.toLowerCase():surname} also directed.`;
+          else if(item.kind==='award')item.directionClause=true;
+        }
         if(item.kind==='award'){
           if(item.context)output.push(item.context);
           const role=item.context?'':roleFor(item.film);
@@ -1088,11 +1149,15 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
             nominations++;
             output.push(`${portrayal} earned ${object} ${nominations===1?'an':'another'} Academy Award nomination for ${item.category}.`);
           }
+          if(item.directionClause){
+            const previous=output.pop();
+            output.push(previous+` ${pronoun||surname} also directed the film.`);
+          }
         }else if(item.prose)output.push(item.prose);
         else{
           const context=sourceGroups.find(g=>g.ids[0]===item.film.id &&
             g.ids.every((id,offset)=>selected[i+offset]?.film.id===id &&
-              selected[i+offset]?.kind!=='award' && !selected[i+offset]?.prose));
+              selected[i+offset]?.kind!=='award' && !selected[i+offset]?.directed && !selected[i+offset]?.prose));
           if(context){output.push(context.prose);i+=context.ids.length-1;continue;}
 
           const group=[item];
@@ -1101,7 +1166,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           // award milestones separate and never mix lifetime/posthumous work.
           while(i+1<selected.length && group.length<3){
             const next=selected[i+1];
-            if(next.prose || sourceGroups.some(g=>g.ids[0]===next.film.id) || next.kind!==item.kind || next.year-item.year>6 ||
+            if(next.prose || next.directed || sourceGroups.some(g=>g.ids[0]===next.film.id) || next.kind!==item.kind || next.year-item.year>6 ||
                posthumous(next)!==posthumous(item))break;
             group.push(next);i++;
           }
@@ -2330,12 +2395,12 @@ const Bio169Preview=(()=>{
           );
 
         const [
-          credits,
+          movieCreditData,
           wikipediaSummary,
           wikipediaExtract
         ] =
           await Promise.all([
-            getMovieCredits(personId),
+            getMovieCredits(personId, {includeCrew:true}),
             getWikipediaSummary(
               wikipediaPage.title
             ),
@@ -2352,6 +2417,9 @@ const Bio169Preview=(()=>{
           a breakthrough role.
         */
 
+        const credits=movieCreditData.cast;
+        const directingCredits=movieCreditData.crew;
+
         // Accolades are fetched only by mode=accolades; profile loading
         // must not depend on Wikidata availability or latency.
         const sourceOnlyVerified = await verifySourceOnlyCredits(person, credits,
@@ -2360,6 +2428,7 @@ const Bio169Preview=(()=>{
           buildReelwiseBiography({
             person,
             credits: [...credits, ...sourceOnlyVerified],
+            directingCredits,
             wikipediaSummary,
             wikipediaExtract
           });
