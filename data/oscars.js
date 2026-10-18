@@ -1,5 +1,7 @@
 // GENERATED from reelwise_oscar_acting_seed.json. Do not hand-edit.
 // Only independently audited acting records belong here.
+// Identity correction: Denzel Washington uses TMDB ID 5292.
+// Apply the same ID correction to the seed before regenerating this module.
 export const OSCAR_ACTING_PERFORMERS = Object.freeze(
 {
   "192": {
@@ -398,7 +400,7 @@ export const OSCAR_ACTING_PERFORMERS = Object.freeze(
       }
     ]
   },
-  "529": {
+  "5292": {
     "name": "denzel washington",
     "verification": "academy_audited",
     "records": [
