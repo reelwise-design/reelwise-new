@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 176
+      REELWISE PERSON API — PERSON 177
       ============================================================
 
       STAR PROFILE
@@ -896,6 +896,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const contextBad=/\b(?:married|divorced|children|lawsuit|political|religion|that same year|the following year|the previous year)\b/i;
       const originCandidates=[];
       const candidates=new Map();
+      const sourceGroups=[];
       const add=(film,data)=>{
         const old=candidates.get(film.id);
         if(!old || data.score>old.score)candidates.set(film.id,{film,year:film.year,...data});
@@ -928,6 +929,26 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         matched=t && !isStageProductionSentence(t)?films.filter(m=>mentions(t,m)):[];
         const actingContext=/\b(?:dramatic|comedic|comedy)\s+(?:work|roles|performances|films)\b/i.exec(t)?.[0];
         const directs=/\b(?:directed|directorial)\b/i.test(t);
+        // Preserve compact, explicitly attributed multi-film career context.
+        // It is usable only if every credit survives selection consecutively.
+        const attributed=new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+`,'i').test(t);
+        if(attributed && matched.length>=2 && matched.length<=3 &&
+           matched.at(-1).year-matched[0].year<=6 && t.length<=380 &&
+           !directs && !awardLanguage.test(t) && !promotional.test(t) &&
+           !/\b(?:born|is an?|was an?)\b/i.test(t)){
+          let prose=t.replace(/^(?:He|She|They)\b/,surname).replace(new RegExp(`^${esc(name)}\\b`),surname);
+          for(const film of [...matched].sort((a,b)=>b.title.length-a.title.length)){
+            const dated=new RegExp(`${esc(film.title)}\\s*\\(${film.year}\\)`,'i');
+            if(!dated.test(prose))prose=prose.replace(new RegExp(esc(film.title),'i'),label(film));
+          }
+          const years=[...prose.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>+x[1]);
+          if(years.every(y=>matched.some(m=>m.year===y))){
+            const group={ids:matched.map(m=>m.id),prose:ensurePeriod(prose)};
+            sourceGroups.push(group);
+            matched.forEach(film=>add(film,{prose:'',score:significance.test(t)?24:18,kind:'credit'}));
+          }
+        }
+
         for(const film of matched){
           let prose='',score=4,kind='credit';
           if(t && matched.length===1 && !awardLanguage.test(t) && !promotional.test(t) &&
@@ -1043,31 +1064,44 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         return role?(normalize(role)===normalize(film.title)?`the title role in ${label(film)}`:`${role} in ${label(film)}`):label(film);
       };
       const joinItems=items=>items.length<3?items.join(' and '):`${items.slice(0,-1).join(', ')}, and ${items.at(-1)}`;
+      // Pronouns come only from explicit TMDB metadata. Unknown gender
+      // keeps a named subject; source prose is never globally rewritten.
+      const gender=Number(person?.gender);
+      const pronoun=gender===1?'She':gender===2?'He':null;
+      const possessive=gender===1?'Her':gender===2?'His':`${surname}'s`;
+      const object=gender===1?'her':gender===2?'him':surname;
+      const namedStart=new RegExp(`^${esc(surname)}(?:\\s|['’]s\\s)`);
+      const subjectFor=()=>pronoun && namedStart.test(output.at(-1)||'')?pronoun:surname;
       let wins=0,nominations=0,neutral=0,dramatic=0,comedic=0;
       for(let i=0;i<selected.length;i++){
         const item=selected[i];
         if(item.kind==='award'){
           if(item.context)output.push(item.context);
           const role=item.context?'':roleFor(item.film);
-          const performance=role?`playing ${describeRole(item.film)}`:label(item.film);
+          const titleRole=role && normalize(role)===normalize(item.film.title);
+          const portrayal=role?(titleRole?`${possessive} performance in the title role of ${label(item.film)}`:`${possessive} portrayal of ${role} in ${label(item.film)}`):label(item.film);
           if(item.winner){
             wins++;
-            output.push(wins===1?`For ${performance}, ${surname} won the Academy Award for ${item.category}.`:
-              `${surname} won ${wins===2?'another':'a further'} Academy Award for ${item.category} for ${performance}.`);
+            const awardOpening=wins===1 && role?`In ${label(item.film)}, ${pronoun?possessive.toLowerCase():possessive} ${titleRole?'performance in the title role':`portrayal of ${role}`}`:portrayal;
+            output.push(`${awardOpening} earned ${object} ${wins===1?'the':wins===2?'another':'a further'} Academy Award for ${item.category}.`);
           }else{
             nominations++;
-            output.push(nominations===1?`${surname} earned an Academy Award nomination for ${item.category} for ${performance}.`:
-              `Another nomination, for ${item.category}, followed for ${performance}.`);
+            output.push(`${portrayal} earned ${object} ${nominations===1?'an':'another'} Academy Award nomination for ${item.category}.`);
           }
         }else if(item.prose)output.push(item.prose);
         else{
+          const context=sourceGroups.find(g=>g.ids[0]===item.film.id &&
+            g.ids.every((id,offset)=>selected[i+offset]?.film.id===id &&
+              selected[i+offset]?.kind!=='award' && !selected[i+offset]?.prose));
+          if(context){output.push(context.prose);i+=context.ids.length-1;continue;}
+
           const group=[item];
           const posthumous=x=>Boolean(person?.deathday && x.film.release_date>person.deathday);
           // Join nearby credits across decade boundaries; keep source and
           // award milestones separate and never mix lifetime/posthumous work.
           while(i+1<selected.length && group.length<3){
             const next=selected[i+1];
-            if(next.prose || next.kind!==item.kind || next.year-item.year>6 ||
+            if(next.prose || sourceGroups.some(g=>g.ids[0]===next.film.id) || next.kind!==item.kind || next.year-item.year>6 ||
                posthumous(next)!==posthumous(item))break;
             group.push(next);i++;
           }
@@ -1075,17 +1109,17 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           if(posthumous(item))output.push(`Posthumous releases included ${titles}.`);
           else if(item.kind==='dramatic'){
             dramatic++;
-            output.push(`${surname}'s ${dramatic===1?'dramatic':'further dramatic'} roles included ${titles}.`);
+            output.push(`${possessive} ${dramatic===1?'dramatic':'further dramatic'} roles included ${titles}.`);
           }else if(item.kind==='comedic'){
             comedic++;
-            output.push(`${surname}'s ${comedic===1?'comedy':'further comedy'} roles included ${titles}.`);
+            output.push(`${possessive} ${comedic===1?'comedy':'further comedy'} roles included ${titles}.`);
           }else{
             neutral++;
             const roles=group.map(x=>roleFor(x.film));
             const details=joinItems(group.map(x=>describeRole(x.film)));
-            if(roles.every(Boolean))output.push(`${surname} ${neutral===1?'played':neutral===2?'later played':'portrayed'} ${details}.`);
-            else if(group.length===1 && roles[0])output.push(`${surname} played ${details}.`);
-            else output.push(`${surname} ${neutral===1?'appeared':'later appeared'} in ${titles}.`);
+            if(roles.every(Boolean))output.push(`${subjectFor()} ${neutral===1?'played':neutral===2?'later played':'portrayed'} ${details}.`);
+            else if(group.length===1 && roles[0])output.push(`${subjectFor()} played ${details}.`);
+            else output.push(`${subjectFor()} ${neutral===1?'appeared':'later appeared'} in ${titles}.`);
           }
         }
       }
