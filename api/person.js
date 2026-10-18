@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 175
+      REELWISE PERSON API — PERSON 176
       ============================================================
 
       STAR PROFILE
@@ -769,7 +769,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
     // example a filmed performance). Source stage context must not become
     // a film milestone just because that record appears in movie credits.
     function isStageProductionSentence(text = '') {
-      return /\b(?:on (?:the )?stage|onstage|(?:theater|theatre|stage|Broadway|off-Broadway) productions?|stage performances?|productions? of)\b/i.test(text) &&
+      return /\b(?:on (?:the )?stage|onstage|on (?:Broadway|off-Broadway)|(?:theater|theatre|stage|Broadway|off-Broadway) productions?|stage performances?|productions? of)\b/i.test(text) &&
         !/\b(?:films?|movies?|cinema|screen adaptation)\b/i.test(text);
     }
 
@@ -900,10 +900,15 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const old=candidates.get(film.id);
         if(!old || data.score>old.score)candidates.set(film.id,{film,year:film.year,...data});
       };
-      for(const raw of sentences){
+      const careerSentences=sentences.flatMap(t=>{
+        const clauses=t.split(/;\s*/);
+        const subjectStart=new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+`,'i');
+        return clauses.length>1 && clauses.every(c=>subjectStart.test(c)) ? clauses : [t];
+      });
+      for(const raw of careerSentences){
         if(raw.length>650 || contextBad.test(raw))continue;
         let t=raw.replace(/\bfirst breakthrough lead role\b/ig,'breakthrough role');
-        const matched=isStageProductionSentence(t)?[]:films.filter(m=>mentions(t,m));
+        let matched=isStageProductionSentence(t)?[]:films.filter(m=>mentions(t,m));
         // Preserve a single compact origin; film dates belong to milestones.
         if(originPattern.test(t) && !awardLanguage.test(t)){
           let origin=t.split(/,?\s+(?:including|before (?:appearing|starring|establishing)|through (?:the )?(?:Disney )?films)/i)[0];
@@ -918,6 +923,9 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           const prefix=t.split(/,?\s+(?:for which|earning (?:him|her|them)|and (?:earned|received|won)|which (?:earned|won|brought))/i)[0];
           t=!awardLanguage.test(prefix)?prefix:'';
         }
+        // Recompute after removing award clauses: a retained breakthrough
+        // clause must never be assigned to the film in the removed clause.
+        matched=t && !isStageProductionSentence(t)?films.filter(m=>mentions(t,m)):[];
         const actingContext=/\b(?:dramatic|comedic|comedy)\s+(?:work|roles|performances|films)\b/i.exec(t)?.[0];
         const directs=/\b(?:directed|directorial)\b/i.test(t);
         for(const film of matched){
@@ -1021,44 +1029,63 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // paraphrase that repeats the same childhood/television/stage beginning.
       const origin=originCandidates.sort((a,b)=>(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(b)?1:0)-(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(a)?1:0)||b.length-a.length)[0];
       if(origin)output.push(ensurePeriod(origin.replace(/^(?:He|She|They)\b/,surname).replace(new RegExp(`^${esc(name)}\\b`),surname)));
+      // Person 176: give credit-backed roles concrete detail, without
+      // inferring importance, genre, success or a breakthrough from popularity.
+      const roleFor=film=>{
+        const role=cleanText(film.character || '');
+        if(!role || role.length>65 || /[\/;()\[\]\n]/.test(role) ||
+           /\b(?:self|uncredited|archive|cameo|unknown|various|additional|unnamed|voice|narrator)\b/i.test(role) ||
+           /^(?:man|woman|boy|girl|guard|doctor|officer|student|actor|actress|performer|character)(?: \d+)?$/i.test(role))return '';
+        return role;
+      };
+      const describeRole=film=>{
+        const role=roleFor(film);
+        return role?(normalize(role)===normalize(film.title)?`the title role in ${label(film)}`:`${role} in ${label(film)}`):label(film);
+      };
+      const joinItems=items=>items.length<3?items.join(' and '):`${items.slice(0,-1).join(', ')}, and ${items.at(-1)}`;
       let wins=0,nominations=0,neutral=0,dramatic=0,comedic=0;
       for(let i=0;i<selected.length;i++){
         const item=selected[i];
         if(item.kind==='award'){
           if(item.context)output.push(item.context);
+          const role=item.context?'':roleFor(item.film);
+          const performance=role?`playing ${describeRole(item.film)}`:label(item.film);
           if(item.winner){
             wins++;
-            output.push(wins===1?`For ${label(item.film)}, ${surname} won the Academy Award for ${item.category}.`:
-              `${label(item.film)} brought ${surname} ${wins===2?'another':'a further'} Academy Award for ${item.category}.`);
+            output.push(wins===1?`For ${performance}, ${surname} won the Academy Award for ${item.category}.`:
+              `${surname} won ${wins===2?'another':'a further'} Academy Award for ${item.category} for ${performance}.`);
           }else{
             nominations++;
-            output.push(nominations===1?`${surname} earned an Academy Award nomination for ${item.category} for ${label(item.film)}.`:
-              `Another nomination, for ${item.category}, followed for ${label(item.film)}.`);
+            output.push(nominations===1?`${surname} earned an Academy Award nomination for ${item.category} for ${performance}.`:
+              `Another nomination, for ${item.category}, followed for ${performance}.`);
           }
         }else if(item.prose)output.push(item.prose);
         else{
           const group=[item];
-          // Group only adjacent neutral credits from the same decade and type.
-          // No group crosses an intervening source/award milestone.
-          while(i+1<selected.length && group.length<2){
+          const posthumous=x=>Boolean(person?.deathday && x.film.release_date>person.deathday);
+          // Join nearby credits across decade boundaries; keep source and
+          // award milestones separate and never mix lifetime/posthumous work.
+          while(i+1<selected.length && group.length<3){
             const next=selected[i+1];
-            if(next.prose || next.kind!==item.kind || Math.floor(next.year/10)!==Math.floor(item.year/10))break;
+            if(next.prose || next.kind!==item.kind || next.year-item.year>6 ||
+               posthumous(next)!==posthumous(item))break;
             group.push(next);i++;
           }
-          const titles=group.map(x=>label(x.film)).join(' and ');
-          if(item.kind==='dramatic'){dramatic++;output.push(dramatic===1?`${surname}'s dramatic work included ${titles}.`:
-            dramatic===2?`Further dramatic roles included ${titles}.`:`The dramatic work continued with ${titles}.`);}
-          else if(item.kind==='comedic'){comedic++;output.push(comedic===1?`${surname}'s comedy roles included ${titles}.`:`Further comedy roles included ${titles}.`);}
-          else{
+          const titles=joinItems(group.map(x=>label(x.film)));
+          if(posthumous(item))output.push(`Posthumous releases included ${titles}.`);
+          else if(item.kind==='dramatic'){
+            dramatic++;
+            output.push(`${surname}'s ${dramatic===1?'dramatic':'further dramatic'} roles included ${titles}.`);
+          }else if(item.kind==='comedic'){
+            comedic++;
+            output.push(`${surname}'s ${comedic===1?'comedy':'further comedy'} roles included ${titles}.`);
+          }else{
             neutral++;
-            const posthumous=person?.deathday && group.every(x=>x.film.release_date>person.deathday);
-            output.push(posthumous?`Posthumous releases included ${titles}.`:
-              neutral===1?`${surname}'s film roles included ${titles}.`:
-              neutral===2?`Subsequent film appearances included ${titles}.`:
-              neutral===3?`${surname} also appeared in ${titles}.`:
-              neutral===4?`Other roles included ${titles}.`:
-              neutral===5?`Later film work included ${titles}.`:
-              `Additional appearances included ${titles}.`);
+            const roles=group.map(x=>roleFor(x.film));
+            const details=joinItems(group.map(x=>describeRole(x.film)));
+            if(roles.every(Boolean))output.push(`${surname} ${neutral===1?'played':neutral===2?'later played':'portrayed'} ${details}.`);
+            else if(group.length===1 && roles[0])output.push(`${surname} played ${details}.`);
+            else output.push(`${surname} ${neutral===1?'appeared':'later appeared'} in ${titles}.`);
           }
         }
       }
