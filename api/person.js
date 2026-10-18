@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 180
+      REELWISE PERSON API — PERSON 181
       ============================================================
 
       STAR PROFILE
@@ -921,7 +921,13 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
         // same title and year. Require an explicit film statement for it.
         return !sentences.some(t=>!isStageProductionSentence(t) && /\b(?:films?|movies?|screen adaptation)\b/i.test(t) && titleYear.test(t));
       };
-      const films=[...new Map(validMovieCredits(credits).filter(isBiographyActingCredit).filter(m=>!stageOnlyCredit(m))
+      // A release after death can be a genuine final performance. Exclude it
+      // only when source text explicitly identifies reused recorded material.
+      const archivalReuse=m=>Boolean(person?.deathday && m.release_date>person.deathday && sentences.some(t=>{
+        const title=new RegExp(`(^|[^a-z0-9])${esc(cleanText(m.title))}(?=$|[^a-z0-9])`,'i');
+        return title.test(t) && /\b(?:(?:archiv(?:e|al)|unused|previously (?:filmed|recorded)) (?:footage|material|recordings?)|(?:reus(?:ed|ing)|repurpos(?:ed|ing)) (?:his |her |the )?(?:footage|material|recordings?))\b/i.test(t);
+      }));
+      const films=[...new Map(validMovieCredits(credits).filter(isBiographyActingCredit).filter(m=>!stageOnlyCredit(m) && !archivalReuse(m))
         .filter(m=>m.release_date<=today).map(m=>[m.id,{...m,year:yearFromDate(m.release_date)}])).values()]
         .filter(m=>m.year).sort((a,b)=>a.year-b.year||a.id-b.id);
       const mentions=(text,m)=>{
@@ -956,12 +962,17 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       // plot/preparation passages remain eligible as plain verified credits.
       const compactCareerSentence=raw=>{
         let t=cleanText(raw);
+        // A movie title inside a game discussion does not describe the film role.
+        if(/\b(?:video[ -]?games?|computer games?|game adaptation|quasi-sequel|likeness|archiv(?:e|al) footage)\b/i.test(t))return '';
         t=t.replace(/,\s*(?:where\b|in which\s+(?:the|a|an|his|her|their)\b|which\s+(?:follows|tells|depicts|centers|centres|recounts)\b).*$/i,'');
         t=t.replace(/,\s*(?:an?|the)\s+[^,]{0,90}\b(?:caught in|who must|who tries|who attempts)\b.*$/i,'');
         // A collaborator's surname without an introduction is not self-contained.
         t=t.replace(new RegExp(`^(${esc(name)}|${esc(surname)}|He|She|They)\\s+(?:was|were)\\s+reunited with [A-Z][a-z]+ to play\\b`,'i'),'$1 played');
         if(/\b(?:waterboarding|torture session|subjecting|plot follows|attempts of|struggling to establish|inspired by|recalled that|third and final sequel)\b/i.test(t))return '';
         if(/\b(?:reunited|collaborated|worked) with [A-Z][a-z]+(?=\s+(?:to|on|for|in)\b|[,.;])/i.test(t))return '';
+        // Keep the supported credit and role instead of plot, co-star lists,
+        // or relative chronology that becomes misleading after selection.
+        if(/\b(?:searching for|who (?:falls|fall|must|tries|attempts)|alongside|co-star|starred together|his next|her next|reportedly|revulsion)\b/i.test(t))return '';
         return t;
       };
       const datedCareerSentence=(text,movies)=>{
@@ -1094,8 +1105,18 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       const ranked=[...candidates.values()].sort(rank);
       const eligible=films.filter(m=>Number(m.vote_count||0)>=100 || Number(m.popularity||0)>=15);
       const candidateFor=film=>candidates.get(film.id)||{film,year:film.year,kind:'credit',score:1,prose:''};
+      // Long-term audience evidence chooses examples; it does not justify
+      // claims of importance. Bound current popularity so a spike cannot dominate.
+      const careerRecognition=m=>Math.log10(Math.max(0,Number(m.vote_count)||0)+1)*24 +
+        (Number(m.vote_average)||0)*2 + Math.min(20,Math.max(0,Number(m.popularity)||0));
       // Awarded roles and explicit career significance come before examples.
       ranked.filter(x=>x.kind==='award').slice(0,4).forEach(take);
+      // Reserve two substantial non-award roles before decade/source fillers.
+      // Prefer a supplied lead billing position; missing billing remains eligible.
+      const nonAward=eligible.filter(m=>!awardCandidates.some(x=>x.film.id===m.id));
+      const leads=nonAward.filter(m=>m.order==null || Number(m.order)<=2);
+      (leads.length?leads:nonAward).sort((a,b)=>careerRecognition(b)-careerRecognition(a)||a.year-b.year)
+        .slice(0,2).forEach(m=>take(candidateFor(m)));
       take(ranked.filter(x=>x.kind==='source' && significance.test(x.prose)).sort((a,b)=>a.year-b.year)[0]);
       // Reserve the latest substantial released work before filling the budget.
       const latest=[...eligible].sort((a,b)=>b.year-a.year||movieRecognitionScore(b)-movieRecognitionScore(a))[0];
@@ -1168,7 +1189,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
           if(item.kind==='directing' || (!item.prose && item.kind!=='award')){
             const role=roleFor(item.film);
             const acted=films.some(m=>m.id===item.film.id);
-            output.push(`${subjectFor()} also directed ${label(item.film)}${acted?(role?`, in which ${pronoun?pronoun.toLowerCase():surname} played ${role}`:', and appeared in the film'):''}.`);
+            output.push(acted ? (role ? `${subjectFor()} directed ${label(item.film)}, in which ${pronoun?pronoun.toLowerCase():surname} played ${role}.` : `${subjectFor()} directed and appeared in ${label(item.film)}.`) : `${subjectFor()} also directed ${label(item.film)}.`);
             continue;
           }
           // Attach direction to already supported source/award prose without
