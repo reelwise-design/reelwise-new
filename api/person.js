@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 178
+      REELWISE PERSON API — PERSON 179
       ============================================================
 
       STAR PROFILE
@@ -914,7 +914,7 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       const label=m=>`${m.title} (${m.year})`;
       const awardLanguage=/\b(?:academy|oscar|award|nomina(?:ted|tion|tions)|nominee|winner|won|nod)\b/i;
       const promotional=/\b(?:biggest|highest.grossing|commercial success|greatest|most successful|worldwide superstar|unparalleled)\b/i;
-      const significance=/\b(?:breakthrough|breakout|broke through|rose to (?:fame|prominence)|gained (?:recognition|attention)|critical acclaim|critically acclaimed|leading role|defining|signature)\b/i;
+      const significance=/\b(?:breakthrough|breakout|broke through|rose to (?:fame|prominence)|gained (?:recognition|attention)|critical acclaim|critically acclaimed|leading role|defining|signature|cult following|cult classic)\b/i;
       const originPattern=/\b(?:began|started)\b.*\b(?:career|acting|child|commercials|television|stage|theat(?:er|re))\b/i;
       const contextBad=/\b(?:married|divorced|children|lawsuit|political|religion|that same year|the following year|the previous year)\b/i;
       const performerSubject=new RegExp(`^(?:${esc(name)}|${esc(surname)})(?:['’]s)?\\b|^(?:He|She|They|His|Her|Their)\\b`,'i');
@@ -927,6 +927,39 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         const old=candidates.get(film.id);
         if(!old || data.score>old.score)candidates.set(film.id,{film,year:film.year,...data});
       };
+      // Person 179: preserve context only when it can stand alone. Long
+      // plot/preparation passages remain eligible as plain verified credits.
+      const compactCareerSentence=raw=>{
+        let t=cleanText(raw);
+        t=t.replace(/,\s*(?:where\b|in which\s+(?:the|a|an|his|her|their)\b|which\s+(?:follows|tells|depicts|centers|centres|recounts)\b).*$/i,'');
+        t=t.replace(/,\s*(?:an?|the)\s+[^,]{0,90}\b(?:caught in|who must|who tries|who attempts)\b.*$/i,'');
+        // A collaborator's surname without an introduction is not self-contained.
+        t=t.replace(new RegExp(`^(${esc(name)}|${esc(surname)}|He|She|They)\\s+(?:was|were)\\s+reunited with [A-Z][a-z]+ to play\\b`,'i'),'$1 played');
+        if(/\b(?:waterboarding|torture session|subjecting|plot follows|attempts of|struggling to establish|inspired by|recalled that|third and final sequel)\b/i.test(t))return '';
+        if(/\b(?:reunited|collaborated|worked) with [A-Z][a-z]+(?=\s+(?:to|on|for|in)\b|[,.;])/i.test(t))return '';
+        return t;
+      };
+      const datedCareerSentence=(text,movies)=>{
+        let t=text;
+        for(const m of [...movies].sort((a,b)=>b.title.length-a.title.length)){
+          const matches=[...t.matchAll(new RegExp(`(^|[^a-z0-9])${esc(m.title)}(?=$|[^a-z0-9])`,'ig'))];
+          const safe=matches.filter(match=>{
+            const pos=match.index+match[1].length, before=t.slice(0,pos),after=t.slice(pos+m.title.length);
+            // A nickname such as Gerald "Stone" Creeson is not the movie title.
+            if((before.match(/"/g)||[]).length%2 || before.lastIndexOf('“')>before.lastIndexOf('”'))return false;
+            return !films.some(other=>other.title.length>m.title.length && normalize(other.title).startsWith(normalize(m.title)+' ') &&
+              new RegExp(`^${esc(other.title)}(?=$|[^a-z0-9])`,'i').test(t.slice(pos)));
+          });
+          if(!safe.length)return '';
+          const match=safe.at(-1),pos=match.index+match[1].length;
+          const existing=t.slice(pos+m.title.length).match(/^\s*\(((?:19|20)\d{2})\)/);
+          if(existing){if(+existing[1]!==m.year)return '';continue;}
+          // An opening release year already dates the sentence; otherwise put
+          // the year after the unquoted film-title occurrence, never a role.
+          if(!new RegExp(`\\b${m.year}\\b`).test(t))t=t.slice(0,pos)+label(m)+t.slice(pos+m.title.length);
+        }
+        return t;
+      };
       const careerSentences=sentences.flatMap(t=>{
         const clauses=t.split(/;\s*/);
         const subjectStart=new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+`,'i');
@@ -934,13 +967,14 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       });
       for(const raw of careerSentences){
         if(raw.length>650 || contextBad.test(raw) || !isPerformerStatement(raw))continue;
-        let t=raw.replace(/\bfirst breakthrough lead role\b/ig,'breakthrough role');
+        let t=compactCareerSentence(raw).replace(/\bfirst breakthrough lead role\b/ig,'breakthrough role');
+        if(!t)continue;
         let matched=isStageProductionSentence(t)?[]:films.filter(m=>mentions(t,m));
         // Preserve a single compact origin; film dates belong to milestones.
-        if(originPattern.test(t) && !awardLanguage.test(t)){
+        if(originPattern.test(t) && !awardLanguage.test(t) && !/\b(?:recalled|inspired|who|according to)\b/i.test(t)){
           let origin=t.split(/,?\s+(?:including|before (?:appearing|starring|establishing)|through (?:the )?(?:Disney )?films)/i)[0];
           origin=origin.replace(/\s+and gained recognition$/i,'');
-          if(!films.some(m=>mentions(origin,m)) && origin.length>=35 && origin.length<=250 &&
+          if(!films.some(m=>mentions(origin,m)) && origin.length>=35 && origin.length<=180 &&
              !/\b(?:born|is an?|was an?)\b/i.test(origin))originCandidates.push(origin);
         }
         if(!matched.length)continue;
@@ -959,34 +993,30 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
         // It is usable only if every credit survives selection consecutively.
         const attributed=new RegExp(`^(?:${esc(name)}|${esc(surname)}|He|She|They)\\s+`,'i').test(t);
         if(attributed && matched.length>=2 && matched.length<=3 &&
-           matched.at(-1).year-matched[0].year<=6 && t.length<=380 &&
+           matched.at(-1).year-matched[0].year<=6 && t.length<=240 &&
            !directs && !awardLanguage.test(t) && !promotional.test(t) &&
            !/\b(?:born|is an?|was an?)\b/i.test(t)){
-          let prose=t.replace(/^(?:He|She|They)\b/,surname).replace(new RegExp(`^${esc(name)}\\b`),surname);
-          for(const film of [...matched].sort((a,b)=>b.title.length-a.title.length)){
-            const dated=new RegExp(`${esc(film.title)}\\s*\\(${film.year}\\)`,'i');
-            if(!dated.test(prose))prose=prose.replace(new RegExp(esc(film.title),'i'),label(film));
-          }
+          let prose=t.replace(/^(?:He|She|They)\b/i,surname).replace(new RegExp(`^${esc(name)}\\b`),surname);
+          prose=datedCareerSentence(prose,matched);
           const years=[...prose.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>+x[1]);
-          if(years.every(y=>matched.some(m=>m.year===y))){
+          if(prose && years.every(y=>matched.some(m=>m.year===y))){
             const group={ids:matched.map(m=>m.id),prose:ensurePeriod(prose)};
             sourceGroups.push(group);
-            matched.forEach(film=>add(film,{prose:'',score:significance.test(t)?24:18,kind:'credit'}));
+            matched.forEach(film=>add(film,{prose:'',score:significance.test(t)?24:7,kind:'credit'}));
           }
         }
 
         for(const film of matched){
           let prose='',score=4,kind='credit';
           if(t && matched.length===1 && !awardLanguage.test(t) && !promotional.test(t) &&
-             !/\b(?:born|is an?|was an?)\b/i.test(t) && t.length<=340 && !directs){
-            prose=ensurePeriod(t.replace(/^(?:He|She|They)\b/,surname).replace(new RegExp(`^${esc(name)}\\b`),surname));
-            // Supply the credit's release year if the source omits it.
-            if(!new RegExp(`\\b${film.year}\\b`).test(prose))prose=prose.replace(new RegExp(esc(film.title),'i'),label(film));
+             !/\b(?:born|is an?|was an?)\b/i.test(t) && t.length<=180 && !directs){
+            prose=ensurePeriod(t.replace(/^(?:He|She|They)\b/i,surname).replace(new RegExp(`^${esc(name)}\\b`),surname));
+            prose=datedCareerSentence(prose,[film]);
             // Single-title prose may still span unrelated years. Keep a neutral
             // credit instead of giving that multi-period sentence one date.
             const years=[...prose.matchAll(/\b((?:19|20)\d{2})\b/g)].map(x=>+x[1]);
             if(years.some(y=>y!==film.year))prose='';
-            if(prose){score=significance.test(t)?25:10;kind='source';}
+            if(prose){score=significance.test(t)?25:5;kind='source';}
           }
           if(actingContext && !directs && !awardLanguage.test(t)){
             kind=/dramatic/i.test(actingContext)?'dramatic':'comedic';score=15;prose='';
@@ -1022,54 +1052,38 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // Accolades retains the complete audit. Other nominated films remain
       // eligible as source-backed roles, without repeating an award sentence.
       const winsForBio=awardCandidates.filter(x=>x.winner).sort((a,b)=>a.film.year-b.film.year).slice(0,3);
-      const nomsForBio=awardCandidates.filter(x=>!x.winner).sort((a,b)=>Boolean(b.context)-Boolean(a.context)||a.film.year-b.film.year)
-        .slice(0,winsForBio.length>=2?1:2);
+      const chronologicalNoms=awardCandidates.filter(x=>!x.winner).sort((a,b)=>a.film.year-b.film.year);
+      const nomsForBio=winsForBio.length>=2
+        ? [...new Map([chronologicalNoms[0],chronologicalNoms.at(-1)].filter(Boolean).map(x=>[x.film.id,x])).values()]
+        : chronologicalNoms.slice(0,4-winsForBio.length);
       const awardFilms=new Set([...winsForBio,...nomsForBio].map(x=>x.film.id));
       for(const item of awardCandidates){
         if(awardFilms.has(item.film.id))add(item.film,item);
         else if(!candidates.has(item.film.id))add(item.film,{score:6,kind:'credit',prose:''});
       }
 
-      const selected=[],used=new Set();
-      const take=item=>{if(item && selected.length<12 && !used.has(item.film.id)){selected.push(item);used.add(item.film.id);}};
-      const ranked=[...candidates.values()].sort((a,b)=>b.score-a.score||a.year-b.year);
-      ranked.filter(x=>x.kind==='award').slice(0,4).forEach(take);
-      take(ranked.find(x=>x.kind==='source' && significance.test(x.prose)));
-      // Explicit source milestones are preferred across each career decade.
-      const first=films[0]?.year || yearFromDate(directingCredits[0]?.release_date) || new Date().getUTCFullYear(),last=films.at(-1)?.year || first;
-      for(let decade=Math.floor(first/10)*10;decade<=last;decade+=10){
-        take(ranked.find(x=>x.year>=decade&&x.year<decade+10));
-      }
-      ranked.filter(x=>x.score>=10).forEach(item=>{if(selected.length<12)take(item);});
+      const selected=[],used=new Set(),actingBudget=9;
+      const take=item=>{if(item && selected.length<actingBudget && !used.has(item.film.id)){selected.push(item);used.add(item.film.id);}};
+      const rank=(a,b)=>b.score-a.score || movieRecognitionScore(b.film)-movieRecognitionScore(a.film) || a.year-b.year;
+      const ranked=[...candidates.values()].sort(rank);
       const eligible=films.filter(m=>Number(m.vote_count||0)>=100 || Number(m.popularity||0)>=15);
-      // Reserve chronological coverage before filling with popular credits.
-      // Popularity ranks examples only; it never establishes a breakthrough.
-      const scoreFilm=(a,b)=>movieRecognitionScore(b)-movieRecognitionScore(a)||a.year-b.year;
+      const candidateFor=film=>candidates.get(film.id)||{film,year:film.year,kind:'credit',score:1,prose:''};
+      // Awarded roles and explicit career significance come before examples.
+      ranked.filter(x=>x.kind==='award').slice(0,4).forEach(take);
+      take(ranked.filter(x=>x.kind==='source' && significance.test(x.prose)).sort((a,b)=>a.year-b.year)[0]);
+      // Reserve the latest substantial released work before filling the budget.
+      const latest=[...eligible].sort((a,b)=>b.year-a.year||movieRecognitionScore(b)-movieRecognitionScore(a))[0];
+      if(latest)take(candidateFor(latest));
+      const first=films[0]?.year,last=films.at(-1)?.year;
+      const pool=films.map(candidateFor).filter(x=>candidates.has(x.film.id)||eligible.some(m=>m.id===x.film.id));
       for(let decade=Math.floor(first/10)*10;decade<=last;decade+=10){
         if(selected.some(x=>x.year>=decade&&x.year<decade+10))continue;
-        const film=eligible.filter(m=>m.year>=decade&&m.year<decade+10).sort(scoreFilm)[0];
-        if(film && selected.length<12)take({film,year:film.year,kind:'credit',score:1,prose:''});
+        take(pool.filter(x=>x.year>=decade&&x.year<decade+10).sort(rank)[0]);
       }
-      // Short careers still need their final period represented. Use 'releases'
-      // for a deceased performer; a release date is not a filming date.
-      const latest=eligible.filter(m=>m.year>=last-3).sort(scoreFilm)[0];
-      if(latest && !selected.some(x=>x.year>=last-3) && selected.length<12)take({film:latest,year:latest.year,kind:'credit',score:1,prose:''});
-      for(const film of eligible.sort(scoreFilm)){
-        if(selected.length>=Math.min(9,films.length))break;
-        take({film,year:film.year,kind:'credit',score:1,prose:''});
-      }
-      // A decade label alone can hide a long gap near its boundary.
-      // Add a verified credit inside a ten-year gap when one is available.
-      selected.sort((a,b)=>a.year-b.year||b.score-a.score);
-      const boundaries=[...selected];
-      for(let i=1;i<boundaries.length && selected.length<12;i++){
-        const left=boundaries[i-1].year,right=boundaries[i].year;
-        if(right-left<10)continue;
-        const midpoint=(left+right)/2;
-        const film=eligible.filter(m=>m.year>left&&m.year<right&&!used.has(m.id))
-          .sort((a,b)=>Math.abs(a.year-midpoint)-Math.abs(b.year-midpoint)||scoreFilm(a,b))[0];
-        if(film)take(candidates.get(film.id)||{film,year:film.year,kind:'credit',score:1,prose:''});
-      }
+      ranked.filter(x=>x.score>=20).forEach(take);
+      // Ordinary source appearances do not crowd out widely recognized cast
+      // credits. Recognition chooses examples; it never establishes significance.
+      [...pool].sort((a,b)=>movieRecognitionScore(b.film)-movieRecognitionScore(a.film)||rank(a,b)).forEach(take);
       selected.sort((a,b)=>a.year-b.year||b.score-a.score);
       const directed=validMovieCredits(directingCredits.filter(m=>m?.job==='Director'))
         .filter(m=>m.release_date<=today).map(m=>({...m,year:yearFromDate(m.release_date)}))
@@ -1094,12 +1108,12 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
       // Choose one origin only, preferring a specific statement to a broad
       // paraphrase that repeats the same childhood/television/stage beginning.
       const origin=originCandidates.sort((a,b)=>(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(b)?1:0)-(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(a)?1:0)||b.length-a.length)[0];
-      if(origin)output.push(ensurePeriod(origin.replace(/^(?:He|She|They)\b/,surname).replace(new RegExp(`^${esc(name)}\\b`),surname)));
+      if(origin)output.push(ensurePeriod(origin.replace(/^(?:He|She|They)\b/i,surname).replace(new RegExp(`^${esc(name)}\\b`),surname)));
       // Person 176: give credit-backed roles concrete detail, without
       // inferring importance, genre, success or a breakthrough from popularity.
       const roleFor=film=>{
         const role=cleanText(film.character || '');
-        if(!role || role.length>65 || /[\/;()\[\]\n]/.test(role) ||
+        if(!role || role.length>45 || /[\/;()\[\]\n]/.test(role) ||
            /\b(?:self|uncredited|archive|cameo|unknown|various|additional|unnamed|voice|narrator|verified cast|credited role)\b/i.test(role) ||
            /^(?:man|woman|boy|girl|guard|doctor|officer|student|actor|actress|performer|character)(?: \d+)?$/i.test(role))return '';
         return role;
@@ -1137,7 +1151,15 @@ import { OSCAR_ACTING_PERFORMERS } from "../data/oscars.js";
           else if(item.kind==='award')item.directionClause=true;
         }
         if(item.kind==='award'){
-          if(item.context)output.push(item.context);
+          if(item.context){
+            if(item.winner)wins++;else nominations++;
+            const distinction=item.winner
+              ? `${wins===1?'the':wins===2?'another':'a further'} Academy Award for ${item.category}`
+              : `${nominations===1?'an':'another'} Academy Award nomination for ${item.category}`;
+            output.push(item.context.replace(/[.]$/,'')+`, earning ${object} ${distinction}.`);
+            if(item.directionClause)output.push(`${pronoun||surname} also directed the film.`);
+            continue;
+          }
           const role=item.context?'':roleFor(item.film);
           const titleRole=role && normalize(role)===normalize(item.film.title);
           const portrayal=role?(titleRole?`${possessive} performance in the title role of ${label(item.film)}`:`${possessive} portrayal of ${role} in ${label(item.film)}`):label(item.film);
