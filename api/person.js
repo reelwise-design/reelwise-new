@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 181
+      REELWISE PERSON API — PERSON 182
       ============================================================
 
       STAR PROFILE
@@ -1114,8 +1114,15 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       // Reserve two substantial non-award roles before decade/source fillers.
       // Prefer a supplied lead billing position; missing billing remains eligible.
       const nonAward=eligible.filter(m=>!awardCandidates.some(x=>x.film.id===m.id));
-      const leads=nonAward.filter(m=>m.order==null || Number(m.order)<=2);
-      (leads.length?leads:nonAward).sort((a,b)=>careerRecognition(b)-careerRecognition(a)||a.year-b.year)
+      // A top-three ensemble credit is not necessarily the central role.
+      // Reserve first-billed performances first, then widen to other leads.
+      // Missing billing must not be silently treated as first billing.
+      const billing=m=>m.order!=null && m.order!=='' && Number.isFinite(Number(m.order)) ? Number(m.order) : null;
+      const central=nonAward.filter(m=>billing(m)===0);
+      const otherLeads=nonAward.filter(m=>billing(m)!==0 && (billing(m)==null || billing(m)<=2));
+      const recognitionOrder=(a,b)=>careerRecognition(b)-careerRecognition(a)||a.year-b.year;
+      [...central.sort(recognitionOrder),...otherLeads.sort(recognitionOrder),
+        ...nonAward.filter(m=>billing(m)>2).sort(recognitionOrder)]
         .slice(0,2).forEach(m=>take(candidateFor(m)));
       take(ranked.filter(x=>x.kind==='source' && significance.test(x.prose)).sort((a,b)=>a.year-b.year)[0]);
       // Reserve the latest substantial released work before filling the budget.
