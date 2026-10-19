@@ -233,8 +233,11 @@ export default async function handler(req, res) {
     const rawPeople = [...(Array.isArray(personData.results)?personData.results:[]), ...supplemental.people];
 
     let movieResults = uniqueByTypeAndId(rawMovies.map(movieResult));
-    let personResults = uniqueByTypeAndId(rawPeople
-      .filter(person=>!person.known_for_department||person.known_for_department==="Acting").map(personResult));
+    // TMDB's main department is not a complete list of a person's work.
+    // Actor-filmmakers can be classified under Directing, Writing or Production.
+    // Preserve those candidates; the existing name match and popularity ranking
+    // choose the relevant record instead of an empty same-name Acting record.
+    let personResults = uniqueByTypeAndId(rawPeople.map(personResult));
 
     /* MOVIES-TAB PREDICTOR FIX:
        type=movie means return the best movie candidates directly.
@@ -320,4 +323,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ error:error.message || "Something went wrong." });
   }
 }
+
 
