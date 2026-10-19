@@ -162,6 +162,98 @@ function cleanNomination(item = {}) {
   };
 }
 
+
+// Count an award entry once, not once per credited collaborator.
+const awardKey=value=>String(value||'').normalize('NFKD').replace(/\p{M}/gu,'')
+  .toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+const actingCategory=category=>/\b(?:actor|actress)\b/i.test(category);
+const songCategory=category=>/\bsong\b/i.test(category);
+function nominatedWork(row) {
+  return firstText(row?.song_title,row?.song?.title,row?.song_name,row?.work_title,row?.nominated_work,row?.song);
+}
+function groupAwardEntries(rows) {
+  const groups=new Map();let incomplete=false;
+  const uncertain=[];
+  for(const raw of rows){
+    const item=cleanNomination(raw);
+    if(!item.category)continue;
+    const work=nominatedWork(raw);
+    // A row id identifies a credited person in OscarBase, not an award entry.
+    // Acting nominations are individual; shared crew categories are teams.
+    // Losing songs cannot be grouped safely without their song/work identity.
+    if(songCategory(item.category) && !work && !item.winner){uncertain.push(item);continue;}
+    if(actingCategory(item.category) && !item.nominee){incomplete=true;continue;}
+    const entry=[item.ceremonyYear,awardKey(item.category),item.winner?'win':'nom',
+      actingCategory(item.category)?awardKey(item.nominee):songCategory(item.category)?awardKey(work)||'winning-song':awardKey(work)].join('|');
+    let group=groups.get(entry);
+    if(!group){group={...item,nominationKey:entry,work,nominees:[],rawRecords:[]};delete group.raw;groups.set(entry,group);}
+    if(item.nominee && !group.nominees.some(n=>awardKey(n)===awardKey(item.nominee)))group.nominees.push(item.nominee);
+    group.rawRecords.push(raw);
+  }
+  const history=[...groups.values()].map(g=>({...g,nominee:g.nominees.join(' · ')}));
+  return {history,uncertain,incomplete};
+}
+function plainAcademyText(value) {
+  return String(value||'').replace(/<[^>]*>/g,' ').replace(/&#(?:x([0-9a-f]+)|(\d+));/gi,(_,hex,dec)=>{
+    const n=parseInt(hex||dec,hex?16:10);return n>0&&n<=0x10ffff?String.fromCodePoint(n):'';
+  }).replace(/&quot;/gi,'"').replace(/&apos;|&#039;/gi,"'").replace(/&amp;/gi,'&')
+    .replace(/&nbsp;/gi,' ').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/\s+/g,' ').trim();
+}
+function academyFilmEntries(html,title,year,rawRows) {
+  // Read the individual honoree cards in each category. Film summaries can
+  // combine several songs or acting nominations under a single category line.
+  const history=[],seen=new Set();
+  const categories=String(html).split(/<div[^>]*class="paragraph paragraph--type--award-category[^\"]*"[^>]*>/).slice(1);
+  for(const block of categories){
+    const category=plainAcademyText(block.match(/class="[^"]*field--name-field-award-category-oscars[^"]*">([\s\S]*?)<\/div>/)?.[1]);
+    if(!category)continue;
+    const honorees=block.split(/<div[^>]*class="paragraph paragraph--type--award-honoree[^\"]*"[^>]*>/).slice(1);
+    for(const card of honorees){
+      const film=plainAcademyText(card.match(/class="[^"]*field--name-field-award-film[^"]*">([\s\S]*?)<\/div>/)?.[1]);
+      if(awardKey(film)!==awardKey(title))continue;
+      const nominee=plainAcademyText(card.match(/class="[^"]*field--name-field-award-entities[^"]*">([\s\S]*?)<\/div>\s*<\/div>/)?.[1]);
+      const type=card.match(/class="[^"]*field--name-field-honoree-type ([^"]+)"/)?.[1];
+      if(!nominee || !/^(?:winner|nominee)$/.test(type||''))return null;
+      const winner=type==='winner';
+      const key=[year,awardKey(category),winner,awardKey(nominee)].join('|');
+      if(seen.has(key))continue;seen.add(key);
+      history.push({category,nominee,nominees:[nominee],winner,ceremonyYear:year,
+        ceremony:'',film,work:songCategory(category)?nominee.split(/\s+in\s+["“]/i)[0]:'',nominationKey:'academy:'+key});
+    }
+  }
+  if(!history.length)return null;
+  // Require every independently supplied category/result to be represented;
+  // changed/partial HTML must not establish an apparently complete history.
+  const baseline=groupAwardEntries(rawRows).history;
+  if(baseline.some(r=>!history.some(h=>awardKey(h.category)===awardKey(r.category)&&h.winner===r.winner)))return null;
+  return {history,nominations:history.length,wins:history.filter(x=>x.winner).length};
+}
+async function summarizeAwardEntries(rows,title) {
+  const base=groupAwardEntries(rows);
+  let history=base.history,incomplete=base.incomplete||base.uncertain.length>0;
+  if(base.uncertain.length){
+    // Only fetch official pages when the person-row source lacks work identity.
+    // Never guess that several song credits represent one or several songs.
+    const years=[...new Set(rows.map(nominationYear).filter(Boolean))];
+    const official=[];
+    for(const year of years){
+      if(year<1929||year>new Date().getUTCFullYear())break;
+      try{
+        const response=await fetch(`https://www.oscars.org/oscars/ceremonies/${year}`,
+          {headers:{accept:'text/html'},signal:AbortSignal.timeout(8000)});
+        const parsed=response.ok?academyFilmEntries(await response.text(),title,year,rows):null;
+        if(!parsed){official.length=0;break;}
+        official.push(...parsed.history);
+      }catch{official.length=0;break;}
+    }
+    if(official.length){history=official;incomplete=false;}
+  }
+  history.sort((a,b)=>Number(a.ceremonyYear)-Number(b.ceremonyYear)||a.category.localeCompare(b.category));
+  return {history,wins:history.filter(x=>x.winner).length,nominations:incomplete?null:history.length,
+    nominationCountComplete:!incomplete,incomplete,
+    countBasis:'award_entries_not_recipient_rows'};
+}
+
 /*
   ============================================================
   AUTOMATIC ACADEMY AWARDS LOOKUP
@@ -198,7 +290,7 @@ async function getAwards(tmdbId) {
     movies.find(
       item =>
         Number(item?.tmdb_id) === Number(tmdbId)
-    ) || movies[0] || null;
+    ) || null;
 
   if (!movie || !movie.id) {
     return {
@@ -246,97 +338,18 @@ async function getAwards(tmdbId) {
       ? detail.nominations
       : [];
 
-  /*
-    OscarBase uses winner:true for winning nominations.
-  */
-
-  const wins = nominations.filter(isWinner);
-
-  const winningCategories = [
-    ...new Set(
-      wins
-        .map(item =>
-          cleanCategory(
-            item?.category ||
-            item?.category_name
-          )
-        )
-        .filter(Boolean)
-    )
-  ];
-
-  const nominatedCategories = [
-    ...new Set(
-      nominations
-        .map(item =>
-          cleanCategory(
-            item?.category ||
-            item?.category_name
-          )
-        )
-        .filter(Boolean)
-    )
-  ];
-
-  const ceremonyYears = [
-    ...new Set(
-      nominations
-        .map(nominationYear)
-        .filter(Boolean)
-    )
-  ].sort((a, b) => a - b);
-
-  const bestPictureWinner =
-    wins.some(item =>
-      isBestPicture(
-        item?.category ||
-        item?.category_name
-      )
-    );
-
-  /*
-    NEW:
-    Send every Academy Award nomination to index.html instead of
-    discarding the individual records after calculating totals.
-  */
-
-  const history = nominations
-    .map(cleanNomination)
-    .filter(item => item.category)
-    .sort((a, b) => {
-      if (a.ceremonyYear && b.ceremonyYear) {
-        return a.ceremonyYear - b.ceremonyYear;
-      }
-      return 0;
-    });
-
+  if (detail?.tmdb_id != null && Number(detail.tmdb_id) !== Number(tmdbId)) {
+    throw new Error("Award movie identity did not match");
+  }
+  const result = await summarizeAwardEntries(nominations, detail?.title || movie.title);
   return {
-    found: nominations.length > 0,
-
-    movie: {
-      title:
-        detail?.title ||
-        movie?.title ||
-        "",
-
-      release_date:
-        detail?.release_date ||
-        movie?.release_date ||
-        "",
-
-      tmdb_id: Number(tmdbId)
-    },
-
-    nominations: nominations.length,
-    wins: wins.length,
-
-    bestPictureWinner,
-
-    winningCategories,
-    nominatedCategories,
-    ceremonyYears,
-
-    history
+    found: result.history.length > 0 || result.incomplete,
+    movie: {title: detail?.title || movie.title || "", release_date: detail?.release_date || movie.release_date || "", tmdb_id: Number(tmdbId)},
+    ...result,
+    bestPictureWinner: result.history.some(x=>x.winner && isBestPicture(x.category)),
+    winningCategories: [...new Set(result.history.filter(x=>x.winner).map(x=>x.category))],
+    nominatedCategories: [...new Set(result.history.map(x=>x.category))],
+    ceremonyYears: [...new Set(result.history.map(x=>x.ceremonyYear).filter(Boolean))].sort((a,b)=>a-b)
   };
 }
 
@@ -634,3 +647,4 @@ export default async function handler(req, res) {
     });
   }
 }
+
