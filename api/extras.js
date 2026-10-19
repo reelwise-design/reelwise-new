@@ -160,276 +160,86 @@ function titleVariants(title) {
   return [...variants];
 }
 
-function exactMovieMatch(text, title) {
-  const normalizedText = normalize(text);
-  const variants = titleVariants(title);
-
-  return variants.some(variant =>
-    normalizedText.includes(variant)
-  );
+// Exact tokens, not title substrings. Metadata screening is not a claim
+// that a person watched or independently verified the video contents.
+function escapeRegExp(value) { return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }
+function containsTitle(text, title) {
+  const haystack = ` ${normalize(text)} `;
+  return titleVariants(title).some(t => haystack.includes(` ${t} `));
 }
-
-function getBaseTitle(title) {
+function sequelConflict(name, title) {
+  const text = normalize(name);
   const normalized = normalize(title);
-
-  return normalized
-    .replace(
-      /\s+(?:i|ii|iii|iv|v|vi|vii|viii|ix|x|\d+)$/,
-      ""
-    )
-    .trim();
+  const suffix = /\s+(?:(?:part|chapter|episode)\s+)?(\d+|i|ii|iii|iv|v|vi|vii|viii|ix|x)$/;
+  const target = normalized.match(suffix);
+  const base = normalized.replace(suffix, '');
+  const numerals = {i:1,ii:2,iii:3,iv:4,v:5,vi:6,vii:7,viii:8,ix:9,x:10};
+  const number = v => numerals[v] || Number(v);
+  const pattern = new RegExp(`(?:^| )${escapeRegExp(base)} (?:(?:part|chapter|episode) )?(\\d+|viii|vii|iii|vi|iv|ii|ix|x|v|i)(?= |$)`, 'g');
+  return [...text.matchAll(pattern)].some(m => {
+    // A release year directly after the movie title is not a sequel number.
+    if (/^(?:18|19|20)\d{2}$/.test(m[1])) return false;
+    return !target || number(m[1]) !== number(target[1]);
+  });
 }
-
-function hasWrongSequelNumber(text, title) {
-  const normalizedText = normalize(text);
-  const normalizedTitle = normalize(title);
-  const base = getBaseTitle(title);
-
-  if (!base || !normalizedText.includes(base)) {
-    return false;
-  }
-
-  const variants = titleVariants(title);
-
-  if (
-    variants.some(variant =>
-      normalizedText.includes(variant)
-    )
-  ) {
-    return false;
-  }
-
-  /*
-    If this movie has a sequel number but the
-    result mentions the franchise with another
-    sequel number, reject it.
-  */
-  const titleHasNumber =
-    /\s+(?:i|ii|iii|iv|v|vi|vii|viii|ix|x|\d+)$/.test(
-      normalizedTitle
-    );
-
-  if (!titleHasNumber) {
-    return false;
-  }
-
-  const sequelPattern =
-    new RegExp(
-      `\\b${escapeRegExp(base)}\\s+(?:1|2|3|4|5|6|7|8|9|10|i|ii|iii|iv|v|vi|vii|viii|ix|x)\\b`
-    );
-
-  return sequelPattern.test(normalizedText);
-}
-
-function escapeRegExp(value) {
-  return value.replace(
-    /[.*+?^${}()|[\]\\]/g,
-    "\\$&"
-  );
-}
-
-function movieExtrasScore(video, title, year) {
+const BLOOPERS = /\b(?:bloopers?|outtakes?|gag reels?)\b/i;
+const EXTRAS = /\b(?:behind the scenes|behind the movie|making of|making the (?:movie|film)|featurettes?|on (?:the )?set|(?:cast|crew|director) interviews?|interviews?|production documentary|screen tests?|auditions?|oral history|retrospective|reunion|documentary)\b/i;
+const MISLEADING = /\b(?:parody|spoof|fan made|fanmade|fan edit|concept trailer|reaction|reacts|review|explained|ending explained|video game|gameplay|ai generated|deepfake|trilogy|quadrilogy|saga|franchise|all movies|all films|compilation|movie mistakes?|goofs?|continuity errors?|made the final cut)\b/i;
+function evaluateVideo(video, movie, feature, siblings = []) {
   const name = normalize(video.name);
-  const description = normalize(video.description);
-
-  const combined =
-    `${name} ${description}`;
-
-  /*
-    The exact movie title must appear somewhere
-    in the YouTube title or description.
-
-    Rocky III and Rocky 3 are treated as
-    equivalent.
-  */
-  if (!exactMovieMatch(combined, title)) {
-    return -1000;
+  const year = String(movie.release_date || '').slice(0,4);
+  const aliases = [...new Set([movie.title, movie.original_title].filter(Boolean))];
+  const reject = reason => ({accepted:false,reason,score:-1000});
+  if (!/^[A-Za-z0-9_-]{11}$/.test(video.key || '')) return reject('invalid_video_id');
+  if (MISLEADING.test(name)) return reject('mixed_or_unrelated_content');
+  if (aliases.some(t => sequelConflict(name,t))) return reject('different_sequel');
+  for (const sibling of siblings) {
+    if (Number(sibling.id) === Number(movie.id)) continue;
+    if ([sibling.title,sibling.original_title].filter(Boolean).some(t=>
+        !aliases.some(alias=>normalize(alias).startsWith(normalize(t)+' ')) && containsTitle(name,t)))
+      return reject('different_franchise_film');
   }
-
-  if (hasWrongSequelNumber(combined, title)) {
-    return -1000;
-  }
-
-  let score = 200;
-
-  if (exactMovieMatch(name, title)) {
-    score += 150;
-  }
-
-  if (year && combined.includes(String(year))) {
-    score += 50;
-  }
-
-  const veryStrong = [
-    "behind the scenes",
-    "behind the movie",
-    "making of",
-    "the making of",
-    "making the movie",
-    "making the film"
-  ];
-
-  const strong = [
-    "featurette",
-    "on set",
-    "on the set",
-    "cast interview",
-    "cast interviews",
-    "director interview",
-    "director interviews",
-    "crew interview",
-    "production",
-    "filming",
-    "retrospective",
-    "documentary",
-    "oral history",
-    "anniversary",
-    "screen test",
-    "screen tests",
-    "audition",
-    "auditions"
-  ];
-
-  const useful = [
-    "interview",
-    "interviews",
-    "cast",
-    "director",
-    "filmmaker",
-    "filmmakers",
-    "crew",
-    "story of",
-    "how they made",
-    "how it was made",
-    "inside",
-    "backstage",
-    "production story",
-    "reunion",
-    "remembering",
-    "legacy",
-    "facts"
-  ];
-
-  if (includesAny(name, veryStrong)) {
-    score += 300;
-  } else if (includesAny(combined, veryStrong)) {
-    score += 200;
-  }
-
-  if (includesAny(name, strong)) {
-    score += 180;
-  } else if (includesAny(combined, strong)) {
-    score += 90;
-  }
-
-  if (includesAny(name, useful)) {
-    score += 100;
-  } else if (includesAny(combined, useful)) {
-    score += 40;
-  }
-
-  const ordinaryClipTerms = [
-    "official trailer",
-    "trailer",
-    "teaser",
-    "official clip",
-    "movie clip",
-    "film clip",
-    "full scene",
-    "fight scene",
-    "final fight",
-    "training scene",
-    "opening scene",
-    "ending scene",
-    "best scene",
-    "best scenes",
-    "movie scene",
-    "film scene",
-    "tv spot",
-    "commercial"
-  ];
-
-  if (includesAny(name, ordinaryClipTerms)) {
-    score -= 500;
-  }
-
-  const clipWords = [
-    "clip",
-    "scene"
-  ];
-
-  const extrasWords = [
-    "behind",
-    "making",
-    "interview",
-    "featurette",
-    "production",
-    "filming",
-    "documentary",
-    "retrospective",
-    "cast",
-    "director",
-    "crew",
-    "on set",
-    "story of",
-    "anniversary",
-    "reunion",
-    "facts"
-  ];
-
-  if (
-    includesAny(name, clipWords) &&
-    !includesAny(name, extrasWords)
-  ) {
-    score -= 350;
-  }
-
-  return score;
-}
-
-function blooperScore(video, title, year) {
-  const name = normalize(video.name);
-  const description = normalize(video.description);
-
-  const combined =
-    `${name} ${description}`;
-
-  if (!exactMovieMatch(combined, title)) {
-    return -1000;
-  }
-
-  if (hasWrongSequelNumber(combined, title)) {
-    return -1000;
-  }
-
-  let score = 200;
-
-  if (exactMovieMatch(name, title)) {
-    score += 150;
-  }
-
-  if (year && combined.includes(String(year))) {
-    score += 50;
-  }
-
-  const blooperTerms = [
-    "bloopers",
-    "blooper",
-    "outtakes",
-    "outtake",
-    "gag reel",
-    "gag reels"
-  ];
-
-  if (includesAny(name, blooperTerms)) {
-    score += 350;
-  } else if (includesAny(combined, blooperTerms)) {
-    score += 200;
+  const titleMatch = aliases.some(t => containsTitle(name,t));
+  // A description can contain franchise keywords, other titles and SEO tags;
+  // it must never rescue an unrelated or undated search-result title.
+  const datedMatch = year && aliases.some(t=>titleVariants(t).some(v=>
+    new RegExp(`(?:^| )(?:${escapeRegExp(v)} ${year}|${year} ${escapeRegExp(v)})(?= |$)`).test(name)));
+  if (!video.movieBound && !datedMatch)
+    return reject('missing_title_and_release_year');
+  // Explicitly dated remakes still lose even if TMDB supplied the candidate.
+  const datedTitle = aliases.some(t=>titleVariants(t).some(v=>
+    [...name.matchAll(new RegExp(`(?:^| )${escapeRegExp(v)} ((?:18|19|20)\\d{2})(?= |$)`,'g'))]
+      .some(m=>m[1]!==year)));
+  if (datedTitle) return reject('different_release_year');
+  if (feature === 'bloopers') {
+    if (!BLOOPERS.test(name)) return reject('not_bloopers');
+    if (/\b(?:deleted scenes?|trailers?|teasers?|movie clips?|film clips?)\b/.test(name))
+      return reject('mixed_blooper_and_other_material');
   } else {
-    return -1000;
+    if (BLOOPERS.test(name)) return reject('belongs_in_bloopers');
+    if (/\b(?:trailers?|teasers?|tv spots?|movie clips?|film clips?|full scenes?|deleted scenes?)\b/.test(name))
+      return reject('not_a_production_extra');
+    if (!EXTRAS.test(name) && !(video.movieBound && ['Featurette','Behind the Scenes'].includes(video.sourceType)))
+      return reject('missing_extra_evidence');
   }
-
-  return score;
+  return {accepted:true,reason:video.movieBound?'movie_linked_metadata':'title_year_category_match',
+    score:(video.movieBound?100:0)+(titleMatch?40:0)+(year&&name.includes(year)?20:0)};
+}
+async function publicVideos(videos) {
+  if (!videos.length) return [];
+  const params = new URLSearchParams({part:'snippet,status,contentDetails',id:videos.map(v=>v.key).join(','),key:youtubeKey});
+  const response = await fetch(`https://www.googleapis.com/youtube/v3/videos?${params}`);
+  const data = await response.json();
+  if (!response.ok) throw new Error('Video availability could not be checked. Please try again.');
+  const byId = new Map((Array.isArray(data.items)?data.items:[]).map(v=>[v.id,v]));
+  return videos.flatMap(v=>{
+    const item=byId.get(v.key);
+    if (!item || item.status?.privacyStatus!=='public' || item.status?.uploadStatus!=='processed' ||
+        item.contentDetails?.regionRestriction?.allowed?.length || item.contentDetails?.regionRestriction?.blocked?.length ||
+        (item.snippet?.liveBroadcastContent && item.snippet.liveBroadcastContent!=='none')) return [];
+    return [{...v,name:decodeText(item.snippet?.title||v.name),channel:decodeText(item.snippet?.channelTitle||v.channel),
+      channel_id:item.snippet?.channelId||'',availability_checked_at:new Date().toISOString()}];
+  });
 }
 
 function removeDuplicates(videos) {
@@ -455,7 +265,7 @@ export default async function handler(req, res) {
         .trim()
         .toLowerCase();
 
-    if (!id) {
+    if (!/^[1-9]\d*$/.test(id)) {
       return res.status(400).json({
         error: "Missing movie id"
       });
@@ -471,7 +281,7 @@ export default async function handler(req, res) {
     }
 
     const movie = await tmdb(
-      `/movie/${encodeURIComponent(id)}?language=en-US`
+      `/movie/${encodeURIComponent(id)}?language=en-US&append_to_response=videos`
     );
 
     const title =
@@ -488,76 +298,25 @@ export default async function handler(req, res) {
       );
     }
 
-    /*
-      Search with both title formats when
-      applicable.
-
-      Example:
-      Rocky III → "Rocky III" "Rocky 3"
-    */
-    const variants = titleVariants(title);
-
-    const searchTitle =
-      variants.length > 1
-        ? variants.map(item => `"${item}"`).join(" ")
-        : `"${title}"`;
-
-    let query = "";
-
-    if (feature === "behind") {
-      query =
-        `${searchTitle} ${year} making of behind the scenes interview featurette`;
-    } else {
-      query =
-        `${searchTitle} ${year} bloopers outtakes gag reel`;
+    if (!youtubeKey) throw new Error("YouTube API key is not configured");
+    let siblings = [];
+    if (movie.belongs_to_collection?.id) {
+      // A collection supplies named sequels such as Top Gun: Maverick.
+      // Do not silently weaken franchise checks if that lookup fails.
+      const collection = await tmdb(`/collection/${encodeURIComponent(movie.belongs_to_collection.id)}?language=en-US`);
+      siblings = Array.isArray(collection.parts) ? collection.parts : [];
     }
-
-    const youtubeVideos =
-      await searchYouTube(query);
-
-    let selected = [];
-
-    if (feature === "behind") {
-      selected = removeDuplicates(
-        youtubeVideos
-          .map(video => ({
-            ...video,
-            score: movieExtrasScore(
-              video,
-              title,
-              year
-            )
-          }))
-          .filter(video =>
-            video.score >= 200
-          )
-          .sort(
-            (a, b) =>
-              b.score - a.score
-          )
-      ).slice(0, 6);
-    }
-
-    if (feature === "bloopers") {
-      selected = removeDuplicates(
-        youtubeVideos
-          .map(video => ({
-            ...video,
-            score: blooperScore(
-              video,
-              title,
-              year
-            )
-          }))
-          .filter(video =>
-            video.score >= 200
-          )
-          .sort(
-            (a, b) =>
-              b.score - a.score
-          )
-      ).slice(0, 6);
-    }
+    const terms = feature === 'bloopers' ? 'bloopers|outtakes|"gag reel"' : '"behind the scenes"|"making of"|featurette|interview';
+    const youtubeVideos = await searchYouTube(`"${title}" ${year} ${terms}`);
+    const linked = (Array.isArray(movie.videos?.results)?movie.videos.results:[])
+      .filter(v=>v.site==='YouTube').map(v=>({key:v.key,name:decodeText(v.name),movieBound:true,sourceType:v.type,channel:''}));
+    const candidates = removeDuplicates([...linked,...youtubeVideos])
+      .map(v=>({...v,...evaluateVideo(v,movie,feature,siblings)})).filter(v=>v.accepted);
+    // Recheck the current title/category after the availability lookup, rather
+    // than trusting a stale search snippet if the uploader renamed the video.
+    const available = await publicVideos(candidates.sort((a,b)=>b.score-a.score).slice(0,50));
+    const selected = available.map(v=>({...v,...evaluateVideo(v,movie,feature,siblings)}))
+      .filter(v=>v.accepted).sort((a,b)=>b.score-a.score).slice(0,6);
 
     return res.status(200).json({
       feature,
@@ -571,8 +330,15 @@ export default async function handler(req, res) {
           feature === "behind"
             ? "Movie Extra"
             : "Blooper",
-        official: false
-      }))
+        official: false,
+        channel: video.channel,
+        channel_id: video.channel_id,
+        match_basis: video.reason,
+        content_verified: false,
+        availability_checked_at: video.availability_checked_at
+      })),
+      selection_policy: "strict_metadata_v1",
+      verification: "Metadata screened; video contents have not been independently reviewed."
     });
 
   } catch (error) {
