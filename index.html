@@ -2413,7 +2413,8 @@ function showMovieAwardHistory(){
   reelwiseSavedMovieId=String(currentMovie.id||"");
 
   const wins=Number(currentMovieAwards.wins||0);
-  const nominations=Number(currentMovieAwards.nominations||history.length);
+  const nominations=currentMovieAwards.nominationCountComplete===false
+    ?null:Number(currentMovieAwards.nominations??history.length);
   const title=String(currentMovie.title||"Movie");
   const filmYear=String(currentMovie.release_date||"").slice(0,4);
 
@@ -2428,10 +2429,11 @@ function showMovieAwardHistory(){
         <div class="movie-awards-summary">
           ${filmYear?escapeHTML(filmYear)+" film · ":""}
           ${wins} Oscar ${wins===1?"win":"wins"} ·
-          ${nominations} ${nominations===1?"nomination":"nominations"}
+          ${nominations===null?"Nomination total unavailable":nominations+" "+(nominations===1?"nomination":"nominations")}
         </div>
       </div>
 
+      ${currentMovieAwards.incomplete?`<p>Some nomination details could not be confirmed.</p>`:""}
       <div class="movie-awards-list">
         ${(()=>{
           const grouped=[];
@@ -2443,7 +2445,7 @@ function showMovieAwardHistory(){
             );
             const ceremonyYear=String(item?.ceremonyYear||"").trim();
             const winner=item?.winner===true;
-            const key=[
+            const key=item.nominationKey||[
               category.toLowerCase(),
               ceremonyYear,
               winner?"winner":"nominee"
@@ -2456,6 +2458,7 @@ function showMovieAwardHistory(){
                 category,
                 ceremonyYear,
                 winner,
+                work:String(item.work||""),
                 nominees:[]
               };
               byKey.set(key,group);
@@ -2476,6 +2479,7 @@ function showMovieAwardHistory(){
               <div class="movie-award-status">${item.winner?"WINNER":"NOMINEE"}</div>
               <div>
                 <div class="movie-award-category">${escapeHTML(item.category)}</div>
+                ${item.work?`<div class="movie-award-nominee">${escapeHTML(item.work)}</div>`:""}
                 ${item.nominees.length?`<div class="movie-award-nominee">${item.nominees.map(escapeHTML).join(" · ")}</div>`:""}
                 ${item.ceremonyYear?`<div class="movie-award-year">${escapeHTML(item.ceremonyYear)} Academy Awards</div>`:""}
               </div>
@@ -3736,3 +3740,4 @@ loadHomeMovies();
 </script>
 </body>
 </html>
+
