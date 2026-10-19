@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 182
+      REELWISE PERSON API — PERSON 183
       ============================================================
 
       STAR PROFILE
@@ -921,13 +921,24 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
         // same title and year. Require an explicit film statement for it.
         return !sentences.some(t=>!isStageProductionSentence(t) && /\b(?:films?|movies?|screen adaptation)\b/i.test(t) && titleYear.test(t));
       };
-      // A release after death can be a genuine final performance. Exclude it
-      // only when source text explicitly identifies reused recorded material.
-      const archivalReuse=m=>Boolean(person?.deathday && m.release_date>person.deathday && sentences.some(t=>{
+      // Do not turn unfinished work or later reuse of recordings into an
+      // ordinary acting milestone. Release dates alone cannot establish this.
+      const titleEvidence=m=>sentences.filter(t=>{
         const title=new RegExp(`(^|[^a-z0-9])${esc(cleanText(m.title))}(?=$|[^a-z0-9])`,'i');
-        return title.test(t) && /\b(?:(?:archiv(?:e|al)|unused|previously (?:filmed|recorded)) (?:footage|material|recordings?)|(?:reus(?:ed|ing)|repurpos(?:ed|ing)) (?:his |her |the )?(?:footage|material|recordings?))\b/i.test(t);
-      }));
-      const films=[...new Map(validMovieCredits(credits).filter(isBiographyActingCredit).filter(m=>!stageOnlyCredit(m) && !archivalReuse(m))
+        return title.test(t);
+      }).join(' ');
+      const unfinishedProject=m=>{
+        const overview=cleanText(m.overview || '');
+        const evidence=overview+' '+titleEvidence(m);
+        if(/\b(?:was|has been|finally|eventually)\s+(?:finally\s+)?(?:completed|finished)\b/i.test(evidence))return false;
+        return /\b(?:(?:unfinished|uncompleted|incomplete|unreleased)\s+(?:[a-z-]+\s+){0,5}(?:film|movie|project|production)|(?:film|movie|project|production)\b[^.]{0,50}\b(?:was|is|remains|remained|left)\s+(?:unfinished|incomplete|unreleased)|never (?:completed|finished|released))\b/i.test(evidence);
+      };
+      const archivalReuse=m=>{
+        if(!person?.deathday || m.release_date<=person.deathday)return false;
+        const evidence=cleanText(m.overview || '')+' '+titleEvidence(m);
+        return /\b(?:(?:archiv(?:e|al)|unused|previously (?:filmed|recorded)) (?:footage|material|audio|sound|recordings?)|(?:reus(?:ed|ing)|repurpos(?:ed|ing)) (?:his |her |the )?(?:footage|material|audio|recordings?)|(?:built|based|constructed) (?:up)?on (?:the )?(?:audio|recordings?|radio broadcast)|(?:collage|found[ -]footage) film.{0,100}\b(?:audio|recordings?|broadcast))\b/i.test(evidence);
+      };
+      const films=[...new Map(validMovieCredits(credits).filter(isBiographyActingCredit).filter(m=>!stageOnlyCredit(m) && !unfinishedProject(m) && !archivalReuse(m))
         .filter(m=>m.release_date<=today).map(m=>[m.id,{...m,year:yearFromDate(m.release_date)}])).values()]
         .filter(m=>m.year).sort((a,b)=>a.year-b.year||a.id-b.id);
       const mentions=(text,m)=>{
@@ -1140,7 +1151,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       [...pool].sort((a,b)=>movieRecognitionScore(b.film)-movieRecognitionScore(a.film)||rank(a,b)).forEach(take);
       selected.sort((a,b)=>a.year-b.year||b.score-a.score);
       const directed=validMovieCredits(directingCredits.filter(m=>m?.job==='Director'))
-        .filter(m=>m.release_date<=today).map(m=>({...m,year:yearFromDate(m.release_date)}))
+        .filter(m=>m.release_date<=today && !unfinishedProject(m) && !archivalReuse(m)).map(m=>({...m,year:yearFromDate(m.release_date)}))
         .filter(m=>m.year).sort((a,b)=>a.year-b.year||a.id-b.id);
       const sourceDirected=directed.filter(m=>sentences.some(t=>isPerformerStatement(t) &&
         /\b(?:directed|directorial|director)\b/i.test(t) && !isStageProductionSentence(t) && mentions(t,m)));
@@ -1161,7 +1172,13 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       const output=[intro];
       // Choose one origin only, preferring a specific statement to a broad
       // paraphrase that repeats the same childhood/television/stage beginning.
-      const origin=originCandidates.sort((a,b)=>(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(b)?1:0)-(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(a)?1:0)||b.length-a.length)[0];
+      // A dated later event is not the person's career origin. Do not place
+      // it before earlier selected milestones just because it says "began".
+      const firstMilestoneYear=selected[0]?.year;
+      const origin=originCandidates.filter(t=>{
+        const years=[...t.matchAll(/\b(?:18|19|20)\d{2}\b/g)].map(m=>Number(m[0]));
+        return !firstMilestoneYear || years.every(y=>y<=firstMilestoneYear);
+      }).sort((a,b)=>(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(b)?1:0)-(/\b(?:age|commercials|television|stage|theater|theatre|model)\b/i.test(a)?1:0)||b.length-a.length)[0];
       if(origin)output.push(ensurePeriod(origin.replace(/^(?:He|She|They)\b/i,surname).replace(new RegExp(`^${esc(name)}\\b`),surname)));
       // Person 176: give credit-backed roles concrete detail, without
       // inferring importance, genre, success or a breakthrough from popularity.
@@ -1185,6 +1202,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       const object=gender===1?'her':gender===2?'him':surname;
       const namedStart=new RegExp(`^${esc(surname)}(?:\\s|['’]s\\s)`);
       const subjectFor=()=>pronoun && namedStart.test(output.at(-1)||'')?pronoun:surname;
+      const posthumousTitles=[];
       let wins=0,nominations=0,neutral=0,dramatic=0,comedic=0;
       for(let i=0;i<selected.length;i++){
         const item=selected[i];
@@ -1247,7 +1265,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
             group.push(next);i++;
           }
           const titles=joinItems(group.map(x=>label(x.film)));
-          if(posthumous(item))output.push(`Posthumous releases included ${titles}.`);
+          if(posthumous(item))posthumousTitles.push(...group.map(x=>label(x.film)));
           else if(item.kind==='dramatic'){
             dramatic++;
             output.push(`${possessive} ${dramatic===1?'dramatic':'further dramatic'} roles included ${titles}.`);
@@ -1264,6 +1282,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
           }
         }
       }
+      if(posthumousTitles.length)output.push(`Posthumous releases included ${joinItems([...new Set(posthumousTitles)])}.`);
       return [...new Set(output)].join(' ');
 
     }
@@ -2704,4 +2723,5 @@ const Bio169Preview=(()=>{
           });
       }
     }
+
 
