@@ -43,6 +43,50 @@ function normalizeSequelSearch(value) {
   return `${match[1].trim()} ${numberToRoman[match[2]]}`;
 }
 
+// Search is for films, not the supplementary videos also catalogued by TMDB.
+// Keep documentary films and obscure films; use content evidence, not a
+// blanket genre ban or minimum-popularity requirement.
+function searchText(value){return String(value||'').normalize('NFKD').replace(/\p{M}/gu,'')
+  .toLowerCase().replace(/[^\p{L}\p{N}]+/gu,' ').trim().replace(/\s+/g,' ');}
+function supplementalMovieRecord(movie){
+  if(!movie?.id || !movie?.title || movie.adult===true || movie.video===true)return true;
+  const title=searchText(movie.title),overview=searchText(movie.overview);
+  const documentary=(movie.genre_ids||movie.genres?.map(g=>g.id)||[]).includes(99);
+  if(/\b(?:bloopers?|outtakes?|gag reels?|featurettes?|deleted scenes?|screen tests?|bonus features?|dvd extras?|blu ray extras?)\b/.test(title))return true;
+  if(/\b(?:bonus feature|dvd extra|blu ray extra|behind the scenes featurette|promotional featurette)\b/.test(overview))return true;
+  if(/\b(?:filmed|recorded|live recording of|recording of a)\b.{0,40}\b(?:stage production|stage performance|theatrical performance|theatre production|theater production|stage play|concert)\b/.test(overview))return true;
+  if(/\b(?:pilot|episode)\b.{0,70}\b(?:webseries|web series)\b/.test(overview))return true;
+  if(/\b(?:behind the scenes|the making of|making of)\b/.test(title) &&
+     (documentary||/\b(?:featurette|dvd|blu ray|bonus|remarks|interviews|shoot of the film)\b/.test(overview)))return true;
+  if(/\b(?:a look back at|another take on|dress up like)\b/.test(title) &&
+     (documentary||/\b(?:documentary|film|movie|shoot|remarks|interviews)\b/.test(overview)))return true;
+  return false;
+}
+const recordingChecks=new Map();
+async function performerTitledRecording(movie){
+  if(Number(movie.vote_count||0)>5)return false;
+  const parts=String(movie.title||'').split(/\s+[—–-]\s+/);
+  if(parts.length!==2 || !/^[\p{Lu}][\p{L}'’.-]+(?:\s+[\p{Lu}][\p{L}'’.-]+){1,3}$/u.test(parts[1]))return false;
+  const cached=recordingChecks.get(movie.id);
+  if(cached && Date.now()-cached.at<86400000)return cached.recording;
+  try{
+    const detail=await tmdb(`/movie/${encodeURIComponent(movie.id)}?language=en-US&append_to_response=credits`);
+    const person=searchText(parts[1]);
+    const cast=Array.isArray(detail.credits?.cast)?detail.credits.cast:[];
+    const personTagged=cast.some(p=>[p.name,p.original_name].some(name=>searchText(name)===person));
+    // An unrated title carrying a cast member's name, with no documented
+    // film runtime, is not a reliable feature-film search suggestion.
+    const recording=personTagged && !(Number(detail.runtime)>0);
+    if(recordingChecks.size>=256)recordingChecks.delete(recordingChecks.keys().next().value);
+    recordingChecks.set(movie.id,{at:Date.now(),recording});return recording;
+  }catch{return false;}
+}
+async function filterMovieSearchRecords(movies){
+  const candidates=[...new Map(movies.filter(m=>!supplementalMovieRecord(m)).map(m=>[m.id,m])).values()];
+  const checked=await Promise.all(candidates.map(async m=>({movie:m,recording:await performerTitledRecording(m)})));
+  return checked.filter(x=>!x.recording).map(x=>x.movie);
+}
+
 function movieResult(movie) {
   return {
     ...movie,
@@ -185,7 +229,7 @@ export default async function handler(req, res) {
       movieOnly ? Promise.resolve({movies:[],people:[]}) : supplementalSearch(originalQuery)
     ]);
 
-    const rawMovies = [...(Array.isArray(movieData.results)?movieData.results:[]), ...supplemental.movies];
+    const rawMovies = await filterMovieSearchRecords([...(Array.isArray(movieData.results)?movieData.results:[]), ...supplemental.movies]);
     const rawPeople = [...(Array.isArray(personData.results)?personData.results:[]), ...supplemental.people];
 
     let movieResults = uniqueByTypeAndId(rawMovies.map(movieResult));
@@ -237,7 +281,7 @@ export default async function handler(req, res) {
         if (collection && collection.id) {
           const collectionData = await tmdb(`/collection/${encodeURIComponent(collection.id)}?language=en-US`);
           const collectionMovies = Array.isArray(collectionData.parts)
-            ? collectionData.parts.filter(movie=>movie&&movie.id&&movie.title).sort(releaseSort) : [];
+            ? (await filterMovieSearchRecords(collectionData.parts)).sort(releaseSort) : [];
           const firstReleased = collectionMovies[0];
           if (firstReleased && String(firstReleased.id)===String(bestExact.id)) {
             franchiseExpanded = true;
@@ -276,3 +320,4 @@ export default async function handler(req, res) {
     return res.status(500).json({ error:error.message || "Something went wrong." });
   }
 }
+
