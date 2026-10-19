@@ -192,6 +192,10 @@ function evaluateVideo(video, movie, feature, siblings = []) {
   const reject = reason => ({accepted:false,reason,score:-1000});
   if (!/^[A-Za-z0-9_-]{11}$/.test(video.key || '')) return reject('invalid_video_id');
   if (MISLEADING.test(name)) return reject('mixed_or_unrelated_content');
+  // Movie-linked videos include promotions, awards clips and music videos.
+  // A movie association is evidence of identity, never of editorial category.
+  if (/\b(?:winning (?:best|the)|wins? (?:best|the)|acceptance (?:speech|speeches)|awards? ceremony|oscars? ceremony|music video|lyric video|popcorn spill|pregame|the story continues|in (?:theaters|theatres|cinemas)|now playing|re release|rerelease|promotional|promo|commercial)\b/.test(name))
+    return reject('promotion_music_or_awards_clip');
   if (aliases.some(t => sequelConflict(name,t))) return reject('different_sequel');
   for (const sibling of siblings) {
     if (Number(sibling.id) === Number(movie.id)) continue;
@@ -219,7 +223,7 @@ function evaluateVideo(video, movie, feature, siblings = []) {
     if (BLOOPERS.test(name)) return reject('belongs_in_bloopers');
     if (/\b(?:trailers?|teasers?|tv spots?|movie clips?|film clips?|full scenes?|deleted scenes?)\b/.test(name))
       return reject('not_a_production_extra');
-    if (!EXTRAS.test(name) && !(video.movieBound && ['Featurette','Behind the Scenes'].includes(video.sourceType)))
+    if (!EXTRAS.test(name))
       return reject('missing_extra_evidence');
   }
   return {accepted:true,reason:video.movieBound?'movie_linked_metadata':'title_year_category_match',
@@ -337,7 +341,7 @@ export default async function handler(req, res) {
         content_verified: false,
         availability_checked_at: video.availability_checked_at
       })),
-      selection_policy: "strict_metadata_v1",
+      selection_policy: "strict_metadata_v2",
       verification: "Metadata screened; video contents have not been independently reviewed."
     });
 
