@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 2 — shared coverage, attribution and exact-film filtering.
+// REELWISE QUOTES 3 — source-corroborated character aliases.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -820,8 +820,9 @@ function matchingBinding(movie) {
   const titles = [movie.title, movie.original_title].filter(Boolean).map(normalize);
   return [binding.key, binding.title].some(t => titles.includes(normalize(t))) ? binding : null;
 }
-function characterIndex(movie) {
+function characterIndex(movie, wikitext = "") {
   const fullNames = new Map(), aliases = new Map();
+  const actors = new Map(), sourceNames = new Map();
   function register(map, alias, entry) {
     const key = normalize(alias); if (!key) return;
     const owners = map.get(key) || [];
@@ -833,6 +834,8 @@ function characterIndex(movie) {
     const actor = cleanText(cast.name);
     if (!character || !actor || /\b(?:self|archive footage)\b/i.test(character)) continue;
     const entry = { character, actor };
+    const actorEntries = actors.get(normalize(actor)) || [];
+    actorEntries.push(entry); actors.set(normalize(actor), actorEntries);
     register(fullNames, character, entry);
     for (const part of character.split(/\s*\/\s*/)) {
       register(fullNames, part, entry);
@@ -843,6 +846,35 @@ function characterIndex(movie) {
       const words = normalize(plain).split(" ").filter(w => w.length > 1);
       if (words.length) { register(aliases, words[0], entry); register(aliases, words.at(-1), entry); }
     }
+  }
+  // Quote sources may use a fuller role name than TMDB. Accept that alias
+  // only from a Cast entry with an exact actor match and an overlapping role
+  // name; never infer it from a quote, review, dialogue block or surname alone.
+  let castLevel = null;
+  for (const raw of String(wikitext).split(/\r?\n/)) {
+    const line = raw.trim(), heading = line.match(/^(={2,6})\s*(.*?)\s*\1\s*$/);
+    if (heading) {
+      const level = heading[1].length;
+      castLevel = level === 2 && /^(?:cast|voice cast)$/.test(normalize(cleanText(heading[2]))) ? level : null;
+      continue;
+    }
+    if (castLevel === null || !/^\*(?!\*)/.test(line)) continue;
+    const credit = cleanText(line.replace(/^\*\s*/, "")).match(/^(.+?)\s+(?:as|[-–—])\s+(.+)$/i);
+    if (!credit) continue;
+    const matches = actors.get(normalize(credit[1]));
+    if (matches?.length !== 1) continue;
+    const sourceRole = credit[2].replace(/\s*\((?:voice|uncredited)\)\s*/gi, " ").trim();
+    if (!sourceRole || /[{}<>:]/.test(sourceRole) || sourceRole.length > 100) continue;
+    const withoutTitles = value => normalize(value.replace(/\b(?:dr|mr|mrs|ms|prof|capt|captain|lt|lieutenant|sgt|sergeant|chief|commander)\.?\s+/gi, ""));
+    const sourceWords = new Set(withoutTitles(sourceRole).split(" ").filter(w => w.length >= 3));
+    if (!withoutTitles(matches[0].character).split(" ").some(w => w.length >= 3 && sourceWords.has(w))) continue;
+    register(sourceNames, sourceRole, { character: sourceRole, actor: matches[0].actor });
+  }
+  for (const [name, entries] of sourceNames) {
+    if (entries.length !== 1) continue;
+    const existing = fullNames.get(name) || aliases.get(name);
+    if (existing?.some(e => e.actor !== entries[0].actor)) continue;
+    register(fullNames, name, entries[0]);
   }
   return value => {
     const key = normalize(value);
@@ -940,7 +972,7 @@ function validStandalone(value) {
 }
 function speakerLabel(text) { return cleanText(text).match(/^([^:]{1,70}):\s*(.+)$/); }
 function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
-  const resolve = characterIndex(movie), sections = [], results = [], seen = new Map();
+  const resolve = characterIndex(movie, wikitext), sections = [], results = [], seen = new Map();
   let block = null;
   const active = () => sections.at(-1);
   function finish() {
@@ -1073,7 +1105,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v2" };
+    selection_policy: "exact_movie_standalone_v3" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
