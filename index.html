@@ -3534,10 +3534,50 @@ function cleanPredictivePeople(items){
     });
   });
 }
+function predictivePersonMatchesQuery(query,item){
+  const queryWords=rwClean(query).split(" ").filter(Boolean);
+  const nameWords=rwClean(item.display_title||item.name||"").split(" ").filter(Boolean);
+  if(!queryWords.length||queryWords.length>nameWords.length)return false;
+  const choices=queryWords.map(word=>nameWords.flatMap((name,index)=>{
+    // Initials and two-letter prefixes must actually match. A good first
+    // name cannot compensate for an unrelated surname initial.
+    if(word.length<=2)return name.startsWith(word)?[index]:[];
+    if(name.startsWith(word))return [index];
+    if(name.length<3)return [];
+    const allowed=Math.max(word.length,name.length)>=8?2:1;
+    if(Math.abs(word.length-name.length)<=allowed&&rwEditDistance(word,name)<=allowed)return [index];
+    // A single swapped pair is a common typing error, e.g. "Cruies".
+    if(word.length===name.length){
+      for(let i=0;i<word.length-1;i++){
+        if(word.slice(0,i)+word[i+1]+word[i]+word.slice(i+2)===name)return [index];
+      }
+    }
+    return [];
+  }));
+  if(choices.some(matches=>!matches.length))return false;
+  // Each typed word must map to a different name word; support middle names
+  // and reversed name order without counting one word twice.
+  choices.sort((a,b)=>a.length-b.length);
+  const used=new Set();
+  const match=position=>{
+    if(position===choices.length)return true;
+    for(const index of choices[position]){
+      if(used.has(index))continue;
+      used.add(index);
+      if(match(position+1))return true;
+      used.delete(index);
+    }
+    return false;
+  };
+  return match(0);
+}
+
 function rankPredictiveItems(items,normalized,config,words){
   const cleanQuery=rwClean(normalized);
   const threshold=words.length>1?.56:(config.type==="movie"&&cleanQuery.length<=4?.50:.70);
-  return cleanPredictivePeople(items).map(item=>{
+  return cleanPredictivePeople(items).filter(item=>
+    item.result_type!=="person"||predictivePersonMatchesQuery(normalized,item)
+  ).map(item=>{
     let score=predictionScore(normalized,item);
     const name=rwClean(item.display_title||item.title||item.name||"");
     if(config.type==="movie"&&cleanQuery.length<=4){
@@ -3774,5 +3814,6 @@ loadHomeMovies();
 </script>
 </body>
 </html>
+
 
 
