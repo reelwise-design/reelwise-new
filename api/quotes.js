@@ -1050,12 +1050,40 @@ function duplicateQuote(a, b) {
   const x = quoteKey(a), y = quoteKey(b);
   if (x === y) return true;
   const shorter = x.length < y.length ? x : y, longer = x.length < y.length ? y : x;
-  return shorter.length >= 28 && shorter.split(" ").length >= 5 &&
-    shorter.length / longer.length >= 0.65 && longer.startsWith(shorter + " ");
+  const words = shorter.split(" ").length;
+  if (shorter.length >= 35 && words >= 7 && (" " + longer + " ").includes(" " + shorter + " ")) return true;
+  return shorter.length >= 28 && words >= 5 && shorter.length / longer.length >= 0.65 && longer.startsWith(shorter + " ");
+}
+function compactAutomaticQuote(record) {
+  // Automatic retrieval supplies complete short entries, never a speech cut
+  // into invented highlights. Longer source entries may corroborate credits
+  // for an existing curated quote, but do not become additional quote cards.
+  const text = cleanText(record.quote);
+  return text.length <= 160 && text.split(/\s+/).length <= 24;
 }
 function mergeQuotes(vault, automatic, limit = LIMIT) {
   const results = vault.map(item => ({ ...item }));
-  for (const candidate of automatic) {
+  for (const existing of results) {
+    if (existing.actor && existing.character) continue;
+    const key = quoteKey(existing.quote);
+    // A source entry can be a longer rendition of a curated excerpt. Only
+    // use a whole-word, substantial contained excerpt from a single-speaker
+    // standalone block, with agreement across every matching source entry.
+    const matches = automatic.filter(r => {
+      const source = quoteKey(r.quote);
+      return source === key || key.length >= 35 && key.split(" ").length >= 7 &&
+        (" " + source + " ").includes(" " + key + " ");
+    });
+    if (!matches.length || matches.some(r => !r.actor || !r.character || r.attribution_status === "ambiguous")) continue;
+    const owners = new Map(matches.map(r => [r.actor + "\u0000" + r.character, r]));
+    if (owners.size !== 1) continue;
+    const source = owners.values().next().value;
+    if (existing.actor && existing.actor !== source.actor || existing.character && existing.character !== source.character) continue;
+    existing.actor ||= source.actor; existing.character ||= source.character;
+    existing.attribution_status = "source_matched";
+    existing.source_page = source.source_page; existing.source_url = source.source_url;
+  }
+  for (const candidate of automatic.filter(compactAutomaticQuote)) {
     const existing = results.find(item => duplicateQuote(item.quote, candidate.quote));
     if (existing) {
       // Exact wording plus an unambiguous source speaker can add missing credits.
@@ -1105,7 +1133,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v3" };
+    selection_policy: "exact_movie_standalone_v4" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
