@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 3 — source-corroborated character aliases.
+// REELWISE QUOTES 5 — credit matching for existing quotes only.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -820,6 +820,9 @@ function matchingBinding(movie) {
   const titles = [movie.title, movie.original_title].filter(Boolean).map(normalize);
   return [binding.key, binding.title].some(t => titles.includes(normalize(t))) ? binding : null;
 }
+function stripRoleTitles(value) {
+  return String(value || "").replace(/^(?:(?:lieutenant\s+junior\s+grade|private\s+first\s+class|lance\s+corporal|lieutenant|colonel|commander|captain|sergeant|corporal|professor|doctor|chief|judge|ltjg|lt|col|cdr|capt|sgt|cpl|pfc|prof|dr|mr|mrs|ms)\.?\s+)+/gi, "").trim();
+}
 function characterIndex(movie, wikitext = "") {
   const fullNames = new Map(), aliases = new Map();
   const actors = new Map(), sourceNames = new Map();
@@ -839,7 +842,7 @@ function characterIndex(movie, wikitext = "") {
     register(fullNames, character, entry);
     for (const part of character.split(/\s*\/\s*/)) {
       register(fullNames, part, entry);
-      const plain = part.replace(/\b(?:dr|mr|mrs|ms|prof|capt|captain|lt|lieutenant|sgt|sergeant|chief|commander)\.?\s+/gi, "");
+      const plain = stripRoleTitles(part);
       register(aliases, plain, entry);
       // TMDB uses both Pete 'Maverick' Mitchell and Pete "Maverick" Mitchell.
       for (const m of part.matchAll(/(?:^|\s)["“‘']([^"”’']+)["”’'](?=\s|$)/g)) register(aliases, m[1], entry);
@@ -865,20 +868,25 @@ function characterIndex(movie, wikitext = "") {
     if (matches?.length !== 1) continue;
     const sourceRole = credit[2].replace(/\s*\((?:voice|uncredited)\)\s*/gi, " ").trim();
     if (!sourceRole || /[{}<>:]/.test(sourceRole) || sourceRole.length > 100) continue;
-    const withoutTitles = value => normalize(value.replace(/\b(?:dr|mr|mrs|ms|prof|capt|captain|lt|lieutenant|sgt|sergeant|chief|commander)\.?\s+/gi, ""));
+    const withoutTitles = value => normalize(stripRoleTitles(value));
     const sourceWords = new Set(withoutTitles(sourceRole).split(" ").filter(w => w.length >= 3));
     if (!withoutTitles(matches[0].character).split(" ").some(w => w.length >= 3 && sourceWords.has(w))) continue;
-    register(sourceNames, sourceRole, { character: sourceRole, actor: matches[0].actor });
+    const canonical = withoutTitles(matches[0].character).split(" ").length > 1 ? matches[0].character : sourceRole;
+    register(sourceNames, sourceRole, { character: canonical, actor: matches[0].actor });
   }
   for (const [name, entries] of sourceNames) {
     if (entries.length !== 1) continue;
     const existing = fullNames.get(name) || aliases.get(name);
     if (existing?.some(e => e.actor !== entries[0].actor)) continue;
     register(fullNames, name, entries[0]);
+    const plain = normalize(stripRoleTitles(name));
+    register(aliases, plain, entries[0]);
+    const words = plain.split(" ").filter(w => w.length > 1);
+    if (words.length) { register(aliases, words[0], entries[0]); register(aliases, words.at(-1), entries[0]); }
   }
   return value => {
-    const key = normalize(value);
-    const matches = fullNames.get(key) || aliases.get(key);
+    const key = normalize(value), short = normalize(stripRoleTitles(cleanText(value)));
+    const matches = fullNames.get(key) || aliases.get(key) || fullNames.get(short) || aliases.get(short);
     return matches?.length === 1 ? matches[0] : null;
   };
 }
@@ -1061,7 +1069,67 @@ function compactAutomaticQuote(record) {
   const text = cleanText(record.quote);
   return text.length <= 160 && text.split(/\s+/).length <= 24;
 }
-function mergeQuotes(vault, automatic, limit = LIMIT) {
+// This pass can return credit evidence only for quotes already in the Vault.
+// It never supplies new quote cards or changes a quote's verification flag.
+function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
+  const targets = vault.filter(r => !r.actor || !r.character);
+  if (!targets.length || !pageDescribesMovie(wikitext, pageTitle, movieAliases(movie), movieYear(movie))) return [];
+  const resolve = characterIndex(movie, wikitext), sections = [], evidence = [];
+  let turn = null;
+  function finish() {
+    if (!turn) return;
+    const current = turn; turn = null;
+    if (current.unsafe) return;
+    let text = cleanText(current.lines.join(" "));
+    if (/<br\b|\{\{|https?:\/\//i.test(text)) return;
+    text = text.replace(/\[[^\[\]\n]{1,180}\]/g, " ").replace(/\s+/g, " ").trim();
+    if (!text || /[<>\[\]{}]/.test(text)) return;
+    const opening = text.split(/(?<=[.!?])\s+/)[0];
+    // A later rhetorical colon in a speech must not hide an independently
+    // labelled opening sentence. Never match another speaker in that opening.
+    if (/(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(opening)) return;
+    const whole = quoteKey(text), firstSentence = quoteKey(opening);
+    for (const target of targets) {
+      const key = quoteKey(target.quote);
+      const exactTurn = key === whole;
+      const exactOpening = key.length >= 18 && key.split(" ").length >= 4 && key === firstSentence;
+      if (!exactTurn && !exactOpening) continue;
+      evidence.push({ quote: target.quote, verified: false, evidence_only: true,
+        ...(current.speaker ? { character: current.speaker.character, actor: current.speaker.actor } : {}),
+        attribution_status: current.speaker ? "cast_matched" : "unavailable",
+        attribution_basis: "existing_quote_speaker_label", source_page: pageTitle,
+        source_url: "https://en.wikiquote.org/wiki/" + encodeURIComponent(pageTitle.replace(/ /g, "_")) });
+    }
+  }
+  for (const raw of String(wikitext).split(/\r?\n/)) {
+    const line = raw.trim(), heading = line.match(/^(={2,6})\s*(.*?)\s*\1\s*$/);
+    if (heading) {
+      finish(); const level = heading[1].length;
+      while (sections.length && sections.at(-1).level >= level) sections.pop();
+      const parent = sections.at(-1), title = normalize(cleanText(heading[2]));
+      const dialogue = /^(?:dialogues?|dialogs?|conversations?)\b/.test(title);
+      sections.push({ level, dialogue: Boolean(dialogue || parent?.dialogue),
+        blocked: Boolean(parent?.blocked || !dialogue && rejectedSection(title)) });
+      continue;
+    }
+    const section = sections.at(-1);
+    if (!section?.dialogue || section.blocked) continue;
+    if (!line || /^\*\s*\*\s*\*|^----/.test(line)) { finish(); continue; }
+    const content = cleanText(line.replace(/^[*:;#]+\s*/, ""));
+    if (!content || /^\s*\[/.test(content)) { finish(); continue; }
+    const label = speakerLabel(content);
+    if (label) {
+      finish(); turn = { speaker: resolve(label[1]), lines: [label[2]], unsafe: false };
+      continue;
+    }
+    if (!turn) continue;
+    // Unlabelled nested bullets are notes, not part of a speaker's turn.
+    if (/^[*#]/.test(line)) { finish(); continue; }
+    turn.lines.push(content);
+  }
+  finish(); return evidence;
+}
+function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
   const results = vault.map(item => ({ ...item }));
   for (const existing of results) {
     if (existing.actor && existing.character) continue;
@@ -1069,7 +1137,7 @@ function mergeQuotes(vault, automatic, limit = LIMIT) {
     // A source entry can be a longer rendition of a curated excerpt. Only
     // use a whole-word, substantial contained excerpt from a single-speaker
     // standalone block, with agreement across every matching source entry.
-    const matches = automatic.filter(r => {
+    const matches = [...automatic, ...creditEvidence].filter(r => {
       const source = quoteKey(r.quote);
       return source === key || key.length >= 35 && key.split(" ").length >= 7 &&
         (" " + source + " ").includes(" " + key + " ");
@@ -1082,19 +1150,11 @@ function mergeQuotes(vault, automatic, limit = LIMIT) {
     existing.actor ||= source.actor; existing.character ||= source.character;
     existing.attribution_status = "source_matched";
     existing.source_page = source.source_page; existing.source_url = source.source_url;
+    if (source.attribution_basis) existing.attribution_basis = source.attribution_basis;
   }
   for (const candidate of automatic.filter(compactAutomaticQuote)) {
     const existing = results.find(item => duplicateQuote(item.quote, candidate.quote));
     if (existing) {
-      // Exact wording plus an unambiguous source speaker can add missing credits.
-      // This does not promote an unchecked quote to Reelwise Verified.
-      if (quoteKey(existing.quote) === quoteKey(candidate.quote) && candidate.actor && candidate.character &&
-          (!existing.actor || existing.actor === candidate.actor) && (!existing.character || existing.character === candidate.character)) {
-        if (!existing.actor) existing.actor = candidate.actor;
-        if (!existing.character) existing.character = candidate.character;
-        existing.attribution_status = "cast_matched";
-        existing.source_page = candidate.source_page; existing.source_url = candidate.source_url;
-      }
       continue;
     }
     if (results.length < limit) results.push({ ...candidate });
@@ -1104,7 +1164,7 @@ function mergeQuotes(vault, automatic, limit = LIMIT) {
 async function buildResponse(id) {
   const deadline = Date.now() + 9000;
   const movie = await getMovie(id, deadline), vault = prepareVaultQuotes(movie);
-  let automatic = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false;
+  let automatic = [], creditEvidence = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false;
   const needsSource = vault.length < LIMIT || vault.some(r => !r.character || !r.actor);
   if (needsSource) {
     try {
@@ -1112,6 +1172,7 @@ async function buildResponse(id) {
       if (page) {
         pageTitle = page.pageTitle;
         automatic = extractAutomaticQuotes(page.wikitext, movie, pageTitle, 80);
+        creditEvidence = existingQuoteCredits(page.wikitext, movie, pageTitle, vault);
         lookupStatus = automatic.length ? "source_match" : "no_standalone_entries";
       }
     } catch (error) {
@@ -1119,7 +1180,7 @@ async function buildResponse(id) {
       lookupStatus = "source_unavailable"; sourceUnavailable = true;
     }
   }
-  const records = mergeQuotes(vault, automatic), added = records.filter(r => r.automatic === true).length;
+  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence), added = records.filter(r => r.automatic === true).length;
   if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
   const verifiedCount = records.filter(r => r.verified === true).length;
   const legacyCount = records.filter(r => r.legacy === true).length;
@@ -1133,7 +1194,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v4" };
+    selection_policy: "exact_movie_standalone_v5" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
