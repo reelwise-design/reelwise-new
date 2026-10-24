@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 5 — credit matching for existing quotes only.
+// REELWISE QUOTES 6 — concise overlap cleanup and shared attribution.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1054,12 +1054,17 @@ function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
   const score = r => (r.actor ? 100 : 0) + (r.quote.length <= 180 ? 20 : 0) + (/[.!?…]$/.test(r.quote) ? 5 : 0);
   return results.sort((a,b) => score(b)-score(a)).slice(0, limit);
 }
+function containedQuote(shortQuote, longQuote) {
+  const key = quoteKey(shortQuote), source = quoteKey(longQuote);
+  return key.length >= 28 && key.split(" ").length >= 6 &&
+    (" " + source + " ").includes(" " + key + " ");
+}
 function duplicateQuote(a, b) {
   const x = quoteKey(a), y = quoteKey(b);
   if (x === y) return true;
   const shorter = x.length < y.length ? x : y, longer = x.length < y.length ? y : x;
   const words = shorter.split(" ").length;
-  if (shorter.length >= 35 && words >= 7 && (" " + longer + " ").includes(" " + shorter + " ")) return true;
+  if (containedQuote(shorter, longer)) return true;
   return shorter.length >= 28 && words >= 5 && shorter.length / longer.length >= 0.65 && longer.startsWith(shorter + " ");
 }
 function compactAutomaticQuote(record) {
@@ -1137,10 +1142,10 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
     // A source entry can be a longer rendition of a curated excerpt. Only
     // use a whole-word, substantial contained excerpt from a single-speaker
     // standalone block, with agreement across every matching source entry.
-    const matches = [...automatic, ...creditEvidence].filter(r => {
+    const matches = [...vault, ...automatic, ...creditEvidence].filter(r => {
+      if (r === vault[results.indexOf(existing)]) return false;
       const source = quoteKey(r.quote);
-      return source === key || key.length >= 35 && key.split(" ").length >= 7 &&
-        (" " + source + " ").includes(" " + key + " ");
+      return source === key || containedQuote(existing.quote, r.quote);
     });
     if (!matches.length || matches.some(r => !r.actor || !r.character || r.attribution_status === "ambiguous")) continue;
     const owners = new Map(matches.map(r => [r.actor + "\u0000" + r.character, r]));
@@ -1152,6 +1157,13 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
     existing.source_page = source.source_page; existing.source_url = source.source_url;
     if (source.attribution_basis) existing.attribution_basis = source.attribution_basis;
   }
+  // Credit transfer happens before redundant longer curated cards are removed.
+  // Keep the original order of the surviving cards.
+  const concise = results.filter((item, i) => !results.some((other, j) =>
+    j !== i && (quoteKey(other.quote) === quoteKey(item.quote) ? j < i :
+      quoteKey(other.quote).length < quoteKey(item.quote).length &&
+      containedQuote(other.quote, item.quote))));
+  results.splice(0, results.length, ...concise);
   for (const candidate of automatic.filter(compactAutomaticQuote)) {
     const existing = results.find(item => duplicateQuote(item.quote, candidate.quote));
     if (existing) {
@@ -1194,7 +1206,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v5" };
+    selection_policy: "exact_movie_standalone_v6" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
