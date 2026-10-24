@@ -1,7 +1,7 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 1 — exact movie identity and standalone source entries.
-// Existing Vault wording and explicit verification flags are preserved.
+// REELWISE QUOTES 2 — shared coverage, attribution and exact-film filtering.
+// Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
   "630": {
@@ -772,6 +772,7 @@ const IDENTITY_BINDINGS = {
 };
 const TOKEN = process.env.TMDB_READ_ACCESS_TOKEN;
 const LIMIT = 8;
+const responseCache = new Map();
 
 function normalize(value) {
   return String(value || "").normalize("NFKD").replace(/[\u0300-\u036f]/g, "")
@@ -787,14 +788,12 @@ function cleanText(value) {
     .replace(/&ndash;/gi, "–").replace(/&mdash;/gi, "—").replace(/&hellip;/gi, "…")
     .replace(/\s+/g, " ").trim();
 }
-function quoteKey(value) {
-  return normalize(value).replace(/\s+/g, " ");
-}
+function quoteKey(value) { return normalize(value); }
 async function requestJSON(url, options, deadline) {
   const remaining = deadline - Date.now();
   if (remaining < 150) throw new Error("Quote lookup time limit reached.");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.min(4500, remaining));
+  const timer = setTimeout(() => controller.abort(), Math.min(4000, remaining));
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
     if (!response.ok) throw new Error("Quote source request failed (" + response.status + ").");
@@ -809,43 +808,71 @@ async function getMovie(id, deadline) {
     "?language=en-US&append_to_response=credits", {
       headers: { Authorization: "Bearer " + TOKEN, Accept: "application/json" }
     }, deadline);
-  if (String(movie.id) !== String(id)) throw new Error("Movie identity could not be confirmed.");
+  if (String(movie.id) !== String(id) || !/^\d{4}-\d{2}-\d{2}$/.test(movie.release_date || "")) {
+    throw new Error("Movie identity and release year could not be confirmed.");
+  }
   return movie;
 }
-
-function prepareVaultQuotes(movie, limit = LIMIT) {
+function movieYear(movie) { return String(movie.release_date || "").slice(0, 4); }
+function matchingBinding(movie) {
   const binding = IDENTITY_BINDINGS[String(movie.id)];
-  // Never borrow a title-only legacy entry for a remake, short or sequel.
-  // The dataset identifies the intended work; popularity is not used here.
-  const title = normalize(movie.title), original = normalize(movie.original_title);
-  const catalogueMatch = binding && [binding.key, binding.title].some(t => [title, original].includes(normalize(t)));
-  // New structured Vault records can declare their movie ID directly. Legacy
-  // title-only additions need a reviewed catalogue binding before publication.
-  const items = catalogueMatch ? QUOTE_VAULT[binding.key] : Object.values(QUOTE_VAULT)
-    .filter(Array.isArray).flat().filter(item => item && typeof item === "object" &&
-      item.verified === true && String(item.tmdb_id) === String(movie.id));
-  if (!Array.isArray(items)) return [];
+  if (!binding || String(binding.year) !== movieYear(movie)) return null;
+  const titles = [movie.title, movie.original_title].filter(Boolean).map(normalize);
+  return [binding.key, binding.title].some(t => titles.includes(normalize(t))) ? binding : null;
+}
+function characterIndex(movie) {
+  const fullNames = new Map(), aliases = new Map();
+  function register(map, alias, entry) {
+    const key = normalize(alias); if (!key) return;
+    const owners = map.get(key) || [];
+    if (!owners.some(e => e.actor === entry.actor && e.character === entry.character)) owners.push(entry);
+    map.set(key, owners);
+  }
+  for (const cast of movie.credits?.cast || []) {
+    const character = cleanText(cast.character).replace(/\s*\((?:voice|uncredited)\)\s*/gi, " ").trim();
+    const actor = cleanText(cast.name);
+    if (!character || !actor || /\b(?:self|archive footage)\b/i.test(character)) continue;
+    const entry = { character, actor };
+    register(fullNames, character, entry);
+    for (const part of character.split(/\s*\/\s*/)) {
+      register(fullNames, part, entry);
+      const plain = part.replace(/\b(?:dr|mr|mrs|ms|prof|capt|captain|lt|lieutenant|sgt|sergeant|chief|commander)\.?\s+/gi, "");
+      register(aliases, plain, entry);
+      // TMDB uses both Pete 'Maverick' Mitchell and Pete "Maverick" Mitchell.
+      for (const m of part.matchAll(/(?:^|\s)["“‘']([^"”’']+)["”’'](?=\s|$)/g)) register(aliases, m[1], entry);
+      const words = normalize(plain).split(" ").filter(w => w.length > 1);
+      if (words.length) { register(aliases, words[0], entry); register(aliases, words.at(-1), entry); }
+    }
+  }
+  return value => {
+    const key = normalize(value);
+    const matches = fullNames.get(key) || aliases.get(key);
+    return matches?.length === 1 ? matches[0] : null;
+  };
+}
+function prepareVaultQuotes(movie, limit = LIMIT) {
+  const binding = matchingBinding(movie);
+  const explicit = Object.values(QUOTE_VAULT).filter(Array.isArray).flat().filter(item =>
+    item && typeof item === "object" && !Array.isArray(item) && String(item.tmdb_id) === String(movie.id));
+  const items = [...(binding && Array.isArray(QUOTE_VAULT[binding.key]) ? QUOTE_VAULT[binding.key] : []), ...explicit];
   const results = [], seen = new Set();
   for (const item of items) {
     const legacy = typeof item === "string";
-    if (!legacy && (!item || typeof item !== "object" || Array.isArray(item) || item.verified !== true)) continue;
+    if (!legacy && (!item || typeof item !== "object" || Array.isArray(item))) continue;
     if (!legacy && item.tmdb_id != null && String(item.tmdb_id) !== String(movie.id)) continue;
-    if (!legacy && item.year != null && String(item.year) !== String(movie.release_date || "").slice(0, 4)) continue;
+    if (!legacy && item.year != null && String(item.year) !== movieYear(movie)) continue;
+    // Unknown title-only entries are never assigned to a remake or sequel.
+    if (!binding && (legacy || String(item.tmdb_id) !== String(movie.id))) continue;
     const quote = cleanText(legacy ? item : item.quote || item.text);
-    const key = quoteKey(quote);
-    if (!key || seen.has(key)) continue;
+    const key = quoteKey(quote); if (!key || seen.has(key)) continue;
     seen.add(key);
-    const record = { quote, verified: !legacy && item.verified === true };
+    const record = { quote, verified: !legacy && item.verified === true, curated: true };
     if (legacy) record.legacy = true;
-    for (const field of ["character", "actor"]) {
-      if (!legacy && cleanText(item[field])) record[field] = cleanText(item[field]);
-    }
-    results.push(record);
-    if (results.length >= limit) break;
+    for (const field of ["character", "actor"]) if (!legacy && cleanText(item[field])) record[field] = cleanText(item[field]);
+    results.push(record); if (results.length >= limit) break;
   }
   return results;
 }
-
 async function wikiRequest(params, deadline) {
   const search = new URLSearchParams({ origin: "*", format: "json", formatversion: "2", ...params });
   return requestJSON("https://en.wikiquote.org/w/api.php?" + search, {
@@ -853,27 +880,29 @@ async function wikiRequest(params, deadline) {
   }, deadline);
 }
 function movieAliases(movie) {
-  const binding = IDENTITY_BINDINGS[String(movie.id)];
+  const binding = matchingBinding(movie);
   return [...new Set([movie.title, movie.original_title, binding?.key, binding?.title].filter(Boolean))];
 }
 function pageNameMatches(pageTitle, aliases, year) {
-  const qualifier = String(pageTitle).match(/\s*\((?:(\d{4})\s+)?film\)\s*$/i);
+  const qualifier = String(pageTitle).match(/\s*\((?:(\d{4})(?:\s+film)?|film)\)\s*$/i);
   if (qualifier?.[1] && qualifier[1] !== String(year)) return false;
-  const base = String(pageTitle).replace(/\s*\((?:\d{4}\s+)?film\)\s*$/i, "");
+  const base = String(pageTitle).replace(/\s*\((?:\d{4}(?:\s+film)?|film)\)\s*$/i, "");
   return aliases.some(title => normalize(base) === normalize(title));
 }
 function pageDescribesMovie(wikitext, pageTitle, aliases, year) {
-  if (!year || !pageNameMatches(pageTitle, aliases, year)) return false;
-  // Match the lead's film identity, not a year mentioned somewhere in quotes,
-  // references, navigation, a search snippet, or a sequel discussion.
+  if (!/^\d{4}$/.test(year) || !pageNameMatches(pageTitle, aliases, year)) return false;
   let lead = String(wikitext).split(/^\s*={2,6}[^\n]*={2,6}\s*$/m)[0];
-  lead = lead.replace(/\{\{[\s\S]*?\}\}/g, "");
+  lead = lead.replace(/\[\[(?:File|Image):[^\n]*?\]\]/gi, "").replace(/\{\{[\s\S]*?\}\}/g, "");
   lead = cleanText(lead).slice(0, 2000);
-  const filmYear = lead.match(/\b((?:18|19|20)\d{2})\s+(?:(?!\b(?:18|19|20)\d{2}\b)[^.!?]){0,160}\bfilm\b(?!\s+series)/i);
-  return Boolean(filmYear && filmYear[1] === String(year));
+  if (!aliases.some(title => (" " + normalize(lead) + " ").includes(" " + normalize(title) + " "))) return false;
+  // Use the first film-year claim, never a later mention of a remake.
+  const before = /\b((?:18|19|20)\d{2})(?:\s*\))?\s+(?:(?!\b(?:18|19|20)\d{2}\b)[^.!?]){0,160}\b(?:film|movie)\b(?!\s+series)/i.exec(lead);
+  const after = /\b(?:film|movie)\b\s+(?:released\s+in\s+|from\s+|\()((?:18|19|20)\d{2})\b/i.exec(lead);
+  const claims = [before, after].filter(Boolean).sort((a,b) => a.index-b.index);
+  return Boolean(claims.length && claims[0][1] === String(year));
 }
 async function getAutomaticPage(movie, deadline) {
-  const year = String(movie.release_date || "").slice(0, 4), aliases = movieAliases(movie);
+  const year = movieYear(movie), aliases = movieAliases(movie);
   const titles = [...new Set(aliases.flatMap(title => [title + " (" + year + " film)", title + " (film)", title]))];
   const checked = new Set();
   async function inspect(candidates) {
@@ -888,39 +917,12 @@ async function getAutomaticPage(movie, deadline) {
     }
     return null;
   }
-  const direct = await inspect(titles);
-  if (direct) return direct;
+  const direct = await inspect(titles); if (direct) return direct;
   const data = await wikiRequest({ action: "query", list: "search", srnamespace: "0", srlimit: "8",
     srsearch: '"' + movie.title + '" ' + year + " film" }, deadline);
   const exact = (data.query?.search || []).map(item => item.title)
     .filter(title => !checked.has(title) && pageNameMatches(title, aliases, year));
-  // There is deliberately no first-result or arbitrary '(film)' fallback.
   return inspect(exact);
-}
-
-function characterIndex(movie) {
-  const entries = [], owners = new Map();
-  for (const cast of movie.credits?.cast || []) {
-    const character = cleanText(cast.character).replace(/\s*\((?:voice|uncredited)\)\s*/gi, " ").trim();
-    if (!character || /\b(?:self|archive footage)\b/i.test(character)) continue;
-    const aliases = new Set([normalize(character)]);
-    for (const part of character.split(/\s*\/\s*/)) aliases.add(normalize(part));
-    for (const match of character.matchAll(/["“]([^"”]+)["”]/g)) aliases.add(normalize(match[1]));
-    const withoutTitles = character.replace(/\b(?:dr|mr|mrs|ms|prof|capt|captain|lt|lieutenant|sgt|sergeant)\.?\s+/gi, "");
-    aliases.add(normalize(withoutTitles));
-    const words = normalize(withoutTitles).split(" ").filter(Boolean);
-    if (words.length) { aliases.add(words[0]); aliases.add(words.at(-1)); }
-    const entry = { character, actor: cleanText(cast.name), aliases };
-    entries.push(entry);
-    for (const alias of aliases) {
-      if (!alias) continue;
-      const list = owners.get(alias) || []; list.push(entry); owners.set(alias, list);
-    }
-  }
-  return value => {
-    const matches = owners.get(normalize(value));
-    return matches?.length === 1 ? matches[0] : null;
-  };
 }
 function rejectedSection(value) {
   return /^(?:dialogues?|dialogs?|conversations?|cast|external links|see also|references|notes|about|quotes about|taglines?|trivia|production|soundtrack|songs?|lyrics|bibliography|footnotes|sources|plot|synopsis|reception|reviews|deleted scenes|outtakes)\b/i.test(normalize(value));
@@ -931,108 +933,162 @@ function genericQuoteSection(value) {
 function validStandalone(value) {
   const text = cleanText(value);
   if (text.length < 5 || text.length > 260 || !/[a-z]/i.test(text)) return false;
-  if (/\{\{|\}\}|<|>|https?:\/\/|www\.|^\s*[\[(]|^[*#:;=]/i.test(text)) return false;
+  if (/\{\{|\}\}|<|>|https?:\/\/|www\.|\[[^\]]*\]|^[*#:;=]/i.test(text)) return false;
   if (/\b(?:ranked|american film institute|quotation[s]? in american cinema|bolded portion|citation needed|retrieved from|release date|running time|box office|screenplay by|directed by|written by|official website|wikipedia|wikiquote|imdb)\b/i.test(text)) return false;
   if (/^(?:note|source|citation|translation|variant|tagline|scene|cut to|the film|the movie|he says|she says|they say|this quote)\s*[:\s]/i.test(text)) return false;
   return true;
 }
+function speakerLabel(text) { return cleanText(text).match(/^([^:]{1,70}):\s*(.+)$/); }
 function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
-  const resolve = characterIndex(movie), sections = [], results = [], seen = new Set();
+  const resolve = characterIndex(movie), sections = [], results = [], seen = new Map();
   let block = null;
   const active = () => sections.at(-1);
   function finish() {
     if (!block) return;
     const entry = block; block = null;
     if (entry.rejected || !entry.allowed || entry.dialogue) return;
-    let text = cleanText(entry.lines.join(" "));
-    let speaker = entry.speaker;
-    const label = text.match(/^([^:]{1,70}):\s+(.+)$/);
+    let text = cleanText(entry.lines.join(" ")), speaker = entry.speaker;
+    const label = speakerLabel(text);
     if (label) {
       const named = resolve(label[1]);
       if (named) { speaker = named; text = cleanText(label[2]); }
       else if (/^\s*(?:'''|\[\[)/.test(entry.lines[0]) || !speaker) return;
     }
-    // A quote entry must never be assembled from multiple speakers, even if
-    // its section was mislabeled or the second speaker starts on a new line.
-    if (/(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(text) || !validStandalone(text)) return;
-    const key = quoteKey(text); if (!key || seen.has(key)) return;
-    seen.add(key);
-    const record = { quote: text, verified: false, automatic: true, source_page: pageTitle };
-    if (speaker) { record.character = speaker.character; if (speaker.actor) record.actor = speaker.actor; }
-    results.push(record);
+    // Detect all speaker changes BEFORE removing bracketed stage directions.
+    if (/(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(text)) return;
+    // Standalone character quotes may carry simple non-spoken stage directions.
+    // Templates, hyperlinks, multiple speakers and multiline exchanges stay rejected.
+    text = text.replace(/\[[^\[\]\n]{1,180}\]/g, " ").replace(/\s+/g, " ").trim();
+    if (!validStandalone(text)) return;
+    const key = quoteKey(text); if (!key) return;
+    if (seen.has(key)) {
+      const previous = seen.get(key);
+      if (previous.actor !== speaker?.actor || previous.character !== speaker?.character) {
+        delete previous.actor; delete previous.character; previous.attribution_status = "ambiguous";
+      }
+      return;
+    }
+    const record = { quote: text, verified: false, automatic: true, source_page: pageTitle,
+      source_url: "https://en.wikiquote.org/wiki/" + encodeURIComponent(pageTitle.replace(/ /g, "_")),
+      attribution_status: speaker ? "cast_matched" : "unavailable" };
+    if (speaker) { record.character = speaker.character; record.actor = speaker.actor; }
+    seen.set(key, record); results.push(record);
   }
   for (const raw of String(wikitext).split(/\r?\n/)) {
     const line = raw.trim();
     const heading = line.match(/^(={2,6})\s*(.*?)\s*\1\s*$/);
     if (heading) {
-      finish();
-      const level = heading[1].length;
+      finish(); const level = heading[1].length;
       while (sections.length && active().level >= level) sections.pop();
-      const title = cleanText(heading[2]), speaker = resolve(title);
-      const parent = active();
+      const title = cleanText(heading[2]), named = resolve(title), parent = active();
+      const generic = genericQuoteSection(title);
       sections.push({ level, rejected: Boolean(parent?.rejected || rejectedSection(title)),
-        allowed: Boolean(speaker || genericQuoteSection(title)), speaker });
+        allowed: Boolean(named || generic), speaker: named || (generic ? parent?.speaker : null) });
+      continue;
+    }
+    // A definition-style character heading is allowed only within a quote section.
+    if (/^;[^:]+:?$/.test(line)) {
+      finish(); const section = active(), named = resolve(line.slice(1).replace(/:$/, "").trim());
+      if (section) section.definitionSpeaker = section.allowed && !section.rejected ? named : null;
       continue;
     }
     if (/^\*(?!\*)/.test(line)) {
-      finish();
-      const section = active();
+      finish(); const section = active();
       block = { lines: [line.replace(/^\*\s*/, "")], rejected: section?.rejected ?? true,
-        allowed: section?.allowed ?? false, speaker: section?.speaker, dialogue: false };
+        allowed: section?.allowed ?? false, speaker: section?.definitionSpeaker || section?.speaker, dialogue: false };
       continue;
     }
     if (!block || !line) continue;
     if (/^[*#:;]/.test(line)) {
-      // Nested notes/citations are never quote text. A nested speaker or a
-      // transcript-style response rejects the entire parent entry.
-      const content = cleanText(line.replace(/^[*#:;]+\s*/, ""));
-      const label = content.match(/^([^:]{1,70}):\s+/);
-      const metadataLabel = label && /^(?:source|note|citation|translation|variant|reference)$/i.test(label[1]);
-      if (/^[:;]/.test(line) || label && !metadataLabel &&
+      const content = cleanText(line.replace(/^[*#:;]+\s*/, "")), label = speakerLabel(content);
+      const metadata = label && /^(?:source|note|citation|translation|variant|reference)$/i.test(label[1]);
+      if (/^[:;]/.test(line) || label && !metadata &&
         (resolve(label[1]) || /^[A-Z][A-Za-z ."'’-]{1,60}$/.test(label[1]))) block.dialogue = true;
       continue;
     }
-    // Plain continuation lines may contain another speaker or transcript HTML.
     if (/<br\b/i.test(line) || /'''[^']{1,60}:/.test(line)) block.dialogue = true;
     block.lines.push(line);
   }
   finish();
+  // Prefer attributed, compact statements without changing the words spoken.
+  const score = r => (r.actor ? 100 : 0) + (r.quote.length <= 180 ? 20 : 0) + (/[.!?…]$/.test(r.quote) ? 5 : 0);
+  return results.sort((a,b) => score(b)-score(a)).slice(0, limit);
+}
+function duplicateQuote(a, b) {
+  const x = quoteKey(a), y = quoteKey(b);
+  if (x === y) return true;
+  const shorter = x.length < y.length ? x : y, longer = x.length < y.length ? y : x;
+  return shorter.length >= 28 && shorter.split(" ").length >= 5 &&
+    shorter.length / longer.length >= 0.65 && longer.startsWith(shorter + " ");
+}
+function mergeQuotes(vault, automatic, limit = LIMIT) {
+  const results = vault.map(item => ({ ...item }));
+  for (const candidate of automatic) {
+    const existing = results.find(item => duplicateQuote(item.quote, candidate.quote));
+    if (existing) {
+      // Exact wording plus an unambiguous source speaker can add missing credits.
+      // This does not promote an unchecked quote to Reelwise Verified.
+      if (quoteKey(existing.quote) === quoteKey(candidate.quote) && candidate.actor && candidate.character &&
+          (!existing.actor || existing.actor === candidate.actor) && (!existing.character || existing.character === candidate.character)) {
+        if (!existing.actor) existing.actor = candidate.actor;
+        if (!existing.character) existing.character = candidate.character;
+        existing.attribution_status = "cast_matched";
+        existing.source_page = candidate.source_page; existing.source_url = candidate.source_url;
+      }
+      continue;
+    }
+    if (results.length < limit) results.push({ ...candidate });
+  }
   return results.slice(0, limit);
 }
-
+async function buildResponse(id) {
+  const deadline = Date.now() + 9000;
+  const movie = await getMovie(id, deadline), vault = prepareVaultQuotes(movie);
+  let automatic = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false;
+  const needsSource = vault.length < LIMIT || vault.some(r => !r.character || !r.actor);
+  if (needsSource) {
+    try {
+      const page = await getAutomaticPage(movie, deadline);
+      if (page) {
+        pageTitle = page.pageTitle;
+        automatic = extractAutomaticQuotes(page.wikitext, movie, pageTitle, 80);
+        lookupStatus = automatic.length ? "source_match" : "no_standalone_entries";
+      }
+    } catch (error) {
+      console.error("Reelwise automatic quote source:", error.message);
+      lookupStatus = "source_unavailable"; sourceUnavailable = true;
+    }
+  }
+  const records = mergeQuotes(vault, automatic), added = records.filter(r => r.automatic === true).length;
+  if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
+  const verifiedCount = records.filter(r => r.verified === true).length;
+  const legacyCount = records.filter(r => r.legacy === true).length;
+  const sources = [];
+  if (verifiedCount) sources.push("Reelwise Verified Vault");
+  if (legacyCount) sources.push("Reelwise Legacy Vault");
+  if (vault.some(r => !r.verified && !r.legacy)) sources.push("Reelwise Curated Vault");
+  if (added) sources.push("Wikiquote source-matched quotes");
+  return { movie: cleanText(movie.title || movie.original_title), movie_id: movie.id, year: movieYear(movie),
+    quotes: records.map(r => r.quote), quoteDetails: records, source: sources.join(" + ") || "No Reelwise quotes available",
+    wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
+    verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
+    lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
+    selection_policy: "exact_movie_standalone_v2" };
+}
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
   if (!/^[1-9]\d*$/.test(id)) return res.status(400).json({ error: "A valid movie ID is required.", quotes: [], quoteDetails: [] });
-  const deadline = Date.now() + 9000;
   try {
-    const movie = await getMovie(id, deadline), title = cleanText(movie.title || movie.original_title);
-    const year = String(movie.release_date || "").slice(0, 4);
-    const vault = prepareVaultQuotes(movie);
-    let records = vault, pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match";
-    if (!vault.length) {
-      try {
-        const page = await getAutomaticPage(movie, deadline);
-        if (page) {
-          pageTitle = page.pageTitle;
-          records = extractAutomaticQuotes(page.wikitext, movie, pageTitle);
-          lookupStatus = records.length ? "source_match" : "no_standalone_entries";
-        }
-      } catch (error) {
-        console.error("Reelwise automatic quote source:", error.message);
-        records = []; lookupStatus = "source_unavailable";
-      }
+    const cached = responseCache.get(id);
+    if (cached && cached.expires > Date.now()) return res.status(200).json(cached.body);
+    if (cached) responseCache.delete(id);
+    const body = await buildResponse(id);
+    // A source outage is not cached, so recovery can be immediate.
+    if (body.source_status !== "unavailable") {
+      if (responseCache.size >= 100) responseCache.delete(responseCache.keys().next().value);
+      responseCache.set(id, { body, expires: Date.now() + (body.quotes.length ? 600000 : 60000) });
     }
-    const verifiedCount = records.filter(item => item.verified === true).length;
-    const legacyCount = records.filter(item => item.legacy === true).length;
-    let source = "No Reelwise quotes available";
-    if (vault.length) source = verifiedCount && legacyCount ? "Reelwise Verified Vault + Legacy Vault" :
-      verifiedCount ? "Reelwise Verified Vault" : "Reelwise Legacy Vault";
-    else if (records.length) source = "Automatic Wikiquote fallback";
-    return res.status(200).json({ movie: title, movie_id: movie.id, year,
-      quotes: records.map(item => item.quote), quoteDetails: records, source, wikiquotePage: pageTitle,
-      curated: vault.length > 0, automatic: !vault.length && records.length > 0,
-      verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
-      lookup_status: lookupStatus, selection_policy: "exact_movie_standalone_v1" });
+    return res.status(200).json(body);
   } catch (error) {
     console.error("Reelwise quotes error:", error.message);
     return res.status(500).json({ error: error.message || "Quotes could not be loaded.", quotes: [], quoteDetails: [] });
