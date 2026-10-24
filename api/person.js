@@ -3,7 +3,7 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
 
     /*
       ============================================================
-      REELWISE PERSON API — PERSON 183
+      REELWISE PERSON API — PERSON 184
       ============================================================
 
       STAR PROFILE
@@ -973,6 +973,10 @@ import { OSCAR_ACTING_PERFORMERS, OSCAR_ACTING_BY_NAME, OSCAR_DATASET_META } fro
       // plot/preparation passages remain eligible as plain verified credits.
       const compactCareerSentence=raw=>{
         let t=cleanText(raw);
+        // Selected excerpts must make sense outside the original paragraph.
+        // Fall back to the verified role/direction when a sentence depends on
+        // an unstated setback or an earlier comparison. Do not invent context.
+        if(/\b(?:working against (?:him|her|them)|(?:made|making) matters worse|the (?:former|latter)|this setback|these setbacks)\b/i.test(t))return '';
         // A movie title inside a game discussion does not describe the film role.
         if(/\b(?:video[ -]?games?|computer games?|game adaptation|quasi-sequel|likeness|archiv(?:e|al) footage)\b/i.test(t))return '';
         t=t.replace(/,\s*(?:where\b|in which\s+(?:the|a|an|his|her|their)\b|which\s+(?:follows|tells|depicts|centers|centres|recounts)\b).*$/i,'');
@@ -2723,5 +2727,6 @@ const Bio169Preview=(()=>{
           });
       }
     }
+
 
 
