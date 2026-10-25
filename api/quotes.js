@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 7 — reviewed existing-quote credits and short sentence overlaps.
+// REELWISE QUOTES 8 — shared source identity and existing-quote attribution.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -844,6 +844,7 @@ function characterIndex(movie, wikitext = "") {
       register(fullNames, part, entry);
       const plain = stripRoleTitles(part);
       register(aliases, plain, entry);
+      register(aliases, plain.replace(/["“‘'][^"”’']+["”’']/g, " ").replace(/\s+/g, " ").trim(), entry);
       // TMDB uses both Pete 'Maverick' Mitchell and Pete "Maverick" Mitchell.
       for (const m of part.matchAll(/(?:^|\s)["“‘']([^"”’']+)["”’'](?=\s|$)/g)) register(aliases, m[1], entry);
       const words = normalize(plain).split(" ").filter(w => w.length > 1);
@@ -939,7 +940,12 @@ function pageDescribesMovie(wikitext, pageTitle, aliases, year) {
   const before = /\b((?:18|19|20)\d{2})(?:\s*\))?\s+(?:(?!\b(?:18|19|20)\d{2}\b)[^.!?]){0,160}\b(?:film|movie)\b(?!\s+series)/i.exec(lead);
   const after = /\b(?:film|movie)\b\s+(?:released\s+in\s+|from\s+|\()((?:18|19|20)\d{2})\b/i.exec(lead);
   const claims = [before, after].filter(Boolean).sort((a,b) => a.index-b.index);
-  return Boolean(claims.length && claims[0][1] === String(year));
+  if (claims.length) return claims[0][1] === String(year);
+  // Some film pages say "is a 2003 comedy about ..." without the word film.
+  // Require a title-led description, explicit year, genre and plot introduction.
+  const genreLead = /\b(?:is|was)\s+(?:an?\s+)?((?:18|19|20)\d{2})\s+(?:(?:American|British|French|Canadian|Australian|romantic|black|dark|satirical|animated|musical|science[ -]fiction)\s+){0,4}(?:comedy|drama|thriller|horror|western|documentary|adventure|action)(?:[ -](?:comedy|drama|thriller))?\s+(?:about|following|centred on|centered on)\b/i.exec(lead);
+  return Boolean(genreLead && genreLead[1] === String(year) &&
+    aliases.some(title => normalize(lead.slice(0, genreLead.index)).endsWith(normalize(title))));
 }
 async function getAutomaticPage(movie, deadline) {
   const year = movieYear(movie), aliases = movieAliases(movie);
@@ -1076,6 +1082,8 @@ function compactAutomaticQuote(record) {
 }
 // This pass can return credit evidence only for quotes already in the Vault.
 // It never supplies new quote cards or changes a quote's verification flag.
+// This parser returns attribution evidence ONLY for existing Vault cards.
+// Speaker turns in Dialogue can corroborate a card but never create new cards.
 function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
   const targets = vault.filter(r => !r.actor || !r.character);
   if (!targets.length || !pageDescribesMovie(wikitext, pageTitle, movieAliases(movie), movieYear(movie))) return [];
@@ -1088,21 +1096,21 @@ function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
     let text = cleanText(current.lines.join(" "));
     if (/<br\b|\{\{|https?:\/\//i.test(text)) return;
     text = text.replace(/\[[^\[\]\n]{1,180}\]/g, " ").replace(/\s+/g, " ").trim();
-    if (!text || /[<>\[\]{}]/.test(text)) return;
-    const opening = text.split(/(?<=[.!?])\s+/)[0];
-    // A later rhetorical colon in a speech must not hide an independently
-    // labelled opening sentence. Never match another speaker in that opening.
-    if (/(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(opening)) return;
-    const whole = quoteKey(text), firstSentence = quoteKey(opening);
+    if (!text || /[<>\[\]{}]/.test(text) || /(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(text)) return;
+    const whole = quoteKey(text);
+    const sentences = (text.match(/[^.!?…]+[.!?…]+|[^.!?…]+$/g) || []).map(quoteKey);
     for (const target of targets) {
       const key = quoteKey(target.quote);
+      // Never fuzzy-match an excerpt or cross a speaker boundary.
       const exactTurn = key === whole;
-      const exactOpening = key.length >= 18 && key.split(" ").length >= 4 && key === firstSentence;
-      if (!exactTurn && !exactOpening) continue;
+      const exactSentence = key.length >= 8 && key.split(" ").length >= 2 && sentences.includes(key);
+      const substantialExcerpt = containedQuote(target.quote, text);
+      if (!exactTurn && !exactSentence && !substantialExcerpt) continue;
       evidence.push({ quote: target.quote, verified: false, evidence_only: true,
         ...(current.speaker ? { character: current.speaker.character, actor: current.speaker.actor } : {}),
         attribution_status: current.speaker ? "cast_matched" : "unavailable",
-        attribution_basis: "existing_quote_speaker_label", source_page: pageTitle,
+        attribution_basis: exactTurn ? "existing_quote_exact_turn" : exactSentence ? "existing_quote_exact_sentence" : "existing_quote_contained_excerpt",
+        source_page: pageTitle,
         source_url: "https://en.wikiquote.org/wiki/" + encodeURIComponent(pageTitle.replace(/ /g, "_")) });
     }
   }
@@ -1111,26 +1119,36 @@ function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
     if (heading) {
       finish(); const level = heading[1].length;
       while (sections.length && sections.at(-1).level >= level) sections.pop();
-      const parent = sections.at(-1), title = normalize(cleanText(heading[2]));
-      const dialogue = /^(?:dialogues?|dialogs?|conversations?)\b/.test(title);
+      const parent = sections.at(-1), title = cleanText(heading[2]);
+      const dialogue = /^(?:dialogues?|dialogs?|conversations?)\b/.test(normalize(title));
+      const named = resolve(title), generic = genericQuoteSection(title);
       sections.push({ level, dialogue: Boolean(dialogue || parent?.dialogue),
-        blocked: Boolean(parent?.blocked || !dialogue && rejectedSection(title)) });
+        blocked: Boolean(parent?.blocked || !dialogue && rejectedSection(title)),
+        speaker: named || (generic ? parent?.speaker : null),
+        allowed: Boolean(named || generic || dialogue || parent?.dialogue) });
       continue;
     }
     const section = sections.at(-1);
-    if (!section?.dialogue || section.blocked) continue;
+    if (!section?.allowed || section.blocked) continue;
     if (!line || /^\*\s*\*\s*\*|^----/.test(line)) { finish(); continue; }
+    if (/^;[^:]+:?$/.test(line)) {
+      finish(); section.definitionSpeaker = resolve(line.slice(1).replace(/:$/, "")); continue;
+    }
     const content = cleanText(line.replace(/^[*:;#]+\s*/, ""));
-    if (!content || /^\s*\[/.test(content)) { finish(); continue; }
     const label = speakerLabel(content);
     if (label) {
-      finish(); turn = { speaker: resolve(label[1]), lines: [label[2]], unsafe: false };
-      continue;
+      finish(); turn = { speaker: resolve(label[1]), lines: [label[2]], unsafe: false }; continue;
     }
-    if (!turn) continue;
-    // Unlabelled nested bullets are notes, not part of a speaker's turn.
-    if (/^[*#]/.test(line)) { finish(); continue; }
-    turn.lines.push(content);
+    if (section.dialogue) {
+      // A note or stage-direction block cannot become an unlabelled continuation.
+      if (!content || /^\[|^[*#]/.test(line) || /^\[/.test(content)) { finish(); continue; }
+      if (turn) turn.lines.push(content);
+    } else if (/^\*(?!\*)/.test(line)) {
+      finish(); turn = { speaker: section.definitionSpeaker || section.speaker, lines: [content], unsafe: false };
+    } else if (/^[*#:;]/.test(line)) {
+      // Nested notes are not spoken words; reject rather than guess.
+      if (turn) turn.unsafe = true;
+    } else if (turn) turn.lines.push(content);
   }
   finish(); return evidence;
 }
@@ -1245,7 +1263,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v7" };
+    selection_policy: "exact_movie_standalone_v8" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
