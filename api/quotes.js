@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 6 — concise overlap cleanup and shared attribution.
+// REELWISE QUOTES 7 — reviewed existing-quote credits and short sentence overlaps.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1134,6 +1134,43 @@ function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
   }
   finish(); return evidence;
 }
+// Reviewed credits apply only to existing Vault quotes for this exact movie.
+// They do not add quotes or promote their wording to verified status.
+const REVIEWED_EXISTING_CREDITS = {
+  "788": { title: "Mrs. Doubtfire", year: "1993", actor: "Robin Williams",
+    character: "Mrs. Doubtfire", quotes: [
+      "Help is on the way, dear!", "It was a run-by fruiting!",
+      "Carpe dentum. Seize the teeth."
+    ], sources: [
+      "https://en.wikiquote.org/wiki/Mrs._Doubtfire",
+      "https://parade.com/326802/ashleighschmitz/robin-williamss-25-best-quotes-from-tv-and-film/",
+      "https://www.broadwayworld.com/article/10-Moments-We-Hope-to-See-in-New-MRS-DOUBTFIRE-Musical-20191026"
+    ] }
+};
+function reviewedExistingCredits(movie, vault) {
+  const entry = REVIEWED_EXISTING_CREDITS[String(movie.id)];
+  if (!entry || movieYear(movie) !== entry.year || normalize(movie.title) !== normalize(entry.title)) return [];
+  const cast = (movie.credits?.cast || []).filter(r => normalize(r.name) === normalize(entry.actor) &&
+    /\b(?:hillard|doubtfire)\b/.test(normalize(r.character)));
+  if (cast.length !== 1) return [];
+  const keys = new Set(entry.quotes.map(quoteKey));
+  return vault.filter(r => keys.has(quoteKey(r.quote))).map(r => ({ quote: r.quote,
+    actor: entry.actor, character: entry.character, evidence_only: true,
+    attribution_status: "cast_matched", attribution_basis: "reviewed_existing_quote",
+    source_url: entry.sources[0], attribution_sources: entry.sources }));
+}
+function repeatedShortSentence(short, long) {
+  if (!short.curated || !short.actor || !long.actor || normalize(short.actor) !== normalize(long.actor)) return false;
+  const key = quoteKey(short.quote), words = key.split(" ").length;
+  if (words < 2 || key.length < 8 || key.length >= quoteKey(long.quote).length) return false;
+  // Preserve a short curated card only when its entire sentence recurs.
+  // Punctuation remains significant here; arbitrary embedded fragments do not match.
+  return (cleanText(long.quote).match(/[^.!?…]+[.!?…]+|[^.!?…]+$/g) || [])
+    .some(sentence => quoteKey(sentence) === key);
+}
+function overlappingCards(a, b) {
+  return duplicateQuote(a.quote, b.quote) || repeatedShortSentence(a, b) || repeatedShortSentence(b, a);
+}
 function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
   const results = vault.map(item => ({ ...item }));
   for (const existing of results) {
@@ -1156,16 +1193,17 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
     existing.attribution_status = "source_matched";
     existing.source_page = source.source_page; existing.source_url = source.source_url;
     if (source.attribution_basis) existing.attribution_basis = source.attribution_basis;
+    if (source.attribution_sources) existing.attribution_sources = source.attribution_sources;
   }
   // Credit transfer happens before redundant longer curated cards are removed.
   // Keep the original order of the surviving cards.
   const concise = results.filter((item, i) => !results.some((other, j) =>
     j !== i && (quoteKey(other.quote) === quoteKey(item.quote) ? j < i :
       quoteKey(other.quote).length < quoteKey(item.quote).length &&
-      containedQuote(other.quote, item.quote))));
+      overlappingCards(other, item))));
   results.splice(0, results.length, ...concise);
   for (const candidate of automatic.filter(compactAutomaticQuote)) {
-    const existing = results.find(item => duplicateQuote(item.quote, candidate.quote));
+    const existing = results.find(item => overlappingCards(item, candidate));
     if (existing) {
       continue;
     }
@@ -1192,6 +1230,7 @@ async function buildResponse(id) {
       lookupStatus = "source_unavailable"; sourceUnavailable = true;
     }
   }
+  creditEvidence.push(...reviewedExistingCredits(movie, vault));
   const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence), added = records.filter(r => r.automatic === true).length;
   if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
   const verifiedCount = records.filter(r => r.verified === true).length;
@@ -1206,7 +1245,7 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v6" };
+    selection_policy: "exact_movie_standalone_v7" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
