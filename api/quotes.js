@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 9 — identified source requests, bounded recovery and source caching.
+// REELWISE QUOTES 10 — consistent speaker evidence and source coverage diagnostics.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1055,8 +1055,15 @@ function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
     const key = quoteKey(text); if (!key) return;
     if (seen.has(key)) {
       const previous = seen.get(key);
-      if (previous.actor !== speaker?.actor || previous.character !== speaker?.character) {
-        delete previous.actor; delete previous.character; previous.attribution_status = "ambiguous";
+      // An unlabelled occurrence supplies no competing speaker evidence.
+      // Once two known speakers conflict, later duplicates cannot erase it.
+      if (previous.attribution_status !== "ambiguous" && speaker) {
+        if (previous.actor && (previous.actor !== speaker.actor || previous.character !== speaker.character)) {
+          delete previous.actor; delete previous.character; previous.attribution_status = "ambiguous";
+        } else if (!previous.actor) {
+          previous.actor = speaker.actor; previous.character = speaker.character;
+          previous.attribution_status = "cast_matched";
+        }
       }
       return;
     }
@@ -1248,11 +1255,15 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
       const source = quoteKey(r.quote);
       return source === key || containedQuote(existing.quote, r.quote);
     });
-    if (!matches.length || matches.some(r => !r.actor || !r.character || r.attribution_status === "ambiguous")) continue;
-    const owners = new Map(matches.map(r => [r.actor + "\u0000" + r.character, r]));
+    if (!matches.length || matches.some(r => r.attribution_status === "ambiguous")) continue;
+    const attributed = matches.filter(r => r.actor && r.character);
+    const owners = new Map(attributed.map(r => [normalize(r.actor) + "\u0000" + normalize(r.character), r]));
     if (owners.size !== 1) continue;
     const source = owners.values().next().value;
-    if (existing.actor && existing.actor !== source.actor || existing.character && existing.character !== source.character) continue;
+    // Partial known credits still veto a contradictory proposed owner.
+    if ([existing, ...matches].some(r =>
+      r.actor && normalize(r.actor) !== normalize(source.actor) ||
+      r.character && normalize(r.character) !== normalize(source.character))) continue;
     existing.actor ||= source.actor; existing.character ||= source.character;
     existing.attribution_status = "source_matched";
     existing.source_page = source.source_page; existing.source_url = source.source_url;
@@ -1310,7 +1321,18 @@ async function buildResponse(id) {
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
     lookup_status: lookupStatus, source_error: sourceError || null, source_status: sourceUnavailable ? "unavailable" : staleSource ? "stale_matched" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v9" };
+    coverage: {
+      vault_candidates: vault.length,
+      standalone_candidates: automatic.length,
+      compact_standalone_candidates: automatic.filter(compactAutomaticQuote).length,
+      credit_evidence_count: creditEvidence.length,
+      returned_quotes: records.length,
+      attributed_quotes: records.filter(r => r.actor && r.character).length,
+      shortfall_reason: records.length >= LIMIT ? null : sourceUnavailable ? "source_unavailable" :
+        !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
+        "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
+    },
+    selection_policy: "exact_movie_standalone_v10" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
