@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 8 — shared source identity and existing-quote attribution.
+// REELWISE QUOTES 9 — identified source requests, bounded recovery and source caching.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -789,14 +789,20 @@ function cleanText(value) {
     .replace(/\s+/g, " ").trim();
 }
 function quoteKey(value) { return normalize(value); }
-async function requestJSON(url, options, deadline) {
+async function requestJSON(url, options, deadline, timeoutMs = 4000) {
   const remaining = deadline - Date.now();
   if (remaining < 150) throw new Error("Quote lookup time limit reached.");
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), Math.min(4000, remaining));
+  const timer = setTimeout(() => controller.abort(), Math.min(timeoutMs, remaining));
   try {
     const response = await fetch(url, { ...options, signal: controller.signal });
-    if (!response.ok) throw new Error("Quote source request failed (" + response.status + ").");
+    if (!response.ok) {
+      const error = new Error("Quote source request failed (" + response.status + ").");
+      error.status = response.status;
+      const retry = response.headers.get("retry-after");
+      error.retryAfterMs = retry == null ? null : /^\d+$/.test(retry) ? Number(retry) * 1000 : Math.max(0, Date.parse(retry) - Date.now());
+      throw error;
+    }
     const data = await response.json();
     if (data.error) throw new Error(data.error.info || "Quote source returned an error.");
     return data;
@@ -914,11 +920,22 @@ function prepareVaultQuotes(movie, limit = LIMIT) {
   }
   return results;
 }
+const SOURCE_AGENT = "Reelwise/1.0 (https://reelwise-new.vercel.app)";
 async function wikiRequest(params, deadline) {
-  const search = new URLSearchParams({ origin: "*", format: "json", formatversion: "2", ...params });
-  return requestJSON("https://en.wikiquote.org/w/api.php?" + search, {
-    headers: { Accept: "application/json" }
-  }, deadline);
+  const search = new URLSearchParams({ format: "json", formatversion: "2", ...params });
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      return await requestJSON("https://en.wikiquote.org/w/api.php?" + search, {
+        headers: { Accept: "application/json", "User-Agent": SOURCE_AGENT, "Api-User-Agent": SOURCE_AGENT }
+      }, deadline, 2500);
+    } catch (error) {
+      // Do not retry access denials or missing resources. Respect Retry-After.
+      const transient = !error.status || [429, 502, 503, 504].includes(error.status);
+      const delay = error.retryAfterMs == null ? 200 : error.retryAfterMs;
+      if (attempt || !transient || !Number.isFinite(delay) || Date.now() + delay + 500 >= deadline) throw error;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
 }
 function movieAliases(movie) {
   const binding = matchingBinding(movie);
@@ -947,7 +964,7 @@ function pageDescribesMovie(wikitext, pageTitle, aliases, year) {
   return Boolean(genreLead && genreLead[1] === String(year) &&
     aliases.some(title => normalize(lead.slice(0, genreLead.index)).endsWith(normalize(title))));
 }
-async function getAutomaticPage(movie, deadline) {
+async function fetchAutomaticPage(movie, deadline) {
   const year = movieYear(movie), aliases = movieAliases(movie);
   const titles = [...new Set(aliases.flatMap(title => [title + " (" + year + " film)", title + " (film)", title]))];
   const checked = new Set();
@@ -969,6 +986,35 @@ async function getAutomaticPage(movie, deadline) {
   const exact = (data.query?.search || []).map(item => item.title)
     .filter(title => !checked.has(title) && pageNameMatches(title, aliases, year));
   return inspect(exact);
+}
+// Per-instance cache; cold starts still require a successful source request.
+const sourcePages = new Map(), sourceInFlight = new Map();
+async function getAutomaticPage(movie, deadline) {
+  const key = String(movie.id) + ":" + movieYear(movie) + ":" + normalize(movie.title);
+  const cached = sourcePages.get(key), age = cached ? Date.now() - cached.savedAt : Infinity;
+  if (age < 3600000) return cached.page;
+  if (sourceInFlight.has(key)) return sourceInFlight.get(key);
+  const pending = (async () => {
+    try {
+      const page = await fetchAutomaticPage(movie, deadline);
+      if (page) {
+        if (sourcePages.size >= 100) sourcePages.delete(sourcePages.keys().next().value);
+        sourcePages.set(key, { page, savedAt: Date.now() });
+      }
+      return page;
+    } catch (error) {
+      if (cached && age < 86400000) return { ...cached.page, stale: true, source_error: sourceFailureCode(error) };
+      throw error;
+    }
+  })();
+  sourceInFlight.set(key, pending);
+  try { return await pending; } finally { sourceInFlight.delete(key); }
+}
+function sourceFailureCode(error) {
+  if (error.status) return "http_" + error.status;
+  if (error.name === "AbortError") return "timeout";
+  if (/time limit/.test(error.message || "")) return "deadline";
+  return "request_failed";
 }
 function rejectedSection(value) {
   return /^(?:dialogues?|dialogs?|conversations?|cast|external links|see also|references|notes|about|quotes about|taglines?|trivia|production|soundtrack|songs?|lyrics|bibliography|footnotes|sources|plot|synopsis|reception|reviews|deleted scenes|outtakes)\b/i.test(normalize(value));
@@ -1232,20 +1278,21 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
 async function buildResponse(id) {
   const deadline = Date.now() + 9000;
   const movie = await getMovie(id, deadline), vault = prepareVaultQuotes(movie);
-  let automatic = [], creditEvidence = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false;
+  let automatic = [], creditEvidence = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false, sourceError = "", staleSource = false;
   const needsSource = vault.length < LIMIT || vault.some(r => !r.character || !r.actor);
   if (needsSource) {
     try {
       const page = await getAutomaticPage(movie, deadline);
       if (page) {
         pageTitle = page.pageTitle;
+        staleSource = Boolean(page.stale); sourceError = page.source_error || "";
         automatic = extractAutomaticQuotes(page.wikitext, movie, pageTitle, 80);
         creditEvidence = existingQuoteCredits(page.wikitext, movie, pageTitle, vault);
         lookupStatus = automatic.length ? "source_match" : "no_standalone_entries";
       }
     } catch (error) {
       console.error("Reelwise automatic quote source:", error.message);
-      lookupStatus = "source_unavailable"; sourceUnavailable = true;
+      lookupStatus = "source_unavailable"; sourceUnavailable = true; sourceError = sourceFailureCode(error);
     }
   }
   creditEvidence.push(...reviewedExistingCredits(movie, vault));
@@ -1262,8 +1309,8 @@ async function buildResponse(id) {
     quotes: records.map(r => r.quote), quoteDetails: records, source: sources.join(" + ") || "No Reelwise quotes available",
     wikiquotePage: pageTitle, curated: vault.length > 0, automatic: added > 0,
     verified: records.length > 0 && verifiedCount === records.length, verifiedCount, legacyCount,
-    lookup_status: lookupStatus, source_status: sourceUnavailable ? "unavailable" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
-    selection_policy: "exact_movie_standalone_v8" };
+    lookup_status: lookupStatus, source_error: sourceError || null, source_status: sourceUnavailable ? "unavailable" : staleSource ? "stale_matched" : pageTitle ? "matched" : needsSource ? "no_match" : "not_needed",
+    selection_policy: "exact_movie_standalone_v9" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
@@ -1274,7 +1321,7 @@ export default async function handler(req, res) {
     if (cached) responseCache.delete(id);
     const body = await buildResponse(id);
     // A source outage is not cached, so recovery can be immediate.
-    if (body.source_status !== "unavailable") {
+    if (!["unavailable", "stale_matched"].includes(body.source_status)) {
       if (responseCache.size >= 100) responseCache.delete(responseCache.keys().next().value);
       responseCache.set(id, { body, expires: Date.now() + (body.quotes.length ? 600000 : 60000) });
     }
