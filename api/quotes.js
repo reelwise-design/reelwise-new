@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 10 — consistent speaker evidence and source coverage diagnostics.
+// REELWISE QUOTES 11 — cast completion and multi-speaker reviewed credit evidence.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -897,6 +897,17 @@ function characterIndex(movie, wikitext = "") {
     return matches?.length === 1 ? matches[0] : null;
   };
 }
+function completeCastCredit(record, movie) {
+  if (!record.character || record.actor) return record;
+  const matched = characterIndex(movie)(record.character);
+  if (matched) {
+    record.actor = matched.actor;
+    record.character = matched.character;
+    record.attribution_status = "cast_matched";
+    record.attribution_basis = "existing_character_exact_cast";
+  }
+  return record;
+}
 function prepareVaultQuotes(movie, limit = LIMIT) {
   const binding = matchingBinding(movie);
   const explicit = Object.values(QUOTE_VAULT).filter(Array.isArray).flat().filter(item =>
@@ -916,7 +927,7 @@ function prepareVaultQuotes(movie, limit = LIMIT) {
     const record = { quote, verified: !legacy && item.verified === true, curated: true };
     if (legacy) record.legacy = true;
     for (const field of ["character", "actor"]) if (!legacy && cleanText(item[field])) record[field] = cleanText(item[field]);
-    results.push(record); if (results.length >= limit) break;
+    results.push(completeCastCredit(record, movie)); if (results.length >= limit) break;
   }
   return results;
 }
@@ -1218,17 +1229,36 @@ const REVIEWED_EXISTING_CREDITS = {
       "https://www.broadwayworld.com/article/10-Moments-We-Hope-to-See-in-New-MRS-DOUBTFIRE-Musical-20191026"
     ] }
 };
+// Multiple speakers per movie are represented as separate reviewed groups.
+// These credits preserve the existing wording; they do not certify it verbatim.
+const REVIEWED_CREDIT_GROUPS = {
+  "18785": { title: "The Hangover", year: "2009", groups: [
+    { actor: "Jeffrey Tambor", character: "Sid Garner", quotes: [
+      "What happens in Vegas stays in Vegas. Except herpes."
+    ], sources: ["https://en.wikiquote.org/wiki/The_Hangover"] },
+    { actor: "Zach Galifianakis", character: "Alan Garner", quotes: [
+      "I'm not supposed to be within two hundred feet of a school.",
+      "You guys might not know this, but I consider myself a bit of a loner."
+    ], sources: ["https://www.imdb.com/title/tt1119646/characters/nm0302108/",
+      "https://en.wikiquote.org/wiki/The_Hangover"] }
+  ] }
+};
 function reviewedExistingCredits(movie, vault) {
-  const entry = REVIEWED_EXISTING_CREDITS[String(movie.id)];
+  const entry = REVIEWED_CREDIT_GROUPS[String(movie.id)] || REVIEWED_EXISTING_CREDITS[String(movie.id)];
   if (!entry || movieYear(movie) !== entry.year || normalize(movie.title) !== normalize(entry.title)) return [];
-  const cast = (movie.credits?.cast || []).filter(r => normalize(r.name) === normalize(entry.actor) &&
-    /\b(?:hillard|doubtfire)\b/.test(normalize(r.character)));
-  if (cast.length !== 1) return [];
-  const keys = new Set(entry.quotes.map(quoteKey));
-  return vault.filter(r => keys.has(quoteKey(r.quote))).map(r => ({ quote: r.quote,
-    actor: entry.actor, character: entry.character, evidence_only: true,
-    attribution_status: "cast_matched", attribution_basis: "reviewed_existing_quote",
-    source_url: entry.sources[0], attribution_sources: entry.sources }));
+  const resolve = characterIndex(movie), evidence = [];
+  for (const group of entry.groups || [entry]) {
+    const matched = resolve(group.character);
+    if (!matched || normalize(matched.actor) !== normalize(group.actor)) continue;
+    const keys = new Set(group.quotes.map(quoteKey));
+    for (const record of vault.filter(r => keys.has(quoteKey(r.quote)))) {
+      evidence.push({ quote: record.quote, actor: group.actor, character: group.character,
+        evidence_only: true, attribution_status: "cast_matched",
+        attribution_basis: "reviewed_existing_quote", source_url: group.sources[0],
+        attribution_sources: group.sources });
+    }
+  }
+  return evidence;
 }
 function repeatedShortSentence(short, long) {
   if (!short.curated || !short.actor || !long.actor || normalize(short.actor) !== normalize(long.actor)) return false;
@@ -1332,7 +1362,7 @@ async function buildResponse(id) {
         !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
         "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
     },
-    selection_policy: "exact_movie_standalone_v10" };
+    selection_policy: "exact_movie_standalone_v11" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
