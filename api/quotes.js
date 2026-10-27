@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 12 — reconcile cast-backed role aliases before testing credit conflicts.
+// REELWISE QUOTES 13 — explicit speakers in mixed quote sections and reviewed wording variants.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1030,6 +1030,9 @@ function sourceFailureCode(error) {
 function rejectedSection(value) {
   return /^(?:dialogues?|dialogs?|conversations?|cast|external links|see also|references|notes|about|quotes about|taglines?|trivia|production|soundtrack|songs?|lyrics|bibliography|footnotes|sources|plot|synopsis|reception|reviews|deleted scenes|outtakes)\b/i.test(normalize(value));
 }
+function mixedQuoteSection(value) {
+  return /^(?:others|other characters)$/.test(normalize(value));
+}
 function genericQuoteSection(value) {
   return /^(?:quotes|quotations|memorable quotes|film quotes|movie quotes|character quotes)$/.test(normalize(value));
 }
@@ -1057,6 +1060,7 @@ function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
       if (named) { speaker = named; text = cleanText(label[2]); }
       else if (/^\s*(?:'''|\[\[)/.test(entry.lines[0]) || !speaker) return;
     }
+    if (entry.requireSpeaker && !speaker) return;
     // Detect all speaker changes BEFORE removing bracketed stage directions.
     if (/(?:^|\s)[A-Z][A-Za-z ."'’–-]{1,45}:\s/.test(text)) return;
     // Standalone character quotes may carry simple non-spoken stage directions.
@@ -1091,9 +1095,9 @@ function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
       finish(); const level = heading[1].length;
       while (sections.length && active().level >= level) sections.pop();
       const title = cleanText(heading[2]), named = resolve(title), parent = active();
-      const generic = genericQuoteSection(title);
-      sections.push({ level, rejected: Boolean(parent?.rejected || rejectedSection(title)),
-        allowed: Boolean(named || generic), speaker: named || (generic ? parent?.speaker : null) });
+      const generic = genericQuoteSection(title), mixed = mixedQuoteSection(title);
+      sections.push({ level, requireSpeaker: Boolean(mixed || parent?.requireSpeaker), rejected: Boolean(parent?.rejected || rejectedSection(title)),
+        allowed: Boolean(named || generic || mixed), speaker: named || (generic ? parent?.speaker : null) });
       continue;
     }
     // A definition-style character heading is allowed only within a quote section.
@@ -1105,7 +1109,7 @@ function extractAutomaticQuotes(wikitext, movie, pageTitle, limit = LIMIT) {
     if (/^\*(?!\*)/.test(line)) {
       finish(); const section = active();
       block = { lines: [line.replace(/^\*\s*/, "")], rejected: section?.rejected ?? true,
-        allowed: section?.allowed ?? false, speaker: section?.definitionSpeaker || section?.speaker, dialogue: false };
+        allowed: section?.allowed ?? false, requireSpeaker: section?.requireSpeaker ?? false, speaker: section?.definitionSpeaker || section?.speaker, dialogue: false };
       continue;
     }
     if (!block || !line) continue;
@@ -1185,11 +1189,11 @@ function existingQuoteCredits(wikitext, movie, pageTitle, vault) {
       while (sections.length && sections.at(-1).level >= level) sections.pop();
       const parent = sections.at(-1), title = cleanText(heading[2]);
       const dialogue = /^(?:dialogues?|dialogs?|conversations?)\b/.test(normalize(title));
-      const named = resolve(title), generic = genericQuoteSection(title);
+      const named = resolve(title), generic = genericQuoteSection(title), mixed = mixedQuoteSection(title);
       sections.push({ level, dialogue: Boolean(dialogue || parent?.dialogue),
         blocked: Boolean(parent?.blocked || !dialogue && rejectedSection(title)),
         speaker: named || (generic ? parent?.speaker : null),
-        allowed: Boolean(named || generic || dialogue || parent?.dialogue) });
+        allowed: Boolean(named || generic || mixed || dialogue || parent?.dialogue) });
       continue;
     }
     const section = sections.at(-1);
@@ -1232,6 +1236,15 @@ const REVIEWED_EXISTING_CREDITS = {
 // Multiple speakers per movie are represented as separate reviewed groups.
 // These credits preserve the existing wording; they do not certify it verbatim.
 const REVIEWED_CREDIT_GROUPS = {
+  "11635": { title: "Old School", year: "2003", groups: [
+    { actor: "Will Ferrell", character: "Frank Ricard", quotes: [
+      "You're my boy, Blue!", "I have a nice little Saturday planned."
+    ], sources: ["https://www.imdb.com/title/tt0302886/characters/nm0002071/",
+      "https://en.wikiquote.org/wiki/Old_School"] },
+    { actor: "Patrick Cranshaw", character: "Blue", quotes: [
+      "Just ring the bell, you pansy."
+    ], sources: ["https://en.wikiquote.org/wiki/Old_School"] }
+  ] },
   "18785": { title: "The Hangover", year: "2009", groups: [
     { actor: "Jeffrey Tambor", character: "Sid Garner", quotes: [
       "What happens in Vegas stays in Vegas. Except herpes."
@@ -1379,7 +1392,7 @@ async function buildResponse(id) {
         !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
         "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
     },
-    selection_policy: "exact_movie_standalone_v12" };
+    selection_policy: "exact_movie_standalone_v13" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
