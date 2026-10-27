@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 11 — cast completion and multi-speaker reviewed credit evidence.
+// REELWISE QUOTES 12 — reconcile cast-backed role aliases before testing credit conflicts.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1272,7 +1272,26 @@ function repeatedShortSentence(short, long) {
 function overlappingCards(a, b) {
   return duplicateQuote(a.quote, b.quote) || repeatedShortSentence(a, b) || repeatedShortSentence(b, a);
 }
-function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
+// Compare role identities through this movie's cast, rather than display labels.
+// An actor match alone never proves that two different roles are equivalent.
+function creditIdentity(record, resolve) {
+  if (!record.actor || !record.character) return null;
+  const cast = resolve?.(record.character);
+  if (cast && normalize(cast.actor) === normalize(record.actor)) {
+    return normalize(cast.actor) + "\u0000" + normalize(cast.character);
+  }
+  return normalize(record.actor) + "\u0000" + normalize(record.character);
+}
+function compatibleCredit(record, source, resolve) {
+  if (record.actor && normalize(record.actor) !== normalize(source.actor)) return false;
+  if (!record.character || normalize(record.character) === normalize(source.character)) return true;
+  const left = resolve?.(record.character), right = resolve?.(source.character);
+  return Boolean(left && right && normalize(left.actor) === normalize(source.actor) &&
+    normalize(right.actor) === normalize(source.actor) &&
+    normalize(left.character) === normalize(right.character));
+}
+function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = [], movie = null) {
+  const resolve = movie ? characterIndex(movie) : null;
   const results = vault.map(item => ({ ...item }));
   for (const existing of results) {
     if (existing.actor && existing.character) continue;
@@ -1287,13 +1306,11 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = []) {
     });
     if (!matches.length || matches.some(r => r.attribution_status === "ambiguous")) continue;
     const attributed = matches.filter(r => r.actor && r.character);
-    const owners = new Map(attributed.map(r => [normalize(r.actor) + "\u0000" + normalize(r.character), r]));
+    const owners = new Map(attributed.map(r => [creditIdentity(r, resolve), r]));
     if (owners.size !== 1) continue;
     const source = owners.values().next().value;
     // Partial known credits still veto a contradictory proposed owner.
-    if ([existing, ...matches].some(r =>
-      r.actor && normalize(r.actor) !== normalize(source.actor) ||
-      r.character && normalize(r.character) !== normalize(source.character))) continue;
+    if ([existing, ...matches].some(r => !compatibleCredit(r, source, resolve))) continue;
     existing.actor ||= source.actor; existing.character ||= source.character;
     existing.attribution_status = "source_matched";
     existing.source_page = source.source_page; existing.source_url = source.source_url;
@@ -1337,7 +1354,7 @@ async function buildResponse(id) {
     }
   }
   creditEvidence.push(...reviewedExistingCredits(movie, vault));
-  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence), added = records.filter(r => r.automatic === true).length;
+  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence, movie), added = records.filter(r => r.automatic === true).length;
   if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
   const verifiedCount = records.filter(r => r.verified === true).length;
   const legacyCount = records.filter(r => r.legacy === true).length;
@@ -1362,7 +1379,7 @@ async function buildResponse(id) {
         !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
         "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
     },
-    selection_policy: "exact_movie_standalone_v11" };
+    selection_policy: "exact_movie_standalone_v12" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
