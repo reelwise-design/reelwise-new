@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 13 — explicit speakers in mixed quote sections and reviewed wording variants.
+// REELWISE QUOTES 14 — normalize matching cast aliases even on already credited cards.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -894,17 +894,35 @@ function characterIndex(movie, wikitext = "") {
   return value => {
     const key = normalize(value), short = normalize(stripRoleTitles(cleanText(value)));
     const matches = fullNames.get(key) || aliases.get(key) || fullNames.get(short) || aliases.get(short);
-    return matches?.length === 1 ? matches[0] : null;
+    if (matches?.length !== 1) return null;
+    const matched = matches[0];
+    if (normalize(matched.character).split(" ").length === 1 && actors.get(normalize(matched.actor))?.length === 1) {
+      const fuller = [...sourceNames.values()].flat().filter(entry =>
+        normalize(entry.actor) === normalize(matched.actor) &&
+        normalize(entry.character).split(" ").length > 1);
+      const names = new Map(fuller.map(entry => [normalize(entry.character), entry]));
+      if (names.size === 1) return names.values().next().value;
+    }
+    return matched;
   };
 }
-function completeCastCredit(record, movie) {
-  if (!record.character || record.actor) return record;
-  const matched = characterIndex(movie)(record.character);
-  if (matched) {
+function completeCastCredit(record, movie, resolve = characterIndex(movie)) {
+  if (!record.character) return record;
+  const matched = resolve(record.character);
+  if (!matched || record.actor && normalize(record.actor) !== normalize(matched.actor)) return record;
+  const missingActor = !record.actor;
+  if (missingActor) {
     record.actor = matched.actor;
-    record.character = matched.character;
     record.attribution_status = "cast_matched";
     record.attribution_basis = "existing_character_exact_cast";
+  }
+  // Expand a uniquely resolved short name. Keep curated nicknames and
+  // combined-role display labels intact, and never select a role by actor alone.
+  const before = normalize(record.character).split(" ");
+  const after = normalize(matched.character).split(" ");
+  if (missingActor || before.length === 1 && after.length > 1 &&
+      !/[\/]/.test(matched.character) && after.includes(before[0])) {
+    record.character = matched.character;
   }
   return record;
 }
@@ -1236,6 +1254,11 @@ const REVIEWED_EXISTING_CREDITS = {
 // Multiple speakers per movie are represented as separate reviewed groups.
 // These credits preserve the existing wording; they do not certify it verbatim.
 const REVIEWED_CREDIT_GROUPS = {
+  "137": { title: "Groundhog Day", year: "1993", groups: [
+    { actor: "Bill Murray", character: "Phil Connors", quotes: [
+      "Don't drive angry!"
+    ], sources: ["https://www.imdb.com/title/tt0107048/quotes?item=qt0278179"] }
+  ] },
   "11635": { title: "Old School", year: "2003", groups: [
     { actor: "Will Ferrell", character: "Frank Ricard", quotes: [
       "You're my boy, Blue!", "I have a nice little Saturday planned."
@@ -1349,13 +1372,14 @@ function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = [], movie
 async function buildResponse(id) {
   const deadline = Date.now() + 9000;
   const movie = await getMovie(id, deadline), vault = prepareVaultQuotes(movie);
+  let sourceWikitext = "";
   let automatic = [], creditEvidence = [], pageTitle = "", lookupStatus = vault.length ? "vault_match" : "no_reliable_match", sourceUnavailable = false, sourceError = "", staleSource = false;
   const needsSource = vault.length < LIMIT || vault.some(r => !r.character || !r.actor);
   if (needsSource) {
     try {
       const page = await getAutomaticPage(movie, deadline);
       if (page) {
-        pageTitle = page.pageTitle;
+        pageTitle = page.pageTitle; sourceWikitext = page.wikitext;
         staleSource = Boolean(page.stale); sourceError = page.source_error || "";
         automatic = extractAutomaticQuotes(page.wikitext, movie, pageTitle, 80);
         creditEvidence = existingQuoteCredits(page.wikitext, movie, pageTitle, vault);
@@ -1367,7 +1391,10 @@ async function buildResponse(id) {
     }
   }
   creditEvidence.push(...reviewedExistingCredits(movie, vault));
-  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence, movie), added = records.filter(r => r.automatic === true).length;
+  const finalResolve = characterIndex(movie, sourceWikitext);
+  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence, movie)
+    .map(record => completeCastCredit(record, movie, finalResolve));
+  const added = records.filter(r => r.automatic === true).length;
   if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
   const verifiedCount = records.filter(r => r.verified === true).length;
   const legacyCount = records.filter(r => r.legacy === true).length;
@@ -1392,7 +1419,7 @@ async function buildResponse(id) {
         !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
         "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
     },
-    selection_policy: "exact_movie_standalone_v13" };
+    selection_policy: "exact_movie_standalone_v14" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
