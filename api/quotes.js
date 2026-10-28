@@ -1,6 +1,6 @@
 import QUOTE_VAULT from "../data/quotes.js";
 
-// REELWISE QUOTES 14 — normalize matching cast aliases even on already credited cards.
+// REELWISE QUOTES 15 — use reviewed role aliases consistently through the attribution pipeline.
 // Curated wording and verification flags are preserved; source matches fill remaining slots.
 // IDENTITY_BINDINGS is generated from the reviewed existing Vault catalogue.
 const IDENTITY_BINDINGS = {
@@ -1279,10 +1279,22 @@ const REVIEWED_CREDIT_GROUPS = {
       "https://en.wikiquote.org/wiki/The_Hangover"] }
   ] }
 };
-function reviewedExistingCredits(movie, vault) {
+function reviewedEntry(movie) {
   const entry = REVIEWED_CREDIT_GROUPS[String(movie.id)] || REVIEWED_EXISTING_CREDITS[String(movie.id)];
-  if (!entry || movieYear(movie) !== entry.year || normalize(movie.title) !== normalize(entry.title)) return [];
-  const resolve = characterIndex(movie), evidence = [];
+  return entry && movieYear(movie) === entry.year && normalize(movie.title) === normalize(entry.title) ? entry : null;
+}
+function reviewedCastAliases(movie) {
+  const entry = reviewedEntry(movie);
+  if (!entry) return "";
+  // Trusted reviewed names remain subject to characterIndex's exact actor,
+  // unique cast entry and overlapping role-name checks. Never match by actor alone.
+  return "\n== Cast ==\n" + (entry.groups || [entry])
+    .map(group => "* " + group.actor + " as " + group.character).join("\n");
+}
+function reviewedExistingCredits(movie, vault) {
+  const entry = reviewedEntry(movie);
+  if (!entry) return [];
+  const resolve = characterIndex(movie, reviewedCastAliases(movie)), evidence = [];
   for (const group of entry.groups || [entry]) {
     const matched = resolve(group.character);
     if (!matched || normalize(matched.actor) !== normalize(group.actor)) continue;
@@ -1326,8 +1338,8 @@ function compatibleCredit(record, source, resolve) {
     normalize(right.actor) === normalize(source.actor) &&
     normalize(left.character) === normalize(right.character));
 }
-function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = [], movie = null) {
-  const resolve = movie ? characterIndex(movie) : null;
+function mergeQuotes(vault, automatic, limit = LIMIT, creditEvidence = [], movie = null, castContext = "") {
+  const resolve = movie ? characterIndex(movie, castContext) : null;
   const results = vault.map(item => ({ ...item }));
   for (const existing of results) {
     if (existing.actor && existing.character) continue;
@@ -1391,8 +1403,9 @@ async function buildResponse(id) {
     }
   }
   creditEvidence.push(...reviewedExistingCredits(movie, vault));
-  const finalResolve = characterIndex(movie, sourceWikitext);
-  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence, movie)
+  const castContext = sourceWikitext + reviewedCastAliases(movie);
+  const finalResolve = characterIndex(movie, castContext);
+  const records = mergeQuotes(vault, automatic, LIMIT, creditEvidence, movie, castContext)
     .map(record => completeCastCredit(record, movie, finalResolve));
   const added = records.filter(r => r.automatic === true).length;
   if (vault.length) lookupStatus = added ? "vault_plus_source" : "vault_match";
@@ -1419,7 +1432,7 @@ async function buildResponse(id) {
         !pageTitle ? "no_matching_source" : automatic.filter(compactAutomaticQuote).length === 0 ?
         "no_eligible_standalone_quotes" : "eligible_quotes_exhausted"
     },
-    selection_policy: "exact_movie_standalone_v14" };
+    selection_policy: "exact_movie_standalone_v15" };
 }
 export default async function handler(req, res) {
   const rawId = req.query?.id, id = String(Array.isArray(rawId) ? rawId[0] || "" : rawId || "").trim();
